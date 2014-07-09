@@ -3,6 +3,7 @@ c
       use parallelism
       use projection_engine
       use communicators
+      use utils
 c
       implicit none
 c
@@ -60,7 +61,7 @@ c<-
       double precision ::dtime_i1,dtime_i2,dtime_i3,dtime_i4
 
       integer :: iter = 0, steps = 10
-      real (kind=8) :: t, Dt
+      real (kind=8) :: t = 0, Dt = 1.d-3
 
       idebug=0
       iprint=0
@@ -108,30 +109,9 @@ c
       KL=p; KU=p
 c PARALLEL - distributed
 c number of columns per processors
-      nrcppx = (n+1+1)/NRPROCX
-      if(MYRANKX.eq.NRPROCX-1)then
-        ibegx = nrcppx*(NRPROCX-1)+1
-        iendx = n+1
-      else
-        ibegx = nrcppx*(NRPROCX-2)+1
-        iendx = nrcppx*(NRPROCX-1)
-      endif
-      nrcppy = (n+1+1)/NRPROCY
-      if(MYRANKY.eq.NRPROCY-1)then
-        ibegy = nrcppy*(NRPROCY-1)+1
-        iendy = n+1
-      else
-        ibegy = nrcppy*(NRPROCY-2)+1
-        iendy = nrcppy*(NRPROCY-1)
-      endif
-      nrcppz = (n+1+1)/NRPROCZ
-      if(MYRANKZ.eq.NRPROCZ-1)then
-        ibegz = nrcppz*(NRPROCZ-1)+1
-        iendz = n+1
-      else
-        ibegz = nrcppz*(NRPROCZ-2)+1
-        iendz = nrcppz*(NRPROCZ-1)
-      endif
+      call ComputeEndpoints(MYRANKX,NRPROCX,n,nrcppx,ibegx,iendx)
+      call ComputeEndpoints(MYRANKY,NRPROCY,n,nrcppy,ibegy,iendy)
+      call ComputeEndpoints(MYRANKZ,NRPROCZ,n,nrcppz,ibegz,iendz)
 
       sx = iendx - ibegx + 1
       sy = iendy - ibegy + 1
@@ -145,35 +125,9 @@ c number of columns per processors
       endif
 c
 c ....prepare dimensions vectors
-      allocate(dimensionsX(NRPROCX))
-      allocate(shiftsX(NRPROCX))
-      shiftsX=0;dimensionsX=0
-      do i=1,NRPROCX-1
-        dimensionsX(i)=nrcppx*sy*sz
-        if(i.gt.1)shiftsX(i)=shiftsX(i-1)+dimensionsX(i-1)
-      enddo
-      dimensionsX(NRPROCX)=((n+1)-nrcppx*(NRPROCX-1))*sy*sz
-      shiftsX(NRPROCX)=shiftsX(NRPROCX-1)+dimensionsX(NRPROCX-1)
-
-      allocate(dimensionsY(NRPROCY))
-      allocate(shiftsY(NRPROCY))
-      shiftsY=0;dimensionsY=0
-      do i=1,NRPROCY-1
-        dimensionsY(i)=nrcppy*sx*sz
-        if(i.gt.1)shiftsY(i)=shiftsY(i-1)+dimensionsY(i-1)
-      enddo
-      dimensionsY(NRPROCY)=((n+1)-nrcppy*(NRPROCY-1))*sx*sz
-      shiftsY(NRPROCY)=shiftsY(NRPROCY-1)+dimensionsY(NRPROCY-1)
-
-      allocate(dimensionsZ(NRPROCZ))
-      allocate(shiftsZ(NRPROCZ))
-      shiftsZ=0;dimensionsZ=0
-      do i=1,NRPROCZ-1
-        dimensionsZ(i)=nrcppy*sx*sy
-        if(i.gt.1)shiftsZ(i)=shiftsZ(i-1)+dimensionsZ(i-1)
-      enddo
-      dimensionsZ(NRPROCZ)=((n+1)-nrcppz*(NRPROCZ-1))*sx*sy
-      shiftsZ(NRPROCZ)=shiftsZ(NRPROCZ-1)+dimensionsZ(NRPROCZ-1)
+      call FillDimVector(dimensionsX,shiftsX,nrcppx,sy*sz,n,NRPROCX)
+      call FillDimVector(dimensionsY,shiftsY,nrcppy,sx*sz,n,NRPROCY)
+      call FillDimVector(dimensionsZ,shiftsZ,nrcppz,sx*sy,n,NRPROCZ)
 
 c  ...check
       if(idebug.eq.1)then
@@ -278,6 +232,7 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       do iter = 1,steps
 
       write(*,*)'Iteration',iter,'/',steps
+      write(*,*)'t = ',t
 c
 c  ...generate the 1D matrix
 c
@@ -670,7 +625,6 @@ c       INTEGER            IPIV( * )
 c       DOUBLE PRECISION   AB( LDAB, * ), B( LDB, * )
 
       if(MYRANKY.eq.0)then
-        !if(.not.allocated(IPIV))allocate(IPIV(n+1))
         IPIV=0
 c
         if(iinfo.eq.1)write(*,*)PRINTRANK,'2b) SOLVE THE SECOND PROBLEM'
@@ -1008,34 +962,36 @@ c
 c
       call mpi_barrier(MPI_COMM_WORLD,ierr)
 
+      t = t + Dt
+
+c End of iterations
       enddo
+
       deallocate(shiftsX)
       deallocate(shiftsY)
       deallocate(shiftsZ)
       deallocate(dimensionsX)
       deallocate(dimensionsY)
       deallocate(dimensionsZ)
-c
+
       if(allocated(IPIV))deallocate(IPIV)
       deallocate(U)
       deallocate(M)
       deallocate(F)
-c-> DEBUG
+
       if(idebug.eq.1)then
         deallocate(MFULL)
         deallocate(FFULL)
       endif
-c<- DEBUG
-c
 
       call mpi_finalize(ierr)
       if(iinfo.eq.1)write(*,*)PRINTRANK,"Exiting..."
-c
+
       if(MYRANK.eq.0)then
       call stop_clock(dtime,iclock)
       write(*,*)dtime
       endif
-c
+
       end
 
 

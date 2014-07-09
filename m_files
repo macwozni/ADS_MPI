@@ -5,6 +5,7 @@ SOURCES = \
           basis.F \
           gauss.F \
           projection_engine.F \
+          utils.F \
           main.F \
           pause.F \
           create_communicators.F \
