@@ -1,0 +1,41 @@
+
+SOURCES = \
+          parallelism.F \
+          communicators.F \
+          basis.F \
+          gauss.F \
+          projection_engine.F \
+          main.F \
+          pause.F \
+          create_communicators.F \
+          int2str.F \
+          keep_time.F
+
+SOURCES_LAPACK = lapack/dgbsv.F \
+          lapack/dgbtf2.F \
+          lapack/dgbtrf.F \
+          lapack/dgbtrs.F \
+          lapack/dlaswp.F \
+          lapack/ieeeck.F \
+          lapack/ilaenv.F \
+          lapack/iparmq.F \
+          lapack/lsame.F \
+          lapack/xerbla.F
+
+SOURCES_BLAS = blas/dcopy.F \
+          blas/dgemm.F \
+          blas/dger.F \
+          blas/dswap.F \
+          blas/dtbsv.F \
+          blas/dtrsm.F \
+          blas/idamax.F \
+          blas/dscal.F \
+          blas/dgemv.F \
+          blas/dtrmm.F
+
+SOURCES += $(SOURCES_LAPACK)
+SOURCES += $(SOURCES_BLAS)
+
+FFLAGS = -traceback -check all
+
+SOURCE_ALL = $(SOURCES)

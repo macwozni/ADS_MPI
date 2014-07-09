@@ -1,0 +1,156 @@
+      subroutine create_communicators
+
+      use communicators
+      use parallelism
+
+      implicit none
+
+      include "mpif.h"
+
+      integer :: group_comm_world
+      integer :: iprint
+      integer :: i1,i2,i3
+      integer :: i,j,k
+      integer :: irank
+      integer :: ierr
+      integer :: comm_myrank_local
+
+      iprint=0
+      if(iprint==1)then
+        write(*,*)MYRANK,'NRPROC',NRPROC
+      endif
+      call mpi_comm_group(MPI_COMM_WORLD,group_comm_world,i1)
+      if ((i1)/=0) then
+        write(*,*)MYRANK,':',
+     .  'main: error calling mpi_comm_group!'
+        call abort
+      endif
+      if(iprint.eq.1)then
+        write(*,*)MYRANK,'got group',group_comm_world
+      endif
+      call mpi_barrier(MPI_COMM_WORLD,ierr)
+c  ...create processors XY
+      do i=1,NRPROCX
+        do j=1,NRPROCY
+          irank = (i-1)+(j-1)*NRPROCY
+          processorsXY(i,j)=irank
+        enddo
+      enddo
+c  ...create processors YZ
+      do j=1,NRPROCY
+        do k=1,NRPROCZ
+          irank = (j-1)+(k-1)*NRPROCZ
+          processorsYZ(j,k)=irank
+        enddo
+      enddo
+c  ...create processors XZ
+      do i=1,NRPROCX
+        do k=1,NRPROCZ
+          irank = (i-1)+(k-1)*NRPROCZ
+          processorsXZ(i,k)=irank
+        enddo
+      enddo
+
+c  ...create groups XY
+      if(iprint.eq.1)then
+        write(*,*)PRINTRANK,'call mpi_group_incl',
+     .  group_comm_world,NRPROCX*NRPROCY,
+     .  processorsXY,GROUPXY
+      endif
+      call mpi_group_incl(group_comm_world,NRPROCX*NRPROCY,
+     .  processorsXY,GROUPXY,i2)
+      if ((i2)/=0) then
+         write(*,*)MYRANK,':',
+     .     'main: error calling mpi_group_incl for XY'
+         call abort
+      endif
+      if(iprint.eq.1)then
+        write(*,*)PRINTRANK,'returned',GROUPXY,i2
+      endif
+c  ...create groups along YZ
+      if(iprint.eq.1)then
+        write(*,*)PRINTRANK,'call mpi_group_incl',
+     .  group_comm_world,NRPROCY*NRPROCZ,
+     .  processorsYZ,GROUPYZ
+      endif
+      call mpi_group_incl(group_comm_world,NRPROCY*NRPROCZ,
+     .  processorsYZ,GROUPYZ,i2)
+      if ((i2)/=0) then
+         write(*,*)MYRANK,':',
+     .     'main: error calling mpi_group_incl for YZ'
+         call abort
+      endif
+      if(iprint.eq.1)then
+        write(*,*)PRINTRANK,'returned',GROUPYZ,i2
+      endif
+c  ...create groups along XZ
+      if(iprint.eq.1)then
+        write(*,*)PRINTRANK,'call mpi_group_incl',
+     .  group_comm_world,NRPROCX*NRPROCZ,
+     .  processorsXZ,GROUPXZ
+      endif
+      call mpi_group_incl(group_comm_world,NRPROCX*NRPROCZ,
+     .  processorsXZ,GROUPXZ,i2)
+      if ((i2)/=0) then
+         write(*,*)MYRANK,':',
+     .     'main: error calling mpi_group_incl for XZ'
+         call abort
+      endif
+      if(iprint.eq.1)then
+        write(*,*)PRINTRANK,'returned',GROUPXZ,i2
+      endif
+      call mpi_barrier(MPI_COMM_WORLD,ierr)
+c  ...create the new communicator XY
+      if(iprint.eq.1)then
+        write(*,*)PRINTRANK,'call mpi_comm_create',
+     .  MPI_COMM_WORLD,GROUPXY
+      endif
+      call mpi_comm_create(MPI_COMM_WORLD,GROUPXY,
+     .   comm_myrank_local,i3)
+      COMMXY=comm_myrank_local
+      if ((i3)/=0) then
+        write(*,*)MYRANK,':',
+     .      'main: error calling mpi_com_create for XY'
+        call abort
+      endif
+      if(iprint.eq.1)then  
+        write(*,*)PRINTRANK,'comm_create returned',comm_myrank_local,i3
+      endif
+c  ...create the new communicator along YZ
+      if(iprint.eq.1)then
+        write(*,*)PRINTRANK,'call mpi_comm_create',
+     .  MPI_COMM_WORLD,GROUPYZ
+      endif
+      call mpi_comm_create(MPI_COMM_WORLD,GROUPYZ,
+     .   comm_myrank_local,i3)
+      COMMYZ=comm_myrank_local
+      if ((i3)/=0) then
+        write(*,*)MYRANK,':',
+     .      'main: error calling mpi_com_create for YZ'
+        call abort
+      endif
+      if(iprint.eq.1)then
+        write(*,*)PRINTRANK,'comm_create returned',comm_myrank_local,i3
+      endif
+c  ...create the new communicator along XZ
+      if(iprint.eq.1)then
+        write(*,*)PRINTRANK,'call mpi_comm_create',
+     .  MPI_COMM_WORLD,GROUPXZ
+      endif
+      call mpi_comm_create(MPI_COMM_WORLD,GROUPXZ,
+     .   comm_myrank_local,i3)
+      COMMXZ=comm_myrank_local
+      if ((i3)/=0) then
+        write(*,*)MYRANK,':',
+     .      'main: error calling mpi_com_create for XZ'
+        call abort
+      endif
+      if(iprint.eq.1)then
+        write(*,*)PRINTRANK,'comm_create returned',comm_myrank_local,i3
+      endif
+      if(iprint.eq.1)then
+        write(*,*)PRINTRANK,
+     .    'COMMXY',COMMXY,'COMMXZ',COMMXZ,'COMMYZ',COMMYZ
+      endif
+      call mpi_barrier(MPI_COMM_WORLD,ierr)
+      end

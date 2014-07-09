@@ -1,0 +1,389 @@
+
+# this file is included in the makefile
+
+#  These may/should be modified to fit available compiler
+#  and computer configuration
+
+# comment this out to see actual compiler lines with all options
+.SILENT:
+
+###########################################################
+# optimization flag (1=release # debug)
+OPT             = 0
+
+###########################################################
+#select computer by looking into linux variable HOSTNAME
+COMPUTER        =  ATARI
+ifeq ($(HOSTNAME),nozomi.ices.utexas.edu)	
+COMPUTER        =  NOZOMI
+endif
+ifeq ($(HOSTNAME),citlali)
+COMPUTER        =  CITLALI
+endif
+ifeq ($(HOSTNAME),longhorn.tacc.utexas.edu)
+COMPUTER        =  LONGHORN
+endif
+ifeq ($(HOSTNAME),lslogin2)
+COMPUTER        =  LONESTAR
+endif
+ifeq ($(HOSTNAME),typhoon.ices.utexas.edu)
+COMPUTER        =  TYPHOON
+endif
+ifeq ($(HOSTNAME),atari)
+COMPUTER        =  ATARI
+endif
+
+###########################################################
+#according to computer, select compiler
+COMPILER        =  IFORT
+ifeq ($(COMPUTER),LONGHORN)
+COMPILER        =  XLF90
+endif
+ifeq ($(COMPUTER),LONESTAR)
+COMPILER        =  MPICH90
+endif
+ifeq ($(COMPUTER),ATARI)
+COMPILER        = IFORT
+endif
+
+###########################################################
+#select directories
+ifeq ($(COMPUTER),LAPTOP_PARDO)
+  DIR_MUMPS     = ../LIBRARIES/MUMPS_4.7.3
+  DIR_METIS     = ../LIBRARIES/metis-4.0
+endif
+
+ifeq ($(COMPUTER),TYPHOON)
+  DIR_MUMPS     = ../LIBRARIES/MUMPS_4.7.3
+  DIR_METIS     = ../LIBRARIES/metis-4.0
+  BLACS_DIR     = ../LIBRARIES/BLACS
+endif
+
+ifeq ($(COMPUTER),LAPTOP_MACIEK)
+  DIR_MUMPS     = /home/maciek/LIBRARIES/MUMPS_4.7.3
+  DIR_METIS     = /home/maciek/LIBRARIES/metis-4.0
+  ifeq ($(PARALLEL),1)
+    ZOLTAN_DIR    = /home/maciek/zoltan
+  endif
+endif
+
+ifeq ($(COMPUTER),NOZOMI)
+  DIR_MUMPS     = /ices/pardo/LIBRARIES/MUMPS_4.6.2
+  DIR_METIS     = /ices/pardo/LIBRARIES/metis-4.0
+endif
+
+ifeq ($(COMPUTER),CITLALI)
+  DIR_MUMPS     = /home/dpardo/libraries/MUMPS_4.6.2_SEQ
+  DIR_METIS     = /home/dpardo/libraries/ParMETIS
+endif
+
+ifeq ($(COMPUTER),LONESTAR)
+  DIR_MUMPS     = ../LIBRARIES/MUMPS_4.7.3
+  DIR_METIS     = ../LIBRARIES/metis-4.0
+endif
+
+ifeq ($(COMPUTER),ATARI)
+  DIR_MUMPS     = ../LIBRARIES/MUMPS_4.7.3
+  DIR_METIS     = ../LIBRARIES/metis-4.0
+  ifeq ($(PARALLEL),1)
+    ZOLTAN_DIR    = /usr/local/lib/zoltan
+  endif
+endif
+
+###########################################################
+#     options for compiler MPICH90
+###########################################################
+
+ifeq ($(COMPILER),MPICH90)
+# libraries LONESTAR
+  ifeq ($(COMPUTER),LONESTAR)
+#there is a need to module add pmetis* and scalapack*
+    X_LIB         = -L/usr/X11R6/lib -lX11 /lib64/libpthread.so.0
+    LAPACK_LIB    = -L$(TACC_MKL_LIB) -lmkl_lapack -lmkl_em64t -lmkl
+    BLAS_LIB      =
+    MUMPS_LIB1    = $(DIR_MUMPS)/lib/libzmumpsLONESTAR_SEQ.a $(DIR_MUMPS)/lib/libdmumpsLONESTAR_SEQ.a
+    MUMPS_LIB2    = $(DIR_MUMPS)/libseq/libmpiseqLONESTAR_SEQ.a
+    MUMPS_LIB3    = $(DIR_MUMPS)/lib/libpordLONESTAR_SEQ.a
+    METIS_LIB     = -L$(TACC_METIS_LIB) -I$(TACC_METIS_INC) -lmetis
+    ifeq ($(PARALLEL),1)
+      X_LIB_PAR      = -L/usr/X11R6/lib64 -lX11 /lib64/libpthread.so.0
+      MUMPS_LIB1_PAR = $(DIR_MUMPS)/lib/libzmumpsLONESTAR_PAR.a $(DIR_MUMPS)/lib/libdmumpsLONESTAR_PAR.a
+#      MPI_LIB_PAR    = -L$(MPICH_HOME)/lib -lmpich
+      METIS_LIB_PAR   = -L$(TACC_METIS_BIN) -I$(TACC_METIS_INC) -lmetis
+      SCALAP_LIB_PAR = $(TACC_SCALAPACK_LIB)libscalapack.a \
+                  $(TACC_SCALAPACK_LIB)blacs_MPI-LINUX-0.a \
+                  $(TACC_SCALAPACK_LIB)blacsF77init_MPI-LINUX-0.a \
+                  $(TACC_SCALAPACK_LIB)blacs_MPI-LINUX-0.a \
+                  $(TACC_SCALAPACK_LIB)blacsF77init_MPI-LINUX-0.a
+      LAPACK_LIB_PAR   =  -L$(TACC_MKL_LIB)  -lguide -lmkl_lapack -lmkl
+
+      MUMPS_LIB      = $(MUMPS_LIB1_PAR) $(MPI_LIB_PAR) $(MUMPS_LIB3) $(METIS_LIB_PAR)
+      USER_LIB       = $(X_LIB_PAR) $(LAPACK_LIB_PAR) \
+                  $(MUMPS_LIB) \
+                  $(SCALAP_LIB_PAR) $(MPI_LIB_PAR) $(BLAS_LIB) \
+                  $(ZOLTAN_LIB_PAR)
+    else
+      MUMPS_LIB      = $(MUMPS_LIB1) $(MUMPS_LIB2) $(MUMPS_LIB3) $(METIS_LIB)
+      USER_LIB       = $(MUMPS_LIB) $(LAPACK_LIB) $(BLAS_LIB) $(X_LIB)
+    endif
+  endif
+endif
+
+###########################################################
+#     options for compiler IFORT
+###########################################################
+
+ifeq ($(COMPILER),IFORT)
+  FF		=  ifort -I$(MPICH_HOME)/include
+  DBG_FLAGS	=  -g -traceback -check format -check output_conversion -check all
+# -e90 APPLY FORTRAN 90 STANDARDS. -pg for profiling
+  OPT_FLAGS       =  -O3 -pg
+
+
+# libraries LAPTOP_PARDO
+  ifeq ($(COMPUTER),LAPTOP_PARDO)
+    X_LIB          = /usr/lib/libX11.so
+    LAPACK_LIB    = $(MKL_DIR)/libmkl_lapack.a $(MKL_DIR)/libmkl_p4.so
+    BLAS_LIB      =
+    MUMPS_LIB1    = $(DIR_MUMPS)/lib/libzmumpsLAPTOP_SEQ.a $(DIR_MUMPS)/lib/libdmumpsLAPTOP_SEQ.a
+    MUMPS_LIB2    = $(DIR_MUMPS)/libseq/libmpiseqLAPTOP_SEQ.a
+    MUMPS_LIB3    = $(DIR_MUMPS)/lib/libpordLAPTOP_SEQ.a
+    METIS_LIB	  = $(DIR_METIS)/libmetisLAPTOP_SEQ.a
+  endif
+
+
+#libraries ATARI
+  ifeq ($(COMPUTER),ATARI)
+    X_LIB          = /lib64/libpthread.so.0
+#    LAPACK_LIB    = ../LIBRARIES/LAPACK95/lapack95.a
+    LAPACK_LIB    = ../HEAD_REFINED/LAPACK/lapack-3.2.2/lapack_LINUX.a
+    BLAS_LIB      = ../LIBRARIES/BLAS/blas_LINUX.a
+    MUMPS_LIB1    = $(DIR_MUMPS)/lib/libzmumpsAMIGA_SEQ.a $(DIR_MUMPS)/lib/libdmumpsAMIGA_SEQ.a
+    MUMPS_LIB2    = $(DIR_MUMPS)/libseq/libmpiseqAMIGA_SEQ.a
+    MUMPS_LIB3    = $(DIR_MUMPS)/lib/libpordAMIGA_SEQ.a
+    METIS_LIB     = $(DIR_METIS)/libmetis.a
+
+    ifeq ($(PARALLEL),1)
+      X_LIB_PAR     =  /lib64/libpthread.so.0
+      MUMPS_LIB1_PAR  = $(DIR_MUMPS)/lib/libzmumpsAMIGA_PAR.a $(DIR_MUMPS)/lib/libdmumpsAMIGA_PAR.a
+      MPI_LIB_PAR   = /opt/mpich2/lib/libmpich.a
+      SCALAP_LIB_PAR  = /home/prac/paszynsk/HP3D/LIBRARIES/scalapack-1.8.0/libscalapack.a \
+                  /home/prac/paszynsk/HP3D/LIBRARIES/BLACS/LIB/blacs.a \
+                  /home/prac/paszynsk/HP3D/LIBRARIES/BLACS/LIB/blacsF77.a \
+                  /home/prac/paszynsk/HP3D/LIBRARIES/BLACS/LIB/blacs.a \
+                  /home/prac/paszynsk/HP3D/LIBRARIES/BLACS/LIB/blacsF77.a
+      ZOLTAN_LIB_PAR    = $(ZOLTAN_DIR)/libzoltan.a
+      MUMPS_LIB     =  $(MUMPS_LIB1_PAR) $(MPI_LIB_PAR) $(MUMPS_LIB3) $(METIS_LIB)
+#      USER_LIB      = $(X_LIB_PAR) $(LAPACK_LIB) \
+#                  $(MUMPS_LIB) \
+#                  $(SCALAP_LIB_PAR) $(MPI_LIB_PAR) $(BLAS_LIB) \
+#                  $(ZOLTAN_LIB_PAR)
+      USER_LIB      = $(X_LIB_PAR) $(LAPACK_LIB) \
+                  $(SCALAP_LIB_PAR) $(MPI_LIB_PAR) $(BLAS_LIB) $(LAPACK_LIB)
+    else
+      MUMPS_LIB     =  $(MUMPS_LIB1) $(MUMPS_LIB2) $(MUMPS_LIB3) $(METIS_LIB)
+      USER_LIB      = $(MUMPS_LIB) $(LAPACK_LIB) $(BLAS_LIB) $(X_LIB)
+    endif
+  endif
+
+
+# libraries LAPTOP_MACIEK
+  ifeq ($(COMPUTER),LAPTOP_MACIEK)
+    X_LIB          = -L/usr/X11R6/lib -lX11 /lib/libpthread.so.0
+    LAPACK_LIB    = /home/maciek/LAPACK/lapack_LINUX.a
+    BLAS_LIB      = /home/maciek/LAPACK/blas_LINUX.a
+    MUMPS_LIB1    = $(DIR_MUMPS)/lib/libzmumpsLAPTOP_SEQ.a $(DIR_MUMPS)/lib/libdmumpsLAPTOP_SEQ.a
+    MUMPS_LIB2    = $(DIR_MUMPS)/libseq/libmpiseqLAPTOP_SEQ.a
+    MUMPS_LIB3    = $(DIR_MUMPS)/lib/libpordLAPTOP_SEQ.a
+    METIS_LIB	  = $(DIR_METIS)/libmetis.a
+
+    ifeq ($(PARALLEL),1)
+      X_LIB_PAR     = -L/usr/X11R6/lib -lX11 /lib/libpthread.so.0
+      MUMPS_LIB1_PAR  = $(DIR_MUMPS)/lib/libzmumpsLAPTOP_PAR.a $(DIR_MUMPS)/lib/libdmumpsLAPTOP_PAR.a
+      MPI_LIB_PAR   = -L/home/maciek/mpich2-1.0/lib -lmpich
+      SCALAP_LIB_PAR  = /home/maciek/SCALAPACK/libscalapack.a \
+                  /home/maciek/BLACS/LIB/blacs_MPI-LINUX-1.a \
+                  /home/maciek/BLACS/LIB/blacsF77init_MPI-LINUX-1.a \
+                  /home/maciek/BLACS/LIB/blacs_MPI-LINUX-1.a \
+                  /home/maciek/BLACS/LIB/blacsF77init_MPI-LINUX-1.a
+      ZOLTAN_LIB_PAR    = -L$(ZOLTAN_DIR)/Zoltan/Obj_linux_maciek -lzoltan
+      MUMPS_LIB     =  $(MUMPS_LIB1_PAR) $(MPI_LIB_PAR) $(MUMPS_LIB3) $(METIS_LIB)
+      USER_LIB      = $(X_LIB_PAR) $(LAPACK_LIB) \
+                  $(MUMPS_LIB) \
+                  $(SCALAP_LIB_PAR) $(MPI_LIB_PAR) $(BLAS_LIB) \
+                  $(ZOLTAN_LIB_PAR)
+    else
+      MUMPS_LIB     =  $(MUMPS_LIB1) $(MUMPS_LIB2) $(MUMPS_LIB3) $(METIS_LIB)
+      USER_LIB      = $(MUMPS_LIB) $(LAPACK_LIB) $(BLAS_LIB) $(X_LIB)
+    endif
+  endif
+
+
+
+
+#libraries NOZOMI
+  ifeq ($(COMPUTER),NOZOMI)
+    X_LIB         =  /usr/lib64/libX11.so
+    LAPACK_LIB    = /usr/lib64/liblapack.so
+    BLAS_LIB      = /usr/lib64/libblas.a /usr/lib64/libg2c.so.0 /usr/lib64/libpthread.so
+    MUMPS_LIB1    = $(DIR_MUMPS)/lib/libzmumps.a $(DIR_MUMPS)/lib/libdmumps.a
+    MUMPS_LIB2    = $(DIR_MUMPS)/libseq/libmpiseq.a
+    MUMPS_LIB3    = $(DIR_MUMPS)/lib/libpord.a
+    METIS_LIB	= $(DIR_METIS)/libmetis.a
+
+  MUMPS_LIB     =  $(MUMPS_LIB1) $(MUMPS_LIB2) $(MUMPS_LIB3) $(METIS_LIB)
+  USER_LIB      = $(MUMPS_LIB) $(LAPACK_LIB) $(BLAS_LIB) $(X_LIB)
+
+  endif
+
+ ifeq ($(COMPUTER),TYPHOON)
+    X_LIB         =  /usr/lib64/libX11.so
+    LAPACK_LIB    = /usr/lib64/liblapack.so
+    BLAS_LIB      = /usr/lib64/libblas.a /usr/lib64/libg2c.so.0 /usr/lib64/libpthread.so
+    MUMPS_LIB1    = $(DIR_MUMPS)/lib/libzmumps.a $(DIR_MUMPS)/lib/libdmumps.a
+    MUMPS_LIB2    = $(DIR_MUMPS)/libseq/libmpiseq.a
+    MUMPS_LIB3    = $(DIR_MUMPS)/lib/libpordTYPHOON_PAR.a
+    METIS_LIB   = $(DIR_METIS)/libmetis.a
+
+   ifeq ($(PARALLEL),1)
+      X_LIB_PAR     = -L/usr/X11R6/lib -lX11 /lib64/libpthread.so.0
+      MUMPS_LIB1_PAR  = $(DIR_MUMPS)/lib/libzmumpsTYPHOON_PAR.a $(DIR_MUMPS)/lib/libdmumpsTYPHOON_PAR.a
+      MPI_LIB_PAR   = -L$(ICES_MPI_LIB) -lmpich
+      SCALAP_LIB_PAR  = /usr/lib64/libscalapack.a \
+                        $(BLACS_DIR)/LIB/blacs_MPI-TYPHOON-1.a \
+                        $(BLACS_DIR)/LIB/blacsF77init_MPI-TYPHOON-1.a \
+                        $(BLACS_DIR)/LIB/blacs_MPI-TYPHOON-1.a \
+                        $(BLACS_DIR)/LIB/blacsF77init_MPI-TYPHOON-1.a 
+#                        $(BLACS_DIR)/LIB/blacsCinit_MPI-TYPHOON-1.a \
+#      ZOLTAN_LIB_PAR    = -L$(ZOLTAN_DIR)/Zoltan/Obj_linux_maciek -lzoltan
+      MUMPS_LIB     =  $(MUMPS_LIB1_PAR) $(MPI_LIB_PAR) $(MUMPS_LIB3) $(METIS_LIB)
+      USER_LIB      = $(X_LIB_PAR) $(LAPACK_LIB) \
+                  $(MUMPS_LIB) \
+                  $(SCALAP_LIB_PAR) $(MPI_LIB_PAR) $(BLAS_LIB) \
+                  $(ZOLTAN_LIB_PAR)
+    else
+      MUMPS_LIB     =  $(MUMPS_LIB1) $(MUMPS_LIB2) $(MUMPS_LIB3) $(METIS_LIB)
+      USER_LIB      = $(MUMPS_LIB) $(LAPACK_LIB) $(BLAS_LIB) $(X_LIB)
+    endif
+
+  endif
+
+
+  ifeq ($(COMPUTER),CITLALI)
+    X_LIB         =  /usr/X11R6/lib/libX11.a
+    LAPACK_LIB    = /usr/lib/liblapack.a
+    BLAS_LIB      = /usr/lib/libblas.a /usr/lib/libg2c.so.0
+    MUMPS_LIB1    = $(DIR_MUMPS)/lib/libzmumps.a $(DIR_MUMPS)/lib/libdmumps.a 
+    MUMPS_LIB2    = $(DIR_MUMPS)/libseq/libmpiseq.a
+    MUMPS_LIB3    = $(DIR_MUMPS)/lib/libpord.a /lib/libpthread.so.0
+    METIS_LIB	  = $(DIR_METIS)/libmetis.a
+
+  MUMPS_LIB     =  $(MUMPS_LIB1) $(MUMPS_LIB2) $(MUMPS_LIB3) $(METIS_LIB)
+  USER_LIB      = $(MUMPS_LIB) $(LAPACK_LIB) $(BLAS_LIB) $(X_LIB)
+
+  endif
+
+endif
+
+#options for compiler GFORTRAN
+ifeq ($(COMPILER),GFORTRAN)
+  FF		=  gfortran
+  DBG_FLAGS	=  -g -fbounds-check -p -pthread
+# -e90 APPLY FORTRAN 90 STANDARDS.
+  OPT_FLAGS       =  -O3 -p -pthread
+
+#LIBRARIES
+  X_LIB          = /usr/lib/libX11.so
+  LAPACK_LIB    = /usr/lib/liblapack.so.3
+  BLAS_LIB      =
+ifeq ($(COMPUTER),NOZOMI)
+  X_LIB         =  /usr/lib64/libX11.so
+  LAPACK_LIB    = /usr/lib64/liblapack.so
+  BLAS_LIB      = /usr/lib64/libblas.so /usr/lib64/libg2c.so.0
+endif
+
+  METIS_LIB	= $(DIR_METIS)/libmetis.a
+  MUMPS_LIB1    = $(DIR_MUMPS)/lib/libzmumpsLAPTOP_SEQ_GFORTRAN.a \
+                  $(DIR_MUMPS)/lib/libdmumpsLAPTOP_SEQ_GFORTRAN.a
+  MUMPS_LIB2    = $(DIR_MUMPS)/libseq/libmpiseqLAPTOP_SEQ_GFORTRAN.a
+  MUMPS_LIB3    = $(DIR_MUMPS)/lib/libpordLAPTOP_SEQ_GFORTRAN.a
+  MUMPS_LIB     =  $(MUMPS_LIB1) $(MUMPS_LIB2) $(MUMPS_LIB3) $(METIS_LIB)
+  USER_LIB      = $(MUMPS_LIB) $(LAPACK_LIB) $(BLAS_LIB) $(X_LIB)
+
+endif
+
+
+
+#
+#options for compiler XLF90 (longhorn.tacc.utexas.edu) BIG IBM MACHINE.
+ifeq ($(COMPILER),XLF90)
+#
+#    write #define ibm in xglibf.c
+#    modify ./two_grid/CCSsolver_pack/interfsuperLU.F by
+#           ./two_grid/CCSsolver_pack/interfsuperLU_LONGHORN.F 
+#
+  FF		=  xlf90
+  FLAG_FIXED	=  -qfixed    #indicates fixed source form
+  FLAGMEMORY     = -q64 -bmaxdata:10000000000    #memory use flag
+#  FLAGMEMORY     = -q32    #memory use flag
+# -qsclk=micro indicates that system_clock measures in microseconds
+  FLAGPROFILE    = -pg                  # profiling flag
+#  FLAGPRECISION  = -qautodbl=dbl8      # cuadraple precision flag
+  FLAGPRECISION  = 
+  DBG_FLAGS	= -g $(FLAG_FIXED) $(FLAGMEMORY) $(FLAGPROFILE)
+  MUMPS_LIB1    = $(DIR_MUMPS)/lib/libzmumps.a $(DIR_MUMPS)/lib/libdmumps.a
+  MUMPS_LIB2    = $(DIR_MUMPS)/libseq/libmpiseq.a
+  MUMPS_LIB3    = $(DIR_MUMPS)/lib/libpord.a
+  MUMPS_LIB     =  $(MUMPS_LIB1) $(MUMPS_LIB2) $(MUMPS_LIB3) 
+
+  USER_LIB        =  $(MUMPS_LIB) -lX11 $(APPS)/lapack/lib/lapack_RS6K.a -lessl 
+  FLAGLONGHORN   = -qarch=pwr4 -qtune=pwr4
+  OPT_FLAGS       =  -O2  $(FLAG_FIXED) -q64 $(FLAGPROFILE) $(FLAGLONGHORN)
+#  OPT_FLAGS       =  -O2 $(FLAG_FIXED) -q32 $(FLAGPROFILE) $(FLAGLONGHORN)
+  NODEPENDECIES  = 1
+endif
+
+CC              = gcc 
+FPP		=  fpp
+ifeq ($(PARALLEL), 1)
+  ifeq ($(COMPUTER), LAPTOP_MACIEK)
+    FFLAGS        += -I/home/maciek/mpich2-1.0/src/include
+  endif
+  ifeq ($(COMPUTER), LONESTAR)
+    FFLAGS        += -I$(MPICH_HOME)/include
+  endif
+  ifeq ($(COMPUTER), TYPHOON)
+    FFLAGS        += -I$(ICES_MPI_INC) -I$(DIR_MUMPS)/include
+  endif
+  ifeq ($(COMPUTER), ATARI)
+    FFLAGS        += -I/opt/mpich2/include -I$(DIR_MUMPS)/include
+  endif
+endif
+
+ifeq ($(COMPILER),XLF90)
+CC              = xlc -q64
+FPP             = xlf90 # Fortran preprocessor
+endif
+
+ifeq ($(COMPILER),MPICH90)
+CC              = mpicc 
+FF              = mpif90
+FPP		= mpif90
+FFLAGS         +=  -FI -I/opt/MPI/intel/mpich-gm/1.2.5..12a/include -I$(MKL_INC) -I$(DIR_MUMPS)/include/
+endif
+
+CFLAGS		=  
+ifeq ($(HOSTNAME),nozomi.ices.utexas.edu)
+#CC=icc
+CC=gcc
+endif
+
+
+
+
+
+
+
+
+
+

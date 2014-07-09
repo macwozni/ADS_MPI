@@ -1,0 +1,17 @@
+      module communicators
+
+      use parallelism, only :NRPROCX, NRPROCY, NRPROCZ
+
+      integer :: processorsXY(NRPROCX,NRPROCY)
+      integer :: processorsYZ(NRPROCY,NRPROCZ)
+      integer :: processorsXZ(NRPROCX,NRPROCZ)
+
+c  ...group involving processors XY
+      integer :: GROUPXY
+c  ...group involving processors YZ
+      integer :: GROUPYZ
+c  ...group involving processors XZ
+      integer :: GROUPXZ
+c  ...local communicators
+      integer :: COMMXY,COMMYZ,COMMXZ
+      end

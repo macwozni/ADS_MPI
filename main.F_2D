@@ -1,0 +1,532 @@
+      program main
+c    
+      use parallelism
+      use projection_engine
+      use communicators
+c
+      implicit none
+c
+      include "mpif.h"
+c
+c-> SCALAPACK GRID
+      
+c<-
+      integer(kind=4) :: n, p, nelem
+      real   (kind=8), allocatable, dimension(:) :: U
+      double precision, allocatable, dimension(:,:) :: M
+c-> DEBUG
+      double precision, allocatable, dimension(:,:) :: MFULL
+      double precision, allocatable, dimension(:) :: FFULL
+c<-DEBUG
+      double precision, allocatable, dimension(:,:) :: F
+      double precision, allocatable, dimension(:,:) :: F2
+      double precision, allocatable, dimension(:,:) :: F3
+      double precision, allocatable, dimension(:) :: F_in
+      double precision, allocatable, dimension(:) :: F_out
+      double precision, allocatable, dimension(:) :: F2_in
+      double precision, allocatable, dimension(:) :: F2_out
+c-> DEBUG
+      double precision, allocatable, dimension(:) :: testF
+      double precision, allocatable, dimension(:) :: testF_out
+c<- DEBUG
+      integer, allocatable, dimension(:) :: dimensionsX
+      integer, allocatable, dimension(:) :: dimensionsY
+      integer, allocatable, dimension(:) :: dimensionsZ
+      integer, allocatable, dimension(:) :: shifts
+c
+      integer :: Fsize,Fsize_out
+      integer, allocatable, dimension(:) :: IPIV
+      integer :: KL, KU
+      integer :: nrcppx,nrcppy,nrcppz
+      integer :: ibegxXY,iendxXY,ibegyXY,iendyXY
+      integer :: ibegxXZ,iendxXZ,ibegzXZ,iendzXZ
+      integer :: ibegyYZ,iendyYZ,ibegzYZ,iendzYZ
+      integer :: i,nzero
+      integer :: iret,ierr
+      integer :: idebug,iprint
+
+      idebug=0
+      iprint=0
+c
+      call initialize_parameters
+      call initialize_parallelism
+      call create_communicators
+c
+      if(MYRANK.eq.3)iprint=1
+c
+c  ...prepare the problem dimensions
+      p=ORDER !order
+      n=SIZE !intervals
+c
+      if(SIZE<NRPROCX.or.SIZE<NRPROCY.or.SIZE<NRPROCZ)then
+        write(*,*)'Number of elements smaller than number of processors'
+        stop
+      endif
+c
+      allocate(U(n+p+2)) !knot vector
+      KL=p; KU=p
+
+c PARALLEL - distributed
+c number of columns per processors
+c for XY partition
+      nrcppx = (n+1+1)/NRPROCX
+      if(MYRANKX_XY.eq.NRPROCX-1)then
+        ibegxXY = nrcppx*(NRPROCX-1)+1
+        iendxXY = n+1
+      else
+        ibegxXY = nrcppx*(NRPROCX-2)+1
+        iendxXY = nrcppx*(NRPROCX-1)
+      endif
+      nrcppy = (n+1+1)/NRPROCY
+      if(MYRANKY_XY.eq.NRPROCY-1)then
+        ibegyXY = nrcppy*(NRPROCY-1)+1
+        iendyXY = n+1
+      else
+        ibegyXY = nrcppy*(NRPROCY-2)+1
+        iendyXY = nrcppy*(NRPROCY-1)
+      endif
+c for XZ partition
+      nrcppx = (n+1+1)/NRPROCX
+      if(MYRANKX_XZ.eq.NRPROCX-1)then
+        ibegxXZ = nrcppx*(NRPROCX-1)+1
+        iendxXZ = n+1
+      else
+        ibegxXZ = nrcppx*(NRPROCX-2)+1
+        iendxXZ = nrcppx*(NRPROCX-1)
+      endif
+      nrcppz = (n+1+1)/NRPROCZ
+      if(MYRANKZ_XZ.eq.NRPROCZ-1)then
+        ibegzXZ = nrcppz*(NRPROCZ-1)+1
+        iendzXZ = n+1
+      else
+        ibegzXZ = nrcppz*(NRPROCZ-2)+1
+        iendzXZ = nrcppz*(NRPROCZ-1)
+      endif
+c for YZ partition
+      nrcppy = (n+1+1)/NRPROCY
+      if(MYRANKY_YZ.eq.NRPROCY-1)then
+        ibegyYZ = nrcppy*(NRPROCY-1)+1
+        iendyYZ = n+1
+      else
+        ibegyYZ = nrcppy*(NRPROCY-2)+1
+        iendyYZ = nrcppy*(NRPROCY-1)
+      endif
+      nrcppz = (n+1+1)/NRPROCZ
+      if(MYRANKZ_YZ.eq.NRPROCZ-1)then
+        ibegzYZ = nrcppz*(NRPROCZ-1)+1
+        iendzYZ = n+1
+      else
+        ibegzYZ = nrcppz*(NRPROCZ-2)+1
+        iendzYZ = nrcppz*(NRPROCZ-1)
+      endif
+c ....prepare dimensions vectors
+      allocate(dimensionsX(NRPROCX))
+      do i=1,NRPROCX-1
+        dimensionsX(i)=nrcppx
+      enddo
+      dimensionsX(NRPROCX)=(n+1)-nrcppx*(NRPROCX-1)
+      allocate(dimensionsY(NRPROCY))
+      do i=1,NRPROCY-1
+        dimensionsY(i)=nrcppy
+      enddo
+      dimensionsY(NRPROCY)=(n+1)-nrcppy*(NRPROCY-1)
+      allocate(dimensionsZ(NRPROCZ))
+      do i=1,NRPROCZ-1
+        dimensionsZ(i)=nrcppz
+      enddo
+      dimensionsZ(NRPROCZ)=(n+1)-nrcppz*(NRPROCZ-1)
+c
+c
+      if(iprint.eq.1)then
+        write(*,*)PRINTRANK,
+     .    'NRPROCX,NRPROCY,NRPROCZ',NRPROCX,NRPROCY,NRPROCZ
+        write(*,*)PRINTRANK,'n+1',n+1
+        write(*,*)PRINTRANK,'nrcppx,nrcppy,nrcppz',nrcppx,nrcppy,nrcppz
+        write(*,*)PRINTRANK,
+     .     'MYRANKX_XY,MYRANKY_XY',MYRANKX_XY,MYRANKY_XY
+        write(*,*)PRINTRANK,'ibegxXY,iendxXY',ibegxXY,iendxXY
+        write(*,*)PRINTRANK,'ibegyXY,iendyXY',ibegyXY,iendyXY
+        write(*,*)PRINTRANK,
+     .     'MYRANKX_XZ,MYRANKZ_XZ',MYRANKX_XZ,MYRANKZ_XZ
+        write(*,*)PRINTRANK,'ibegxXZ,iendxXZ',ibegxXZ,iendxXZ
+        write(*,*)PRINTRANK,'ibegzXZ,iendzXZ',ibegzXZ,iendzXZ
+        write(*,*)PRINTRANK,
+     .     'MYRANKY_YZ,MYRANKY_YZ',MYRANKY_YZ,MYRANKY_YZ
+        write(*,*)PRINTRANK,'ibegyYZ,iendyYZ',ibegyYZ,iendyYZ
+        write(*,*)PRINTRANK,'ibegzYZ,iendzYZ',ibegzYZ,iendzYZ
+      endif
+c Now, we distribute RHS matrices
+
+      allocate(M(2*KL+KU+1,n+1))
+c MP start with system fully generated along X
+      allocate( F((n+1),(iendyYZ-ibegyYZ+1)*(iendzYZ-ibegzYZ+1))) !x,y,z
+      allocate(F2((n+1),(iendxXZ-ibegxXZ+1)*(iendzXZ-ibegzXZ+1))) !y,x,z
+      allocate(F3((n+1),(iendxXY-ibegxXY+1)*(iendyXY-ibegyXY+1))) !z,x,y
+c-> DEBUG
+      if(idebug.eq.1)then
+        allocate(MFULL(n+1,n+1))
+        allocate(FFULL((n+1)*(n+1)*(n+1)))
+      endif
+
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+      U(1:p+1)=0.d0
+      U(n+2:n+p+2)=1.d0
+      do i=p+2,n+1
+c        if(iprint.eq.1)then
+c          write(*,*)'i-p-1,n,(i-p-1)/n',i-p-1,n,real(i-p-1)/real(n)
+c        endif
+        U(i)=real(i-p-1)/real(n)
+      enddo
+c
+      nelem = CountSpans(n,p,U)
+      if(iprint.eq.1)then
+        write(*,*)'n,p,nelem',n,p,nelem
+        write(*,*)'U',U
+      endif
+c
+c  ...generate the 1D matrix
+c
+      call mpi_barrier(MPI_COMM_WORLD,ierr)
+
+      M=0
+      call Form1DMassMatrix(KL,KU,U,p,n,nelem,M)
+      if(iprint.eq.1)then
+        write(*,*)PRINTRANK,'M'
+        do i=1,2*KL+KU+1
+          write(*,*)PRINTRANK,M(i,1:n+1)
+        enddo
+      endif
+      !!$ U is the knot vector
+      !!$ p is the polynomial order
+      !!$ n is the index of the last control point
+      !!$ nelem you get from running CountSpans
+      !!$ M is the dense matrix
+c-> DEBUG
+      if(idebug.eq.1)then
+        MFULL=0
+        call Form1DMassMatrixFULL(U,p,n,nelem,MFULL) 
+        if(iprint.eq.1)then
+          write(*,*)'MFULL='
+          do i=1,n+1
+            write(*,*)i,'row=',MFULL(i,1:n+1)
+          enddo
+          call pause
+        endif
+      endif
+c<- DEBUG
+
+c
+c  ...generate the RHS vectors
+c
+      call mpi_barrier(MPI_COMM_WORLD,ierr)
+      
+      F=0
+      call Form3DRHS
+     .   (U,p,n,nelem,U,p,n,nelem,U,p,n,nelem,
+     .    ibegyYZ,iendyYZ,MYRANKY_YZ,NRPROCY,
+     .    ibegzYZ,iendzYZ,MYRANKZ_YZ,NRPROCZ,F)
+      if(iprint.eq.1)then
+        write(*,*)PRINTRANK,'F'
+        do i=1,n
+          write(*,*)PRINTRANK,
+     .       F(i,1:(iendyYZ-ibegyYZ+1)*(iendzYZ-ibegzYZ+1))
+        enddo
+      endif
+c-> DEBUG
+      if(idebug.eq.1)then
+        call Form3DRHSFULL
+     .   (U,p,n,nelem,U,p,n,nelem,U,p,n,nelem,FFULL)
+        if(iprint.eq.1)then
+          write(*,*)'FFULL=',FFULL
+          call pause
+        endif
+      endif
+c<- DEBUG
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c  ...solve the first problem
+c
+      if(iprint.eq.1)then
+	write(*,*)PRINTRANK,'SOLVE THE FIRST PROBLEM'
+        call pause
+      endif
+c
+      call mpi_barrier(MPI_COMM_WORLD,ierr)
+c
+c       SUBROUTINE DGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
+c       .. Scalar Arguments ..
+c       INTEGER            INFO, KL, KU, LDAB, LDB, N, NRHS
+c       .. Array Arguments ..
+c       INTEGER            IPIV( * )
+c       DOUBLE PRECISION   AB( LDAB, * ), B( LDB, * )
+
+      allocate(IPIV(n+1))
+      IPIV=0
+c
+      if(iprint.eq.1)then
+        write(*,*)'CALL DGBSV'
+        write(*,*)'N=',n+1
+        write(*,*)'KL=',KL
+        write(*,*)'KU=',KU
+        write(*,*)'NRHS=',(iendyYZ-ibegyYZ+1)*(iendzYZ-ibegzYZ+1)
+        write(*,*)'AB='
+        do i=1,2*KL+KU+1
+          write(*,*)i,'row=',M(i,1:n+1)
+        enddo
+        write(*,*)'LDAB=',2*KL+KU+1
+        write(*,*)'IPIV=',IPIV
+        write(*,*)'B='
+        do i=1,n+1
+          write(*,*)i,'row=',
+     .       F(i,1:(iendyYZ-ibegyYZ+1)*(iendzYZ-ibegzYZ+1))
+        enddo
+        write(*,*)'LDB=',n+1
+      endif
+      call DGBSV(n+1,KL,KU,(iendyYZ-ibegyYZ+1)*(iendzYZ-ibegzYZ+1),
+     .     M,2*KL+KU+1,IPIV,F,n+1,iret)
+      if(iprint.eq.1)then
+        write(*,*)'iret=',iret
+        write(*,*)'Solution='
+        do i=1,n+1
+          write(*,*)i,'row=',
+     .      F(i,1:(iendyYZ-ibegyYZ+1)*(iendzYZ-ibegzYZ+1))
+        enddo
+      endif
+      
+      call mpi_barrier(MPI_COMM_WORLD,ierr)
+      
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c      call ReorderRHSForY
+c     .   (U,p,n,nelem,U,p,n,nelem,U,p,n,nelem,
+c     .    ibegyYZ,iendyYZ,MYRANKY_YZ,
+c     .    ibegzYZ,iendzYZ,MYRANKZ_YZ, 
+c     .    ibegxXZ,iendxXZ,MYRANKX_XZ,
+c     .    ibegzXZ,iendzXZ,MYRANKZ_XZ,
+c     .    NRPROCX,NRPROCY,NRPROCZ,
+c     .    F,F2)
+c
+c      call mpi_barrier(MPI_COMM_WORLD,ierr)
+
+
+cc-> DEBUG
+c      if(idebug.eq.1)then
+c        allocate(testF(NRPROC))
+c        allocate(testF_out(NRPROC))
+c        testF=MYRANK
+c        testF_out=0
+c        call mpi_alltoall(testF,
+c     .   1,
+c     .   MPI_INTEGER,
+c     .   testF_out,NRPROCX,MPI_INTEGER,
+c     .   COMMYZ,ierr)
+c        deallocate(testF,testF_out)
+c      endif
+cc<-
+c  ...reorganize data
+      allocate(F_in(
+     .    (n+1)*(iendyYZ-ibegyYZ+1)*(iendzYZ-ibegzYZ+1)))
+      do i=1,n+1
+        F_in(
+     .   (i-1)*(iendyYZ-ibegyYZ+1)*(iendzYZ-ibegzYZ+1)+1
+     .   :
+     .       i*(iendyYZ-ibegyYZ+1)*(iendzYZ-ibegzYZ+1)
+     .   )=
+     .    F(i,1:(iendyYZ-ibegyYZ+1)*(iendzYZ-ibegzYZ+1))
+      enddo
+      allocate(F_out(
+     .    (n+1)*(iendxXZ-ibegxXZ+1)*(iendzXZ-ibegzXZ+1)))
+      allocate(shifts(NRPROCX))
+      shifts=0
+c
+      if(iprint.eq.1)then
+        write(*,*)PRINTRANK,'call mpi_alltoallv'
+        write(*,*)PRINTRANK,'F:'
+        do i=1,n+1
+          write(*,*)PRINTRANK,i,
+     .     'row=',F(i,1:(iendyYZ-ibegyYZ+1)*(iendzYZ-ibegzYZ+1))
+        enddo
+        write(*,*)PRINTRANK,'dimensionsX',dimensionsX
+        write(*,*)PRINTRANK,'shifts',shifts
+        write(*,*)PRINTRANK,'MPI_DOUBLE_PRECISION'
+        write(*,*)PRINTRANK,'size out:',
+     .   (iendxXZ-ibegxXZ+1)*(n+1)*(iendzXZ-ibegzXZ+1)
+        write(*,*)PRINTRANK,'MPI_DOUBLE_PRECISION'
+        write(*,*)PRINTRANK,'MPI_COMM_WORLD',MPI_COMM_WORLD
+        write(*,*)PRINTRANK,'output dimensions:(n+1)X',
+     .    ibegxXZ,iendxXZ,ibegzXZ,iendzXZ
+      endif
+      call mpi_alltoallv(F_in,
+     .   dimensionsX,
+     .   shifts,
+     .   MPI_DOUBLE_PRECISION,
+     .   F_out,
+     .   dimensionsY,
+     .   shifts,
+     .   MPI_DOUBLE_PRECISION,
+     .   MPI_COMM_WORLD,ierr)
+      deallocate(shifts)
+c
+      do i=1,n+1
+        F2(i,1:(iendxXZ-ibegxXZ+1)*(iendzXZ-ibegzXZ+1))=
+     .  F_out(
+     .   (i-1)*(iendxXZ-ibegxXZ+1)*(iendzXZ-ibegzXZ+1)+1
+     .   :
+     .       i*(iendxXZ-ibegxXZ+1)*(iendzXZ-ibegzXZ+1)
+     .   )
+      enddo
+      deallocate(F_out)
+c
+      if(iprint.eq.1)then
+        write(*,*)PRINTRANK,'after call mpi_gather'
+        write(*,*)PRINTRANK,'ierr',ierr
+        write(*,*)PRINTRANK,'F_out:'
+        do i=1,n+1
+          write(*,*)PRINTRANK,i,
+     .      'row=',F2(i,1:(iendxXZ-ibegxXZ+1)*(iendzXZ-ibegzXZ+1))
+        enddo
+      endif
+
+
+c  ...solve the second problem
+      if(iprint.eq.1)then
+	write(*,*)PRINTRANK,'SOLVE THE SECOND PROBLEM'
+        call pause
+      endif
+c
+      call mpi_barrier(MPI_COMM_WORLD,ierr)
+      stop
+c
+c       SUBROUTINE DGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
+c       .. Scalar Arguments ..
+c       INTEGER            INFO, KL, KU, LDAB, LDB, N, NRHS
+c       .. Array Arguments ..
+c       INTEGER            IPIV( * )
+c       DOUBLE PRECISION   AB( LDAB, * ), B( LDB, * )
+
+      IPIV=0
+c
+      if(iprint.eq.1)then
+        write(*,*)'CALL DGBSV'
+        write(*,*)'N=',n+1
+        write(*,*)'KL=',KL
+        write(*,*)'KU=',KU
+        write(*,*)'NRHS=',(n+1)*(n+1)
+        write(*,*)'AB='
+        do i=1,2*KL+KU+1
+          write(*,*)i,'row=',M(i,1:n+1)
+        enddo
+        write(*,*)'LDAB=',2*KL+KU+1
+        write(*,*)'IPIV=',IPIV
+        write(*,*)'B='
+        do i=1,n+1
+          write(*,*)i,'row=',
+     .       F2(i,1:(iendxXZ-ibegxXZ+1)*(iendzXZ-ibegzXZ+1))
+        enddo
+        write(*,*)'LDB=',n+1
+      endif
+      call DGBSV(n+1,KL,KU,(iendxXZ-ibegxXZ+1)*(iendzXZ-ibegzXZ+1),
+     .     M,2*KL+KU+1,IPIV,F2,n+1,iret)
+      if(iprint.eq.1)then
+        write(*,*)'iret=',iret
+        write(*,*)'Solution='
+        do i=1,n+1
+          write(*,*)i,'row=',
+     .      F2(i,1:(iendxXZ-ibegxXZ+1)*(iendzXZ-ibegzXZ+1))
+        enddo
+      endif
+c
+      call mpi_barrier(MPI_COMM_WORLD,ierr)
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c  ...reorder right hand sides
+      call ReorderRHSForZ
+     .   (U,p,n,nelem,U,p,n,nelem,U,p,n,nelem, 
+     .    ibegxXZ,iendxXZ,MYRANKX_XZ,
+     .    ibegzXZ,iendzXZ,MYRANKZ_XZ,
+     .    ibegxXY,iendxXY,MYRANKX_XY,
+     .    ibegyXY,iendyXY,MYRANKY_XY,
+     .    NRPROCX,NRPROCY,NRPROCZ,
+     .    F2,F3)
+
+      call mpi_barrier(MPI_COMM_WORLD,ierr)
+c  ...reorganize data
+
+
+c  ...solve the third problem
+c
+      if(iprint.eq.1)then
+	write(*,*)PRINTRANK,'SOLVE THE THIRD PROBLEM'
+        call pause
+      endif
+c
+      call mpi_barrier(MPI_COMM_WORLD,ierr)
+c
+c
+c       SUBROUTINE DGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
+c       .. Scalar Arguments ..
+c       INTEGER            INFO, KL, KU, LDAB, LDB, N, NRHS
+c       .. Array Arguments ..
+c       INTEGER            IPIV( * )
+c       DOUBLE PRECISION   AB( LDAB, * ), B( LDB, * )
+
+      IPIV=0
+c
+      if(iprint.eq.1)then
+        write(*,*)'CALL DGBSV'
+        write(*,*)'N=',n+1
+        write(*,*)'KL=',KL
+        write(*,*)'KU=',KU
+        write(*,*)'NRHS=',(n+1)*(n+1)
+        write(*,*)'AB='
+        do i=1,2*KL+KU+1
+          write(*,*)i,'row=',M(i,1:n+1)
+        enddo
+        write(*,*)'LDAB=',2*KL+KU+1
+        write(*,*)'IPIV=',IPIV
+        write(*,*)'B='
+        do i=1,n+1
+          write(*,*)i,'row=',
+     .      F3(i,1:(iendxXY-ibegxXY+1)*(iendyXY-ibegyXY+1))
+        enddo
+        write(*,*)'LDB=',n+1
+      endif
+      call DGBSV(n+1,KL,KU,(iendxXY-ibegxXY+1)*(iendyXY-ibegyXY+1),
+     .     M,2*KL+KU+1,IPIV,F3,n+1,iret)
+      if(iprint.eq.1)then
+        write(*,*)'iret=',iret
+        write(*,*)'Solution='
+        do i=1,n+1
+          write(*,*)i,'row=',
+     .     F3(i,1:(iendxXY-ibegxXY+1)*(iendyXY-ibegyXY+1))
+        enddo
+      endif
+c
+      call mpi_barrier(MPI_COMM_WORLD,ierr)
+
+c
+      deallocate(IPIV)
+      deallocate(U)
+      deallocate(M)
+      deallocate(F)
+      deallocate(F2)
+      deallocate(F3)
+
+c      deallocate(F2_out)
+c      deallocate(F3_out)
+c-> DEBUG
+      if(idebug.eq.1)then
+        deallocate(MFULL)
+        deallocate(FFULL)
+      endif
+c<- DEBUG
+c
+      call mpi_barrier(MPI_COMM_WORLD,ierr)
+      call mpi_finalize(ierr)
+      write(*,*)PRINTRANK,"Exiting..."
+c
+      end
+
+
+
+
