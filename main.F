@@ -7,29 +7,18 @@ c
 c
       implicit none
 c
-      include "mpif.h"
-c
       integer(kind=4) :: n, p, nelem
       real   (kind=8), allocatable, dimension(:) :: U
-      double precision, allocatable, dimension(:,:) :: M
+      real   (kind=8), allocatable, dimension(:,:) :: M
 c-> DEBUG
-      double precision, allocatable, dimension(:,:) :: MFULL
-      double precision, allocatable, dimension(:) :: FFULL
+      real (kind=8), allocatable, dimension(:,:) :: MFULL
+      real (kind=8), allocatable, dimension(:) :: FFULL
 c<-DEBUG
-      double precision, allocatable, dimension(:,:) :: F
-      double precision, allocatable, dimension(:) :: F_in_lin
-      double precision, allocatable, dimension(:) :: F_out_lin
-      double precision, allocatable, dimension(:,:) :: F_out
-      double precision, allocatable, dimension(:,:) :: F2
-      double precision, allocatable, dimension(:) :: F2_in_lin
-      double precision, allocatable, dimension(:) :: F2_out_lin
-      double precision, allocatable, dimension(:,:) :: F2_out
-      double precision, allocatable, dimension(:,:) :: F3
-      double precision, allocatable, dimension(:) :: F3_in_lin
-      double precision, allocatable, dimension(:) :: F3_out_lin
-      double precision, allocatable, dimension(:) :: F3_out_lin2
-      double precision, allocatable, dimension(:,:) :: F3_out
-      double precision, allocatable, dimension(:,:) :: Result
+      real (kind=8), allocatable, dimension(:,:) :: F,F2,F3
+      real (kind=8), allocatable, dimension(:,:) :: F_out
+      real (kind=8), allocatable, dimension(:,:) :: F2_out
+      real (kind=8), allocatable, dimension(:,:) :: F3_out
+      real (kind=8), allocatable, dimension(:,:) :: Result
       integer, allocatable, dimension(:) :: dimensionsX
       integer, allocatable, dimension(:) :: dimensionsY
       integer, allocatable, dimension(:) :: dimensionsZ
@@ -54,11 +43,11 @@ c<-
       integer :: iclock_solve1,iclock_solve2,iclock_solve3
       integer :: iclock_scatter1,iclock_scatter2,iclock_scatter3
       integer :: iclock_i1,iclock_i2,iclock_i3,iclock_i4
-      double precision ::dtime,dtime_init
-      double precision ::dtime_gather1,dtime_gather2,dtime_gather3
-      double precision ::dtime_scatter1,dtime_scatter2,dtime_scatter3
-      double precision ::dtime_solve1,dtime_solve2,dtime_solve3
-      double precision ::dtime_i1,dtime_i2,dtime_i3,dtime_i4
+      real (kind=8) ::dtime,dtime_init
+      real (kind=8) ::dtime_gather1,dtime_gather2,dtime_gather3
+      real (kind=8) ::dtime_scatter1,dtime_scatter2,dtime_scatter3
+      real (kind=8) ::dtime_solve1,dtime_solve2,dtime_solve3
+      real (kind=8) ::dtime_i1,dtime_i2,dtime_i3,dtime_i4
 
       integer :: iter = 0, steps = 10
       real (kind=8) :: t = 0, Dt = 1.d-3
@@ -213,10 +202,7 @@ c
       U(1:p+1)=0.d0
       U(n+2:n+p+2)=1.d0
       do i=p+2,n+1
-c        if(iprint.eq.1)then
-c          write(*,*)'i-p-1,n,(i-p-1)/n',i-p-1,n,real(i-p-1)/real(n)
-c        endif
-        U(i)=real(i-p-1)/real(n)
+        U(i)=real(i-p-1)/real(n-p+1)
       enddo
 c
       nelem = CountSpans(n,p,U)
@@ -333,48 +319,8 @@ c     .   testF_out,NRPROCX,MPI_INTEGER,
 c     .   nzero,COMMX,ierr)
 c      endif
 c<-
-      allocate(F_in_lin(sx*sy*sz))
-      k=1
-      do i=ibegx,iendx
-        F_in_lin((k-1)*sy*sz+1:k*sy*sz) = F(k,1:sy*sz)
-        k=k+1
-      enddo
-
-      nzero=0
-c      if(MYRANKX.eq.0)then
-        allocate(F_out_lin((n+1)*sy*sz))
-        allocate(F_out((n+1),sy*sz))
-c      endif
-c
-      if(iprint.eq.1)then
-        write(*,*)PRINTRANK,'call mpi_gatherv'
-        write(*,*)PRINTRANK,'F_in_lin:'
-        do i=1,sx
-          write(*,*)PRINTRANK,i,'row=',F_in_lin(1+(i-1)*sy*sz:i*sy*sz)
-        enddo
-        write(*,*)PRINTRANK,'size in:',sx*sy*sz
-        write(*,*)PRINTRANK,'MPI_DOUBLE_PRECISION'
-        write(*,*)PRINTRANK,'size out:dimensionsX',dimensionsX
-        write(*,*)PRINTRANK,'size out:shiftsX',shiftsX
-        write(*,*)PRINTRANK,'MPI_DOUBLE_PRECISION'
-        write(*,*)PRINTRANK,'receiver',nzero    
-        write(*,*)PRINTRANK,'COMMX',COMMX    
-      endif
-
-      call mpi_gatherv(F_in_lin,
-     .   sx*sy*sz,
-     .   MPI_DOUBLE_PRECISION,
-     .   F_out_lin,
-     .   dimensionsX,
-     .   shiftsX,
-     .   MPI_DOUBLE_PRECISION,
-     .   nzero,COMMX,ierr)
-
-      do i=1,n+1
-        F_out(i,1:sy*sz)=F_out_lin((i-1)*sy*sz+1:i*sy*sz)
-      enddo
-      deallocate(F_in_lin)
-      deallocate(F_out_lin)
+      allocate(F_out((n+1),sy*sz))
+      call Gather(F,F_out,n,sx,sy*sz,dimensionsX,shiftsX,COMMX,ierr)
       if(iprint.eq.1)then
         write(*,*)PRINTRANK,'after call mpi_gather'
         write(*,*)PRINTRANK,'ierr',ierr
@@ -442,73 +388,11 @@ c
       endif
 
       if(iinfo.eq.1)write(*,*)PRINTRANK,'1c) SCATTER'
-
-      allocate(F_out_lin((n+1)*sy*sz))
-      F_out_lin=0
-      if(MYRANKX.eq.0)then
-c      do i=1,n+1
-c        F_out_lin(
-c     .   (i-1)*(sy)*(sz)+1
-c     .   :
-c     .       i*(sy)*(sz)
-c     .   ) =
-c     .  F_out(i,1:(sy)*(sz))
-c      enddo      
-        ind=1
-        do i=1,n+1
-          do k=ibegz,iendz
-            do j=ibegy,iendy
-              F_out_lin(ind) = F_out(i,(j-ibegy+1)+(k-ibegz)*sy)
-c            if(MYRANK.eq.0)
-c     .        write(*,*)'i,j,k',i,j,k,'->',F_out_lin(ind)
-              ind=ind+1
-            enddo
-          enddo
-        enddo
-      endif      
-      if(iprint.eq.1)then
-        write(*,*)PRINTRANK,'call mpi_scatterv'
-        write(*,*)PRINTRANK,'F_out_lin:',F_out_lin
-c        do i=1,n+1
-c          write(*,*)PRINTRANK,i,
-c     .     'row=',F_out_lin(1+(i-1)*(sy)*(sz):
-c     .                       i*(sy)*(sz))
-c        enddo
-        write(*,*)PRINTRANK,'size in:dimensionsX',dimensionsX
-        write(*,*)PRINTRANK,'size in:shiftsX',shiftsX
-        write(*,*)PRINTRANK,'MPI_DOUBLE_PRECISION'
-        write(*,*)PRINTRANK,'size out:',sx*sy*sz
-        write(*,*)PRINTRANK,'MPI_DOUBLE_PRECISION'
-        write(*,*)PRINTRANK,'sender',nzero    
-        write(*,*)PRINTRANK,'COMMX',COMMX    
-      endif
       allocate(F2_out(sx,sy*sz)) 
-      allocate(F2_out_lin(sx*sy*sz)) 
+      call Scatter(F_out,F2_out,n,sx,sy*sz,dimensionsX,shiftsX,COMMX,
+     .  ierr)
       deallocate(F_out)
-c<- test
-      call mpi_scatterv(F_out_lin,
-     .   dimensionsX,shiftsX,
-     .   MPI_DOUBLE_PRECISION,
-     .   F2_out_lin, !test: F2_out -> F2_out_lin
-     .   sx*sy*sz,
-     .   MPI_DOUBLE_PRECISION,
-     .   nzero,COMMX,ierr)
-c-> test
-      do i=1,sx
-        F2_out(i,1:sy*sz) = F2_out_lin((i-1)*sy*sz+1:i*sy*sz)
-      enddo
-      deallocate(F2_out_lin)
-c<- test      
-      if(iprint.eq.1)then
-        write(*,*)PRINTRANK,'after call mpi_scatterv'
-        write(*,*)PRINTRANK,'ierr',ierr
-        write(*,*)PRINTRANK,'F_out:'
-        do i=1,sx
-          write(*,*)PRINTRANK,i,
-     .      'row=',F2_out(i,1:sy*sz)
-        enddo
-      endif
-      deallocate(F_out_lin)
+
       call mpi_barrier(MPI_COMM_WORLD,ierr)
 
       if(MYRANK.eq.0)then
@@ -557,57 +441,8 @@ c
 
       if(iinfo.eq.1)write(*,*)PRINTRANK,'2a) GATHER'
 
-      allocate(F2_in_lin(sx*(n+1)*sz))
-      k=1
-      do i=ibegy,iendy
-        F2_in_lin((k-1)*sx*sz+1:k*sx*sz)=F2(k,1:sx*sz)
-        k=k+1
-      enddo
-      !deallocate(F2)
-      nzero=0
-c      if(MYRANKX.eq.0)then
-        allocate(F2_out_lin(sx*(n+1)*sz))
-        allocate(F2_out((n+1),sx*sz))
-c      endif
-
-      if(iprint.eq.1)then
-        write(*,*)PRINTRANK,'call mpi_gatherv'
-        write(*,*)PRINTRANK,'F_in_lin:'
-        do i=1,sy
-          write(*,*)PRINTRANK,i,'row=',F2_in_lin(1+(i-1)*sx*sz:i*sx*sz)
-        enddo
-        write(*,*)PRINTRANK,'size in:',sx*sy*sz
-        write(*,*)PRINTRANK,'MPI_DOUBLE_PRECISION'
-        write(*,*)PRINTRANK,'size out:dimensionsX',dimensionsY
-        write(*,*)PRINTRANK,'size out:shiftsX',shiftsY
-        write(*,*)PRINTRANK,'MPI_DOUBLE_PRECISION'
-        write(*,*)PRINTRANK,'receiver',nzero    
-        write(*,*)PRINTRANK,'COMMY',COMMY 
-      endif
-
-      call mpi_gatherv(F2_in_lin,
-     .   sx*sy*sz,
-     .   MPI_DOUBLE_PRECISION,
-     .   F2_out_lin,
-     .   dimensionsY,
-     .   shiftsY,
-     .   MPI_DOUBLE_PRECISION,
-     .   nzero,COMMY,ierr)
-
-      do i=1,n+1
-        F2_out(i,1:sx*sz)=F2_out_lin((i-1)*sx*sz+1:i*sx*sz)
-      enddo
-
-      if(iprint.eq.1)then
-        write(*,*)PRINTRANK,'after call mpi_gather'
-        write(*,*)PRINTRANK,'ierr',ierr
-        write(*,*)PRINTRANK,'F2_out:'
-        do i=1,n+1
-          write(*,*)PRINTRANK,i,'row=',F2_out(i,1:sx*sz)
-        enddo
-      endif
-      deallocate(F2_out_lin)
-      deallocate(F2_in_lin)
+      allocate(F2_out((n+1),sx*sz))
+      call Gather(F2,F2_out,n,sy,sx*sz,dimensionsY,shiftsY,COMMY,ierr)
 
       call mpi_barrier(MPI_COMM_WORLD,ierr)
 
@@ -677,50 +512,10 @@ c
       if(iinfo.eq.1)write(*,*)PRINTRANK,'2c) SCATHER'
 
 c-> CORRECTION
-      allocate(F2_out_lin((n+1)*sx*sz))
-      F2_out_lin=0
-      if(MYRANKY.eq.0)then
-        ind=1
-        do j=1,n+1
-          do k=ibegz,iendz
-            do i=ibegx,iendx
-              F2_out_lin(ind)=F2_out(j,(i-ibegx+1)+(k-ibegz)*sx)
-c            if(MYRANK.eq.0)
-c     .        write(*,*)'i,j,k',i,j,k,'->',F2_out_lin(ind)
-              ind=ind+1
-            enddo
-          enddo
-        enddo
-      endif      
-      if(iprint.eq.1)then
-        write(*,*)PRINTRANK,'call mpi_scatterv'
-        write(*,*)PRINTRANK,'F2_out_lin:',F2_out_lin
-        write(*,*)PRINTRANK,'size in:dimensionsY',dimensionsY
-        write(*,*)PRINTRANK,'size in:shiftsY',shiftsY
-        write(*,*)PRINTRANK,'MPI_DOUBLE_PRECISION'
-        write(*,*)PRINTRANK,'size out:',sx*sy*sz
-        write(*,*)PRINTRANK,'MPI_DOUBLE_PRECISION'
-        write(*,*)PRINTRANK,'sender',nzero    
-        write(*,*)PRINTRANK,'COMMY',COMMY 
-      endif
-c<- CORRECTION
-      deallocate(F2_out)
       allocate(F3_out(sy,sx*sz)) 
-      allocate(F3_out_lin(sx*sy*sz)) 
-c<- test      
-      call mpi_scatterv(F2_out_lin,
-     .   dimensionsY,shiftsY,
-     .   MPI_DOUBLE_PRECISION,
-     .   F3_out_lin, !test F3_out -> F3_out_lin
-     .   sx*sy*sz,
-     .   MPI_DOUBLE_PRECISION,
-     .   nzero,COMMY,ierr)
-c-> test
-      do i=1,sy
-        F3_out(i,1:sx*sz) = F3_out_lin((i-1)*sx*sz+1:i*sx*sz)
-      enddo
-      deallocate(F2_out_lin)
-      deallocate(F3_out_lin)
+      call Scatter(F2_out,F3_out,n,sy,sx*sz,dimensionsY,shiftsY,COMMY,
+     .  ierr)
+      deallocate(F2_out)
       if(iprint.eq.1)then
         write(*,*)PRINTRANK,'after call mpi_scatterv'
         write(*,*)PRINTRANK,'ierr',ierr
@@ -785,56 +580,8 @@ c
       if(iinfo.eq.1)write(*,*)PRINTRANK,'3a) GATHER'
 c
       call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-      allocate(F3_in_lin(sx*sy*sz))
-      k=1
-      do i=ibegz,iendz
-        F3_in_lin((k-1)*sx*sy+1:k*sx*sy) = F3(k,1:sx*sy)
-        k=k+1
-      enddo
-      nzero=0
-c      if(MYRANKX.eq.0)then
-        allocate(F3_out_lin2(sx*sy*(n+1)))
-        allocate(F3_out((n+1),sx*sy))
-c      endif
-      if(iprint.eq.1)then
-        write(*,*)PRINTRANK,'call mpi_gatherv'
-        write(*,*)PRINTRANK,'F3_in_lin:'
-        do i=1,sz
-          write(*,*)PRINTRANK,i,
-     .     'row=',F3_in_lin(1+(i-1)*sx*sy:i*sx*sy)
-        enddo
-        write(*,*)PRINTRANK,'size in:',sx*sy*sz
-        write(*,*)PRINTRANK,'MPI_DOUBLE_PRECISION'
-        write(*,*)PRINTRANK,'size out:dimensionsX',dimensionsZ
-        write(*,*)PRINTRANK,'size out:shiftsX',shiftsZ
-        write(*,*)PRINTRANK,'MPI_DOUBLE_PRECISION'
-        write(*,*)PRINTRANK,'receiver',nzero    
-        write(*,*)PRINTRANK,'COMMZ',COMMZ
-      endif
-
-      call mpi_gatherv(F3_in_lin,
-     .   sx*sy*sz,
-     .   MPI_DOUBLE_PRECISION,
-     .   F3_out_lin2,
-     .   dimensionsZ,
-     .   shiftsZ,
-     .   MPI_DOUBLE_PRECISION,
-     .   nzero,COMMZ,ierr)
-
-      do i=1,n+1
-        F3_out(i,1:sx*sy)=F3_out_lin2((i-1)*sx*sy+1:i*sx*sy)
-      enddo
-      if(iprint.eq.1)then
-        write(*,*)PRINTRANK,'after call mpi_gatherv'
-        write(*,*)PRINTRANK,'ierr',ierr
-        write(*,*)PRINTRANK,'F3_out:'
-        do i=1,n+1
-          write(*,*)PRINTRANK,i,'row=',F3_out(i,1:sx*sy)
-        enddo
-      endif
-      deallocate(F3_out_lin2)
-      deallocate(F3_in_lin)
+      allocate(F3_out((n+1),sx*sy))
+      call Gather(F3,F3_out,n,sz,sx*sy,dimensionsZ,shiftsZ,COMMZ,ierr)
 
       call mpi_barrier(MPI_COMM_WORLD,ierr)
 
@@ -906,43 +653,8 @@ c
       if(iinfo.eq.1)write(*,*)PRINTRANK,'3c) SCATTER'
 c
 c-> CORRECTION
-      allocate(F3_out_lin((n+1)*sx*sy))
-      F3_out_lin=0
-      if(MYRANKZ.eq.0)then
-        ind=1
-        do i=1,n+1
-          do k=ibegy,iendy
-            do j=ibegx,iendx
-              F3_out_lin(ind) = F3_out(i,(j-ibegx+1)+(k-ibegy)*sx)
-c            if(MYRANK.eq.0)
-c     .        write(*,*)'i,j,k',i,j,k,'->',F2_out_lin(ind)
-              ind=ind+1
-            enddo
-          enddo
-        enddo
-      endif      
-      if(iprint.eq.1)then
-        write(*,*)PRINTRANK,'call mpi_scatterv'
-        write(*,*)PRINTRANK,'F3_out_lin:',F3_out_lin
-        write(*,*)PRINTRANK,'size in:dimensionsZ',dimensionsZ
-        write(*,*)PRINTRANK,'size in:shiftsZ',shiftsZ
-        write(*,*)PRINTRANK,'MPI_DOUBLE_PRECISION'
-        write(*,*)PRINTRANK,'size out:',sx*sy*sz
-        write(*,*)PRINTRANK,'MPI_DOUBLE_PRECISION'
-        write(*,*)PRINTRANK,'sender',nzero    
-        write(*,*)PRINTRANK,'COMMZ',COMMZ 
-      endif
-c<- CORRECTION
-c
-      call mpi_scatterv(F3_out_lin,
-     .   dimensionsZ,shiftsZ,
-     .   MPI_DOUBLE_PRECISION,
-     .   Result,
-     .   sx*sy*sz,
-     .   MPI_DOUBLE_PRECISION,
-     .   nzero,COMMZ,ierr)
-
-      deallocate(F3_out_lin)
+      call Scatter2(F3_out,Result,n,sz,sx*sy,dimensionsZ,shiftsZ,COMMZ,
+     .  ierr)
       deallocate(F3_out)
 
       call mpi_barrier(MPI_COMM_WORLD,ierr)
@@ -993,7 +705,4 @@ c End of iterations
       endif
 
       end
-
-
-
 
