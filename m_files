@@ -4,6 +4,7 @@ SOURCES = \
           communicators.F \
           basis.F \
           gauss.F \
+          reorderRHS.F \
           projection_engine.F \
           utils.F \
           main.F \
