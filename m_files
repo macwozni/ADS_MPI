@@ -5,8 +5,10 @@ SOURCES = \
           basis.F \
           gauss.F \
           reorderRHS.F \
+          input_data.F \
           projection_engine.F \
           utils.F \
+          analysis.F \
           main.F \
           pause.F \
           create_communicators.F \

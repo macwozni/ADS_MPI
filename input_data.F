@@ -1,15 +1,15 @@
       module input_data
 
-      integer         :: pN = 80
+      integer, parameter :: pN = 80
       real   (kind=8) :: s = 0.05d0
-      real   (kind=8) :: px(80), py(80), pz(80)
+      real   (kind=8) :: px(pN), py(pN), pz(pN)
 
-      integer         :: lN = 30
-      real   (kind=8) :: lx(30), ly(30), lz(30)
+      integer, parameter :: lN = 30
+      real   (kind=8) :: lx(lN), ly(lN), lz(lN)
 
 c     Curve number and lentgh
-      integer         :: cN = 20, cL=16
-      real   (kind=8) :: cx(20*16), cy(20*16), cz(20*16)
+      integer, parameter :: cN = 20, cL=16
+      real   (kind=8) :: cx(cN*cL), cy(cN*cL), cz(cN*cL)
 
       real   (kind=8) :: mi = 10.d0
 

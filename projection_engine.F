@@ -15,7 +15,7 @@ c  ...number of elements in one dimension
 
       subroutine initialize_parameters
       ORDER=2
-      SIZE=2
+      SIZE=6
       end subroutine initialize_parameters
 
  
