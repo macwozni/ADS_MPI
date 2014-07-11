@@ -666,13 +666,13 @@ c-> CORRECTION
      .  ierr)
       deallocate(F3_out)
 
-      do i=ibegx,iendx
-        do j=ibegy,iendy
-          do k=ibegz,iendz
-             Result(k-ibegz+1,(j-ibegy)*sx + i-ibegx+1)=(10*i+j)*10 + k 
-          enddo
-        enddo
-      enddo
+!      do i=ibegx,iendx
+!        do j=ibegy,iendy
+!          do k=ibegz,iendz
+!             Result(k-ibegz+1,(j-ibegy)*sx + i-ibegx+1)=(10*i+j)*10 + k 
+!          enddo
+!        enddo
+!      enddo
 
       call ReorderRHSForX
      .   (U,p,n,nelem,U,p,n,nelem,U,p,n,nelem, 
@@ -701,19 +701,19 @@ c-> CORRECTION
       if(iprint.eq.1)then
         write(*,*)PRINTRANK,'Result:'
         do i=1,sz
-          write(*,*)PRINTRANK,i,'row=',int(Result(i,:))
+          write(*,*)PRINTRANK,i,'row=',Result(i,:)
         enddo
         write(*,*)PRINTRANK,'Rz:'
         do i=1,n+1
-          write(*,*)PRINTRANK,i,'row=',int(Rz(i,:))
+          write(*,*)PRINTRANK,i,'row=',Rz(i,:)
         enddo
         write(*,*)PRINTRANK,'Rx:'
         do i=1,n+1
-          write(*,*)PRINTRANK,i,'row=',int(Rx(i,:))
+          write(*,*)PRINTRANK,i,'row=',Rx(i,:)
         enddo
         write(*,*)PRINTRANK,'Ry:'
         do i=1,n+1
-          write(*,*)PRINTRANK,i,'row=',int(Ry(i,:))
+          write(*,*)PRINTRANK,i,'row=',Ry(i,:)
         enddo
       endif
 
