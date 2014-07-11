@@ -7,7 +7,7 @@ SOURCES = \
           reorderRHS.F \
           input_data.F \
           projection_engine.F \
-          utils.F \
+          utils.F90 \
           analysis.F \
           main.F \
           pause.F \

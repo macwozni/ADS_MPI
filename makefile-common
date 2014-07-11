@@ -85,9 +85,10 @@ VPATH = $(sort $(dir $(SOURCE_ALL)))
 # dot_o can be changed to .obj for Windows
 dot_o = .o
 objF :=  $(notdir $(filter %$(dot_o),$(SOURCE_ALL:.F=$(dot_o))))
+objF90 := $(notdir $(filter %$(dot_o),$(SOURCE_ALL:.F90=$(dot_o))))
 objc :=  $(notdir $(filter %$(dot_o),$(SOURCE_ALL:.c=$(dot_o))))
 
-OBJECT_ALL := $(addprefix $(obj_path)/,$(objF) $(objc))
+OBJECT_ALL := $(addprefix $(obj_path)/,$(objF) $(objF90) $(objc))
 #======================================================================
 # Link
 EXEC/$(EXEC): $(obj_path)/.dummy EXEC/.dummy $(OBJECT_ALL)
@@ -129,6 +130,11 @@ EXEC/.dummy:
 
 # Compile .f to create .F
 $(obj_path)/%$(dot_o): %.F
+	@echo Compiling $<
+	@echo $(FF) $(FFLAGS) $(PREC_FLAGS) $(INCLUDES) -o $@ -c $<
+	$(FF) $(FFLAGS) $(PREC_FLAGS) $(INCLUDES) -o $@ -c $<
+
+$(obj_path)/%$(dot_o): %.F90
 	@echo Compiling $<
 	@echo $(FF) $(FFLAGS) $(PREC_FLAGS) $(INCLUDES) -o $@ -c $<
 	$(FF) $(FFLAGS) $(PREC_FLAGS) $(INCLUDES) -o $@ -c $<

@@ -701,7 +701,7 @@ c-> CORRECTION
       if(iprint.eq.1)then
         write(*,*)PRINTRANK,'Result:'
         do i=1,sz
-          write(*,*)PRINTRANK,i,'row=',int(Result(i,1:sx*sy))
+          write(*,*)PRINTRANK,i,'row=',int(Result(i,:))
         enddo
         write(*,*)PRINTRANK,'Rz:'
         do i=1,n+1
