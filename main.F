@@ -19,6 +19,8 @@ c<-DEBUG
       real (kind=8), allocatable, dimension(:,:) :: F2_out
       real (kind=8), allocatable, dimension(:,:) :: F3_out
       real (kind=8), allocatable, dimension(:,:) :: Result
+      real (kind=8), allocatable, dimension(:,:) :: Rx,Ry,Rz
+      real (kind=8), allocatable, dimension(:,:) :: Rxyz,Ryxz,Rzxy
       integer, allocatable, dimension(:) :: dimensionsX
       integer, allocatable, dimension(:) :: dimensionsY
       integer, allocatable, dimension(:) :: dimensionsZ
@@ -180,6 +182,13 @@ c      allocate( F((n+1),(sy)*(sz))) !x,y,z
       if(MYRANKX.eq.0.or.MYRANKY.eq.0.or.MYRANKZ.eq.0)then
         allocate(IPIV(n+1))
       endif
+      allocate(Rx((n+1),sy*sz))
+      allocate(Ry((n+1),sx*sz))
+      allocate(Rz((n+1),sx*sy))
+      allocate(Rxyz(sx,sy*sz))
+      allocate(Ryxz(sy,sx*sz))
+      allocate(Rzxy(sz,sx*sy))
+
 c      allocate(M(2*KL+KU+1,n+1))
 c      allocate(F((n+1),(n+1)*(n+1))) !x,y,z
 c      allocate(F2((n+1),(n+1)*(n+1))) !y,x,z
@@ -657,21 +666,57 @@ c-> CORRECTION
      .  ierr)
       deallocate(F3_out)
 
+      do i=ibegx,iendx
+        do j=ibegy,iendy
+          do k=ibegz,iendz
+             Result(k-ibegz+1,(j-ibegy)*sx + i-ibegx+1)=(10*i+j)*10 + k 
+          enddo
+        enddo
+      enddo
+
+      call ReorderRHSForX
+     .   (U,p,n,nelem,U,p,n,nelem,U,p,n,nelem, 
+     .    ibegx,iendx,MYRANKX,NRPROCX,
+     .    ibegy,iendy,MYRANKY,NRPROCY,
+     .    ibegz,iendz,MYRANKZ,NRPROCZ,Result,Rxyz)
+
+      call ReorderRHSForY
+     .   (U,p,n,nelem,U,p,n,nelem,U,p,n,nelem, 
+     .    ibegx,iendx,MYRANKX,NRPROCX,
+     .    ibegy,iendy,MYRANKY,NRPROCY,
+     .    ibegz,iendz,MYRANKZ,NRPROCZ,Rxyz,Ryxz)
+
+      call AllGather(Result,Rz,n,sz,sx*sy,dimensionsZ,shiftsZ,COMMZ)
+      call AllGather(Rxyz,Rx,n,sx,sy*sz,dimensionsX,shiftsX,COMMX)
+      call AllGather(Ryxz,Ry,n,sy,sx*sz,dimensionsY,shiftsY,COMMY)
+
       call mpi_barrier(MPI_COMM_WORLD,ierr)
-c
+
       if(MYRANK.eq.0)then
       call stop_clock(dtime_scatter3,iclock_scatter3)
       write(*,*)dtime_scatter3
       endif
-c
+
       if(MYRANK.eq.0)iprint=1
       if(iprint.eq.1)then
         write(*,*)PRINTRANK,'Result:'
         do i=1,sz
-          write(*,*)PRINTRANK,i,'row=',Result(i,1:sx*sy)
+          write(*,*)PRINTRANK,i,'row=',int(Result(i,1:sx*sy))
+        enddo
+        write(*,*)PRINTRANK,'Rz:'
+        do i=1,n+1
+          write(*,*)PRINTRANK,i,'row=',int(Rz(i,:))
+        enddo
+        write(*,*)PRINTRANK,'Rx:'
+        do i=1,n+1
+          write(*,*)PRINTRANK,i,'row=',int(Rx(i,:))
+        enddo
+        write(*,*)PRINTRANK,'Ry:'
+        do i=1,n+1
+          write(*,*)PRINTRANK,i,'row=',int(Ry(i,:))
         enddo
       endif
-c
+
       call mpi_barrier(MPI_COMM_WORLD,ierr)
 
       t = t + Dt

@@ -343,12 +343,110 @@ c                         endif
 
       if(iprint.eq.1)then
         write(*,*)PRINTRANK,'On exit from ReorderRHSForZ'
-        do i=0,iendz-ibegz
+       do i=0,iendz-ibegz
           write(*,*)i,'row=',F3(i,0:(iendx-ibegx+1)*(iendy-ibegy+1)-1)
         enddo
       endif
   
       end subroutine ReorderRHSforZ
 
+
+c Ux,Uy,Uz - knots vectors
+c px,py,py - orders
+c nx,ny,nz - number of intervals (problems size is (nx+1)*(ny+1)*(nz+1)
+c nelemx,nelemy,nelemz - number of elements
+c F input rhs (multiple vectors) 
+c F2 output rhs
+      subroutine ReorderRHSForX
+     .   (Ux,px,nx,nelemx,Uy,py,ny,nelemy,Uz,pz,nz,nelemz, 
+     .    ibegx,iendx,nrankx,nrpx,
+     .    ibegy,iendy,nranky,nrpy,
+     .    ibegz,iendz,nrankz,nrpz,F,F2)
+      implicit none
+      integer(kind=4), intent(in) :: nx, px, nelemx
+      integer(kind=4), intent(in) :: ny, py, nelemy
+      integer(kind=4), intent(in) :: nz, pz, nelemz
+      real   (kind=8), intent(in) :: Ux(0:nx+px+1)
+      real   (kind=8), intent(in) :: Uy(0:ny+py+1)
+      real   (kind=8), intent(in) :: Uz(0:nz+pz+1)
+      double precision, intent(in) :: F(0:(iendz-ibegz+1)-1,
+     .   0:(iendx-ibegx+1)*(iendy-ibegy+1)-1)
+      double precision, intent(out) :: F2(0:(iendx-ibegx+1)-1,
+     .   0:(iendy-ibegy+1)*(iendz-ibegz+1)-1)
+      integer(kind=4) :: mx,my,mz,ngx,ngy,ngz,ex,ey,ez
+      integer(kind=4) :: kx,ky,kz,ax,ay,az,d
+      integer(kind=4) :: Ox(nelemx),Oy(nelemy),Oz(nelemz)
+      real   (kind=8) :: Jx(nelemx),Jy(nelemy),Jz(nelemz)
+      real   (kind=8) :: Wx(px+1),Wy(py+1),Wz(pz+1)
+      real   (kind=8) :: Xx(px+1,nelemx)
+      real   (kind=8) :: Xy(py+1,nelemy)
+      real   (kind=8) :: Xz(pz+1,nelemz)
+      real   (kind=8) :: NNx(0:0,0:px,px+1,nelemx),
+     .                   NNy(0:0,0:py,py+1,nelemy),
+     .                   NNz(0:0,0:pz,pz+1,nelemz)
+      integer, intent(in) :: ibegx,ibegy,ibegz
+      integer, intent(in) :: iendx,iendy,iendz
+      integer, intent(in) :: nrankx,nranky,nrankz
+      integer, intent(in) :: nrpx,nrpy,nrpz
+      integer :: nreppx,nreppy,nreppz !# elements per proc along x,y,z
+      real   (kind=8) :: J,W,value
+      integer :: ind,ind3,ind12,ind1,ind23,indx,indy,indz
+      integer :: i
+      integer :: iprint
+c
+      iprint=0
+c
+      d=0
+      mx  = nx+px+1
+      ngx = px+1
+      my  = ny+py+1
+      ngy = py+1
+      mz  = nz+pz+1
+      ngz = pz+1
+
+      call BasisData(px,mx,Ux,0,ngx,nelemx,Ox,Jx,Wx,Xx,NNx)
+      call BasisData(py,my,Uy,0,ngy,nelemy,Oy,Jy,Wy,Xy,NNy)
+      call BasisData(pz,mz,Uz,0,ngz,nelemz,Oz,Jz,Wz,Xz,NNz)
+
+c-> parallel number of elements per processors
+      nreppx = nelemx/nrpx
+      nreppy = nelemy/nrpy
+      nreppz = nelemz/nrpz
+       do ex = max(nreppx*nrankx-px+1,1),
+     .         min(nelemx,nreppx*(nrankx+1)+px)
+         do ey = max(nreppy*nranky-py+1,1),
+     .           min(nelemy,nreppy*(nranky+1)+py)
+            do ez = max(nreppz*nrankz-pz+1,1),
+     .              min(nelemz,nreppz*(nrankz+1)+pz)
+                do ax = 0,px
+                   do ay = 0,py
+                      do az = 0,pz
+                         indx=(Ox(ex)+ax)
+                         indy=(Oy(ey)+ay)
+                         indz=(Oz(ez)+az)
+                         if(indx.lt.ibegx-1.or.
+     .                      indx.gt.iendx-1)cycle
+                         if(indy.lt.ibegy-1.or.
+     .                      indy.gt.iendy-1)cycle
+                         if(indz.lt.ibegz-1.or.
+     .                      indz.gt.iendz-1)cycle
+                         ind1 = indx-ibegx+1
+                         ind23 = (indy-ibegy+1)+
+     .                           (indz-ibegz+1)*(iendy-ibegy+1)
+                         ind3 = indz-ibegz+1
+                         ind12 = (indx-ibegx+1)+
+     .                           (indy-ibegy+1)*(iendx-ibegx+1)
+                         if(iprint.eq.1)then
+                            write(*,*)PRINTRANK,'OLD ->',ind1,ind23
+                         endif
+                         F2(ind1,ind23) = F(ind3,ind12) 
+                      end  do
+                   end do
+                end do
+            end do
+         end do
+      end do
+
+      end subroutine ReorderRHSforX
 
       end module reorderRHS

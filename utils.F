@@ -209,5 +209,41 @@ c ierr    error code output
       end subroutine Scatter
 
 
+c Broadcasts computed partial solution along one axisutation)
+c
+c F       data to distribute
+c F_out   buffer to receive data
+c n       problem size
+c elems   length of received slice
+c stride  total size of each slice layer
+c dims    sizes of slices for all processors
+c shifts  offsets (linearized) of slices for all processors
+c comm    communicator of the axis
+c ierr    error code output
+
+      subroutine AllGather(F,F_out,n,elems,stride,dims,shifts,comm)
+      implicit none
+      integer :: n, elems, stride, comm
+      real (kind=8), intent(in) :: F(elems, stride)
+      real (kind=8), intent(out) :: F_out(n+1, stride)
+      integer :: dims(:), shifts(:)
+      real (kind=8) :: F_lin(elems*stride), F_out_lin((n+1)*stride)
+      integer :: ierr
+
+      call Linearize(F,F_lin,elems,stride)
+
+      call mpi_allgatherv(F_lin,
+     .  elems * stride,
+     .  MPI_DOUBLE_PRECISION,
+     .  F_out_lin,
+     .  dims, shifts,
+     .  MPI_DOUBLE_PRECISION,
+     .  comm, ierr) 
+
+      call Delinearize(F_out_lin,F_out,n+1,stride)
+
+      end subroutine AllGather
+
+
       end module
 
