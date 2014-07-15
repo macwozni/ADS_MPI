@@ -19,8 +19,9 @@ c<-DEBUG
       real (kind=8), allocatable, dimension(:,:) :: F2_out
       real (kind=8), allocatable, dimension(:,:) :: F3_out
       real (kind=8), allocatable, dimension(:,:) :: Result
-      real (kind=8), allocatable, dimension(:,:) :: Rx,Ry,Rz
-      real (kind=8), allocatable, dimension(:,:) :: Rxyz,Ryxz,Rzxy
+      real (kind=8), allocatable :: R(:,:,:,:)
+      integer :: request(3*3*3*2), stat(MPI_STATUS_SIZE)
+
       integer, allocatable, dimension(:) :: dimensionsX
       integer, allocatable, dimension(:) :: dimensionsY
       integer, allocatable, dimension(:) :: dimensionsZ
@@ -37,7 +38,7 @@ c<-
       integer :: nrcppx,nrcppy,nrcppz
       integer :: ibegx,iendx,ibegy,iendy,ibegz,iendz
       integer :: sx,sy,sz
-      integer :: i,j,k,nzero,ind
+      integer :: i,j,k,s,nzero,ind
       integer :: iret,ierr
       integer :: idebug,iprint,iinfo
       integer :: iclock,iclock_init
@@ -53,10 +54,12 @@ c<-
 
       integer :: iter = 0, steps = 10
       real (kind=8) :: t = 0, Dt = 1.d-3
+      integer :: obegx,oendx,obegy,oendy,obegz,oendz
+      integer, dimension(3) :: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
 
       idebug=0
       iprint=0
-      iinfo=0
+      iinfo=1
 c
       call start_clock(iclock)
       call start_clock(iclock_init)
@@ -109,7 +112,7 @@ c number of columns per processors
       sz = iendz - ibegz + 1
 
       if(iinfo.eq.1)then
-        write(*,*)'Number of columns per processor:',MYRANK
+        write(*,*)'Number of cols per processor:',nrcppx,nrcppy,nrcppz
         write(*,*)'ibegx,iendx',ibegx,iendx
         write(*,*)'ibegy,iendy',ibegy,iendy
         write(*,*)'ibegz,iendz',ibegz,iendz
@@ -182,12 +185,7 @@ c      allocate( F((n+1),(sy)*(sz))) !x,y,z
       if(MYRANKX.eq.0.or.MYRANKY.eq.0.or.MYRANKZ.eq.0)then
         allocate(IPIV(n+1))
       endif
-      allocate(Rx((n+1),sy*sz))
-      allocate(Ry((n+1),sx*sz))
-      allocate(Rz((n+1),sx*sy))
-      allocate(Rxyz(sx,sy*sz))
-      allocate(Ryxz(sy,sx*sz))
-      allocate(Rzxy(sz,sx*sy))
+      allocate(R((nrcppz+p-2)*(nrcppx+p-2)*(nrcppy+p-2),3,3,3))
 
 c      allocate(M(2*KL+KU+1,n+1))
 c      allocate(F((n+1),(n+1)*(n+1))) !x,y,z
@@ -198,6 +196,26 @@ c-> DEBUG
         allocate(MFULL(n+1,n+1))
         allocate(FFULL((n+1)*(n+1)*(n+1)))
       endif
+
+! Compute indices for neighbours
+      ibegsx=-1
+      iendsx=-1
+      ibegsy=-1
+      iendsy=-1
+      ibegsz=-1
+      iendsz=-1
+      do i = max(MYRANKX-1,0)+1,min(MYRANKX+1,NRPROCX-1)+1
+        call ComputeEndpoints(i-1,NRPROCX,n,nrcppx,
+     .    ibegsx(i-MYRANKX+1),iendsx(i-MYRANKX+1))
+      enddo
+      do i = max(MYRANKY-1,0)+1,min(MYRANKY+1,NRPROCY-1)+1
+        call ComputeEndpoints(i-1,NRPROCY,n,nrcppy,
+     .    ibegsy(i-MYRANKY+1),iendsy(i-MYRANKY+1))
+      enddo
+      do i = max(MYRANKZ-1,0)+1,min(MYRANKZ+1,NRPROCZ-1)+1
+        call ComputeEndpoints(i-1,NRPROCZ,n,nrcppz,
+     .    ibegsz(i-MYRANKZ+1),iendsz(i-MYRANKZ+1))
+      enddo
 
       call mpi_barrier(MPI_COMM_WORLD,ierr)
       if(MYRANK.eq.0)then
@@ -270,13 +288,15 @@ c
       write(*,*)'Form 1D Mass Matrix:',dtime_i3
       call start_clock(iclock_i4)
       endif
-      
-      F=0
       call Form3DRHS
-     .   (U,p,n,nelem,U,p,n,nelem,U,p,n,nelem,
+     .   (U,p,n,nelem,nrcppx,
+     .    U,p,n,nelem,nrcppy,
+     .    U,p,n,nelem,nrcppz,
      .    ibegx,iendx,MYRANKX,NRPROCX,
      .    ibegy,iendy,MYRANKY,NRPROCY,
-     .    ibegz,iendz,MYRANKZ,NRPROCZ,F)
+     .    ibegz,iendz,MYRANKZ,NRPROCZ,
+     .    ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz,
+     .    F,R,t)
       if(iprint.eq.1)then
         write(*,*)PRINTRANK,'F'
         do i=1,sx
@@ -666,35 +686,59 @@ c-> CORRECTION
      .  ierr)
       deallocate(F3_out)
 
-!      do i=ibegx,iendx
-!        do j=ibegy,iendy
-!          do k=ibegz,iendz
-!             Result(k-ibegz+1,(j-ibegy)*sx + i-ibegx+1)=(10*i+j)*10 + k 
-!          enddo
-!        enddo
-!      enddo
+      !do i=ibegx,iendx
+      !  do j=ibegy,iendy
+      !    do k=ibegz,iendz
+      !       Result(k-ibegz+1,(j-ibegy)*sx + i-ibegx+1)=(10*i+j)*10 + k 
+      !    enddo
+      !  enddo
+      !enddo
 
-      call ReorderRHSForX
-     .   (U,p,n,nelem,U,p,n,nelem,U,p,n,nelem, 
-     .    ibegx,iendx,MYRANKX,NRPROCX,
-     .    ibegy,iendy,MYRANKY,NRPROCY,
-     .    ibegz,iendz,MYRANKZ,NRPROCZ,Result,Rxyz)
+      s = 1
+      do i = max(MYRANKX-1,0)+1,min(MYRANKX+1,NRPROCX-1)+1
+        do j = max(MYRANKY-1,0)+1,min(MYRANKY+1,NRPROCY-1)+1
+          do k = max(MYRANKZ-1,0)+1,min(MYRANKZ+1,NRPROCZ-1)+1
+            call mpi_isend(Result,
+     .        sx*sy*sz,
+     .        MPI_DOUBLE_PRECISION,
+     .        processors(i,j,k),
+     .        0,
+     .        MPI_COMM_WORLD,
+     .        request(s),ierr)
+            s = s + 1
+            call mpi_irecv(R(:,i-MYRANKX+1,j-MYRANKY+1,k-MYRANKZ+1),
+     .        nrcppx*nrcppy*nrcppz,
+     .        MPI_DOUBLE_PRECISION,
+     .        processors(i,j,k),
+     .        0,
+     .        MPI_COMM_WORLD,
+     .        request(s),ierr)
+            s = s + 1
+          enddo
+        enddo
+      enddo
 
-      call ReorderRHSForY
-     .   (U,p,n,nelem,U,p,n,nelem,U,p,n,nelem, 
-     .    ibegx,iendx,MYRANKX,NRPROCX,
-     .    ibegy,iendy,MYRANKY,NRPROCY,
-     .    ibegz,iendz,MYRANKZ,NRPROCZ,Rxyz,Ryxz)
-
-      call AllGather(Result,Rz,n,sz,sx*sy,dimensionsZ,shiftsZ,COMMZ)
-      call AllGather(Rxyz,Rx,n,sx,sy*sz,dimensionsX,shiftsX,COMMX)
-      call AllGather(Ryxz,Ry,n,sy,sx*sz,dimensionsY,shiftsY,COMMY)
+      do i = 1,s-1
+        call mpi_wait(request(i),stat,ierr)
+      enddo
 
       call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-      if(MYRANK.eq.0)then
-      call stop_clock(dtime_scatter3,iclock_scatter3)
-      write(*,*)dtime_scatter3
+      if (MYRANK == 0) then
+        write(*,*)PRINTRANK,'R:'
+        do i = max(MYRANKX-1,0)+1,min(MYRANKX+1,NRPROCX-1)+1
+        do j = max(MYRANKY-1,0)+1,min(MYRANKY+1,NRPROCY-1)+1
+        do k = max(MYRANKZ-1,0)+1,min(MYRANKZ+1,NRPROCZ-1)+1
+          write(*,*)'(i,j,k)=',i,j,k
+          call ComputeEndpoints(i-1,NRPROCX,n,nrcppx,obegx,oendx)
+          call ComputeEndpoints(j-1,NRPROCY,n,nrcppy,obegy,oendy)
+          call ComputeEndpoints(k-1,NRPROCZ,n,nrcppz,obegz,oendz)
+          write(*,*) reshape(
+     .      R(:,i-MYRANKX+1,j-MYRANKY+1,k-MYRANKZ+1),
+     .      (/ oendz-obegz+1,oendx-obegx+1,oendy-obegy+1 /))
+        enddo
+        enddo
+        enddo
+        write(*,*)'----'
       endif
 
       if(MYRANK.eq.0)iprint=1
@@ -703,19 +747,13 @@ c-> CORRECTION
         do i=1,sz
           write(*,*)PRINTRANK,i,'row=',Result(i,:)
         enddo
-        write(*,*)PRINTRANK,'Rz:'
-        do i=1,n+1
-          write(*,*)PRINTRANK,i,'row=',Rz(i,:)
-        enddo
-        write(*,*)PRINTRANK,'Rx:'
-        do i=1,n+1
-          write(*,*)PRINTRANK,i,'row=',Rx(i,:)
-        enddo
-        write(*,*)PRINTRANK,'Ry:'
-        do i=1,n+1
-          write(*,*)PRINTRANK,i,'row=',Ry(i,:)
-        enddo
       endif
+
+      if(MYRANK.eq.0)then
+      call stop_clock(dtime_scatter3,iclock_scatter3)
+      write(*,*)dtime_scatter3
+      endif
+
 
       call mpi_barrier(MPI_COMM_WORLD,ierr)
 

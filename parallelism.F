@@ -10,7 +10,7 @@ c  ...integer coordinates of processor along X, Y and Z
 c  ...rank of this processor converted to a string
       character(len=6) :: PRINTRANK
 c  ...total number of processors along X, Y and Z
-      integer, parameter :: NRPROCX = 2
+      integer, parameter :: NRPROCX = 3
       integer, parameter :: NRPROCY = 2
       integer, parameter :: NRPROCZ = 2
 

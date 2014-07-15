@@ -4,6 +4,7 @@ use gauss
 use basis
 use parallelism
 use reorderRHS
+use utils
 
 
 ! order of approximations
@@ -15,7 +16,7 @@ contains
 
 subroutine initialize_parameters
   ORDER = 2
-  SIZE = 2
+  SIZE = 7
 end subroutine initialize_parameters
 
  
@@ -139,25 +140,34 @@ end subroutine Form1DMassMatrixFULL
 ! px,py,py - orders
 ! nx,ny,nz - number of intervals (problems size is (nx+1)*(ny+1)*(nz+1)
 ! nelemx,nelemy,nelemz - number of elements
-! F output rhs (multiple vectors)
+! F        - output rhs (multiple vectors)
+! Rx,Ry,Rz - previous solution coefficients
+! t        - time
 subroutine Form3DRHS(          &
-   Ux,px,nx,nelemx,            &
-   Uy,py,ny,nelemy,            &
-   Uz,pz,nz,nelemz,            &
+   Ux,px,nx,nelemx,nrcppx,     &
+   Uy,py,ny,nelemy,nrcppy,     &
+   Uz,pz,nz,nelemz,nrcppz,     &
    ibegx,iendx,nrankx,nrpx,    &
    ibegy,iendy,nranky,nrpy,    &
-   ibegz,iendz,nrankz,nrpz,F)
+   ibegz,iendz,nrankz,nrpz,    &
+   ibegsx,iendsx,              &
+   ibegsy,iendsy,              &
+   ibegsz,iendsz,              &
+   F,R,t)
 implicit none
-integer(kind=4), intent(in) :: nx, px, nelemx
-integer(kind=4), intent(in) :: ny, py, nelemy
-integer(kind=4), intent(in) :: nz, pz, nelemz
+integer(kind=4), intent(in) :: nx, px, nelemx, nrcppx
+integer(kind=4), intent(in) :: ny, py, nelemy, nrcppy
+integer(kind=4), intent(in) :: nz, pz, nelemz, nrcppz
 real   (kind=8), intent(in) :: Ux(0:nx+px+1)
 real   (kind=8), intent(in) :: Uy(0:ny+py+1)
 real   (kind=8), intent(in) :: Uz(0:nz+pz+1)
+real   (kind=8), intent(in) :: R(0:(nrcppz+pz-2)*(nrcppx+px-2)*(nrcppy+py-2)-1,3,3,3)
+integer(kind=4), dimension(3) :: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
+                               
 double precision, intent(out) :: F(0:(iendx-ibegx+1)-1, &
   0:(iendy-ibegy+1)*(iendz-ibegz+1)-1)
 integer(kind=4) :: mx,my,mz,ngx,ngy,ngz,ex,ey,ez
-integer(kind=4) :: kx,ky,kz,ax,ay,az,d
+integer(kind=4) :: kx,ky,kz,ax,ay,az,bx,by,bz,d
 integer(kind=4) :: Ox(nelemx),Oy(nelemy),Oz(nelemz)
 real   (kind=8) :: Jx(nelemx),Jy(nelemy),Jz(nelemz)
 real   (kind=8) :: Wx(px+1),Wy(py+1),Wz(pz+1)
@@ -167,14 +177,17 @@ real   (kind=8) :: Xz(pz+1,nelemz)
 real   (kind=8) :: NNx(0:0,0:px,px+1,nelemx), &
                    NNy(0:0,0:py,py+1,nelemy), &
                    NNz(0:0,0:pz,pz+1,nelemz)
-real   (kind=8) :: J,W,value
+real   (kind=8) :: J,W,fval,Uval,t,ucoeff
 integer, intent(in) :: ibegx,ibegy,ibegz
 integer, intent(in) :: iendx,iendy,iendz
 integer, intent(in) :: nrankx,nranky,nrankz
 integer, intent(in) :: nrpx,nrpy,nrpz
 integer :: nreppx,nreppy,nreppz !# elements per proc along x,y,z
 integer :: ind,ind1,ind23,ind23a,indx,indy,indz
+integer :: indbx,indby,indbz,ind1b,ind23b
+integer :: rx,ry,rz, ix,iy,iz, sx,sy,sz
 integer :: iprint
+real (kind=8) :: Umax = -1d10, Umin = 1d10
 
   iprint=0
   ! if(MYRANK.eq.2)iprint=1
@@ -205,7 +218,7 @@ integer :: iprint
     write(*,*)PRINTRANK,'ibegz,iendz',ibegz,iendz
   endif
 
-  F = 0.d0
+  F = 0
 
   do ex = max(nreppx*nrankx-px+1,1), min(nelemx,nreppx*(nrankx+1)+px)
   do ey = max(nreppy*nranky-py+1,1), min(nelemy,nreppy*(nranky+1)+py)
@@ -215,7 +228,7 @@ integer :: iprint
     do ky = 1,ngy
     do kz = 1,ngz
       W = Wx(kx)*Wy(ky)*Wz(kz)
-      value = fvalue(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
+      fval = fvalue(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
       do ax = 0,px
       do ay = 0,py
       do az = 0,pz
@@ -229,15 +242,62 @@ integer :: iprint
         ind1 = indx-ibegx+1
         ind23 = (indy-ibegy+1) + (indz-ibegz+1)*(iendy-ibegy+1)
 
-        if (iprint == 1) then
-          write(*,*)PRINTRANK,'ind->x,y,z', ind,indx,indy,indz,'->',ind1,ind23
-        endif
+        Uval = 0
+        do bx = 0,px
+        do by = 0,py
+        do bz = 0,pz
+          ind = (Ox(ex)+bx) + (Oy(ey)+by)*(nx+1) + (Oz(ez)+bz)*(ny+1)*(nx+1)
+          call global2local(ind,indbx,indby,indbz,nx,ny,nz)
 
-        if (ind1 < 0 .or. ind1 > (iendx-ibegx)) cycle
-        if (ind23 < 0 .or. ind23 > (iendy-ibegy+1)*(iendz-ibegz+1)-1) cycle
+          rx = 2
+          ry = 2
+          rz = 2
+          if (indbx < ibegx-1) rx = 1
+          if (indbx > iendx-1) rx = 3
+          if (indby < ibegy-1) ry = 1
+          if (indby > iendy-1) ry = 3
+          if (indbz < ibegz-1) rz = 1
+          if (indbz > iendz-1) rz = 3
+
+          !if (.not. IndexInRange(indbx,indby,indbz,ibegx,iendx,ibegy,iendy,ibegz,iendz)) cycle
+          ix = indbx - ibegsx(rx) + 1
+          iy = indby - ibegsy(ry) + 1
+          iz = indbz - ibegsz(rz) + 1
+          sx = iendsx(rx) - ibegsx(rx) + 1
+          sy = iendsy(ry) - ibegsy(ry) + 1
+          sz = iendsz(rz) - ibegsz(rz) + 1
+          ind1b = iz + sz*(ix + sx * iy)
+
+          if (ind1b < 0 .or. ind1b > (nrcppz+pz-2)*(nrcppx+px-2)*(nrcppy+py-2)-1) then
+            write(*,*)PRINTRANK,'Oh crap',ix,iy,iz
+            write(*,*)PRINTRANK,'r',rx,ry,rz
+            write(*,*)PRINTRANK,'x',ibegx,iendx
+            write(*,*)PRINTRANK,'y',ibegy,iendy
+            write(*,*)PRINTRANK,'z',ibegz,iendz
+            write(*,*)PRINTRANK,'idxs',indbx,indby,indbz
+            write(*,*)PRINTRANK,'sizes=',sx,sy,sz
+            write(*,*)PRINTRANK,'begsx=',ibegsx
+            write(*,*)PRINTRANK,'endsx=',iendsx
+            write(*,*)PRINTRANK,'begsy=',ibegsy
+            write(*,*)PRINTRANK,'endsy=',iendsy
+            write(*,*)PRINTRANK,'begsz=',ibegsz
+            write(*,*)PRINTRANK,'endsz=',iendsz
+          endif
+
+          Ucoeff = R(ind1b,rx,ry,rz)
+          Uval = Uval + Ucoeff * NNx(0,bx,kx,ex)*NNy(0,by,ky,ey)*NNz(0,bz,kz,ez)
+
+        end do
+        end do
+        end do
+        Umax = max(Umax,Uval)
+        Umin = min(Umin,Uval)
+
+!        if (ind1 < 0 .or. ind1 > (iendx-ibegx)) cycle
+!        if (ind23 < 0 .or. ind23 > (iendy-ibegy+1)*(iendz-ibegz+1)-1) cycle
 
         F(ind1,ind23) = F(ind1,ind23) + &
-            NNx(0,ax,kx,ex) * NNy(0,ay,ky,ey) * NNz(0,az,kz,ez)*J*W*value
+            NNx(0,ax,kx,ex) * NNy(0,ay,ky,ey) * NNz(0,az,kz,ez)*J*W*fval
 
         if (iprint == 1) then
           write(*,*)PRINTRANK, 'ind',ind,'->',ind1,ind23, ex,ey,ez
@@ -251,8 +311,24 @@ integer :: iprint
   end do
   end do
   end do
+
+  write(*,*) PRINTRANK,'Min =',Umin
+  write(*,*) PRINTRANK,'Max =',Umax
   
 end subroutine Form3DRHS
+
+
+logical function IndexInRange(indx,indy,indz,ibegx,iendx,ibegy,iendy,ibegz,iendz)
+implicit none
+integer (kind=4) :: indx,indy,indz
+integer (kind=4) :: ibegx,iendx,ibegy,iendy,ibegz,iendz
+
+  IndexInRange = .true.
+  if (indx < ibegx-1 .or. indx > iendx-1) IndexInRange = .false.
+  if (indy < ibegy-1 .or. indy > iendy-1) IndexInRange = .false.
+  if (indz < ibegz-1 .or. indz > iendz-1) IndexInRange = .false.
+
+end function IndexInRange
 
 !-> DEBUG
 ! Ux,Uy,Uz - knots vectors

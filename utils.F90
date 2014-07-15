@@ -25,8 +25,10 @@ integer, intent(out) :: nrcpp, ibeg, iend
     ibeg = nrcpp*(nrproc-1)+1
     iend = n+1
   else
-    ibeg = nrcpp*(nrproc-2)+1
-    iend = nrcpp*(nrproc-1)
+    ! ibeg = nrcpp*(nrproc-2)+1
+    ! iend = nrcpp*(nrproc-1)
+    ibeg = nrcpp * rank + 1
+    iend = nrcpp * (rank + 1)
   endif
 
 end subroutine ComputeEndpoints
