@@ -219,9 +219,9 @@ c-> DEBUG
 
       call mpi_barrier(MPI_COMM_WORLD,ierr)
       if(MYRANK.eq.0)then
-      call stop_clock(dtime_i2,iclock_i2)
-      write(*,*)'allocations:',dtime_i2
-      call start_clock(iclock_i3)
+        call stop_clock(dtime_i2,iclock_i2)
+        write(*,*)'allocations:',dtime_i2
+        call start_clock(iclock_i3)
       endif
 
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -355,8 +355,7 @@ c<-
         write(*,*)PRINTRANK,'ierr',ierr
         write(*,*)PRINTRANK,'F_out:'
         do i=1,n+1
-          write(*,*)PRINTRANK,i,
-     .      'row=',F_out(i,1:sy*sz)
+          write(*,*)PRINTRANK,i,'row=',F_out(i,1:sy*sz)
         enddo
       endif
       call mpi_barrier(MPI_COMM_WORLD,ierr)
@@ -370,9 +369,9 @@ c       INTEGER            IPIV( * )
 c       DOUBLE PRECISION   AB( LDAB, * ), B( LDB, * )
 
       if(MYRANK.eq.0)then
-      call stop_clock(dtime_gather1,iclock_gather1)
-      write(*,*)dtime_gather1
-      call start_clock(iclock_solve1)
+        call stop_clock(dtime_gather1,iclock_gather1)
+        write(*,*)dtime_gather1
+        call start_clock(iclock_solve1)
       endif
 c
       if(MYRANKX.eq.0)then
@@ -411,9 +410,9 @@ c
       call mpi_barrier(MPI_COMM_WORLD,ierr)
 
       if(MYRANK.eq.0)then
-      call stop_clock(dtime_solve1,iclock_solve1)
-      write(*,*)dtime_solve1
-      call start_clock(iclock_scatter1)
+        call stop_clock(dtime_solve1,iclock_solve1)
+        write(*,*)dtime_solve1
+        call start_clock(iclock_scatter1)
       endif
 
       if(iinfo.eq.1)write(*,*)PRINTRANK,'1c) SCATTER'
@@ -425,9 +424,9 @@ c
       call mpi_barrier(MPI_COMM_WORLD,ierr)
 
       if(MYRANK.eq.0)then
-      call stop_clock(dtime_scatter1,iclock_scatter1)
-      write(*,*)dtime_scatter1
-      call start_clock(iclock_gather2)
+        call stop_clock(dtime_scatter1,iclock_scatter1)
+        write(*,*)dtime_scatter1
+        call start_clock(iclock_gather2)
       endif
 
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -476,9 +475,9 @@ c
       call mpi_barrier(MPI_COMM_WORLD,ierr)
 
       if(MYRANK.eq.0)then
-      call stop_clock(dtime_gather2,iclock_gather2)
-      write(*,*)dtime_gather2
-      call start_clock(iclock_solve2)
+        call stop_clock(dtime_gather2,iclock_gather2)
+        write(*,*)dtime_gather2
+        call start_clock(iclock_solve2)
       endif
 c
 c       SUBROUTINE DGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
