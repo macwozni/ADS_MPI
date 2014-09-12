@@ -1,7 +1,7 @@
 
 SOURCES = \
           parallelism.F \
-          communicators.F \
+          communicators.F90 \
           basis.F \
           gauss.F \
           reorderRHS.F \
@@ -11,7 +11,7 @@ SOURCES = \
           analysis.F \
           main.F90 \
           pause.F \
-          create_communicators.F \
+          create_communicators.F90 \
           int2str.F \
           keep_time.F
 
