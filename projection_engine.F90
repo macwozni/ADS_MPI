@@ -77,10 +77,10 @@ integer :: iprint
           !  M(O(e)+a,O(e)+b) =
           !    M(O(e)+a,O(e)+b) + NN(0,a,k,e)*NN(0,b,k,e)*J(e)*W(k)
           !      NN(0,a,k,e)*NN(0,b,k,e)*J(e)*W(k)
-        end do
-      end do
-    end do
-  end do
+        enddo
+      enddo
+    enddo
+  enddo
 
 end subroutine Form1DMassMatrix
 
@@ -127,10 +127,10 @@ integer :: d
 ! J(e) jacobian ? for element e
           M(O(e)+a,O(e)+b) = &
              M(O(e)+a,O(e)+b) + NN(0,a,k,e)*NN(0,b,k,e)*J(e)*W(k)
-        end do
-      end do
-    end do
-  end do
+        enddo
+      enddo
+    enddo
+  enddo
 
 end subroutine Form1DMassMatrixFULL
 !<- DEBUG
@@ -287,9 +287,9 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
           Ucoeff = R(ind1b,rx,ry,rz)
           Uval = Uval + Ucoeff * NNx(0,bx,kx,ex)*NNy(0,by,ky,ey)*NNz(0,bz,kz,ez)
 
-        end do
-        end do
-        end do
+        enddo
+        enddo
+        enddo
         Umax = max(Umax,Uval)
         Umin = min(Umin,Uval)
 
@@ -302,15 +302,15 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
         if (iprint == 1) then
           write(*,*)PRINTRANK, 'ind',ind,'->',ind1,ind23, ex,ey,ez
         endif
-      end do
-      end do
-      end do
-    end do
-    end do
-    end do         
-  end do
-  end do
-  end do
+      enddo
+      enddo
+      enddo
+    enddo
+    enddo
+    enddo         
+  enddo
+  enddo
+  enddo
 
   write(*,*) PRINTRANK,'Min =',Umin
   write(*,*) PRINTRANK,'Max =',Umax
@@ -395,17 +395,17 @@ integer :: ind
 
         F(ind) = F(ind) + &
           NNx(0,ax,kx,ex) * NNy(0,ay,ky,ey)* NNz(0,az,kz,ez)*J*W*value
-      end do
-      end do
-      end do
+      enddo
+      enddo
+      enddo
 
-    end do
-    end do
-    end do         
+    enddo
+    enddo
+    enddo         
 
-  end do
-  end do
-  end do
+  enddo
+  enddo
+  enddo
 
 end subroutine Form3DRHSFULL
 

@@ -9,7 +9,7 @@ SOURCES = \
           projection_engine.F \
           utils.F90 \
           analysis.F \
-          main.F \
+          main.F90 \
           pause.F \
           create_communicators.F \
           int2str.F \

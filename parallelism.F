@@ -32,8 +32,7 @@ c  ...initialize mpi
       call mpi_comm_size(MPI_COMM_WORLD,NRPROC,i2)
       call mpi_comm_rank(MPI_COMM_WORLD,MYRANK,i3)
       if ((i1+i2+i3)/=0) then
-        write(*,*)MYRANK,':',
-     .  'main: error initializing MPI!'
+        write(*,*)MYRANK,': main: error initializing MPI!'
         call abort
       endif
       call decompose(MYRANK,MYRANKX,MYRANKY,MYRANKZ)
