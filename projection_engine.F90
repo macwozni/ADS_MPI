@@ -6,6 +6,8 @@ use parallelism
 use reorderRHS
 use utils
 
+implicit none
+
 
 ! order of approximations
 integer :: ORDER
@@ -28,7 +30,6 @@ end subroutine initialize_parameters
 !!$ nelem you get from running CountSpans
 !!$ M is the dense matrix
 subroutine Form1DMassMatrix(KL,KU,U,p,n,nelem,M)
-implicit none
 integer :: KL,KU
 integer(kind=4), intent(in) :: n, p, nelem
 real   (kind=8), intent(in) :: U(0:n+p+1)
@@ -92,7 +93,6 @@ subroutine Form1DMassMatrixFULL(U,p,n,nelem,M)
 !!$ n is the index of the last control point
 !!$ nelem you get from running CountSpans
 !!$ M is the dense matrix
-implicit none
 integer(kind=4), intent(in) :: n, p, nelem
 real   (kind=8), intent(in) :: U(0:n+p+1)
 double precision, intent(out) :: M(0:n,0:n)
@@ -154,7 +154,6 @@ subroutine Form3DRHS(          &
    ibegsy,iendsy,              &
    ibegsz,iendsz,              &
    F,R,t)
-implicit none
 integer(kind=4), intent(in) :: nx, px, nelemx, nrcppx
 integer(kind=4), intent(in) :: ny, py, nelemy, nrcppy
 integer(kind=4), intent(in) :: nz, pz, nelemz, nrcppz
@@ -319,7 +318,6 @@ end subroutine Form3DRHS
 
 
 logical function IndexInRange(indx,indy,indz,ibegx,iendx,ibegy,iendy,ibegz,iendz)
-implicit none
 integer (kind=4) :: indx,indy,indz
 integer (kind=4) :: ibegx,iendx,ibegy,iendy,ibegz,iendz
 
@@ -337,7 +335,6 @@ end function IndexInRange
 ! nelemx,nelemy,nelemz - number of elements
 ! F output rhs (multiple vectors)
 subroutine Form3DRHSFULL(Ux,px,nx,nelemx,Uy,py,ny,nelemy,Uz,pz,nz,nelemz,F)
-implicit none
 integer(kind=4), intent(in) :: nx, px, nelemx
 integer(kind=4), intent(in) :: ny, py, nelemy
 integer(kind=4), intent(in) :: nz, pz, nelemz
@@ -411,7 +408,6 @@ end subroutine Form3DRHSFULL
 
 
 function fvalue(x,y,z) result (fval)
-implicit none
 real   (kind=8) :: x,y,z
 real   (kind=8) :: fval
 

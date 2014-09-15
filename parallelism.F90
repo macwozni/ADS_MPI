@@ -1,14 +1,21 @@
 module parallelism
 
+implicit none
+
 save
+
+include "mpif.h"
 
 ! rank of this processor
 integer :: MYRANK
 integer :: NRPROC
+
 ! integer coordinates of processor along X, Y and Z
 integer :: MYRANKX,MYRANKY,MYRANKZ
+
 ! rank of this processor converted to a string
 character(len=6) :: PRINTRANK
+
 ! total number of processors along X, Y and Z
 integer, parameter :: NRPROCX = 3
 integer, parameter :: NRPROCY = 2
@@ -18,15 +25,13 @@ integer, parameter :: NRPROCZ = 2
 double precision :: DTIME_PARALLEL
 integer :: ITIME_PARALLEL
 
+
 contains
 
-! subroutine sets NRPROC, MYRANK(X,Y,Z)
      
 subroutine initialize_parallelism
-
-include "mpif.h"
-
 character(4) :: temp_printrank
+integer :: i1, i2, i3
 
   ! initialize mpi
   call mpi_init(i1)
