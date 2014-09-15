@@ -1,46 +1,8 @@
-program main
 
-use parallelism
-use projection_engine
-use communicators
-use utils
+module time_data
 
 implicit none
 
-integer(kind=4) :: n, p, nelem
-real   (kind=8), allocatable, dimension(:) :: U
-real   (kind=8), allocatable, dimension(:,:) :: M
-
-
-real (kind=8), allocatable, dimension(:,:) :: F,F2,F3
-real (kind=8), allocatable, dimension(:,:) :: F_out
-real (kind=8), allocatable, dimension(:,:) :: F2_out
-real (kind=8), allocatable, dimension(:,:) :: F3_out
-real (kind=8), allocatable, dimension(:,:) :: Result
-real (kind=8), allocatable :: R(:,:,:,:)
-integer :: request(3*3*3*2), stat(MPI_STATUS_SIZE)
-
-integer, allocatable, dimension(:) :: dimensionsX
-integer, allocatable, dimension(:) :: dimensionsY
-integer, allocatable, dimension(:) :: dimensionsZ
-integer, allocatable, dimension(:) :: shiftsX
-integer, allocatable, dimension(:) :: shiftsY
-integer, allocatable, dimension(:) :: shiftsZ
-integer :: Fsize,Fsize_out
-
-! DEBUG
-integer, allocatable, dimension(:) ::testF
-integer, allocatable, dimension(:) ::testF_out
-! DEBUG
-
-integer, allocatable, dimension(:) :: IPIV
-integer :: KL, KU
-integer :: nrcppx,nrcppy,nrcppz
-integer :: ibegx,iendx,ibegy,iendy,ibegz,iendz
-integer :: sx,sy,sz
-integer :: i,j,k,s,nzero,ind
-integer :: iret,ierr
-integer :: idebug,iprint,iinfo
 integer :: iclock,iclock_init
 integer :: iclock_gather1,iclock_gather2,iclock_gather3
 integer :: iclock_solve1,iclock_solve2,iclock_solve3
@@ -52,14 +14,101 @@ real (kind=8) ::dtime_scatter1,dtime_scatter2,dtime_scatter3
 real (kind=8) ::dtime_solve1,dtime_solve2,dtime_solve3
 real (kind=8) ::dtime_i1,dtime_i2,dtime_i3,dtime_i4
 
-integer :: iter = 0, steps = 10
-real (kind=8) :: t = 0, Dt = 1.d-3
-integer :: obegx,oendx,obegy,oendy,obegz,oendz
-integer, dimension(3) :: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
+end module
 
-  idebug = 0
-  iprint = 0
-  iinfo = 1
+
+module stuff
+
+use parallelism
+use projection_engine
+use communicators
+use utils
+use time_data
+use debug
+use core
+
+implicit none
+
+! Number of functions in each dimension minus one
+integer(kind=4) :: n
+
+! Degree of approximation
+integer(kind=4) :: p
+
+! Number of subintervals
+integer(kind=4) :: nelem
+
+! Number of iterations
+integer, parameter :: steps = 10
+
+! Time and timestep
+real (kind=8), parameter :: Dt = 1.d-3
+
+
+! Knot vector
+real (kind=8), allocatable, dimension(:) :: U
+
+! Mass matrix
+real (kind=8), allocatable, dimension(:,:) :: M
+
+! Coefficients of the solution
+real (kind=8), allocatable, dimension(:,:) :: Result
+
+real (kind=8), allocatable, dimension(:,:) :: F,F2,F3
+
+real (kind=8), allocatable, dimension(:,:) :: F_out, F2_out, F3_out
+
+real (kind=8), allocatable :: R(:,:,:,:)
+
+! Size of slices of domain in each dimension
+integer, allocatable, dimension(:) :: dimensionsX
+integer, allocatable, dimension(:) :: dimensionsY
+integer, allocatable, dimension(:) :: dimensionsZ
+
+! Offsets of slices of domain in each direction
+integer, allocatable, dimension(:) :: shiftsX
+integer, allocatable, dimension(:) :: shiftsY
+integer, allocatable, dimension(:) :: shiftsZ
+
+! Pivot array for these processes that need to solve systems
+integer, allocatable, dimension(:) :: IPIV
+
+! Number of lower and upper diagonal entries in mass matrix
+integer :: KL, KU
+
+! Number of columns (average) per processor
+integer :: nrcppx,nrcppy,nrcppz
+
+! Range of piece of domain assigned to this process
+integer :: ibegx,iendx
+integer :: ibegy,iendy
+integer :: ibegz,iendz
+
+! Size of piece of domain assigned to this process
+integer :: sx,sy,sz
+
+! Ranges of pieces of domain around the one assigned to this process
+integer, dimension(3) :: ibegsx,iendsx
+integer, dimension(3) :: ibegsy,iendsy
+integer, dimension(3) :: ibegsz,iendsz
+
+contains
+
+
+! -------------------------------------------------------------------
+! Sets values of parameters (order and size)
+! -------------------------------------------------------------------
+subroutine InitializeParameters
+  ORDER = 3
+  SIZE = 10
+end subroutine
+
+
+! -------------------------------------------------------------------
+! Initialization of clocks and MPI
+! -------------------------------------------------------------------
+subroutine Initialize
+integer :: ierr
 
   call start_clock(iclock)
   call start_clock(iclock_init)
@@ -68,9 +117,9 @@ integer, dimension(3) :: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
     call start_clock(iclock_i1)
   endif
 
-  call initialize_parameters
-  call initialize_parallelism
-  call create_communicators
+  call InitializeParameters
+  call InitializeParallelism
+  call CreateCommunicators
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
   if (MYRANK == 0) then
@@ -79,33 +128,24 @@ integer, dimension(3) :: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
     call start_clock(iclock_i2)
   endif
 
-  ! call create_grids
-
   if (MYRANK == 0) iinfo=1
-
   if (iinfo == 1) write(*,*)PRINTRANK,'INITIALIZATION'
 
-  ! prepare the problem dimensions
-  p = ORDER !order
-  n = SIZE !intervals
+end subroutine
 
-  if (iinfo == 1)then
-    write(*,*)'p',p,'n',n,'size of U',n+p+2
-  endif
 
-  if (SIZE<NRPROCX .or. SIZE<NRPROCY .or. SIZE<NRPROCZ) then
-    write(*,*)'Number of elements smaller than number of processors'
-    stop
-  endif
-
-  allocate(U(n+p+2)) !knot vector
-  KL = p
-  KU = p
+! -------------------------------------------------------------------
+! Establishes decomposition of the domain. Calculates size and location
+! of the piece for current process. 
+! -------------------------------------------------------------------
+subroutine ComputeDecomposition
+integer :: i
+integer :: ix, iy, iz
 
   ! number of columns per processors
-  call ComputeEndpoints(MYRANKX,NRPROCX,n,nrcppx,ibegx,iendx)
-  call ComputeEndpoints(MYRANKY,NRPROCY,n,nrcppy,ibegy,iendy)
-  call ComputeEndpoints(MYRANKZ,NRPROCZ,n,nrcppz,ibegz,iendz)
+  call ComputeEndpoints(MYRANKX, NRPROCX, n, nrcppx, ibegx, iendx)
+  call ComputeEndpoints(MYRANKY, NRPROCY, n, nrcppy, ibegy, iendy)
+  call ComputeEndpoints(MYRANKZ, NRPROCZ, n, nrcppz, ibegz, iendz)
 
   sx = iendx - ibegx + 1
   sy = iendy - ibegy + 1
@@ -119,72 +159,9 @@ integer, dimension(3) :: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
   endif
 
   ! prepare dimensions vectors
-  call FillDimVector(dimensionsX,shiftsX,nrcppx,sy*sz,n,NRPROCX)
-  call FillDimVector(dimensionsY,shiftsY,nrcppy,sx*sz,n,NRPROCY)
-  call FillDimVector(dimensionsZ,shiftsZ,nrcppz,sx*sy,n,NRPROCZ)
-
-  ! check
-  if (idebug == 1) then
-  k = 0
-  do i = 1,NRPROCX
-    k = k + dimensionsX(i)
-  enddo
-  if (k /= (n+1)*sy*sz) then
-    write(*,*)PRINTRANK,'problem with dimensionsX',dimensionsX
-    write(*,*)PRINTRANK,'n+1',n+1
-    write(*,*)PRINTRANK,'sy',sy
-    write(*,*)PRINTRANK,'sz',sz
-    write(*,*)PRINTRANK,'nrcppx',nrcppx
-    stop
-  endif
-  k = 0
-  do i = 1,NRPROCY
-    k = k + dimensionsY(i)
-  enddo
-  if (k /= (n+1)*sx*sz) then
-    write(*,*)PRINTRANK,'problem with dimensionsY',dimensionsY
-    write(*,*)PRINTRANK,'n+1',n+1
-    write(*,*)PRINTRANK,'sx',sx
-    write(*,*)PRINTRANK,'sz',sz
-    stop
-  endif
-  k = 0
-  do i = 1,NRPROCZ
-    k = k + dimensionsZ(i)
-  enddo
-  if (k /= (n+1)*sx*sy) then
-    write(*,*)PRINTRANK,'problem with dimensionsZ',dimensionsZ
-    write(*,*)PRINTRANK,'n+1',n+1
-    write(*,*)PRINTRANK,'sx',sx
-    write(*,*)PRINTRANK,'sy',sy
-    stop
-  endif
-  endif     
-
-  if (iprint == 1) then
-    write(*,*)PRINTRANK,'MYRANKX,MYRANKY,MYRANKZ',MYRANKX,MYRANKY,MYRANKZ
-    write(*,*)PRINTRANK,'NRPROCX,NRPROCY,NRPROCZ',NRPROCX,NRPROCY,NRPROCZ
-    write(*,*)PRINTRANK,'n+1',n+1
-    write(*,*)PRINTRANK,'nrcppx,nrcppy,nrcppz',nrcppx,nrcppy,nrcppz
-    write(*,*)PRINTRANK,'ibegx,iendx',ibegx,iendx
-    write(*,*)PRINTRANK,'ibegy,iendy',ibegy,iendy
-    write(*,*)PRINTRANK,'ibegz,iendz',ibegz,iendz
-  endif
-
-  ! Now, we distribute RHS matrices
-
-  allocate(M(2*KL+KU+1,n+1))
-  ! OLD: MP start with system fully generated along X
-  ! allocate( F((n+1),(sy)*(sz))) !x,y,z
-  allocate( F(sx,sy*sz)) !x,y,z
-  allocate(F2(sy,sx*sz)) !y,x,z
-  allocate(F3(sz,sx*sy)) !z,x,y
-  allocate(Result(sz,sx*sy)) !z,x,y
-
-  if (MYRANKX == 0 .or. MYRANKY == 0 .or. MYRANKZ == 0) then
-    allocate(IPIV(n+1))
-  endif
-  allocate(R((nrcppz+p-2)*(nrcppx+p-2)*(nrcppy+p-2),3,3,3))
+  call FillDimVector(dimensionsX, shiftsX, nrcppx, sy*sz, n, NRPROCX)
+  call FillDimVector(dimensionsY, shiftsY, nrcppy, sx*sz, n, NRPROCY)
+  call FillDimVector(dimensionsZ, shiftsZ, nrcppz, sx*sy, n, NRPROCZ)
 
   ! Compute indices for neighbours
   ibegsx = -1
@@ -194,15 +171,44 @@ integer, dimension(3) :: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
   ibegsz = -1
   iendsz = -1
 
-  do i = max(MYRANKX-1,0)+1,min(MYRANKX+1,NRPROCX-1)+1
-    call ComputeEndpoints(i-1,NRPROCX,n,nrcppx,ibegsx(i-MYRANKX+1),iendsx(i-MYRANKX+1))
+  do i = max(MYRANKX-1,0)+1, min(MYRANKX+1,NRPROCX-1)+1
+    ix = i-MYRANKX+1
+    call ComputeEndpoints(i-1, NRPROCX, n, nrcppx, ibegsx(ix), iendsx(ix))
   enddo
-  do i = max(MYRANKY-1,0)+1,min(MYRANKY+1,NRPROCY-1)+1
-    call ComputeEndpoints(i-1,NRPROCY,n,nrcppy,ibegsy(i-MYRANKY+1),iendsy(i-MYRANKY+1))
+  do i = max(MYRANKY-1,0)+1, min(MYRANKY+1,NRPROCY-1)+1
+    iy = i-MYRANKY+1
+    call ComputeEndpoints(i-1,NRPROCY,n,nrcppy,ibegsy(iy),iendsy(iy))
   enddo
-  do i = max(MYRANKZ-1,0)+1,min(MYRANKZ+1,NRPROCZ-1)+1
-    call ComputeEndpoints(i-1,NRPROCZ,n,nrcppz,ibegsz(i-MYRANKZ+1),iendsz(i-MYRANKZ+1))
+  do i = max(MYRANKZ-1,0)+1, min(MYRANKZ+1,NRPROCZ-1)+1
+    iz = i-MYRANKZ+1
+    call ComputeEndpoints(i-1,NRPROCZ,n,nrcppz,ibegsz(iz),iendsz(iz))
   enddo
+
+end subroutine
+
+
+! -------------------------------------------------------------------
+! Allocates most of the 'static' arrays 
+! -------------------------------------------------------------------
+subroutine AllocateArrays
+integer :: ierr
+
+  allocate(M(2*KL+KU+1,n+1))
+
+  ! OLD: MP start with system fully generated along X
+  ! allocate( F((n+1),(sy)*(sz))) !x,y,z
+  allocate( F(sx,sy*sz)) !x,y,z
+  allocate(F2(sy,sx*sz)) !y,x,z
+  allocate(F3(sz,sx*sy)) !z,x,y
+
+  allocate(Result(sz,sx*sy)) !z,x,y
+
+  ! Processes on the border need pivot vector for LAPACK call
+  if (MYRANKX == 0 .or. MYRANKY == 0 .or. MYRANKZ == 0) then
+    allocate(IPIV(n+1))
+  endif
+
+  allocate(R((nrcppz+p-2)*(nrcppx+p-2)*(nrcppy+p-2),3,3,3))
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
   if (MYRANK == 0) then
@@ -211,473 +217,456 @@ integer, dimension(3) :: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
     call start_clock(iclock_i3)
   endif
 
-!---------------------------------------------------------------------
+end subroutine
 
-  U(1:p+1) = 0
-  U(n+2:n+p+2) = 1
-  do i = p+2,n+1
-    U(i) = real(i-p-1)/real(n-p+1)
-  enddo
 
+! -------------------------------------------------------------------
+! Allocates and fills the knot vector
+! -------------------------------------------------------------------
+subroutine PrepareKnot
+
+  allocate(U(n+p+2))
+  call FillOpenKnot(U, n, p)
   nelem = CountSpans(n,p,U)
-  ! if(iprint == 1)then
-  if(iinfo == 1)then
+
+  if (iinfo == 1) then
     write(*,*)'n,p,nelem',n,p,nelem
     write(*,*)'U',U
   endif
 
-!---------------------------------------------------------------------
-! Iterations 
-!---------------------------------------------------------------------
-  do iter = 1,steps
-
-    write(*,*)'Iteration',iter,'/',steps
-    write(*,*)'t = ',t
-
-    ! generate the 1D matrix
-
-    call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-    M = 0
-    call Form1DMassMatrix(KL,KU,U,p,n,nelem,M)
-    if (iprint == 1) then
-      write(*,*)PRINTRANK,'M'
-      do i = 1,2*KL+KU+1
-        write(*,*)PRINTRANK,M(i,1:n+1)
-      enddo
-    endif
-
-    !!$ U is the knot vector
-    !!$ p is the polynomial order
-    !!$ n is the index of the last control point
-    !!$ nelem you get from running CountSpans
-    !!$ M is the dense matrix
-
-    ! generate the RHS vectors
-
-    call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-    if (MYRANK == 0) then
-      call stop_clock(dtime_i3,iclock_i3)
-      write(*,*)'Form 1D Mass Matrix:',dtime_i3
-      call start_clock(iclock_i4)
-    endif
-
-    call Form3DRHS                                    &
-        (U,p,n,nelem,nrcppx,                          &
-         U,p,n,nelem,nrcppy,                          &
-         U,p,n,nelem,nrcppz,                          &
-         ibegx,iendx,MYRANKX,NRPROCX,                 &
-         ibegy,iendy,MYRANKY,NRPROCY,                 &
-         ibegz,iendz,MYRANKZ,NRPROCZ,                 &
-         ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz,   &
-         F,R,t)
-
-    if (iprint == 1) then
-      write(*,*)PRINTRANK,'F'
-      do i = 1,sx
-        write(*,*)PRINTRANK,F(i,1:sy*sz)
-      enddo
-    endif
-
-    call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-    if (MYRANK == 0) then
-      call stop_clock(dtime_i4,iclock_i4)
-      write(*,*)'Form 3D RHS:',dtime_i4
-    endif
-
-!--------------------------------------------------------------------
-! Solve the first problem
-!--------------------------------------------------------------------
-
-    call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-    if (MYRANK == 0) then
-      call stop_clock(dtime_init,iclock_init)
-      write(*,*)dtime_init
-      call start_clock(iclock_gather1)
-    endif
-
-    if (iinfo == 1) write(*,*)PRINTRANK,'1a) GATHER'
-
-    allocate(F_out((n+1),sy*sz))
-
-    call Gather(F,F_out,n,sx,sy*sz,dimensionsX,shiftsX,COMMX,ierr)
-
-    if (iprint == 1) then
-      write(*,*)PRINTRANK,'after call mpi_gather'
-      write(*,*)PRINTRANK,'ierr',ierr
-      write(*,*)PRINTRANK,'F_out:'
-      do i=1,n+1
-        write(*,*)PRINTRANK,i,'row=',F_out(i,1:sy*sz)
-      enddo
-    endif
-    call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-    !  SUBROUTINE DGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
-    !  .. Scalar Arguments ..
-    !  INTEGER            INFO, KL, KU, LDAB, LDB, N, NRHS
-    !  .. Array Arguments ..
-    !  INTEGER            IPIV( * )
-    !  DOUBLE PRECISION   AB( LDAB, * ), B( LDB, * )
-
-    if (MYRANK == 0) then
-      call stop_clock(dtime_gather1,iclock_gather1)
-      write(*,*)dtime_gather1
-      call start_clock(iclock_solve1)
-    endif
-
-    if(MYRANKX == 0)then
-      IPIV = 0
-
-      if (iinfo == 1) write(*,*)PRINTRANK,'1b) SOLVE THE FIRST PROBLEM'
-
-      if (iprint == 1) then
-        write(*,*)'CALL DGBSV'
-        write(*,*)'N=',n+1
-        write(*,*)'KL=',KL
-        write(*,*)'KU=',KU
-        write(*,*)'NRHS=',sy*sz
-        write(*,*)'AB='
-        do i = 1,2*KL+KU+1
-          write(*,*)i,'row=',M(i,1:n+1)
-        enddo
-        write(*,*)'LDAB=',2*KL+KU+1
-        write(*,*)'IPIV=',IPIV
-        write(*,*)'B='
-        do i = 1,n+1
-          write(*,*)i,'row=',F_out(i,1:sy*sz)
-        enddo
-        write(*,*)'LDB=',n+1
-      endif
-
-      call DGBSV(n+1,KL,KU,sy*sz,M,2*KL+KU+1,IPIV,F_out,n+1,iret)
-
-      if (iprint == 1) then
-        write(*,*)'iret=',iret
-        write(*,*)'Solution='
-        do i = 1,n+1
-          write(*,*)i,'row=',F_out(i,1:sy*sz)
-        enddo
-      endif
-    endif
-
-    call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-    if (MYRANK == 0) then
-      call stop_clock(dtime_solve1,iclock_solve1)
-      write(*,*)dtime_solve1
-      call start_clock(iclock_scatter1)
-    endif
-
-    if (iinfo == 1) write(*,*)PRINTRANK,'1c) SCATTER'
-    allocate(F2_out(sx,sy*sz)) 
-    call Scatter(F_out,F2_out,n,sx,sy*sz,dimensionsX,shiftsX,COMMX,ierr)
-    deallocate(F_out)
-
-    call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-    if (MYRANK == 0) then
-      call stop_clock(dtime_scatter1,iclock_scatter1)
-      write(*,*)dtime_scatter1
-      call start_clock(iclock_gather2)
-    endif
-
-    call ReorderRHSForY                          &
-      (U,p,n,nelem,U,p,n,nelem,U,p,n,nelem,      &
-       ibegx,iendx,MYRANKX,NRPROCX,              &
-       ibegy,iendy,MYRANKY,NRPROCY,              &
-       ibegz,iendz,MYRANKZ,NRPROCZ,F2_out,F2)
-    deallocate(F2_out)
-
-    if (iprint == 1) then
-      write(*,*)PRINTRANK,'after ReorderRHSForY'
-      write(*,*)PRINTRANK,'F2:'
-      do i = 1,sy
-        write(*,*)PRINTRANK,i,'row=',F2(i,1:sx*sz)
-      enddo
-    endif
-    iprint = 0      
-
-!--------------------------------------------------------------------
-! Solve the second problem
-!--------------------------------------------------------------------
-
-    call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-    if (iinfo == 1) write(*,*)PRINTRANK,'2a) GATHER'
-
-    allocate(F2_out((n+1),sx*sz))
-    call Gather(F2,F2_out,n,sy,sx*sz,dimensionsY,shiftsY,COMMY,ierr)
-
-    call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-    if (MYRANK == 0) then
-      call stop_clock(dtime_gather2,iclock_gather2)
-      write(*,*)dtime_gather2
-      call start_clock(iclock_solve2)
-    endif
-
-    ! SUBROUTINE DGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
-    ! .. Scalar Arguments ..
-    ! INTEGER            INFO, KL, KU, LDAB, LDB, N, NRHS
-    ! .. Array Arguments ..
-    ! INTEGER            IPIV( * )
-    ! DOUBLE PRECISION   AB( LDAB, * ), B( LDB, * )
-
-    if(MYRANKY == 0)then
-      IPIV = 0
-
-      if (iinfo == 1) write(*,*)PRINTRANK,'2b) SOLVE THE SECOND PROBLEM'
-
-      M = 0
-      call Form1DMassMatrix(KL,KU,U,p,n,nelem,M)
-      if (iprint == 1) then
-        write(*,*)PRINTRANK,'M'
-        do i = 1,2*KL+KU+1
-          write(*,*)PRINTRANK,M(i,1:n+1)
-        enddo
-      endif
-
-      if (iprint == 1) then
-        write(*,*)'CALL DGBSV'
-        write(*,*)'N=',n+1
-        write(*,*)'KL=',KL
-        write(*,*)'KU=',KU
-        write(*,*)'NRHS=',(n+1)*(n+1)
-        write(*,*)'AB='
-        do i = 1,2*KL+KU+1
-          write(*,*)i,'row=',M(i,1:n+1)
-        enddo
-        write(*,*)'LDAB=',2*KL+KU+1
-        write(*,*)'IPIV=',IPIV
-        write(*,*)'B='
-        do i = 1,n+1
-          write(*,*)i,'row=',F2_out(i,1:sx*sz)
-        enddo
-        write(*,*)'LDB=',n+1
-      endif
-
-      call DGBSV(n+1,KL,KU,sx*sz,M,2*KL+KU+1,IPIV,F2_out,n+1,iret)
-
-      if (iprint == 1) then
-        write(*,*)'iret=',iret
-        write(*,*)'Solution='
-        do i = 1,n+1
-          write(*,*)i,'row=',F2_out(i,1:sx*sz)
-        enddo
-      endif
-    endif
-
-    call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-    if (MYRANK == 0) then
-      call stop_clock(dtime_solve2,iclock_solve2)
-      write(*,*)dtime_solve2
-      call start_clock(iclock_scatter2)
-    endif
-
-    if (iinfo == 1) write(*,*)PRINTRANK,'2c) SCATHER'
-
-    ! CORRECTION
-    allocate(F3_out(sy,sx*sz)) 
-    call Scatter(F2_out,F3_out,n,sy,sx*sz,dimensionsY,shiftsY,COMMY,ierr)
-    deallocate(F2_out)
-
-    if(iprint == 1)then
-      write(*,*)PRINTRANK,'after call mpi_scatterv'
-      write(*,*)PRINTRANK,'ierr',ierr
-      write(*,*)PRINTRANK,'F3_out:'
-      do i = 1,sy
-        write(*,*)PRINTRANK,i,'row=',F3_out(i,1:sx*sz)
-      enddo
-    endif
-
-    call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-    if (MYRANK == 0) then
-      call stop_clock(dtime_scatter2,iclock_scatter2)
-      write(*,*)dtime_scatter2
-      call start_clock(iclock_gather3)
-    endif
-
-!-------------------------------------------------------------
-! Reorder right hand sides
-!-------------------------------------------------------------
-    call ReorderRHSForZ                        &
-      (U,p,n,nelem,U,p,n,nelem,U,p,n,nelem,    &
-       ibegx,iendx,MYRANKX,NRPROCX,            &
-       ibegy,iendy,MYRANKY,NRPROCY,            &
-       ibegz,iendz,MYRANKZ,NRPROCZ,F3_out,F3)
-    deallocate(F3_out)
-
-    if (iprint == 1) then
-      write(*,*)PRINTRANK,'after ReorderRHSForZ'
-      write(*,*)PRINTRANK,'F3:'
-      do i = 1,sz
-        write(*,*)PRINTRANK,i,'row=',F3(i,1:sx*sy)
-      enddo
-    endif
-    iprint = 0
-
-    ! Solve the third problem
-
-    if (iinfo == 1) write(*,*)PRINTRANK,'3a) GATHER'
-
-    call mpi_barrier(MPI_COMM_WORLD,ierr)
-    allocate(F3_out((n+1),sx*sy))
-    call Gather(F3,F3_out,n,sz,sx*sy,dimensionsZ,shiftsZ,COMMZ,ierr)
-
-    call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-    if (MYRANK == 0) then
-      call stop_clock(dtime_gather3,iclock_gather3)
-      write(*,*)dtime_gather3
-      call start_clock(iclock_solve3)
-    endif
-
-    ! SUBROUTINE DGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
-    ! .. Scalar Arguments ..
-    ! INTEGER            INFO, KL, KU, LDAB, LDB, N, NRHS
-    ! .. Array Arguments ..
-    ! INTEGER            IPIV( * )
-    ! DOUBLE PRECISION   AB( LDAB, * ), B( LDB, * )
-
-    if (MYRANKZ == 0) then
-      IPIV = 0
-
-      if (iinfo == 1) write(*,*)PRINTRANK,'3b) SOLVE THE THIRD PROBLEM'
-
-      M = 0
-      call Form1DMassMatrix(KL,KU,U,p,n,nelem,M)
-      if (iprint == 1) then
-        write(*,*)PRINTRANK,'M'
-        do i = 1,2*KL+KU+1
-          write(*,*)PRINTRANK,M(i,1:n+1)
-        enddo
-      endif
-
-      if (iprint == 1) then
-        write(*,*)'CALL DGBSV'
-        write(*,*)'N=',n+1
-        write(*,*)'KL=',KL
-        write(*,*)'KU=',KU
-        write(*,*)'NRHS=',(n+1)*(n+1)
-        write(*,*)'AB='
-        do i = 1,2*KL+KU+1
-          write(*,*)i,'row=',M(i,1:n+1)
-        enddo
-        write(*,*)'LDAB=',2*KL+KU+1
-        write(*,*)'IPIV=',IPIV
-        write(*,*)'B='
-        do i = 1,n+1
-          write(*,*)i,'row=',F3_out(i,1:sx*sy)
-        enddo
-        write(*,*)'LDB=',n+1
-      endif
-
-      call DGBSV(n+1,KL,KU,sx*sy,M,2*KL+KU+1,IPIV,F3_out,n+1,iret)
-
-      if (iprint == 1) then
-        write(*,*)'iret=',iret
-        write(*,*)'Solution='
-        do i = 1,n+1
-          write(*,*)i,'row=',F3_out(i,1:sx*sy)
-        enddo
-      endif
-    endif
-
-    call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-    if (MYRANK == 0) then
-      call stop_clock(dtime_solve3,iclock_solve3)
-      write(*,*)dtime_solve3
-      call start_clock(iclock_scatter3)
-    endif
-
-
-    if (iinfo == 1) write(*,*)PRINTRANK,'3c) SCATTER'
-
-    ! CORRECTION
-    call Scatter2(F3_out,Result,n,sz,sx*sy,dimensionsZ,shiftsZ,COMMZ,ierr)
-    deallocate(F3_out)
-
-    !do i=ibegx,iendx
-    !  do j=ibegy,iendy
-    !    do k=ibegz,iendz
-    !       Result(k-ibegz+1,(j-ibegy)*sx + i-ibegx+1)=(10*i+j)*10 + k 
-    !    enddo
-    !  enddo
-    !enddo
-
-    s = 1
-    do i = max(MYRANKX-1,0)+1,min(MYRANKX+1,NRPROCX-1)+1
-      do j = max(MYRANKY-1,0)+1,min(MYRANKY+1,NRPROCY-1)+1
-        do k = max(MYRANKZ-1,0)+1,min(MYRANKZ+1,NRPROCZ-1)+1
-          call mpi_isend(Result,      &
-            sx*sy*sz,                 &
-            MPI_DOUBLE_PRECISION,     &
-            processors(i,j,k),        &
-            0,                        &
-            MPI_COMM_WORLD,           &
-            request(s),ierr)
-          s = s + 1
-          call mpi_irecv(                                &
-            R(:,i-MYRANKX+1,j-MYRANKY+1,k-MYRANKZ+1),    &
-            nrcppx*nrcppy*nrcppz,                        &
-            MPI_DOUBLE_PRECISION,                        &
-            processors(i,j,k),                           &
-            0,                                           &
-            MPI_COMM_WORLD,                              &
-            request(s),ierr)
-          s = s + 1
-        enddo
+end subroutine
+
+
+! -------------------------------------------------------------------
+! Calculates mass matrix M
+! -------------------------------------------------------------------
+subroutine ComputeMassMatrix
+integer :: i
+
+  call Form1DMassMatrix(KL,KU,U,p,n,nelem,M)
+  if (iprint == 1) then
+    write(*,*)PRINTRANK,'M'
+    do i = 1,2*KL+KU+1
+      write(*,*)PRINTRANK,M(i,1:n+1)
+    enddo
+  endif
+
+end subroutine
+
+
+! -------------------------------------------------------------------
+! Distributes solution to neighbouring processes. It is essential
+! that each process possess enough of the solution to be able to
+! calculate values near the boundary, hence overlapping supports
+! of B-splines necessitate partial sharing.
+!
+! Currently, it uses the naive algorithm (sequentially send your
+! piece to everyone around you).
+! -------------------------------------------------------------------
+subroutine DistributeSolutionToNeighbours
+integer :: i, j, k, s
+integer :: request(3*3*3*2), stat(MPI_STATUS_SIZE)
+integer :: ierr
+
+  !do i=ibegx,iendx
+  !  do j=ibegy,iendy
+  !    do k=ibegz,iendz
+  !       Result(k-ibegz+1,(j-ibegy)*sx + i-ibegx+1)=(10*i+j)*10 + k 
+  !    enddo
+  !  enddo
+  !enddo
+
+  s = 1
+  do i = max(MYRANKX-1,0)+1, min(MYRANKX+1,NRPROCX-1)+1
+    do j = max(MYRANKY-1,0)+1, min(MYRANKY+1,NRPROCY-1)+1
+      do k = max(MYRANKZ-1,0)+1, min(MYRANKZ+1,NRPROCZ-1)+1
+        call mpi_isend(Result,      &
+          sx*sy*sz,                 &
+          MPI_DOUBLE_PRECISION,     &
+          processors(i,j,k),        &
+          0,                        &
+          MPI_COMM_WORLD,           &
+          request(s),ierr)
+        s = s + 1
+        call mpi_irecv(                                &
+          R(:,i-MYRANKX+1,j-MYRANKY+1,k-MYRANKZ+1),    &
+          nrcppx*nrcppy*nrcppz,                        &
+          MPI_DOUBLE_PRECISION,                        &
+          processors(i,j,k),                           &
+          0,                                           &
+          MPI_COMM_WORLD,                              &
+          request(s),ierr)
+        s = s + 1
       enddo
     enddo
+  enddo
 
-    do i = 1,s-1
-      call mpi_wait(request(i),stat,ierr)
-    enddo
+  do i = 1,s-1
+    call mpi_wait(request(i),stat,ierr)
+  enddo
 
-    call mpi_barrier(MPI_COMM_WORLD,ierr)
-    if (MYRANK == 0) then
-      write(*,*)PRINTRANK,'R:'
-      do i = max(MYRANKX-1,0)+1,min(MYRANKX+1,NRPROCX-1)+1
-      do j = max(MYRANKY-1,0)+1,min(MYRANKY+1,NRPROCY-1)+1
-      do k = max(MYRANKZ-1,0)+1,min(MYRANKZ+1,NRPROCZ-1)+1
+  call mpi_barrier(MPI_COMM_WORLD,ierr)
+  if (MYRANK == 0) then
+    call PrintDistributedData
+  endif
+
+end subroutine
+
+
+! -------------------------------------------------------------------
+! Prints debugging information about results of distributing
+! data to neighbouring processes.
+! -------------------------------------------------------------------
+subroutine PrintDistributedData
+integer :: i, j, k
+integer :: obegx,oendx,obegy,oendy,obegz,oendz
+
+  write(*,*)PRINTRANK,'R:'
+
+  do i = max(MYRANKX-1,0)+1, min(MYRANKX+1,NRPROCX-1)+1
+    do j = max(MYRANKY-1,0)+1, min(MYRANKY+1,NRPROCY-1)+1
+      do k = max(MYRANKZ-1,0)+1, min(MYRANKZ+1,NRPROCZ-1)+1
         write(*,*)'(i,j,k)=',i,j,k
+
         call ComputeEndpoints(i-1,NRPROCX,n,nrcppx,obegx,oendx)
         call ComputeEndpoints(j-1,NRPROCY,n,nrcppy,obegy,oendy)
         call ComputeEndpoints(k-1,NRPROCZ,n,nrcppz,obegz,oendz)
+
         write(*,*) reshape(                                 &
           R(:,i-MYRANKX+1,j-MYRANKY+1,k-MYRANKZ+1),         &
           (/ oendz-obegz+1,oendx-obegx+1,oendy-obegy+1 /))
       enddo
-      enddo
-      enddo
-      write(*,*)'----'
-    endif
-
-    if(MYRANK == 0)iprint=1
-    if(iprint == 1)then
-      write(*,*)PRINTRANK,'Result:'
-      do i = 1,sz
-        write(*,*)PRINTRANK,i,'row=',Result(i,:)
-      enddo
-    endif
-
-    if (MYRANK == 0) then
-      call stop_clock(dtime_scatter3,iclock_scatter3)
-      write(*,*)dtime_scatter3
-    endif
-
-    call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-    t = t + Dt
-
-  ! End of iterations
+    enddo
   enddo
+
+  write(*,*)'----'
+
+end subroutine
+
+
+! -------------------------------------------------------------------
+! Calculates force (load)
+!
+! t - current time
+! -------------------------------------------------------------------
+subroutine ComputeRHS(t)
+real (kind=8) :: t
+integer :: i
+integer :: ierr
+
+  call Form3DRHS                                    &
+      (U,p,n,nelem,nrcppx,                          &
+       U,p,n,nelem,nrcppy,                          &
+       U,p,n,nelem,nrcppz,                          &
+       ibegx,iendx,MYRANKX,NRPROCX,                 &
+       ibegy,iendy,MYRANKY,NRPROCY,                 &
+       ibegz,iendz,MYRANKZ,NRPROCZ,                 &
+       ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz,   &
+       F,R,t)
+
+  if (iprint == 1) then
+    write(*,*)PRINTRANK,'F'
+    do i = 1,sx
+      write(*,*)PRINTRANK,F(i,1:sy*sz)
+    enddo
+  endif
+
+  call mpi_barrier(MPI_COMM_WORLD,ierr)
+
+  if (MYRANK == 0) then
+    call stop_clock(dtime_i4,iclock_i4)
+    write(*,*)'Form 3D RHS:',dtime_i4
+  endif
+
+end subroutine
+
+
+! -------------------------------------------------------------------
+! Solves 1D linear system (one of 3 steps of solving the whole),
+! using DGBSV.
+!
+! RHS   - vector of right-hand sides, of dimension (n+1) x eqnum
+! eqnum - number of right-hand sides (equations)
+! -------------------------------------------------------------------
+subroutine SolveOneDirection(RHS, eqnum)
+real (kind=8) :: RHS(:,:)
+integer :: eqnum
+integer :: i, iret
+
+  IPIV = 0
+
+  if (iprint == 1) then
+    write(*,*)'CALL DGBSV'
+    write(*,*)'N=',n+1
+    write(*,*)'KL=',KL
+    write(*,*)'KU=',KU
+    write(*,*)'NRHS=',eqnum
+    write(*,*)'AB='
+    do i = 1,2*KL+KU+1
+      write(*,*)i,'row=',M(i,1:n+1)
+    enddo
+    write(*,*)'LDAB=',2*KL+KU+1
+    write(*,*)'IPIV=',IPIV
+    write(*,*)'B='
+    do i = 1,n+1
+      write(*,*)i,'row=',RHS(i,1:eqnum)
+    enddo
+    write(*,*)'LDB=',n+1
+  endif
+
+  ! SUBROUTINE DGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
+  ! .. Scalar Arguments ..
+  ! INTEGER            INFO, KL, KU, LDAB, LDB, N, NRHS
+  ! .. Array Arguments ..
+  ! INTEGER            IPIV( * )
+  ! DOUBLE PRECISION   AB( LDAB, * ), B( LDB, * )
+
+  call DGBSV(n+1,KL,KU,eqnum,M,2*KL+KU+1,IPIV,RHS,n+1,iret)
+
+  if (iprint == 1) then
+    write(*,*)'iret=',iret
+    write(*,*)'Solution='
+    do i = 1,n+1
+      write(*,*)i,'row=',RHS(i,1:eqnum)
+    enddo
+  endif
+
+end subroutine
+
+
+! -------------------------------------------------------------------
+! Performs one step of the simulation
+!
+! iter - number of the iteration
+! t    - time at the beginning of step
+! -------------------------------------------------------------------
+subroutine Step(iter, t)
+integer :: iter
+real (kind=8) :: t
+integer :: i
+integer :: iret, ierr
+
+  ! generate the RHS vectors
+  call ComputeRHS(t)
+
+  !--------------------------------------------------------------------
+  ! Solve the first problem
+  !--------------------------------------------------------------------
+  call mpi_barrier(MPI_COMM_WORLD,ierr)
+
+  if (MYRANK == 0) then
+    call stop_clock(dtime_init,iclock_init)
+    write(*,*)dtime_init
+    call start_clock(iclock_gather1)
+  endif
+
+  if (iinfo == 1) write(*,*)PRINTRANK,'1a) GATHER'
+
+  allocate(F_out((n+1),sy*sz))
+
+  call Gather(F,F_out,n,sx,sy*sz,dimensionsX,shiftsX,COMMX,ierr)
+
+  if (iprint == 1) then
+    write(*,*)PRINTRANK,'after call mpi_gather'
+    write(*,*)PRINTRANK,'ierr',ierr
+    write(*,*)PRINTRANK,'F_out:'
+    do i=1,n+1
+      write(*,*)PRINTRANK,i,'row=',F_out(i,1:sy*sz)
+    enddo
+  endif
+  call mpi_barrier(MPI_COMM_WORLD,ierr)
+
+  if (MYRANK == 0) then
+    call stop_clock(dtime_gather1,iclock_gather1)
+    write(*,*)dtime_gather1
+    call start_clock(iclock_solve1)
+  endif
+
+  if (MYRANKX == 0) then
+    if (iinfo == 1) write(*,*)PRINTRANK,'1b) SOLVE THE FIRST PROBLEM'
+
+    call ComputeMassMatrix
+    call SolveOneDirection(F_out, sy*sz)
+  endif
+
+  call mpi_barrier(MPI_COMM_WORLD,ierr)
+
+  if (MYRANK == 0) then
+    call stop_clock(dtime_solve1,iclock_solve1)
+    write(*,*)dtime_solve1
+    call start_clock(iclock_scatter1)
+  endif
+
+  if (iinfo == 1) write(*,*)PRINTRANK,'1c) SCATTER'
+  allocate(F2_out(sx,sy*sz)) 
+  call Scatter(F_out,F2_out,n,sx,sy*sz,dimensionsX,shiftsX,COMMX,ierr)
+  deallocate(F_out)
+
+  call mpi_barrier(MPI_COMM_WORLD,ierr)
+
+  if (MYRANK == 0) then
+    call stop_clock(dtime_scatter1,iclock_scatter1)
+    write(*,*)dtime_scatter1
+    call start_clock(iclock_gather2)
+  endif
+
+  if (iinfo == 1) write(*,*)PRINTRANK,'1d) REORDER'
+  call ReorderRHSForY                          &
+    (U,p,n,nelem,U,p,n,nelem,U,p,n,nelem,      &
+     ibegx,iendx,MYRANKX,NRPROCX,              &
+     ibegy,iendy,MYRANKY,NRPROCY,              &
+     ibegz,iendz,MYRANKZ,NRPROCZ,F2_out,F2)
+  deallocate(F2_out)
+
+  if (iprint == 1) then
+    write(*,*)PRINTRANK,'after ReorderRHSForY'
+    write(*,*)PRINTRANK,'F2:'
+    do i = 1,sy
+      write(*,*)PRINTRANK,i,'row=',F2(i,1:sx*sz)
+    enddo
+  endif
+  iprint = 0      
+
+  !--------------------------------------------------------------------
+  ! Solve the second problem
+  !--------------------------------------------------------------------
+  call mpi_barrier(MPI_COMM_WORLD,ierr)
+
+  if (iinfo == 1) write(*,*)PRINTRANK,'2a) GATHER'
+
+  allocate(F2_out((n+1),sx*sz))
+  call Gather(F2,F2_out,n,sy,sx*sz,dimensionsY,shiftsY,COMMY,ierr)
+
+  call mpi_barrier(MPI_COMM_WORLD,ierr)
+
+  if (MYRANK == 0) then
+    call stop_clock(dtime_gather2,iclock_gather2)
+    write(*,*)dtime_gather2
+    call start_clock(iclock_solve2)
+  endif
+
+
+  if (MYRANKY == 0) then
+    if (iinfo == 1) write(*,*)PRINTRANK,'2b) SOLVE THE SECOND PROBLEM'
+
+    call ComputeMassMatrix
+    call SolveOneDirection(F2_out, sx*sz)
+  endif
+
+  call mpi_barrier(MPI_COMM_WORLD,ierr)
+
+  if (MYRANK == 0) then
+    call stop_clock(dtime_solve2,iclock_solve2)
+    write(*,*)dtime_solve2
+    call start_clock(iclock_scatter2)
+  endif
+
+  if (iinfo == 1) write(*,*)PRINTRANK,'2c) SCATHER'
+
+  ! CORRECTION
+  allocate(F3_out(sy,sx*sz)) 
+  call Scatter(F2_out,F3_out,n,sy,sx*sz,dimensionsY,shiftsY,COMMY,ierr)
+  deallocate(F2_out)
+
+  if(iprint == 1)then
+    write(*,*)PRINTRANK,'after call mpi_scatterv'
+    write(*,*)PRINTRANK,'ierr',ierr
+    write(*,*)PRINTRANK,'F3_out:'
+    do i = 1,sy
+      write(*,*)PRINTRANK,i,'row=',F3_out(i,1:sx*sz)
+    enddo
+  endif
+
+  call mpi_barrier(MPI_COMM_WORLD,ierr)
+
+  if (MYRANK == 0) then
+    call stop_clock(dtime_scatter2,iclock_scatter2)
+    write(*,*)dtime_scatter2
+    call start_clock(iclock_gather3)
+  endif
+
+  if (iinfo == 1) write(*,*)PRINTRANK,'2d) REORDER'
+  ! Reorder right hand sides
+  call ReorderRHSForZ                        &
+    (U,p,n,nelem,U,p,n,nelem,U,p,n,nelem,    &
+     ibegx,iendx,MYRANKX,NRPROCX,            &
+     ibegy,iendy,MYRANKY,NRPROCY,            &
+     ibegz,iendz,MYRANKZ,NRPROCZ,F3_out,F3)
+  deallocate(F3_out)
+
+  if (iprint == 1) then
+    write(*,*)PRINTRANK,'after ReorderRHSForZ'
+    write(*,*)PRINTRANK,'F3:'
+    do i = 1,sz
+      write(*,*)PRINTRANK,i,'row=',F3(i,1:sx*sy)
+    enddo
+  endif
+  iprint = 0
+
+  !--------------------------------------------------------------------
+  ! Solve the third problem
+  !--------------------------------------------------------------------
+  if (iinfo == 1) write(*,*)PRINTRANK,'3a) GATHER'
+
+  call mpi_barrier(MPI_COMM_WORLD,ierr)
+  allocate(F3_out((n+1),sx*sy))
+  call Gather(F3,F3_out,n,sz,sx*sy,dimensionsZ,shiftsZ,COMMZ,ierr)
+
+  call mpi_barrier(MPI_COMM_WORLD,ierr)
+
+  if (MYRANK == 0) then
+    call stop_clock(dtime_gather3,iclock_gather3)
+    write(*,*)dtime_gather3
+    call start_clock(iclock_solve3)
+  endif
+
+  if (MYRANKZ == 0) then
+    if (iinfo == 1) write(*,*)PRINTRANK,'3b) SOLVE THE THIRD PROBLEM'
+
+    call ComputeMassMatrix
+    call SolveOneDirection(F3_out, sx*sy)
+  endif
+
+  call mpi_barrier(MPI_COMM_WORLD,ierr)
+
+  if (MYRANK == 0) then
+    call stop_clock(dtime_solve3,iclock_solve3)
+    write(*,*)dtime_solve3
+    call start_clock(iclock_scatter3)
+  endif
+
+  if (iinfo == 1) write(*,*)PRINTRANK,'3c) SCATTER'
+
+  ! CORRECTION
+  call Scatter2(F3_out,Result,n,sz,sx*sy,dimensionsZ,shiftsZ,COMMZ,ierr)
+  deallocate(F3_out)
+
+  if (iinfo == 1) write(*,*)PRINTRANK,'3d) DISTRIBUTE SOLUTION'
+  call DistributeSolutionToNeighbours
+
+  if (MYRANK == 0) iprint=1
+  if (iprint == 1) then
+    write(*,*)PRINTRANK,'Result:'
+    do i = 1,sz
+      write(*,*)PRINTRANK,i,'row=',Result(i,:)
+    enddo
+  endif
+
+  if (MYRANK == 0) then
+    call stop_clock(dtime_scatter3,iclock_scatter3)
+    write(*,*)dtime_scatter3
+  endif
+
+  call mpi_barrier(MPI_COMM_WORLD,ierr)
+
+end subroutine
+
+
+! -------------------------------------------------------------------
+! Deallocates all the resources and finalizes MPI.
+! -------------------------------------------------------------------
+subroutine Cleanup
+integer :: ierr
 
   deallocate(shiftsX)
   deallocate(shiftsY)
@@ -698,6 +687,133 @@ integer, dimension(3) :: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
     call stop_clock(dtime,iclock)
     write(*,*)dtime
   endif
+end subroutine
+
+
+! -------------------------------------------------------------------
+! Sanity-check of dimensions vector
+! -------------------------------------------------------------------
+subroutine ValidateDimensions
+integer :: i, k
+
+  k = 0
+  do i = 1,NRPROCX
+    k = k + dimensionsX(i)
+  enddo
+  if (k /= (n+1)*sy*sz) then
+    write(*,*)PRINTRANK,'problem with dimensionsX',dimensionsX
+    write(*,*)PRINTRANK,'n+1',n+1
+    write(*,*)PRINTRANK,'sy',sy
+    write(*,*)PRINTRANK,'sz',sz
+    write(*,*)PRINTRANK,'nrcppx',nrcppx
+    stop
+  endif
+
+  k = 0
+  do i = 1,NRPROCY
+    k = k + dimensionsY(i)
+  enddo
+  if (k /= (n+1)*sx*sz) then
+    write(*,*)PRINTRANK,'problem with dimensionsY',dimensionsY
+    write(*,*)PRINTRANK,'n+1',n+1
+    write(*,*)PRINTRANK,'sx',sx
+    write(*,*)PRINTRANK,'sz',sz
+    stop
+  endif
+
+  k = 0
+  do i = 1,NRPROCZ
+    k = k + dimensionsZ(i)
+  enddo
+  if (k /= (n+1)*sx*sy) then
+    write(*,*)PRINTRANK,'problem with dimensionsZ',dimensionsZ
+    write(*,*)PRINTRANK,'n+1',n+1
+    write(*,*)PRINTRANK,'sx',sx
+    write(*,*)PRINTRANK,'sy',sy
+    stop
+  endif
+
+end subroutine
+
+
+! -------------------------------------------------------------------
+! Displays computed domain decomposition, for debugging.
+! -------------------------------------------------------------------
+subroutine PrintDecompositionInfo
+
+  write(*,*)PRINTRANK,'MYRANKX,MYRANKY,MYRANKZ',MYRANKX,MYRANKY,MYRANKZ
+  write(*,*)PRINTRANK,'NRPROCX,NRPROCY,NRPROCZ',NRPROCX,NRPROCY,NRPROCZ
+  write(*,*)PRINTRANK,'n+1',n+1
+  write(*,*)PRINTRANK,'nrcppx,nrcppy,nrcppz',nrcppx,nrcppy,nrcppz
+  write(*,*)PRINTRANK,'ibegx,iendx',ibegx,iendx
+  write(*,*)PRINTRANK,'ibegy,iendy',ibegy,iendy
+  write(*,*)PRINTRANK,'ibegz,iendz',ibegz,iendz
+
+end subroutine
+
+
+end module
+
+
+
+
+program main
+
+use stuff
+
+! Iteration counter
+integer :: iter = 0
+
+! Current time
+real (kind=8) :: t = 0
+
+! -------------------------------------------------------------------
+! Code
+! -------------------------------------------------------------------
+
+  call Initialize
+
+  ! prepare the problem dimensions
+  p = ORDER !order
+  n = SIZE !intervals
+
+  if (iinfo == 1)then
+    write(*,*)'p',p,'n',n,'size of U',n+p+2
+  endif
+
+  if (SIZE<NRPROCX .or. SIZE<NRPROCY .or. SIZE<NRPROCZ) then
+    write(*,*)'Number of elements smaller than number of processors'
+    stop
+  endif
+
+  KL = p
+  KU = p
+
+  call ComputeDecomposition
+
+  if (idebug == 1) then
+    call ValidateDimensions
+  endif     
+
+  if (iprint == 1) then
+    call PrintDecompositionInfo
+  endif
+
+  call AllocateArrays
+  call PrepareKnot
+
+  ! Iterations 
+  do iter = 1,steps
+
+    write(*,*)'Iteration',iter,'/',steps
+    write(*,*)'t = ',t
+
+    call Step(iter, t)
+
+    t = t + Dt
+  enddo
+
+  call Cleanup 
 
 end
 

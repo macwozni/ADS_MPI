@@ -1,19 +1,20 @@
 
 SOURCES = \
-          parallelism.F \
+          debug.F90 \
+          parallelism.F90 \
           communicators.F90 \
           basis.F \
           gauss.F \
           reorderRHS.F \
-          input_data.F \
+          input_data.F90 \
           projection_engine.F \
           utils.F90 \
-          analysis.F \
+          analysis.F90 \
+          core.F90 \
           main.F90 \
           pause.F \
-          create_communicators.F90 \
           int2str.F \
-          keep_time.F
+          keep_time.F \
 
 SOURCES_LAPACK = lapack/dgbsv.F \
           lapack/dgbtf2.F \

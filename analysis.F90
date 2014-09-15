@@ -113,16 +113,14 @@ integer :: iprint
       enddo
       enddo
       enddo
-
     enddo
     enddo
     enddo         
-
   enddo
   enddo
   enddo
   
-end subroutine NormL2
+end subroutine
 
-end module analysis
+end module
 

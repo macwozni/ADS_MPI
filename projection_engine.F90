@@ -8,53 +8,53 @@ use utils
 
 implicit none
 
-
 ! order of approximations
 integer :: ORDER
+
 ! number of elements in one dimension
 integer :: SIZE
 
 contains
 
-subroutine initialize_parameters
-  ORDER = 2
-  SIZE = 7
-end subroutine initialize_parameters
-
- 
-!!$ KL = number of subdiagonals, KU = number of superdiagonals
-!!$ d is dimension
-!!$ U is the knot vector
-!!$ p is the polynomial order
-!!$ n is the index of the last control point
-!!$ nelem you get from running CountSpans
-!!$ M is the dense matrix
+! -------------------------------------------------------------------
+! Calculates the mass matrix. 
+!
+! KL     - number of lower diagonals of the resulting matrix
+! KU     - number of upper diagonals of the resulting matrix
+! U      - knot vector
+! p      - degree of approximation
+! n      - number of control points minus one
+! nelem  - number of subintervals in knot
+! M      - output matrix, logically (n+1) x (n+1)
+!
+! Values in the matrix are stored in the band format, i.e. while M
+! is (n+1) x (n+1), it is stored as (2 KL + KU + 1) x n.
+!
+! Index correspondence:
+!         A(i, j) = M(KL + KU + 1 + i - j, j)
+! -------------------------------------------------------------------
 subroutine Form1DMassMatrix(KL,KU,U,p,n,nelem,M)
 integer :: KL,KU
-integer(kind=4), intent(in) :: n, p, nelem
-real   (kind=8), intent(in) :: U(0:n+p+1)
-! M is a band storage matrix A(n,n)->M(2*KL+KU+1,n)
-double precision, intent(out) :: M(0:(2*KL+KU),0:n)
-! double precision, intent(out) :: M(0:n,0:n)
-integer(kind=4) :: mm,ng,e,k,a,b
-integer(kind=4) :: O(nelem)
-real   (kind=8) :: J(nelem)
-real   (kind=8) :: W(p+1)
-real   (kind=8) :: X(p+1,nelem)
-! real   (kind=8) :: NN(0:d,0:p,p+1,nelem)
-real   (kind=8) :: NN(0:0,0:p,p+1,nelem)
+integer (kind=4), intent(in) :: n, p, nelem
+real    (kind=8), intent(in) :: U(0:n+p+1)
+real    (kind=8), intent(out) :: M(0:(2*KL+KU),0:n)
+integer (kind=4) :: mm,ng,e,k,a,b
+integer (kind=4) :: O(nelem)
+real    (kind=8) :: J(nelem)
+real    (kind=8) :: W(p+1)
+real    (kind=8) :: X(p+1,nelem)
+real    (kind=8) :: NN(0:0,0:p,p+1,nelem)
 integer :: d
+integer :: ia, ib
 integer :: nrepp !# elements per processor
-integer :: iprint
-
-  iprint=0
-  ! if(MYRANK.eq.0)iprint=1
 
   mm = n+p+1
   ng = p+1
   d = 0
-  call BasisData(p,mm,U,d,ng,nelem,O,J,W,X,NN) 
   M = 0
+
+  call BasisData(p,mm,U,d,ng,nelem,O,J,W,X,NN) 
+
   ! loop over elements
   do e = 1,nelem
     ! loop over Gauss points
@@ -68,81 +68,38 @@ integer :: iprint
           ! NN(0,a,k,e) = value of shape function a at Gauss point k over element e
           ! NN(0,b,k,e) = value of shape function b at Gauss point k over element e
           ! W(k) weight for Gauss point k
-          ! J(e) jacobian ? for element e
+          ! J(e) jacobian for element e
+          ia = O(e) + a
+          ib = O(e) + b
+          M(KL+KU+ia-ib,ib) = M(KL+KU+ia-ib,ib) + NN(0,a,k,e)*NN(0,b,k,e)*J(e)*W(k)
 
-          ! M is a band storage matrix A(i,j)->M(KL+KU+1+i-j,j)
-          !  write(*,*)'i,j',O(e)+a,O(e)+b,'->',
-          !    KL+KU+O(e)+a-(O(e)+b),O(e)+b
-          M(KL+KU+O(e)+a-(O(e)+b),O(e)+b) = &
-            M(KL+KU+O(e)+a-(O(e)+b),O(e)+b) + NN(0,a,k,e)*NN(0,b,k,e)*J(e)*W(k)
-          !  M(O(e)+a,O(e)+b) =
-          !    M(O(e)+a,O(e)+b) + NN(0,a,k,e)*NN(0,b,k,e)*J(e)*W(k)
-          !      NN(0,a,k,e)*NN(0,b,k,e)*J(e)*W(k)
         enddo
       enddo
     enddo
   enddo
 
-end subroutine Form1DMassMatrix
-
-!-> DEBUG
-subroutine Form1DMassMatrixFULL(U,p,n,nelem,M) 
-!!$ d is dimension
-!!$ U is the knot vector
-!!$ p is the polynomial order
-!!$ n is the index of the last control point
-!!$ nelem you get from running CountSpans
-!!$ M is the dense matrix
-integer(kind=4), intent(in) :: n, p, nelem
-real   (kind=8), intent(in) :: U(0:n+p+1)
-double precision, intent(out) :: M(0:n,0:n)
-integer(kind=4) :: mm,ng,e,k,a,b
-integer(kind=4) :: O(nelem)
-real   (kind=8) :: J(nelem)
-real   (kind=8) :: W(p+1)
-real   (kind=8) :: X(p+1,nelem)
-!      real   (kind=8) :: NN(0:d,0:p,p+1,nelem)
-real   (kind=8) :: NN(0:0,0:p,p+1,nelem)
-integer :: d
-
-  mm  = n+p+1
-  ng  = p+1
-  d = 0
-  call BasisData(p,mm,U,d,ng,nelem,O,J,W,X,NN) 
-
-  M = 0.d0
-! loop over elements
-  do e = 1,nelem
-! loop over Gauss points
-    do k = 1,ng
-! loop over shape functions over elements (p+1 functions)
-      do a = 0,p
-! loop over shape functions over elements (p+1 functions)
-        do b = 0,p
-! O(e) + a = first dof of element + 1st local shape function index
-! O(e) + b = first dof of element + 2nd local shape function index
-! NN(0,a,k,e) = value of shape function a at Gauss point k over element e
-! NN(0,b,k,e) = value of shape function b at Gauss point k over element e
-! W(k) weight for Gauss point k
-! J(e) jacobian ? for element e
-          M(O(e)+a,O(e)+b) = &
-             M(O(e)+a,O(e)+b) + NN(0,a,k,e)*NN(0,b,k,e)*J(e)*W(k)
-        enddo
-      enddo
-    enddo
-  enddo
-
-end subroutine Form1DMassMatrixFULL
-!<- DEBUG
+end subroutine
 
 
-! Ux,Uy,Uz - knots vectors
-! px,py,py - orders
-! nx,ny,nz - number of intervals (problems size is (nx+1)*(ny+1)*(nz+1)
-! nelemx,nelemy,nelemz - number of elements
-! F        - output rhs (multiple vectors)
-! Rx,Ry,Rz - previous solution coefficients
-! t        - time
+! -------------------------------------------------------------------
+! Calculate right-hand side of the equation.
+!
+! U_              - knot vectors
+! p_              - degrees of approximation
+! n_              - numbers of functions minus one
+! nelem_          - number of subintervals
+! nrcpp_          - number of processes 
+! ibeg_, iend_    - piece of domain associated with this process
+! nrank_          - cube coordinate of this process
+! nrp_            - number of columns for this process
+! ibegs_, iends_  - pieces of domain surrounding this process' piece
+! F               - output rhs (multiple vectors)
+! Rx,Ry,Rz        - previous solution coefficients
+! t               - current time
+!
+! R has two 'kinds' of dimensions - it's orgainzed as 3x3 array of
+! domain pieces.
+! -------------------------------------------------------------------
 subroutine Form3DRHS(          &
    Ux,px,nx,nelemx,nrcppx,     &
    Uy,py,ny,nelemy,nrcppy,     &
@@ -208,7 +165,7 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
   nreppy = nelemy/nrpy
   nreppz = nelemz/nrpz
 
-  if(iprint == 1)then
+  if (iprint == 1) then
     write(*,*)PRINTRANK,'ex:',max(nreppx*nrankx-px+1,1), min(nelemx,nreppx*(nrankx+1)+px)
     write(*,*)PRINTRANK,'ey:',max(nreppy*nranky-py+1,1), min(nelemy,nreppy*(nranky+1)+py)
     write(*,*)PRINTRANK,'ez:',max(nreppz*nrankz-pz+1,1), min(nelemz,nreppz*(nrankz+1)+pz)
@@ -232,7 +189,7 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
       do ay = 0,py
       do az = 0,pz
         ind = (Ox(ex)+ax) + (Oy(ey)+ay)*(nx+1) + (Oz(ez)+az)*(ny+1)*(nx+1)
-        call global2local(ind,indx,indy,indz,nx,ny,nz)
+        call global2local(ind,nx,ny,nz,indx,indy,indz)
 
         if (indx < ibegx-1 .or. indx > iendx-1) cycle
         if (indy < ibegy-1 .or. indy > iendy-1) cycle
@@ -246,7 +203,7 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
         do by = 0,py
         do bz = 0,pz
           ind = (Ox(ex)+bx) + (Oy(ey)+by)*(nx+1) + (Oz(ez)+bz)*(ny+1)*(nx+1)
-          call global2local(ind,indbx,indby,indbz,nx,ny,nz)
+          call global2local(ind,nx,ny,nz,indbx,indby,indbz)
 
           rx = 2
           ry = 2
@@ -258,7 +215,6 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
           if (indbz < ibegz-1) rz = 1
           if (indbz > iendz-1) rz = 3
 
-          !if (.not. IndexInRange(indbx,indby,indbz,ibegx,iendx,ibegy,iendy,ibegz,iendz)) cycle
           ix = indbx - ibegsx(rx) + 1
           iy = indby - ibegsy(ry) + 1
           iz = indbz - ibegsz(rz) + 1
@@ -289,11 +245,12 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
         enddo
         enddo
         enddo
+
         Umax = max(Umax,Uval)
         Umin = min(Umin,Uval)
 
-!        if (ind1 < 0 .or. ind1 > (iendx-ibegx)) cycle
-!        if (ind23 < 0 .or. ind23 > (iendy-ibegy+1)*(iendz-ibegz+1)-1) cycle
+        ! if (ind1 < 0 .or. ind1 > (iendx-ibegx)) cycle
+        ! if (ind23 < 0 .or. ind23 > (iendy-ibegy+1)*(iendz-ibegz+1)-1) cycle
 
         F(ind1,ind23) = F(ind1,ind23) + &
             NNx(0,ax,kx,ex) * NNy(0,ay,ky,ey) * NNz(0,az,kz,ez)*J*W*fval
@@ -314,121 +271,64 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
   write(*,*) PRINTRANK,'Min =',Umin
   write(*,*) PRINTRANK,'Max =',Umax
   
-end subroutine Form3DRHS
+end subroutine
 
 
+! -------------------------------------------------------------------
+! Checks whether the index is within range.
+!
+! idnx,indy,indz   - 3D index
+! ibegx,iendx      - x range
+! ibegy,iendy      - y range
+! ibegz,iendz      - z range
+! -------------------------------------------------------------------
 logical function IndexInRange(indx,indy,indz,ibegx,iendx,ibegy,iendy,ibegz,iendz)
-integer (kind=4) :: indx,indy,indz
-integer (kind=4) :: ibegx,iendx,ibegy,iendy,ibegz,iendz
+integer :: indx,indy,indz
+integer :: ibegx,iendx,ibegy,iendy,ibegz,iendz
 
   IndexInRange = .true.
   if (indx < ibegx-1 .or. indx > iendx-1) IndexInRange = .false.
   if (indy < ibegy-1 .or. indy > iendy-1) IndexInRange = .false.
   if (indz < ibegz-1 .or. indz > iendz-1) IndexInRange = .false.
 
-end function IndexInRange
-
-!-> DEBUG
-! Ux,Uy,Uz - knots vectors
-! px,py,py - orders
-! nx,ny,nz - number of intervals (problems size is (nx+1)*(ny+1)*(nz+1)
-! nelemx,nelemy,nelemz - number of elements
-! F output rhs (multiple vectors)
-subroutine Form3DRHSFULL(Ux,px,nx,nelemx,Uy,py,ny,nelemy,Uz,pz,nz,nelemz,F)
-integer(kind=4), intent(in) :: nx, px, nelemx
-integer(kind=4), intent(in) :: ny, py, nelemy
-integer(kind=4), intent(in) :: nz, pz, nelemz
-real   (kind=8), intent(in) :: Ux(0:nx+px+1)
-real   (kind=8), intent(in) :: Uy(0:ny+py+1)
-real   (kind=8), intent(in) :: Uz(0:nz+pz+1)
-double precision, intent(out) :: F(0:(nx+1)*(ny+1)*(nz+1)-1)
-integer(kind=4) :: mx,my,mz,ngx,ngy,ngz,ex,ey,ez
-integer(kind=4) :: kx,ky,kz,ax,ay,az,d
-integer(kind=4) :: Ox(nelemx),Oy(nelemy),Oz(nelemz)
-real   (kind=8) :: Jx(nelemx),Jy(nelemy),Jz(nelemz)
-real   (kind=8) :: Wx(px+1),Wy(py+1),Wz(pz+1)
-real   (kind=8) :: Xx(px+1,nelemx)
-real   (kind=8) :: Xy(py+1,nelemy)
-real   (kind=8) :: Xz(pz+1,nelemz)
-real   (kind=8) :: NNx(0:0,0:px,px+1,nelemx), &
-                   NNy(0:0,0:py,py+1,nelemy), &
-                   NNz(0:0,0:pz,pz+1,nelemz)
-real   (kind=8) :: J,W,value
-integer :: ind
-
-  d=0
-  mx  = nx+px+1
-  ngx = px+1
-  my  = ny+py+1
-  ngy = py+1
-  mz  = nz+pz+1
-  ngz = pz+1
-
-  call BasisData(px,mx,Ux,0,ngx,nelemx,Ox,Jx,Wx,Xx,NNx)
-  call BasisData(py,my,Uy,0,ngy,nelemy,Oy,Jy,Wy,Xy,NNy)
-  call BasisData(pz,mz,Uz,0,ngz,nelemz,Oz,Jz,Wz,Xz,NNz)
-
-  F = 0.d0
-  do ex = 1,nelemx
-  do ey = 1,nelemy
-  do ez = 1,nelemz
-    J = Jx(ex)*Jy(ey)*Jz(ez)
-    do kx = 1,ngx
-    do ky = 1,ngy
-    do kz = 1,ngz
-      W = Wx(kx)*Wy(ky)*Wz(kz)
-      value = fvalue(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
-      do ax = 0,px
-      do ay = 0,py
-      do az = 0,pz
-        ind = (Oz(ez)+az)*(ny+1)*(nx+1)
-        ind = ind + (Oy(ey)+ay)*(nx+1)
-        ind = ind + (Ox(ex)+ax)
-
-        if(ind.gt.(nx+1)*(ny+1)*(nz+1))then
-          write(*,*)'Form3DRHSFULL:indexing problem'
-          stop
-        endif
-
-        F(ind) = F(ind) + &
-          NNx(0,ax,kx,ex) * NNy(0,ay,ky,ey)* NNz(0,az,kz,ez)*J*W*value
-      enddo
-      enddo
-      enddo
-
-    enddo
-    enddo
-    enddo         
-
-  enddo
-  enddo
-  enddo
-
-end subroutine Form3DRHSFULL
+end function
 
 
+! -------------------------------------------------------------------
+! Load function (RHS of the PDE)
+! -------------------------------------------------------------------
 function fvalue(x,y,z) result (fval)
 real   (kind=8) :: x,y,z
 real   (kind=8) :: fval
 
   fval = 1.d0
 
-end function fvalue
+end function
 
 
-subroutine global2local(ind,indx,indy,indz,nx,ny,nz)
-integer,intent(in) :: ind
-integer :: ind_temp
-integer,intent(in) :: nx,ny,nz
-integer,intent(out) :: indx,indy,indz
+! -------------------------------------------------------------------
+! Translates global linearized index given by
+!
+!     ind = (z * (ny+1) + y) * (nx+1) + x
+!
+! to triple (x,y,z).
+!
+! ind        - linearized index
+! nx,ny,nz   - sizes of the solution cube minus one
+! x,y,z      - output coordinates
+! -------------------------------------------------------------------
+subroutine global2local(ind,nx,ny,nz,x,y,z)
+integer, intent(in) :: ind
+integer, intent(in) :: nx,ny,nz
+integer, intent(out) :: x,y,z
+integer :: tmp
 
-  indz = ind / ((nx+1)*(ny+1))
-  ind_temp = ind - indz*(nx+1)*(ny+1)
-  indy = ind_temp / (nx+1)
-  ind_temp = ind_temp - indy*(nx+1)
-  indx = ind_temp 
+  z = ind / ((nx+1)*(ny+1))
+  tmp = ind - z*(nx+1)*(ny+1)
+  y = tmp / (nx+1)
+  x = tmp - y*(nx+1)
 
-end subroutine global2local
+end subroutine
 
-end module projection_engine
+end module
 
