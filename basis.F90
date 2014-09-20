@@ -231,7 +231,7 @@ integer(kind=4) :: i, nelem
 
   nelem = 0
   i = p
-  do while (i < n)
+  do while (i <= n)
      ! skip multiple knots
      do while (i < n .and. U(i) == U(i+1))
         i = i + 1

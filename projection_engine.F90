@@ -155,9 +155,9 @@ integer :: rx,ry,rz, ix,iy,iz, sx,sy,sz
 integer :: iprint
 real (kind=8) :: Umax = -1d10, Umin = 1d10
 
-  iprint=0
+  iprint = 0
 
-  d=0
+  d = 0
   mx  = nx+px+1
   ngx = px+1
   my  = ny+py+1
