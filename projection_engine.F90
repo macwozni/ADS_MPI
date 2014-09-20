@@ -156,7 +156,6 @@ integer :: iprint
 real (kind=8) :: Umax = -1d10, Umin = 1d10
 
   iprint=0
-  ! if(MYRANK.eq.2)iprint=1
 
   d=0
   mx  = nx+px+1
@@ -170,7 +169,7 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
   call BasisData(py,my,Uy,0,ngy,nelemy,Oy,Jy,Wy,Xy,NNy)
   call BasisData(pz,mz,Uz,0,ngz,nelemz,Oz,Jz,Wz,Xz,NNz)
 
-  !-> parallel number of elements per processors
+  ! number of elements per processors
   nreppx = nelemx/nrpx
   nreppy = nelemy/nrpy
   nreppz = nelemz/nrpz
@@ -265,9 +264,6 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
         F(ind1,ind23) = F(ind1,ind23) + &
             NNx(0,ax,kx,ex) * NNy(0,ay,ky,ey) * NNz(0,az,kz,ez)*J*W*fval
 
-        if (iprint == 1) then
-          write(*,*)PRINTRANK, 'ind',ind,'->',ind1,ind23, ex,ey,ez
-        endif
       enddo
       enddo
       enddo
