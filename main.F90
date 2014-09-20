@@ -35,9 +35,6 @@ integer(kind=4) :: n
 ! Degree of approximation
 integer(kind=4) :: p
 
-! Number of subintervals
-integer(kind=4) :: nelem
-
 ! Number of iterations
 integer, parameter :: steps = 10
 
@@ -54,11 +51,16 @@ real (kind=8), allocatable, dimension(:,:) :: M
 ! Coefficients of the solution
 real (kind=8), allocatable, dimension(:,:) :: Result
 
-real (kind=8), allocatable, dimension(:,:) :: F,F2,F3
-
+real (kind=8), allocatable, dimension(:,:) :: F, F2, F3
 real (kind=8), allocatable, dimension(:,:) :: F_out, F2_out, F3_out
 
+! Buffer for coefficients of solution corresponding to neighbouring
+! parts of the domain. It is (Nx*Ny*Nz) x 3 x 3 x 3 array, where
+! Nx*Ny*Nz is the size of part of solution for one fragment of domain.
 real (kind=8), allocatable :: R(:,:,:,:)
+
+! Number of subintervals (currently n - p + 1)
+integer(kind=4) :: nelem
 
 ! Size of slices of domain in each dimension
 integer, allocatable, dimension(:) :: dimensionsX

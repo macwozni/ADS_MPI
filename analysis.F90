@@ -82,7 +82,7 @@ integer :: iprint
       do ay = 0,py
       do az = 0,pz
         d = (Ox(ex)+ax)+(Oy(ey)+ay)*(nx+1)+(Oz(ez)+az)*(ny+1)*(nx+1)
-        call global2local(ind,indx,indy,indz,nx,ny,nz)
+        call global2local(ind,nx,ny,nz,indx,indy,indz)
         ! if(indx.ne.(Ox(ex)+ax))stop
         ! if(indy.ne.(Oy(ey)+ay))stop
         ! if(indz.ne.(Oz(ez)+az))stop

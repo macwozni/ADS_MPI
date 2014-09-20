@@ -19,19 +19,24 @@ contains
 ! -------------------------------------------------------------------
 ! Calculates the mass matrix. 
 !
+! Input:
+! ------
 ! KL     - number of lower diagonals of the resulting matrix
 ! KU     - number of upper diagonals of the resulting matrix
 ! U      - knot vector
 ! p      - degree of approximation
 ! n      - number of control points minus one
 ! nelem  - number of subintervals in knot
-! M      - output matrix, logically (n+1) x (n+1)
+!
+! Output:
+! -------
+! M      - mass matrix, logically (n+1) x (n+1)
 !
 ! Values in the matrix are stored in the band format, i.e. while M
-! is (n+1) x (n+1), it is stored as (2 KL + KU + 1) x n.
+! is (n+1) x (n+1), it is stored as (2 KL + KU + 1) x n, and the
+! index correspondence is given by:
 !
-! Index correspondence:
-!         A(i, j) = M(KL + KU + 1 + i - j, j)
+!     A(i, j) = M(KL + KU + 1 + i - j, j)
 ! -------------------------------------------------------------------
 subroutine Form1DMassMatrix(KL,KU,U,p,n,nelem,M)
 integer :: KL,KU
@@ -84,6 +89,8 @@ end subroutine
 ! -------------------------------------------------------------------
 ! Calculate right-hand side of the equation.
 !
+! Input:
+! ------
 ! U_              - knot vectors
 ! p_              - degrees of approximation
 ! n_              - numbers of functions minus one
@@ -93,11 +100,14 @@ end subroutine
 ! nrank_          - cube coordinate of this process
 ! nrp_            - number of columns for this process
 ! ibegs_, iends_  - pieces of domain surrounding this process' piece
-! F               - output rhs (multiple vectors)
-! Rx,Ry,Rz        - previous solution coefficients
+! R               - previous solution coefficients
 ! t               - current time
 !
-! R has two 'kinds' of dimensions - it's orgainzed as 3x3 array of
+! Output:
+! -------
+! F               - output rhs (multiple vectors)
+!
+! R has two 'kinds' of dimensions - it's orgainzed as 3x3x3 array of
 ! domain pieces.
 ! -------------------------------------------------------------------
 subroutine Form3DRHS(          &
@@ -119,8 +129,12 @@ real   (kind=8), intent(in) :: Uy(0:ny+py+1)
 real   (kind=8), intent(in) :: Uz(0:nz+pz+1)
 real   (kind=8), intent(in) :: R(0:(nrcppz+pz-2)*(nrcppx+px-2)*(nrcppy+py-2)-1,3,3,3)
 integer(kind=4), dimension(3) :: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
+integer, intent(in) :: ibegx,ibegy,ibegz
+integer, intent(in) :: iendx,iendy,iendz
+integer, intent(in) :: nrankx,nranky,nrankz
+integer, intent(in) :: nrpx,nrpy,nrpz
                                
-double precision, intent(out) :: F(0:(iendx-ibegx+1)-1, &
+real   (kind=8), intent(out) :: F(0:(iendx-ibegx+1)-1, &
   0:(iendy-ibegy+1)*(iendz-ibegz+1)-1)
 integer(kind=4) :: mx,my,mz,ngx,ngy,ngz,ex,ey,ez
 integer(kind=4) :: kx,ky,kz,ax,ay,az,bx,by,bz,d
@@ -134,10 +148,6 @@ real   (kind=8) :: NNx(0:0,0:px,px+1,nelemx), &
                    NNy(0:0,0:py,py+1,nelemy), &
                    NNz(0:0,0:pz,pz+1,nelemz)
 real   (kind=8) :: J,W,fval,Uval,t,ucoeff
-integer, intent(in) :: ibegx,ibegy,ibegz
-integer, intent(in) :: iendx,iendy,iendz
-integer, intent(in) :: nrankx,nranky,nrankz
-integer, intent(in) :: nrpx,nrpy,nrpz
 integer :: nreppx,nreppy,nreppz !# elements per proc along x,y,z
 integer :: ind,ind1,ind23,ind23a,indx,indy,indz
 integer :: indbx,indby,indbz,ind1b,ind23b
@@ -296,10 +306,12 @@ end function
 
 ! -------------------------------------------------------------------
 ! Load function (RHS of the PDE)
+!
+! x, y, z   - coordinates
 ! -------------------------------------------------------------------
 function fvalue(x,y,z) result (fval)
-real   (kind=8) :: x,y,z
-real   (kind=8) :: fval
+real (kind=8) :: x,y,z
+real (kind=8) :: fval
 
   fval = 1.d0
 

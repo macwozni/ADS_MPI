@@ -3,7 +3,7 @@ SOURCES = \
           debug.F90 \
           parallelism.F90 \
           communicators.F90 \
-          basis.F \
+          basis.F90 \
           gauss.F \
           reorderRHS.F \
           input_data.F90 \

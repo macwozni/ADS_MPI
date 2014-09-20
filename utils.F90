@@ -18,7 +18,7 @@ contains
 ! ibeg    - index of first assigned slice
 ! iend    - index of last assigned slice
 ! -------------------------------------------------------------------
-subroutine ComputeEndpoints(rank,nrproc,n,nrcpp,ibeg,iend)
+subroutine ComputeEndpoints(rank, nrproc, n, nrcpp, ibeg, iend)
 integer :: rank, nrproc, n
 integer, intent(out) :: nrcpp, ibeg, iend
 
@@ -47,7 +47,7 @@ end subroutine
 ! n        - size of the problem
 ! nrproc   - # of processors for this direction
 ! -------------------------------------------------------------------
-subroutine FillDimVector(dims,shifts,nrcpp,stride,n,nrproc)
+subroutine FillDimVector(dims, shifts, nrcpp, stride, n, nrproc)
 integer, allocatable :: dims(:), shifts(:)
 integer :: nrcpp, stride, n, nrproc
 integer:: i
@@ -77,7 +77,7 @@ end subroutine
 ! elems    - first dimension of F
 ! stride   - second dimension of F
 ! -------------------------------------------------------------------
-subroutine Linearize(F,F_lin,elems,stride)
+subroutine Linearize(F, F_lin, elems, stride)
 integer :: elems, stride
 real (kind=8), intent(in)  :: F(elems, stride)
 real (kind=8), intent(out) :: F_lin(elems * stride)
@@ -100,7 +100,7 @@ end subroutine
 ! elems    - first dimension of F
 ! stride   - second dimension of F
 ! -------------------------------------------------------------------
-subroutine Delinearize(F_lin,F,elems,stride)
+subroutine Delinearize(F_lin, F, elems, stride)
 integer :: elems, stride
 real (kind=8), intent(in)  :: F_lin(elems * stride)
 real (kind=8), intent(out) :: F(elems, stride)
@@ -116,7 +116,8 @@ end subroutine
 
 
 ! -------------------------------------------------------------------
-! Gathers data along one axis
+! Gathers data along one axis to the processes on the corresponding
+! face of the cube.
 !
 ! F         - input array
 ! F_out     - output array
@@ -128,7 +129,7 @@ end subroutine
 ! comm      - communicator of the axis
 ! ierr      - error code output
 ! -------------------------------------------------------------------
-subroutine Gather(F,F_out,n,elems,stride,dims,shifts,comm,ierr)
+subroutine Gather(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
 integer :: n, elems, stride, comm
 real (kind=8), intent(in)  :: F(elems, stride)
 real (kind=8), intent(out) :: F_out(n+1, stride)
@@ -165,7 +166,7 @@ end subroutine
 ! comm      - communicator of the axis
 ! ierr      - error code output
 ! -------------------------------------------------------------------
-subroutine Scatter2(F,F_out,n,elems,stride,dims,shifts,comm,ierr)
+subroutine Scatter2(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
 integer :: n, elems, stride, comm
 real (kind=8), intent(in) :: F(n+1, stride)
 real (kind=8), intent(out) :: F_out(elems * stride)
@@ -199,7 +200,7 @@ end subroutine
 ! comm      - communicator of the axis
 ! ierr      - error code output
 ! -------------------------------------------------------------------
-subroutine Scatter(F,F_out,n,elems,stride,dims,shifts,comm,ierr)
+subroutine Scatter(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
 integer :: n, elems, stride, comm
 real (kind=8), intent(in) :: F(n+1, stride)
 real (kind=8), intent(out) :: F_out(elems, stride)
@@ -214,7 +215,7 @@ end subroutine
 
 
 ! -------------------------------------------------------------------
-! Broadcasts computed partial solution along one axisutation)
+! Broadcasts computed partial solution along one axis
 !
 ! F        - data to distribute
 ! F_out    - buffer to receive data
@@ -226,7 +227,7 @@ end subroutine
 ! comm     - communicator of the axis
 ! ierr     - error code output
 ! -------------------------------------------------------------------
-subroutine AllGather(F,F_out,n,elems,stride,dims,shifts,comm)
+subroutine AllGather(F, F_out, n, elems, stride, dims, shifts, comm)
 integer :: n, elems, stride, comm
 real (kind=8), intent(in) :: F(elems, stride)
 real (kind=8), intent(out) :: F_out(n+1, stride)
