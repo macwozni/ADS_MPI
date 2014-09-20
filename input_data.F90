@@ -88,7 +88,7 @@ real   (kind=8) :: dot, len2, proj, d
 
  d = (x - xx)**2 + (y - yy)**2 + (z - zz)**2
 
-end function dist_from_segment
+end function
 
 
 function dist_from_curves(x, y, z) result (fval)
@@ -110,7 +110,7 @@ integer         :: i, j
    end do
  end do
 
-end function dist_from_curves
+end function
 
 ! Force function
 ! x, y, z - point in space
@@ -120,7 +120,7 @@ real   (kind=8) :: fval
 
   fval = 0.d0 !sin(x**2+y**2+z**2)
 
-end function fvalue
+end function
 
 ! C^1 bump function on [-1, 1] - function and 1st derivative
 ! vanish at the endpoints, maximum is attained at 0 and its value
@@ -135,7 +135,7 @@ real (kind=8) :: val
     val = 0
   endif
 
-end function bump
+end function
 
 
 function bump01(t) result (val)
@@ -144,7 +144,7 @@ real (kind=8) :: val
 
   val = bump(4 * (t - 0.5d0))
 
-end function bump01
+end function
 
 
 function bump3d(x, y, z, x0, y0, z0, sx, sy, sz) result (val)
@@ -153,7 +153,7 @@ real   (kind=8) :: val
 
   val = bump((x-x0)/sx) * bump((y-y0)/sy) * bump((z-z0)/sz)
 
-end function bump3d
+end function
 
 
 function points(x, y, z, sx, sy, sz, n, XX, YY, ZZ) result (val)
@@ -169,7 +169,7 @@ integer :: i
   end do
   !val = log(1+3*val) / log(4.d0)
 
-end function points
+end function
 
 
 function kq(x, y, z) result (val)
@@ -182,7 +182,7 @@ real   (kind=8) :: val
   val = val + bump(20.d0 * sqrt(dist_from_curves(x,y,z)))
   val = min(1.d0, log(1+3*val) / log(4.d0))
 
-end function kq
+end function
 
 
 function bq(x, y, z, u) result (val)
@@ -191,7 +191,7 @@ real   (kind=8) :: val
 
   val = exp(mi * u)
 
-end function bq
+end function
 
 
 function h(x, y, z) result (val)
@@ -200,7 +200,7 @@ real   (kind=8) :: val
 
   val = 1 + sin(2*PI*x) * sin(2*PI*y) * sin(2*PI*z)
 
-end function h
+end function
 
 
 ! Initial state of the system - u(0)
@@ -211,6 +211,6 @@ real   (kind=8) :: val
   val = 1
   !val = kq(x, y, z)
 
-end function initial_state
+end function
 
 end module input_data

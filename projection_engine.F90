@@ -16,6 +16,7 @@ integer :: SIZE
 
 contains
 
+
 ! -------------------------------------------------------------------
 ! Calculates the mass matrix. 
 !
@@ -100,8 +101,9 @@ end subroutine
 ! nrank_          - cube coordinate of this process
 ! nrp_            - number of columns for this process
 ! ibegs_, iends_  - pieces of domain surrounding this process' piece
-! R               - previous solution coefficients
+! Dt              - time step size
 ! t               - current time
+! R               - previous solution coefficients
 !
 ! Output:
 ! -------
@@ -120,7 +122,7 @@ subroutine Form3DRHS(          &
    ibegsx,iendsx,              &
    ibegsy,iendsy,              &
    ibegsz,iendsz,              &
-   F,R,t)
+   Dt,t,R,F)
 integer(kind=4), intent(in) :: nx, px, nelemx, nrcppx
 integer(kind=4), intent(in) :: ny, py, nelemy, nrcppy
 integer(kind=4), intent(in) :: nz, pz, nelemz, nrcppz
@@ -147,7 +149,8 @@ real   (kind=8) :: Xz(pz+1,nelemz)
 real   (kind=8) :: NNx(0:0,0:px,px+1,nelemx), &
                    NNy(0:0,0:py,py+1,nelemy), &
                    NNz(0:0,0:pz,pz+1,nelemz)
-real   (kind=8) :: J,W,fval,Uval,t,ucoeff
+real   (kind=8) :: J,W,fval,Uval,t,Dt,ucoeff
+real   (kind=8) :: v, rhs
 integer :: nreppx,nreppy,nreppz !# elements per proc along x,y,z
 integer :: ind,ind1,ind23,ind23a,indx,indy,indz
 integer :: indbx,indby,indbz,ind1b,ind23b
@@ -258,11 +261,9 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
         Umax = max(Umax,Uval)
         Umin = min(Umin,Uval)
 
-        ! if (ind1 < 0 .or. ind1 > (iendx-ibegx)) cycle
-        ! if (ind23 < 0 .or. ind23 > (iendy-ibegy+1)*(iendz-ibegz+1)-1) cycle
-
-        F(ind1,ind23) = F(ind1,ind23) + &
-            NNx(0,ax,kx,ex) * NNy(0,ay,ky,ey) * NNz(0,az,kz,ez)*J*W*fval
+        v = NNx(0,ax,kx,ex) * NNy(0,ay,ky,ey) * NNz(0,az,kz,ez)
+        rhs = Dt * v * fval
+        F(ind1,ind23) = F(ind1,ind23) + J*W*(v * Uval + rhs)
 
       enddo
       enddo

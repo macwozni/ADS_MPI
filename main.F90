@@ -101,7 +101,7 @@ contains
 ! Sets values of parameters (order and size)
 ! -------------------------------------------------------------------
 subroutine InitializeParameters
-  ORDER = 3
+  ORDER = 2
   SIZE = 10
 end subroutine
 
@@ -308,9 +308,9 @@ integer :: ierr
   enddo
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
-  if (MYRANK == 0) then
-    call PrintDistributedData
-  endif
+  !if (MYRANK == 0) then
+  !  call PrintDistributedData
+  !endif
 
 end subroutine
 
@@ -364,7 +364,7 @@ integer :: ierr
        ibegy,iendy,MYRANKY,NRPROCY,                 &
        ibegz,iendz,MYRANKZ,NRPROCZ,                 &
        ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz,   &
-       F,R,t)
+       Dt,t,R,F)
 
   if (iprint == 1) then
     write(*,*)PRINTRANK,'F'
