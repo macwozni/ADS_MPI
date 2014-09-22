@@ -4,15 +4,15 @@ SOURCES = \
           parallelism.F90 \
           communicators.F90 \
           basis.F90 \
-          gauss.F \
+          gauss.F90 \
           reorderRHS.F90 \
           input_data.F90 \
           projection_engine.F90 \
           utils.F90 \
           analysis.F90 \
-          main.F90 \
-          int2str.F \
-          keep_time.F \
+          int2str.F90 \
+          stopwatch.F90 \
+          main.F90 
 
 SOURCES_LAPACK = lapack/dgbsv.F \
           lapack/dgbtf2.F \
