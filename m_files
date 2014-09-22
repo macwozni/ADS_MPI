@@ -10,9 +10,7 @@ SOURCES = \
           projection_engine.F90 \
           utils.F90 \
           analysis.F90 \
-          core.F90 \
           main.F90 \
-          pause.F \
           int2str.F \
           keep_time.F \
 

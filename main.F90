@@ -25,7 +25,6 @@ use communicators
 use utils
 use time_data
 use debug
-use core
 
 implicit none
 
@@ -36,7 +35,7 @@ integer(kind=4) :: n
 integer(kind=4) :: p
 
 ! Number of iterations
-integer, parameter :: steps = 10
+integer, parameter :: steps = 1
 
 ! Time and timestep
 real (kind=8), parameter :: Dt = 1.d-3
@@ -101,8 +100,8 @@ contains
 ! Sets values of parameters (order and size)
 ! -------------------------------------------------------------------
 subroutine InitializeParameters
-  ORDER = 2
-  SIZE = 10
+  ORDER = 3
+  SIZE = 10 
 end subroutine
 
 
@@ -268,7 +267,7 @@ end subroutine
 subroutine DistributeSolutionToNeighbours
 integer :: i, j, k, s
 integer :: request(3*3*3*2), stat(MPI_STATUS_SIZE)
-integer :: ierr
+integer :: ierr(3*3*3*2)
 
   !do i=ibegx,iendx
   !  do j=ibegy,iendy
@@ -288,7 +287,7 @@ integer :: ierr
           processors(i,j,k),        &
           0,                        &
           MPI_COMM_WORLD,           &
-          request(s),ierr)
+          request(s),ierr(s))
         s = s + 1
         call mpi_irecv(                                &
           R(:,i-MYRANKX+1,j-MYRANKY+1,k-MYRANKZ+1),    &
@@ -297,7 +296,7 @@ integer :: ierr
           processors(i,j,k),                           &
           0,                                           &
           MPI_COMM_WORLD,                              &
-          request(s),ierr)
+          request(s),ierr(s))
         s = s + 1
       enddo
     enddo

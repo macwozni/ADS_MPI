@@ -9,7 +9,7 @@
 
 ###########################################################
 # optimization flag (1=release # debug)
-OPT             = 0
+OPT             = 0 
 
 ###########################################################
 #select computer by looking into linux variable HOSTNAME

@@ -52,7 +52,6 @@ real    (kind=8) :: X(p+1,nelem)
 real    (kind=8) :: NN(0:0,0:p,p+1,nelem)
 integer :: d
 integer :: ia, ib
-integer :: nrepp !# elements per processor
 
   mm = n+p+1
   ng = p+1
@@ -263,7 +262,8 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
 
         v = NNx(0,ax,kx,ex) * NNy(0,ay,ky,ey) * NNz(0,az,kz,ez)
         rhs = Dt * v * fval
-        F(ind1,ind23) = F(ind1,ind23) + J*W*(v * Uval + rhs)
+        ! F(ind1,ind23) = F(ind1,ind23) + J*W*(v * Uval + rhs)
+        F(ind1,ind23) = F(ind1,ind23) + J*W*v*fval
 
       enddo
       enddo
