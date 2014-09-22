@@ -17,7 +17,7 @@ contains
 ! m       - index of the last node in knot vector (number of nodes - 1)
 ! U       - knot vector
 ! d       - order of highest derivatives we want to compute
-! q = p+1 - order for Gauss integration points
+! q = p+1 - number of Gauss quadrature points
 ! r       - number of elements (subintervals)
 ! 
 ! Output:
@@ -46,6 +46,12 @@ contains
 !     global_index = O(i) + local_index
 !
 ! where local_index is local for i-th element.
+!
+! Value of q (number of quadrature points) is taken to be p+1, since
+! order of Gaussian quadrature is 2n - 1, hence using q = p+1 we get
+! exact results for polynomials of degree up to 2q - 1 = 2p + 1.
+! This is nice, as we integrate mostly bilinear forms in B-spline
+! basis, consisting of dogree p polynomials.
 ! -------------------------------------------------------------------
 subroutine BasisData(p, m, U, d, q, r, O, J, W, X, N)
 integer (kind=4), intent(in)  :: p, m
