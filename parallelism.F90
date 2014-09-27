@@ -73,6 +73,12 @@ end subroutine
 ! rankx   - x coordinate
 ! ranky   - y coordinate
 ! rankz   - z coordinate
+!
+! Order of components (from slowest changing): Z, Y, X
+!   Rank    Coords
+!    0    (0, 0, 0)
+!    1    (0, 0, 1)
+! etc.
 ! -------------------------------------------------------------------
 subroutine Decompose(rank,rankx,ranky,rankz)
 integer, intent(in) :: rank
@@ -84,5 +90,27 @@ integer, intent(out) :: rankx, ranky, rankz
   rankx = rankx - ranky*NRPROCX 
 
 end subroutine 
+
+
+! -------------------------------------------------------------------
+! Computes global, linear index, based on coordinates in 3D cube.
+!
+! rankx   - x coordinate
+! ranky   - y coordinate
+! rankz   - z coordinate
+!
+! returns: linear index based on (Z, Y, X) lexicographic order
+!          (Z changes slowest)
+! -------------------------------------------------------------------
+function LinearIndex(rankx, ranky, rankz) result (rank)
+integer, intent(in) :: rankx, ranky, rankz
+integer :: rank
+
+  rank = rankz
+  rank = rank * NRPROCY + ranky
+  rank = rank * NRPROCX + rankx
+
+end function
+
 
 end module 

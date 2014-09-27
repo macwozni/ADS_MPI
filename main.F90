@@ -26,6 +26,8 @@ use utils
 use stopwatch
 use time_data
 use debug
+use plot
+use gnuplot
 
 implicit none
 
@@ -102,7 +104,7 @@ contains
 ! -------------------------------------------------------------------
 subroutine InitializeParameters
   ORDER = 3
-  SIZE = 10 
+  SIZE = 8 
 end subroutine
 
 
@@ -270,14 +272,6 @@ integer :: i, j, k, s
 integer :: request(3*3*3*2), stat(MPI_STATUS_SIZE)
 integer :: ierr(3*3*3*2)
 
-  !do i=ibegx,iendx
-  !  do j=ibegy,iendy
-  !    do k=ibegz,iendz
-  !       Result(k-ibegz+1,(j-ibegy)*sx + i-ibegx+1)=(10*i+j)*10 + k 
-  !    enddo
-  !  enddo
-  !enddo
-
   s = 1
   do i = max(MYRANKX-1,0)+1, min(MYRANKX+1,NRPROCX-1)+1
     do j = max(MYRANKY-1,0)+1, min(MYRANKY+1,NRPROCY-1)+1
@@ -311,6 +305,14 @@ integer :: ierr(3*3*3*2)
   !if (MYRANK == 0) then
   !  call PrintDistributedData
   !endif
+
+  !do i=ibegx,iendx
+  !  do j=ibegy,iendy
+  !    do k=ibegz,iendz
+  !       Result(k-ibegz+1,(j-ibegy)*sx + i-ibegx+1)=(10*i+j)*10 + k 
+  !    enddo
+  !  enddo
+  !enddo
 
 end subroutine
 
@@ -665,6 +667,129 @@ end subroutine
 
 
 ! -------------------------------------------------------------------
+! Calculates size of the piece corresponding to process with
+! specified coordinates. Concretly, number of coefficients.
+!
+! x, y, z    - coordinates
+! -------------------------------------------------------------------
+function SizeOfPiece(x, y, z) result (s)
+integer, intent(in) :: x, y, z
+integer :: s
+integer :: sx, sy, sz
+integer :: nrcpp, ibeg, iend
+
+  call ComputeEndpoints(x, NRPROCX, n, nrcpp, ibeg, iend)
+  sx = iend - ibeg + 1
+  call ComputeEndpoints(y, NRPROCY, n, nrcpp, ibeg, iend)
+  sy = iend - ibeg + 1
+  call ComputeEndpoints(z, NRPROCZ, n, nrcpp, ibeg, iend)
+  sz = iend - ibeg + 1
+
+  s = sx * sy * sz
+
+end function
+
+
+! -------------------------------------------------------------------
+! Gathers full solution at the specified process. It is stored in
+! 3D array.
+!
+! at    - process where to gather the solution
+! part  - part of the solution of each process
+! full  - full solution, combined from parts
+! 
+! The procedure relies crucially on specific data layout inside
+! pieces at the end of each iteration.
+!
+! Expected decomposition structure layout:
+!   Of the pieces: process coordinates = (z, y, x)
+!   Inside pieces: (z, y, x), i.e. x changes fastest
+! -------------------------------------------------------------------
+subroutine GatherFullSolution(at, part, full)
+integer, intent(in) :: at
+real (kind=8), intent(in) :: part(:,:)
+real (kind=8), intent(out), allocatable :: full(:,:,:)
+real (kind=8), allocatable :: buffer(:)
+integer :: recvcounts(0:NRPROCX*NRPROCY*NRPROCZ-1)
+integer :: displs(0:NRPROCX*NRPROCY*NRPROCZ-1)
+integer :: x, y, z
+integer :: offset, size
+integer :: ierr
+integer :: array_size
+integer :: begx, begy, begz, endx, endy, endz
+integer :: nrcpp
+integer :: ssx, ssy, ssz
+integer :: xx, yy, zz
+integer :: ix, iy, iz, idx
+
+  ! Only the root process needs buffer, but passing unallocated array
+  ! is illegal in Fortran, hence we allocate it as array of size 0
+  ! in other processes.
+  if (MYRANK == at) then
+    array_size = (n+1)*(n+1)*(n+1)
+    allocate(full(0:n,0:n,0:n))
+  else
+    array_size = 0
+  endif
+
+  allocate(buffer(0:array_size-1))
+
+  ! Just grab all the pieces and put it in the array one after another,
+  ! reordering will be done later at the root.
+  offset = 0 
+  do x = 0, NRPROCX-1
+    do y = 0, NRPROCY-1
+      do z = 0, NRPROCZ-1
+        idx = LinearIndex(x, y, z)
+        size = SizeOfPiece(x, y, z)
+        recvcounts(idx) = size
+        displs(idx) = offset
+        offset = offset + size
+      enddo
+    enddo
+  enddo
+
+  call mpi_gatherv(part, sx*sy*sz, MPI_DOUBLE_PRECISION, buffer, &
+    recvcounts, displs, MPI_DOUBLE_PRECISION, at, MPI_COMM_WORLD, ierr)
+
+  ! Reordering of the array at root
+  if (MYRANK == at) then
+    offset = 0
+    do x = 0, NRPROCX-1
+      do y = 0, NRPROCY-1
+        do z = 0, NRPROCZ-1
+          call ComputeEndpoints(x, NRPROCX, n, nrcpp, begx, endx)
+          call ComputeEndpoints(y, NRPROCY, n, nrcpp, begy, endy)
+          call ComputeEndpoints(z, NRPROCZ, n, nrcpp, begz, endz)
+          ssx = endx - begx + 1
+          ssy = endy - begy + 1
+          ssz = endz - begz + 1
+
+          do xx = 0, ssx-1 
+            do yy = 0, ssy-1
+              do zz = 0, ssz-1
+                ix = begx - 1 + xx   ! beg_ starts from 1, hence -1
+                iy = begy - 1 + yy
+                iz = begz - 1 + zz
+                idx = (zz * ssy + yy) * ssx + xx
+
+                full(ix, iy, iz) = buffer(offset + idx)
+              enddo
+            enddo
+          enddo
+
+          offset = offset + SizeOfPiece(x, y, z)
+        enddo
+      enddo
+    enddo
+  endif
+
+  deallocate(buffer)
+
+end subroutine
+
+
+! -------------------------------------------------------------------
 ! Deallocates all the resources and finalizes MPI.
 ! -------------------------------------------------------------------
 subroutine Cleanup
@@ -754,8 +879,32 @@ subroutine PrintDecompositionInfo
 end subroutine
 
 
-end module
+function ftest(x, y, z) result(val)
+real (kind=8) :: x, y, z, val
 
+  val = x**2 + y**2 + z**2
+
+end function
+
+
+! -------------------------------------------------------------------
+! Gathers full solution and plots it
+! -------------------------------------------------------------------
+subroutine PrintSolution()
+real (kind=8), allocatable :: solution(:,:,:)
+type (PlotParams) :: params
+
+  !call GatherFullSolution(0, Result, solution)
+
+  if (MYRANK == 0) then
+    params = PlotParams(0,1,0,1,0,1,10,10,10)
+    call SavePlot('test_', ftest, GnuPlotOutput, params)
+  endif
+
+end subroutine
+
+
+end module
 
 
 
@@ -814,6 +963,8 @@ real (kind=8) :: t = 0
 
     t = t + Dt
   enddo
+
+  call PrintSolution
 
   call Cleanup 
 

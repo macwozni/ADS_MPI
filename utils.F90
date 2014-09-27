@@ -35,9 +35,14 @@ end subroutine
 ! Calculates the range of the direction that is assigned to processor
 ! with specified rank.
 !
-! rank    - rank of the current process
+! Input:
+! ------
+! rank    - rank of the current process in this direction
 ! nrproc  - # of processors for this direction
 ! n       - size of the problem
+!
+! Output:
+! -------
 ! nrcpp   - # of columns per processor
 ! ibeg    - index of first assigned slice
 ! iend    - index of last assigned slice
@@ -94,12 +99,25 @@ end subroutine
 
 
 ! -------------------------------------------------------------------
-! Linearizes and transposes an array
+! Linearizes and transposes an array.
 !
 ! F        - input rank-2 array
 ! F_lin    - output rank-1 array
 ! elems    - first dimension of F
 ! stride   - second dimension of F
+!
+! For input array like this, where columns are consecutive in memory
+! (Fortran uses column-major layout), with s = stride, N = elems:
+!
+!     x11 x12 x13 ... x1s          
+!     x21 x22 x23 ... x2s
+!      .   .   .  .    .
+!      .   .   .    .  . 
+!     xN1 xN2 xN3 ... xNs
+!
+! output array has the form
+!
+!     x11 x12 x13 ... x1s x21 x22 ... x2s... xN1 xN2 ... xNs
 ! -------------------------------------------------------------------
 subroutine Linearize(F, F_lin, elems, stride)
 integer :: elems, stride
@@ -123,6 +141,18 @@ end subroutine
 ! F        - output rank-2 array
 ! elems    - first dimension of F
 ! stride   - second dimension of F
+!
+! Input array like this (s = stride, N = elems):
+!
+!     x11 x12 x13 ... x1s x21 x22 ... x2s... xN1 xN2 ... xNs
+!
+! is reshaped to the following form:
+! 
+!     x11 x12 x13 ... x1s          
+!     x21 x22 x23 ... x2s
+!      .   .   .  .    .
+!      .   .   .    .  . 
+!     xN1 xN2 xN3 ... xNs
 ! -------------------------------------------------------------------
 subroutine Delinearize(F_lin, F, elems, stride)
 integer :: elems, stride

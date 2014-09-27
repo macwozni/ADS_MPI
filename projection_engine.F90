@@ -311,6 +311,7 @@ real (kind=8) :: x,y,z
 real (kind=8) :: fval
 
   fval = 1.d0
+  fval = y
 
 end function
 
