@@ -81,6 +81,7 @@ integer :: ix, iy
       write(buf,'(F30.10)') vals(ix, iy)
       write(outFile,*) ix-1, ' ', iy-1, ' ', buf
     enddo
+    write(outFile,*) ! blank line
   enddo
 
   close(outFile)
