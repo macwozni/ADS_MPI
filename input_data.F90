@@ -1,6 +1,9 @@
 module input_data
 
+use math
+
 implicit none
+
 
 integer, parameter :: pN = 80
 real   (kind=8) :: s = 0.05d0
@@ -10,13 +13,10 @@ integer, parameter :: lN = 30
 real   (kind=8) :: lx(lN), ly(lN), lz(lN)
 
 ! Curve number and lentgh
- integer, parameter :: cN = 20, cL=16
- real   (kind=8) :: cx(cN*cL), cy(cN*cL), cz(cN*cL)
+integer, parameter :: cN = 20, cL=16
+real   (kind=8) :: cx(cN*cL), cy(cN*cL), cz(cN*cL)
 
- real   (kind=8) :: mi = 10.d0
-
-! No predefined constant, I believe :(
-real   (kind=8) :: pi
+real   (kind=8) :: mi = 10.d0
 
 contains
 
@@ -24,8 +24,6 @@ subroutine InitInputData()
 integer       :: i,j
 real (kind=8) :: t(3), x(3), dx(3), ddx(3)
 real (kind=8) :: f = 0.1d0, step = 0.05d0
-
-  pi = 4.d0 * atan(-1.d0)
 
   call random_number(px)
   call random_number(py)
@@ -119,30 +117,6 @@ real   (kind=8) :: x, y, z
 real   (kind=8) :: fval
 
   fval = 0.d0 !sin(x**2+y**2+z**2)
-
-end function
-
-! C^1 bump function on [-1, 1] - function and 1st derivative
-! vanish at the endpoints, maximum is attained at 0 and its value
-! is 1
-function bump(x) result (val)
-real (kind=8) :: x
-real (kind=8) :: val
-
-  if (x >= -1 .and. x < 1) then
-    val = (x + 1)**2 * (x - 1)**2
-  else
-    val = 0
-  endif
-
-end function
-
-
-function bump01(t) result (val)
-real (kind=8) :: t
-real (kind=8) :: val
-
-  val = bump(4 * (t - 0.5d0))
 
 end function
 

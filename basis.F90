@@ -176,7 +176,7 @@ real   (kind=8) :: ndu(0:p,0:p), a(0:1,0:p)
 
 end subroutine
 
-      
+
 ! -------------------------------------------------------------------
 ! Finds the element that contains specified point. It is given as
 ! the index of knot u_i such that [u_i, u_(i+1)) contains the point.
@@ -248,6 +248,65 @@ integer(kind=4) :: i, nelem
   enddo
 
 end function
+
+
+! -------------------------------------------------------------------
+! Evaluates linear combination of basis spline functions in specified
+! point.
+!
+! d          - derivative to evaluate
+! U_         - knot points
+! p_         - degree of splines
+! n_         - nubmer of functions minus one
+! nelem_     - number of elements
+! coeffs     - 3D array of coefficients of basis functions (0-based)
+! x, y, z    - point to evaluate at
+! -------------------------------------------------------------------
+function EvalSpline(d,      &
+  Ux, px, nx, nelemx,         &
+  Uy, py, ny, nelemy,         &
+  Uz, pz, nz, nelemz,         &
+  coeffs, x, y, z) result (val)
+integer, intent(in) :: d
+integer, intent(in) :: nx, px, nelemx
+integer, intent(in) :: ny, py, nelemy
+integer, intent(in) :: nz, pz, nelemz
+real (kind=8), intent(in) :: Ux(0:nx+px+1)
+real (kind=8), intent(in) :: Uy(0:ny+py+1)
+real (kind=8), intent(in) :: Uz(0:nz+pz+1)
+real (kind=8), intent(in) :: coeffs(0:nz,0:ny,0:nx)
+real (kind=8), intent(in) :: x, y, z
+real (kind=8) :: val
+
+real (kind=8) :: bx(0:px), by(0:py), bz(0:pz), b
+integer :: xspan, yspan, zspan
+integer :: ix, iy, iz, x0, y0, z0
+
+  xspan = FindSpan(nx, px, x, Ux)
+  yspan = FindSpan(ny, py, y, Uy)
+  zspan = FindSpan(nz, pz, z, Uz)
+
+  call DersBasisFuns(xspan, x, px, 0, ux, bx)
+  call DersBasisFuns(yspan, y, py, 0, uy, by)
+  call DersBasisFuns(zspan, z, pz, 0, uz, bz)
+
+  x0 = xspan - px
+  y0 = yspan - py
+  z0 = zspan - pz
+
+  val = 0
+
+  do ix = 0, px
+    do iy = 0, py
+      do iz = 0, pz
+        b = bx(ix) * by(iy) * bz(iz)
+        val = val + b * coeffs(x0 + ix, y0 + iy, z0 + iz)
+      enddo
+    enddo
+  enddo
+
+end function
+
       
 end module
 

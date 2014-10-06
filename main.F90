@@ -38,10 +38,10 @@ integer(kind=4) :: n
 integer(kind=4) :: p
 
 ! Number of iterations
-integer, parameter :: steps = 1
+integer, parameter :: steps = 1000
 
 ! Time and timestep
-real (kind=8), parameter :: Dt = 1.d-3
+real (kind=8), parameter :: Dt = 1.d-5
 
 
 ! Knot vector
@@ -890,15 +890,28 @@ end function
 ! -------------------------------------------------------------------
 ! Gathers full solution and plots it
 ! -------------------------------------------------------------------
-subroutine PrintSolution()
+subroutine PrintSolution(iter, t)
+integer :: iter
+real (kind=8) :: t
 real (kind=8), allocatable :: solution(:,:,:)
 type (PlotParams) :: params
+character(len=20) :: filename
 
-  !call GatherFullSolution(0, Result, solution)
+  call GatherFullSolution(0, Result, solution)
 
   if (MYRANK == 0) then
-    params = PlotParams(0,1,0,1,0,1,10,10,10)
-    call SavePlot('test_', ftest, GnuPlotOutput, params)
+    write(filename,'(I10)') iter
+    filename = 'step' // adjustl(filename)
+    filename = trim(filename) // '_'
+
+    params = PlotParams(0,1,0,1,0,1,31,31,31)
+    call SaveSplinePlot(trim(filename), &
+      U,p,n,nelem, &
+      U,p,n,nelem, &
+      U,p,n,nelem, &
+      solution, GnuPlotOutput, params)
+
+    !call SavePlot(trim(filename), ftest, GnuPlotOutput, params)
   endif
 
 end subroutine
@@ -925,10 +938,10 @@ real (kind=8) :: t = 0
   call Initialize
 
   ! prepare the problem dimensions
-  p = ORDER !order
-  n = SIZE !intervals
+  p = ORDER ! order
+  n = SIZE  ! intervals
 
-  if (iinfo == 1)then
+  if (iinfo == 1) then
     write(*,*)'p',p,'n',n,'size of U',n+p+2
   endif
 
@@ -954,17 +967,18 @@ real (kind=8) :: t = 0
   call PrepareKnot
 
   ! Iterations 
-  do iter = 1,steps
+  do iter = 0,steps
 
     write(*,*)'Iteration',iter,'/',steps
     write(*,*)'t = ',t
 
     call Step(iter, t)
-
     t = t + Dt
-  enddo
 
-  call PrintSolution
+    if (mod(iter, 100) == 0) then
+      call PrintSolution(iter, t)
+    endif
+  enddo
 
   call Cleanup 
 

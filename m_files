@@ -5,6 +5,7 @@ SOURCES = \
           communicators.F90 \
           basis.F90 \
           gauss.F90 \
+          math.F90 \
           reorderRHS.F90 \
           input_data.F90 \
           projection_engine.F90 \

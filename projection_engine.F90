@@ -5,6 +5,7 @@ use basis
 use parallelism
 use reorderRHS
 use utils
+use math
 
 implicit none
 
@@ -145,14 +146,15 @@ real   (kind=8) :: Wx(px+1),Wy(py+1),Wz(pz+1)
 real   (kind=8) :: Xx(px+1,nelemx)
 real   (kind=8) :: Xy(py+1,nelemy)
 real   (kind=8) :: Xz(pz+1,nelemz)
-real   (kind=8) :: NNx(0:0,0:px,px+1,nelemx), &
-                   NNy(0:0,0:py,py+1,nelemy), &
-                   NNz(0:0,0:pz,pz+1,nelemz)
+real   (kind=8) :: NNx(0:1,0:px,px+1,nelemx), &
+                   NNy(0:1,0:py,py+1,nelemy), &
+                   NNz(0:1,0:pz,pz+1,nelemz)
 real   (kind=8) :: J,W,fval,Uval,t,Dt,ucoeff
 real   (kind=8) :: v, rhs
+real   (kind=8) :: dux,duy,duz,dvx,dvy,dvz
 integer :: nreppx,nreppy,nreppz !# elements per proc along x,y,z
-integer :: ind,ind1,ind23,ind23a,indx,indy,indz
-integer :: indbx,indby,indbz,ind1b,ind23b
+integer :: ind,ind1,ind23,indx,indy,indz
+integer :: indbx,indby,indbz
 integer :: rx,ry,rz, ix,iy,iz, sx,sy,sz
 integer :: iprint
 real (kind=8) :: Umax = -1d10, Umin = 1d10
@@ -160,21 +162,21 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
   iprint = 0
 
   d = 0
-  mx  = nx+px+1
-  ngx = px+1
-  my  = ny+py+1
-  ngy = py+1
-  mz  = nz+pz+1
-  ngz = pz+1
+  mx  = nx + px + 1
+  ngx = px + 1
+  my  = ny + py + 1
+  ngy = py + 1
+  mz  = nz + pz + 1
+  ngz = pz + 1
 
-  call BasisData(px,mx,Ux,0,ngx,nelemx,Ox,Jx,Wx,Xx,NNx)
-  call BasisData(py,my,Uy,0,ngy,nelemy,Oy,Jy,Wy,Xy,NNy)
-  call BasisData(pz,mz,Uz,0,ngz,nelemz,Oz,Jz,Wz,Xz,NNz)
+  call BasisData(px,mx,Ux,1,ngx,nelemx,Ox,Jx,Wx,Xx,NNx)
+  call BasisData(py,my,Uy,1,ngy,nelemy,Oy,Jy,Wy,Xy,NNy)
+  call BasisData(pz,mz,Uz,1,ngz,nelemz,Oz,Jz,Wz,Xz,NNz)
 
   ! number of elements per processors
-  nreppx = nelemx/nrpx
-  nreppy = nelemy/nrpy
-  nreppz = nelemz/nrpz
+  nreppx = nelemx / nrpx
+  nreppy = nelemy / nrpy
+  nreppz = nelemz / nrpz
 
   if (iprint == 1) then
     write(*,*)PRINTRANK,'ex:',max(nreppx*nrankx-px+1,1), min(nelemx,nreppx*(nrankx+1)+px)
@@ -210,6 +212,9 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
         ind23 = (indy-ibegy+1) + (indz-ibegz+1)*(iendy-ibegy+1)
 
         Uval = 0
+        dux = 0
+        duy = 0
+        duz = 0
         do bx = 0,px
         do by = 0,py
         do bz = 0,pz
@@ -232,9 +237,9 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
           sx = iendsx(rx) - ibegsx(rx) + 1
           sy = iendsy(ry) - ibegsy(ry) + 1
           sz = iendsz(rz) - ibegsz(rz) + 1
-          ind1b = iz + sz*(ix + sx * iy)
+          ind = ix + sx * (iy + sy * iz)
 
-          if (ind1b < 0 .or. ind1b > (nrcppz+pz-2)*(nrcppx+px-2)*(nrcppy+py-2)-1) then
+          if (ind < 0 .or. ind > (nrcppz+pz-2)*(nrcppx+px-2)*(nrcppy+py-2)-1) then
             write(*,*)PRINTRANK,'Oh crap',ix,iy,iz
             write(*,*)PRINTRANK,'r',rx,ry,rz
             write(*,*)PRINTRANK,'x',ibegx,iendx
@@ -250,20 +255,40 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
             write(*,*)PRINTRANK,'endsz=',iendsz
           endif
 
-          Ucoeff = R(ind1b,rx,ry,rz)
-          Uval = Uval + Ucoeff * NNx(0,bx,kx,ex)*NNy(0,by,ky,ey)*NNz(0,bz,kz,ez)
+          Ucoeff = R(ind,rx,ry,rz)
+          v   = NNx(0,bx,kx,ex) * NNy(0,by,ky,ey) * NNz(0,bz,kz,ez)
+          dvx = NNx(1,bx,kx,ex) * NNy(0,by,ky,ey) * NNz(0,bz,kz,ez) 
+          dvy = NNx(0,bx,kx,ex) * NNy(1,by,ky,ey) * NNz(0,bz,kz,ez) 
+          dvz = NNx(0,bx,kx,ex) * NNy(0,by,ky,ey) * NNz(1,bz,kz,ez) 
 
+          Uval = Uval + Ucoeff * v
+          dux = dux + Ucoeff * dvx
+          duy = duy + Ucoeff * dvy
+          duz = duz + Ucoeff * dvz
         enddo
         enddo
         enddo
 
-        Umax = max(Umax,Uval)
-        Umin = min(Umin,Uval)
+        Umax = max(Umax, Uval)
+        Umin = min(Umin, Uval)
 
-        v = NNx(0,ax,kx,ex) * NNy(0,ay,ky,ey) * NNz(0,az,kz,ez)
-        rhs = Dt * v * fval
-        ! F(ind1,ind23) = F(ind1,ind23) + J*W*(v * Uval + rhs)
-        F(ind1,ind23) = F(ind1,ind23) + J*W*v*fval
+        v   = NNx(0,ax,kx,ex) * NNy(0,ay,ky,ey) * NNz(0,az,kz,ez)
+        dvx = NNx(1,ax,kx,ex) * NNy(0,ay,ky,ey) * NNz(0,az,kz,ez) 
+        dvy = NNx(0,ax,kx,ex) * NNy(1,ay,ky,ey) * NNz(0,az,kz,ez) 
+        dvz = NNx(0,ax,kx,ex) * NNy(0,ay,ky,ey) * NNz(1,az,kz,ez) 
+
+        !--- Real
+        if (t > 0.0) then
+          rhs = Dt * (- (dux*dvx + duy*dvy + duz*dvz) + v * fval)
+          F(ind1,ind23) = F(ind1,ind23) + J*W*(v * Uval + rhs)
+        else
+          fval = InitialState(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
+          F(ind1,ind23) = F(ind1,ind23) + J*W*v*fval
+        endif
+
+        !--- Test
+        ! rhs = Dt * v * fval
+        ! F(ind1,ind23) = F(ind1,ind23) + J*W*v*fval
 
       enddo
       enddo
@@ -310,8 +335,16 @@ function fvalue(x,y,z) result (fval)
 real (kind=8) :: x,y,z
 real (kind=8) :: fval
 
-  fval = 1.d0
-  fval = y
+  fval = 0
+
+end function
+
+
+function InitialState(x, y, z) result (val)
+real (kind=8), intent(in) :: x, y, z
+real (kind=8) :: val
+
+  val = bump(8*(x-0.5))*bump(8*(y-0.5))*bump(8*(z-0.5))
 
 end function
 

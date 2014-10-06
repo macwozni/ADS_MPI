@@ -44,9 +44,8 @@ character(len=*), intent(out) :: filename
 character(len=10) :: buffer
 
   write(buffer, '(I10)') layer
-  buffer = trim(adjustl(buffer))
-  filename = trim(adjustl(pattern // buffer)) // '.plot'
-  filename = trim(adjustl(filename))
+  buffer = adjustl(buffer)
+  filename = trim(pattern // buffer) // '.plot'
 
 end subroutine
 
@@ -71,7 +70,6 @@ integer :: ix, iy
   
   write(*,*) 'Layer', zlayer
   call BuildFileName(pattern, zlayer, filename)
-  write(*,*) 'Filename:', filename
 
   open(unit=outFile, file=filename, &
     form='formatted', access='sequential', status='unknown')
