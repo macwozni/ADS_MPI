@@ -4,3 +4,4 @@ _OBJ
 output
 *.plot
 *.png
+nohup.out
