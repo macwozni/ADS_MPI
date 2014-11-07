@@ -259,48 +259,240 @@ integer :: i
 end subroutine
 
 
+function neighbour(dx, dy, dz) result(idx)
+integer, intent(in) :: dx, dy, dz
+integer :: idx
+integer :: ix, iy, iz
+
+  ix = MYRANKX + dx + 1
+  iy = MYRANKY + dy + 1
+  iz = MYRANKZ + dz + 1
+  idx = processors(ix, iy, iz)
+
+end function
+
+
+subroutine send_piece(items, dst, req)
+real (kind=8) :: items(:)
+integer :: dst, req
+integer :: ierr
+
+  call mpi_isend(items, (nrcppz+p-2)*(nrcppx+p-2)*(nrcppy+p-2), &
+    MPI_DOUBLE_PRECISION, dst, 0, MPI_COMM_WORLD, req, ierr)
+
+end subroutine
+
+
+subroutine recv_piece(items, src, req)
+real (kind=8) :: items(:)
+integer :: src, req
+integer :: ierr
+
+  call mpi_irecv(items, (nrcppz+p-2)*(nrcppx+p-2)*(nrcppy+p-2), &
+    MPI_DOUBLE_PRECISION, src, 0, MPI_COMM_WORLD, req, ierr)
+
+end subroutine
+
+
 ! -------------------------------------------------------------------
 ! Distributes solution to neighbouring processes. It is essential
 ! that each process possess enough of the solution to be able to
 ! calculate values near the boundary, hence overlapping supports
 ! of B-splines necessitate partial sharing.
-!
-! Currently, it uses the naive algorithm (sequentially send your
-! piece to everyone around you).
 ! -------------------------------------------------------------------
 subroutine DistributeSolutionToNeighbours
 integer :: i, j, k, s
 integer :: request(3*3*3*2), stat(MPI_STATUS_SIZE)
 integer :: ierr(3*3*3*2)
+integer :: dst, src
 
   s = 1
-  do i = max(MYRANKX-1,0)+1, min(MYRANKX+1,NRPROCX-1)+1
-    do j = max(MYRANKY-1,0)+1, min(MYRANKY+1,NRPROCY-1)+1
-      do k = max(MYRANKZ-1,0)+1, min(MYRANKZ+1,NRPROCZ-1)+1
-        call mpi_isend(Result,      &
-          sx*sy*sz,                 &
-          MPI_DOUBLE_PRECISION,     &
-          processors(i,j,k),        &
-          0,                        &
-          MPI_COMM_WORLD,           &
-          request(s),ierr(s))
-        s = s + 1
-        call mpi_irecv(                                &
-          R(:,i-MYRANKX+1,j-MYRANKY+1,k-MYRANKZ+1),    &
-          nrcppx*nrcppy*nrcppz,                        &
-          MPI_DOUBLE_PRECISION,                        &
-          processors(i,j,k),                           &
-          0,                                           &
-          MPI_COMM_WORLD,                              &
-          request(s),ierr(s))
-        s = s + 1
-      enddo
-    enddo
+
+  R(:,2,2,2) = reshape(Result, [sx*sy*sz])
+
+
+  ! Right
+  if (MYRANKX < NRPROCX - 1) then
+    dst = neighbour(1, 0, 0)
+    call send_piece(R(:,2,2,2), dst, request(s))
+    s = s + 1
+  endif
+  if (MYRANKX > 0) then
+    src = neighbour(-1, 0, 0)
+    call recv_piece(R(:,1,2,2), src, request(s))
+    s = s + 1
+  endif
+  
+  do i = 1,s-1
+    call mpi_wait(request(i),stat,ierr)
   enddo
+  s = 1
+
+  ! Up
+  if (MYRANKY > 0) then
+    dst = neighbour(0, -1, 0)
+    call send_piece(R(:,2,2,2), dst, request(s))
+    s = s + 1
+    call send_piece(R(:,1,2,2), dst, request(s))
+    s = s + 1
+  endif
+  if (MYRANKY < NRPROCY - 1) then
+    src = neighbour(0, 1, 0)
+    call recv_piece(R(:,2,3,2), src, request(s))
+    s = s + 1
+    call recv_piece(R(:,1,3,2), src, request(s))
+    s = s + 1
+  endif
 
   do i = 1,s-1
     call mpi_wait(request(i),stat,ierr)
   enddo
+  s = 1
+
+  ! Left
+  if (MYRANKX > 0) then
+    dst = neighbour(-1, 0, 0)
+    call send_piece(R(:,2,2,2), dst, request(s))
+    s = s + 1
+    call send_piece(R(:,2,3,2), dst, request(s))
+    s = s + 1
+  endif
+  if (MYRANKX < NRPROCX - 1) then
+    src = neighbour(1, 0, 0)
+    call recv_piece(R(:,3,2,2), src, request(s))
+    s = s + 1
+    call recv_piece(R(:,3,3,2), src, request(s))
+    s = s + 1
+  endif
+
+  do i = 1,s-1
+    call mpi_wait(request(i),stat,ierr)
+  enddo
+  s = 1
+
+  ! Above
+  if (MYRANKZ < NRPROCZ - 1) then
+    dst = neighbour(0, 0, 1)
+    call send_piece(R(:,2,2,2), dst, request(s))
+    s = s + 1
+    call send_piece(R(:,1,2,2), dst, request(s))
+    s = s + 1
+    call send_piece(R(:,1,3,2), dst, request(s))
+    s = s + 1
+    call send_piece(R(:,2,3,2), dst, request(s))
+    s = s + 1
+    call send_piece(R(:,3,3,2), dst, request(s))
+    s = s + 1
+    call send_piece(R(:,3,2,2), dst, request(s))
+    s = s + 1
+  endif
+  if (MYRANKZ > 0) then
+    src = neighbour(0, 0, -1)
+    call recv_piece(R(:,2,2,1), src, request(s))
+    s = s + 1
+    call recv_piece(R(:,1,2,1), src, request(s))
+    s = s + 1
+    call recv_piece(R(:,1,3,1), src, request(s))
+    s = s + 1
+    call recv_piece(R(:,2,3,1), src, request(s))
+    s = s + 1
+    call recv_piece(R(:,3,3,1), src, request(s))
+    s = s + 1
+    call recv_piece(R(:,3,2,1), src, request(s))
+    s = s + 1
+  endif
+
+  do i = 1,s-1
+    call mpi_wait(request(i),stat,ierr)
+  enddo
+  s = 1
+
+  ! Down
+  if (MYRANKY < NRPROCY - 1) then
+    dst = neighbour(0, 1, 0)
+    call send_piece(R(:,2,2,2), dst, request(s))
+    s = s + 1
+    call send_piece(R(:,1,2,2), dst, request(s))
+    s = s + 1
+    call send_piece(R(:,3,2,2), dst, request(s))
+    s = s + 1
+    call send_piece(R(:,1,2,1), dst, request(s))
+    s = s + 1
+    call send_piece(R(:,2,2,1), dst, request(s))
+    s = s + 1
+    call send_piece(R(:,3,2,1), dst, request(s))
+    s = s + 1
+  endif
+  if (MYRANKY > 0) then
+    src = neighbour(0, -1, 0)
+    call recv_piece(R(:,2,1,2), src, request(s))
+    s = s + 1
+    call recv_piece(R(:,1,1,2), src, request(s))
+    s = s + 1
+    call recv_piece(R(:,3,1,2), src, request(s))
+    s = s + 1
+    call recv_piece(R(:,1,1,1), src, request(s))
+    s = s + 1
+    call recv_piece(R(:,2,1,1), src, request(s))
+    s = s + 1
+    call recv_piece(R(:,3,1,1), src, request(s))
+    s = s + 1
+  endif
+
+  do i = 1,s-1
+    call mpi_wait(request(i),stat,ierr)
+  enddo
+  s = 1
+
+  ! Below
+  if (MYRANKZ > 0) then
+    dst = neighbour(0, 0, -1)
+    call send_piece(R(:,1,1,2), dst, request(s))
+    s = s + 1
+    call send_piece(R(:,1,2,2), dst, request(s))
+    s = s + 1
+    call send_piece(R(:,1,3,2), dst, request(s))
+    s = s + 1
+    call send_piece(R(:,2,1,2), dst, request(s))
+    s = s + 1
+    call send_piece(R(:,2,2,2), dst, request(s))
+    s = s + 1
+    call send_piece(R(:,2,3,2), dst, request(s))
+    s = s + 1
+    call send_piece(R(:,3,1,2), dst, request(s))
+    s = s + 1
+    call send_piece(R(:,3,2,2), dst, request(s))
+    s = s + 1
+    call send_piece(R(:,3,3,2), dst, request(s))
+    s = s + 1
+  endif
+  if (MYRANKZ < NRPROCZ - 1) then
+    src = neighbour(0, 0, 1)
+    call recv_piece(R(:,1,1,3), src, request(s))
+    s = s + 1
+    call recv_piece(R(:,1,2,3), src, request(s))
+    s = s + 1
+    call recv_piece(R(:,1,3,3), src, request(s))
+    s = s + 1
+    call recv_piece(R(:,2,1,3), src, request(s))
+    s = s + 1
+    call recv_piece(R(:,2,2,3), src, request(s))
+    s = s + 1
+    call recv_piece(R(:,2,3,3), src, request(s))
+    s = s + 1
+    call recv_piece(R(:,3,1,3), src, request(s))
+    s = s + 1
+    call recv_piece(R(:,3,2,3), src, request(s))
+    s = s + 1
+    call recv_piece(R(:,3,3,3), src, request(s))
+    s = s + 1
+  endif
+
+  do i = 1,s-1
+    call mpi_wait(request(i),stat,ierr)
+  enddo
+  s = 1
+
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
   !if (MYRANK == 0) then
@@ -331,7 +523,7 @@ integer :: obegx,oendx,obegy,oendy,obegz,oendz
   do i = max(MYRANKX-1,0)+1, min(MYRANKX+1,NRPROCX-1)+1
     do j = max(MYRANKY-1,0)+1, min(MYRANKY+1,NRPROCY-1)+1
       do k = max(MYRANKZ-1,0)+1, min(MYRANKZ+1,NRPROCZ-1)+1
-        write(*,*)'(i,j,k)=',i,j,k
+        write(*,*)'(i,j,k)=',i+1,j+1,k+1
 
         call ComputeEndpoints(i-1,NRPROCX,n,nrcppx,obegx,oendx)
         call ComputeEndpoints(j-1,NRPROCY,n,nrcppy,obegy,oendy)
