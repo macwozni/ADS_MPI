@@ -342,9 +342,12 @@ end function
 
 function InitialState(x, y, z) result (val)
 real (kind=8), intent(in) :: x, y, z
-real (kind=8) :: val
+real (kind=8) :: val, d
+real (kind=8) :: cx = 0.5d0, cy = 0.5d0, cz = 0.5d0
+real (kind=8) :: sx = 0.3d0, sy = 0.3d0, sz = 0.3d0
 
-  val = bump(8*(x-0.5))*bump(8*(y-0.5))*bump(8*(z-0.5))
+  d = ((x-cx)/sx)**2 + ((y-cy)/sy)**2 + ((z-cz)/sz)**2
+  val = bump(sqrt(d))
 
 end function
 

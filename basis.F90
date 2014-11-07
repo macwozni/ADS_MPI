@@ -4,6 +4,7 @@ use gauss
 
 implicit none
 
+
 contains
      
 
@@ -263,9 +264,9 @@ end function
 ! x, y, z    - point to evaluate at
 ! -------------------------------------------------------------------
 function EvalSpline(d,      &
-  Ux, px, nx, nelemx,         &
-  Uy, py, ny, nelemy,         &
-  Uz, pz, nz, nelemz,         &
+  Ux, px, nx, nelemx,       &
+  Uy, py, ny, nelemy,       &
+  Uz, pz, nz, nelemz,       &
   coeffs, x, y, z) result (val)
 integer, intent(in) :: d
 integer, intent(in) :: nx, px, nelemx
@@ -278,7 +279,7 @@ real (kind=8), intent(in) :: coeffs(0:nz,0:ny,0:nx)
 real (kind=8), intent(in) :: x, y, z
 real (kind=8) :: val
 
-real (kind=8) :: bx(0:px), by(0:py), bz(0:pz), b
+real (kind=8) :: bx(0:px,0:d), by(0:py,0:d), bz(0:pz,0:d), b
 integer :: xspan, yspan, zspan
 integer :: ix, iy, iz, x0, y0, z0
 
@@ -299,7 +300,7 @@ integer :: ix, iy, iz, x0, y0, z0
   do ix = 0, px
     do iy = 0, py
       do iz = 0, pz
-        b = bx(ix) * by(iy) * bz(iz)
+        b = bx(ix,d) * by(iy,d) * bz(iz,d)
         val = val + b * coeffs(x0 + ix, y0 + iy, z0 + iz)
       enddo
     enddo

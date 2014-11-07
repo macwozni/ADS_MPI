@@ -28,6 +28,7 @@ use time_data
 use debug
 use plot
 use gnuplot
+use vtk
 
 implicit none
 
@@ -41,7 +42,7 @@ integer(kind=4) :: p
 integer, parameter :: steps = 1000
 
 ! Time and timestep
-real (kind=8), parameter :: Dt = 1.d-5
+real (kind=8), parameter :: Dt = 1.d-4
 
 
 ! Knot vector
@@ -902,16 +903,17 @@ character(len=20) :: filename
   if (MYRANK == 0) then
     write(filename,'(I10)') iter
     filename = 'step' // adjustl(filename)
-    filename = trim(filename) // '_'
+    ! filename = trim(filename) // '_'
 
     params = PlotParams(0,1,0,1,0,1,31,31,31)
     call SaveSplinePlot(trim(filename), &
       U,p,n,nelem, &
       U,p,n,nelem, &
       U,p,n,nelem, &
-      solution, GnuPlotOutput, params)
+      ! solution, GnuPlotOutput, params)
+      solution, VtkOutput, params)
 
-    !call SavePlot(trim(filename), ftest, GnuPlotOutput, params)
+    ! call SavePlot(trim(filename), ftest, GnuPlotOutput, params)
   endif
 
 end subroutine
