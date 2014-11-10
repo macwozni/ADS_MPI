@@ -105,7 +105,7 @@ contains
 ! -------------------------------------------------------------------
 subroutine InitializeParameters
   ORDER = 3
-  SIZE = 8 
+  SIZE = 8
 end subroutine
 
 
@@ -141,7 +141,7 @@ end subroutine
 
 ! -------------------------------------------------------------------
 ! Establishes decomposition of the domain. Calculates size and location
-! of the piece for current process. 
+! of the piece for current process.
 ! -------------------------------------------------------------------
 subroutine ComputeDecomposition
 integer :: i
@@ -193,7 +193,7 @@ end subroutine
 
 
 ! -------------------------------------------------------------------
-! Allocates most of the 'static' arrays 
+! Allocates most of the 'static' arrays
 ! -------------------------------------------------------------------
 subroutine AllocateArrays
 integer :: ierr
@@ -295,12 +295,14 @@ end subroutine
 
 
 ! -------------------------------------------------------------------
-! Distributes solution to neighbouring processes. It is essential
-! that each process possess enough of the solution to be able to
-! calculate values near the boundary, hence overlapping supports
-! of B-splines necessitate partial sharing.
+! Distributes spline (e.g. solution from previous timestep, or parametrization
+! approximation for Jacobian calculation) to neighbouring processes. It is
+! essential that each process possess enough of the solution to be able to
+! calculate values near the boundary, hence overlapping supports of B-splines
+! necessitate partial sharing.
 ! -------------------------------------------------------------------
-subroutine DistributeSolutionToNeighbours
+subroutine DistributeSpline(spline)
+real (kind=8) :: spline(:,:,:,:)
 integer :: i, j, k, s
 integer :: request(3*3*3*2), stat(MPI_STATUS_SIZE)
 integer :: ierr(3*3*3*2)
@@ -308,21 +310,18 @@ integer :: dst, src
 
   s = 1
 
-  R(:,2,2,2) = reshape(Result, [sx*sy*sz])
-
-
   ! Right
   if (MYRANKX < NRPROCX - 1) then
     dst = neighbour(1, 0, 0)
-    call send_piece(R(:,2,2,2), dst, request(s))
+    call send_piece(spline(:,2,2,2), dst, request(s))
     s = s + 1
   endif
   if (MYRANKX > 0) then
     src = neighbour(-1, 0, 0)
-    call recv_piece(R(:,1,2,2), src, request(s))
+    call recv_piece(spline(:,1,2,2), src, request(s))
     s = s + 1
   endif
-  
+
   do i = 1,s-1
     call mpi_wait(request(i),stat,ierr)
   enddo
@@ -331,16 +330,16 @@ integer :: dst, src
   ! Up
   if (MYRANKY > 0) then
     dst = neighbour(0, -1, 0)
-    call send_piece(R(:,2,2,2), dst, request(s))
+    call send_piece(spline(:,2,2,2), dst, request(s))
     s = s + 1
-    call send_piece(R(:,1,2,2), dst, request(s))
+    call send_piece(spline(:,1,2,2), dst, request(s))
     s = s + 1
   endif
   if (MYRANKY < NRPROCY - 1) then
     src = neighbour(0, 1, 0)
-    call recv_piece(R(:,2,3,2), src, request(s))
+    call recv_piece(spline(:,2,3,2), src, request(s))
     s = s + 1
-    call recv_piece(R(:,1,3,2), src, request(s))
+    call recv_piece(spline(:,1,3,2), src, request(s))
     s = s + 1
   endif
 
@@ -373,32 +372,32 @@ integer :: dst, src
   ! Above
   if (MYRANKZ < NRPROCZ - 1) then
     dst = neighbour(0, 0, 1)
-    call send_piece(R(:,2,2,2), dst, request(s))
+    call send_piece(spline(:,2,2,2), dst, request(s))
     s = s + 1
-    call send_piece(R(:,1,2,2), dst, request(s))
+    call send_piece(spline(:,1,2,2), dst, request(s))
     s = s + 1
-    call send_piece(R(:,1,3,2), dst, request(s))
+    call send_piece(spline(:,1,3,2), dst, request(s))
     s = s + 1
-    call send_piece(R(:,2,3,2), dst, request(s))
+    call send_piece(spline(:,2,3,2), dst, request(s))
     s = s + 1
-    call send_piece(R(:,3,3,2), dst, request(s))
+    call send_piece(spline(:,3,3,2), dst, request(s))
     s = s + 1
-    call send_piece(R(:,3,2,2), dst, request(s))
+    call send_piece(spline(:,3,2,2), dst, request(s))
     s = s + 1
   endif
   if (MYRANKZ > 0) then
     src = neighbour(0, 0, -1)
-    call recv_piece(R(:,2,2,1), src, request(s))
+    call recv_piece(spline(:,2,2,1), src, request(s))
     s = s + 1
-    call recv_piece(R(:,1,2,1), src, request(s))
+    call recv_piece(spline(:,1,2,1), src, request(s))
     s = s + 1
-    call recv_piece(R(:,1,3,1), src, request(s))
+    call recv_piece(spline(:,1,3,1), src, request(s))
     s = s + 1
-    call recv_piece(R(:,2,3,1), src, request(s))
+    call recv_piece(spline(:,2,3,1), src, request(s))
     s = s + 1
-    call recv_piece(R(:,3,3,1), src, request(s))
+    call recv_piece(spline(:,3,3,1), src, request(s))
     s = s + 1
-    call recv_piece(R(:,3,2,1), src, request(s))
+    call recv_piece(spline(:,3,2,1), src, request(s))
     s = s + 1
   endif
 
@@ -410,32 +409,32 @@ integer :: dst, src
   ! Down
   if (MYRANKY < NRPROCY - 1) then
     dst = neighbour(0, 1, 0)
-    call send_piece(R(:,2,2,2), dst, request(s))
+    call send_piece(spline(:,2,2,2), dst, request(s))
     s = s + 1
-    call send_piece(R(:,1,2,2), dst, request(s))
+    call send_piece(spline(:,1,2,2), dst, request(s))
     s = s + 1
-    call send_piece(R(:,3,2,2), dst, request(s))
+    call send_piece(spline(:,3,2,2), dst, request(s))
     s = s + 1
-    call send_piece(R(:,1,2,1), dst, request(s))
+    call send_piece(spline(:,1,2,1), dst, request(s))
     s = s + 1
-    call send_piece(R(:,2,2,1), dst, request(s))
+    call send_piece(spline(:,2,2,1), dst, request(s))
     s = s + 1
-    call send_piece(R(:,3,2,1), dst, request(s))
+    call send_piece(spline(:,3,2,1), dst, request(s))
     s = s + 1
   endif
   if (MYRANKY > 0) then
     src = neighbour(0, -1, 0)
-    call recv_piece(R(:,2,1,2), src, request(s))
+    call recv_piece(spline(:,2,1,2), src, request(s))
     s = s + 1
-    call recv_piece(R(:,1,1,2), src, request(s))
+    call recv_piece(spline(:,1,1,2), src, request(s))
     s = s + 1
-    call recv_piece(R(:,3,1,2), src, request(s))
+    call recv_piece(spline(:,3,1,2), src, request(s))
     s = s + 1
-    call recv_piece(R(:,1,1,1), src, request(s))
+    call recv_piece(spline(:,1,1,1), src, request(s))
     s = s + 1
-    call recv_piece(R(:,2,1,1), src, request(s))
+    call recv_piece(spline(:,2,1,1), src, request(s))
     s = s + 1
-    call recv_piece(R(:,3,1,1), src, request(s))
+    call recv_piece(spline(:,3,1,1), src, request(s))
     s = s + 1
   endif
 
@@ -447,44 +446,44 @@ integer :: dst, src
   ! Below
   if (MYRANKZ > 0) then
     dst = neighbour(0, 0, -1)
-    call send_piece(R(:,1,1,2), dst, request(s))
+    call send_piece(spline(:,1,1,2), dst, request(s))
     s = s + 1
-    call send_piece(R(:,1,2,2), dst, request(s))
+    call send_piece(spline(:,1,2,2), dst, request(s))
     s = s + 1
-    call send_piece(R(:,1,3,2), dst, request(s))
+    call send_piece(spline(:,1,3,2), dst, request(s))
     s = s + 1
-    call send_piece(R(:,2,1,2), dst, request(s))
+    call send_piece(spline(:,2,1,2), dst, request(s))
     s = s + 1
-    call send_piece(R(:,2,2,2), dst, request(s))
+    call send_piece(spline(:,2,2,2), dst, request(s))
     s = s + 1
-    call send_piece(R(:,2,3,2), dst, request(s))
+    call send_piece(spline(:,2,3,2), dst, request(s))
     s = s + 1
-    call send_piece(R(:,3,1,2), dst, request(s))
+    call send_piece(spline(:,3,1,2), dst, request(s))
     s = s + 1
-    call send_piece(R(:,3,2,2), dst, request(s))
+    call send_piece(spline(:,3,2,2), dst, request(s))
     s = s + 1
-    call send_piece(R(:,3,3,2), dst, request(s))
+    call send_piece(spline(:,3,3,2), dst, request(s))
     s = s + 1
   endif
   if (MYRANKZ < NRPROCZ - 1) then
     src = neighbour(0, 0, 1)
-    call recv_piece(R(:,1,1,3), src, request(s))
+    call recv_piece(spline(:,1,1,3), src, request(s))
     s = s + 1
-    call recv_piece(R(:,1,2,3), src, request(s))
+    call recv_piece(spline(:,1,2,3), src, request(s))
     s = s + 1
-    call recv_piece(R(:,1,3,3), src, request(s))
+    call recv_piece(spline(:,1,3,3), src, request(s))
     s = s + 1
-    call recv_piece(R(:,2,1,3), src, request(s))
+    call recv_piece(spline(:,2,1,3), src, request(s))
     s = s + 1
-    call recv_piece(R(:,2,2,3), src, request(s))
+    call recv_piece(spline(:,2,2,3), src, request(s))
     s = s + 1
-    call recv_piece(R(:,2,3,3), src, request(s))
+    call recv_piece(spline(:,2,3,3), src, request(s))
     s = s + 1
-    call recv_piece(R(:,3,1,3), src, request(s))
+    call recv_piece(spline(:,3,1,3), src, request(s))
     s = s + 1
-    call recv_piece(R(:,3,2,3), src, request(s))
+    call recv_piece(spline(:,3,2,3), src, request(s))
     s = s + 1
-    call recv_piece(R(:,3,3,3), src, request(s))
+    call recv_piece(spline(:,3,3,3), src, request(s))
     s = s + 1
   endif
 
@@ -502,7 +501,7 @@ integer :: dst, src
   !do i=ibegx,iendx
   !  do j=ibegy,iendy
   !    do k=ibegz,iendz
-  !       Result(k-ibegz+1,(j-ibegy)*sx + i-ibegx+1)=(10*i+j)*10 + k 
+  !       Result(k-ibegz+1,(j-ibegy)*sx + i-ibegx+1)=(10*i+j)*10 + k
   !    enddo
   !  enddo
   !enddo
@@ -695,7 +694,7 @@ integer :: iret, ierr
   endif
 
   if (iinfo == 1) write(*,*)PRINTRANK,'1c) SCATTER'
-  allocate(F2_out(sx,sy*sz)) 
+  allocate(F2_out(sx,sy*sz))
   call Scatter(F_out,F2_out,n,sx,sy*sz,dimensionsX,shiftsX,COMMX,ierr)
   deallocate(F_out)
 
@@ -722,7 +721,7 @@ integer :: iret, ierr
       write(*,*)PRINTRANK,i,'row=',F2(i,1:sx*sz)
     enddo
   endif
-  iprint = 0      
+  iprint = 0
 
   !--------------------------------------------------------------------
   ! Solve the second problem
@@ -761,7 +760,7 @@ integer :: iret, ierr
   if (iinfo == 1) write(*,*)PRINTRANK,'2c) SCATHER'
 
   ! CORRECTION
-  allocate(F3_out(sy,sx*sz)) 
+  allocate(F3_out(sy,sx*sz))
   call Scatter(F2_out,F3_out,n,sy,sx*sz,dimensionsY,shiftsY,COMMY,ierr)
   deallocate(F2_out)
 
@@ -839,7 +838,8 @@ integer :: iret, ierr
   deallocate(F3_out)
 
   if (iinfo == 1) write(*,*)PRINTRANK,'3d) DISTRIBUTE SOLUTION'
-  call DistributeSolutionToNeighbours
+  R(:,2,2,2) = reshape(Result, [sx*sy*sz])
+  call DistributeSpline(R)
 
   if (MYRANK == 0) iprint=1
   if (iprint == 1) then
@@ -890,7 +890,7 @@ end function
 ! at    - process where to gather the solution
 ! part  - part of the solution of each process
 ! full  - full solution, combined from parts
-! 
+!
 ! The procedure relies crucially on specific data layout inside
 ! pieces at the end of each iteration.
 !
@@ -929,7 +929,7 @@ integer :: ix, iy, iz, idx
 
   ! Just grab all the pieces and put it in the array one after another,
   ! reordering will be done later at the root.
-  offset = 0 
+  offset = 0
   do x = 0, NRPROCX-1
     do y = 0, NRPROCY-1
       do z = 0, NRPROCZ-1
@@ -958,7 +958,7 @@ integer :: ix, iy, iz, idx
           ssy = endy - begy + 1
           ssz = endz - begz + 1
 
-          do xx = 0, ssx-1 
+          do xx = 0, ssx-1
             do yy = 0, ssy-1
               do zz = 0, ssz-1
                 ix = begx - 1 + xx   ! beg_ starts from 1, hence -1
@@ -1151,7 +1151,7 @@ real (kind=8) :: t = 0
 
   if (idebug == 1) then
     call ValidateDimensions
-  endif     
+  endif
 
   if (iprint == 1) then
     call PrintDecompositionInfo
@@ -1160,7 +1160,7 @@ real (kind=8) :: t = 0
   call AllocateArrays
   call PrepareKnot
 
-  ! Iterations 
+  ! Iterations
   do iter = 0,steps
 
     write(*,*)'Iteration',iter,'/',steps
@@ -1174,7 +1174,7 @@ real (kind=8) :: t = 0
     endif
   enddo
 
-  call Cleanup 
+  call Cleanup
 
 end
 
