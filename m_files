@@ -43,6 +43,6 @@ SOURCES_BLAS = blas/dcopy.F \
 SOURCES += $(SOURCES_LAPACK)
 SOURCES += $(SOURCES_BLAS)
 
-FFLAGS = -traceback -check all
+#FFLAGS = -traceback -check all
 
 SOURCE_ALL = $(SOURCES)
