@@ -838,7 +838,7 @@ integer :: iret, ierr
   deallocate(F3_out)
 
   if (iinfo == 1) write(*,*)PRINTRANK,'3d) DISTRIBUTE SOLUTION'
-  R(:,2,2,2) = reshape(Result, [sx*sy*sz])
+  R(1:sx*sy*sz,2,2,2) = reshape(Result, [sx*sy*sz])
   call DistributeSpline(R)
 
   if (MYRANK == 0) iprint=1
