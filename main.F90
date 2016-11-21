@@ -104,7 +104,7 @@ contains
 ! Sets values of parameters (order and size)
 ! -------------------------------------------------------------------
 subroutine InitializeParameters
-  ORDER = 3
+  ORDER = 2
   SIZE = 8
 end subroutine
 
