@@ -25,7 +25,7 @@ integer :: outFile = 57 ! random value, Grothendieck's prime
 
   write(*,*) 'Starting VTK output...'
 
-  open(unit=outFile, file=trim(filename) // '.vtk', &
+  open(unit=outFile, file=trim(filename) // '.vti', &
     form='formatted', access='sequential', status='unknown')
 
   ! XML version/root
