@@ -101,8 +101,8 @@ interface
   subroutine output(filename, vals, params)
     import PlotParams
     character(len=*), intent(in) :: filename
-    type (PlotParams) :: params
-    real (kind=8) :: vals(params%resx,params%resy,params%resz)
+    type (PlotParams), intent(in) :: params
+    real (kind=8), intent(in) :: vals(params%resx,params%resy,params%resz)
   end subroutine
 end interface
 
