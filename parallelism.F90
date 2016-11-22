@@ -14,9 +14,9 @@ integer :: NRPROC
 integer :: MYRANKX, MYRANKY, MYRANKZ
 
 ! Total number of processors along X, Y and Z
-integer, parameter :: NRPROCX = 3
-integer, parameter :: NRPROCY = 2
-integer, parameter :: NRPROCZ = 2
+integer :: NRPROCX
+integer :: NRPROCY
+integer :: NRPROCZ
 
 ! Rank of this processor converted to a string
 character(len=6) :: PRINTRANK

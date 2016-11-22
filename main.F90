@@ -112,8 +112,21 @@ contains
 ! Sets values of parameters (order and size)
 ! -------------------------------------------------------------------
 subroutine InitializeParameters
+character(100) :: input
+
+  ! ./l2 <size> <procx> <procy> <procz>
   ORDER = 2
-  SIZE = 8
+  ! SIZE = 8
+
+  call getarg(1,input)
+  read(input,*) SIZE
+  call getarg(2,input)
+  read(input,*) NRPROCX
+  call getarg(3,input)
+  read(input,*) NRPROCY
+  call getarg(4,input)
+  read(input,*) NRPROCZ
+
 end subroutine
 
 

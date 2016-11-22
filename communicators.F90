@@ -4,18 +4,23 @@ use parallelism
 
 implicit none
 
+! Total number of processors along X, Y and Z
+integer, parameter :: NRPROCXMAX = 128
+integer, parameter :: NRPROCYMAX = 128
+integer, parameter :: NRPROCZMAX = 128
+
 ! Global ranks of processors in the cube
-integer :: processors(NRPROCX,NRPROCY,NRPROCZ)
+integer :: processors(NRPROCXMAX,NRPROCYMAX,NRPROCZMAX)
 
 ! Group involving processors along X, Y, Z
-integer :: GROUPX(NRPROCY,NRPROCZ)
-integer :: GROUPY(NRPROCX,NRPROCZ)
-integer :: GROUPZ(NRPROCX,NRPROCY)
+integer :: GROUPX(NRPROCYMAX,NRPROCZMAX)
+integer :: GROUPY(NRPROCXMAX,NRPROCZMAX)
+integer :: GROUPZ(NRPROCXMAX,NRPROCYMAX)
 
 ! Communicatorx along X, Y, Z
-integer :: COMMXALL(NRPROCY,NRPROCZ)
-integer :: COMMYALL(NRPROCX,NRPROCZ)
-integer :: COMMZALL(NRPROCX,NRPROCY)
+integer :: COMMXALL(NRPROCYMAX,NRPROCZMAX)
+integer :: COMMYALL(NRPROCXMAX,NRPROCZMAX)
+integer :: COMMZALL(NRPROCXMAX,NRPROCYMAX)
 
 ! Local communicators
 integer :: COMMX,COMMY,COMMZ
