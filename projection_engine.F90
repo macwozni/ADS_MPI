@@ -6,6 +6,7 @@ use parallelism
 use reorderRHS
 use utils
 use math
+use input_data
 
 implicit none
 
@@ -101,6 +102,8 @@ end subroutine
 ! nrank_          - cube coordinate of this process
 ! nrp_            - number of columns for this process
 ! ibegs_, iends_  - pieces of domain surrounding this process' piece
+! mine_, maxe_    - indices of first and last elements in each direction
+! Kq              - array with precomputed permeability values
 ! Dt              - time step size
 ! t               - current time
 ! R               - previous solution coefficients
@@ -122,14 +125,19 @@ subroutine Form3DRHS(          &
    ibegsx,iendsx,              &
    ibegsy,iendsy,              &
    ibegsz,iendsz,              &
-   Dt,t,R,F)
+   minex,maxex,                &
+   miney,maxey,                &
+   minez,maxez,                &
+   Kq, Dt,t,R,F)
 integer(kind=4), intent(in) :: nx, px, nelemx, nrcppx
 integer(kind=4), intent(in) :: ny, py, nelemy, nrcppy
 integer(kind=4), intent(in) :: nz, pz, nelemz, nrcppz
+integer(kind=4), intent(in) :: minex,maxex,miney,maxey,minez,maxez
 real   (kind=8), intent(in) :: Ux(0:nx+px+1)
 real   (kind=8), intent(in) :: Uy(0:ny+py+1)
 real   (kind=8), intent(in) :: Uz(0:nz+pz+1)
 real   (kind=8), intent(in) :: R(0:(nrcppz+pz-2)*(nrcppx+px-2)*(nrcppy+py-2)-1,3,3,3)
+real   (kind=8), intent(in) :: Kq(px+1,py+1,pz+1,maxex-minex+1,maxey-miney+1,maxez-minez+1)
 integer(kind=4), dimension(3) :: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
 integer, intent(in) :: ibegx,ibegy,ibegz
 integer, intent(in) :: iendx,iendy,iendz
@@ -149,7 +157,7 @@ real   (kind=8) :: Xz(pz+1,nelemz)
 real   (kind=8) :: NNx(0:1,0:px,px+1,nelemx), &
                    NNy(0:1,0:py,py+1,nelemy), &
                    NNz(0:1,0:pz,pz+1,nelemz)
-real   (kind=8) :: J,W,fval,Uval,t,Dt,ucoeff
+real   (kind=8) :: J,W,fval,kqval,Uval,t,Dt,ucoeff,mi
 real   (kind=8) :: v, rhs
 real   (kind=8) :: dux,duy,duz,dvx,dvy,dvz
 integer :: nreppx,nreppy,nreppz !# elements per proc along x,y,z
@@ -169,6 +177,8 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
   mz  = nz + pz + 1
   ngz = pz + 1
 
+  mi = 10.0
+
   call BasisData(px,mx,Ux,1,ngx,nelemx,Ox,Jx,Wx,Xx,NNx)
   call BasisData(py,my,Uy,1,ngy,nelemy,Oy,Jy,Wy,Xy,NNy)
   call BasisData(pz,mz,Uz,1,ngz,nelemz,Oz,Jz,Wz,Xz,NNz)
@@ -178,10 +188,18 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
   nreppy = nelemy / nrpy
   nreppz = nelemz / nrpz
 
+  ! minex = max(nreppx*nrankx-px+1,1)
+  ! maxex = min(nelemx,nreppx*(nrankx+1)+px)
+  ! miney = max(nreppy*nranky-py+1,1)
+  ! maxey = min(nelemy,nreppy*(nranky+1)+py)
+  ! minez = max(nreppz*nrankz-pz+1,1)
+  ! maxez = min(nelemz,nreppz*(nrankz+1)+pz)
+
+  iprint = 1
   if (iprint == 1) then
-    write(*,*)PRINTRANK,'ex:',max(nreppx*nrankx-px+1,1), min(nelemx,nreppx*(nrankx+1)+px)
-    write(*,*)PRINTRANK,'ey:',max(nreppy*nranky-py+1,1), min(nelemy,nreppy*(nranky+1)+py)
-    write(*,*)PRINTRANK,'ez:',max(nreppz*nrankz-pz+1,1), min(nelemz,nreppz*(nrankz+1)+pz)
+    write(*,*)PRINTRANK,'ex:',minex,maxex
+    write(*,*)PRINTRANK,'ey:',miney,maxey
+    write(*,*)PRINTRANK,'ez:',minez,maxez
     write(*,*)PRINTRANK,'ibegx,iendx',ibegx,iendx
     write(*,*)PRINTRANK,'ibegy,iendy',ibegy,iendy
     write(*,*)PRINTRANK,'ibegz,iendz',ibegz,iendz
@@ -189,9 +207,9 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
 
   F = 0
 
-  do ex = max(nreppx*nrankx-px+1,1), min(nelemx,nreppx*(nrankx+1)+px)
-  do ey = max(nreppy*nranky-py+1,1), min(nelemy,nreppy*(nranky+1)+py)
-  do ez = max(nreppz*nrankz-pz+1,1), min(nelemz,nreppz*(nrankz+1)+pz)
+  do ex = minex, maxex
+  do ey = miney, maxey
+  do ez = minez, maxez
     J = Jx(ex)*Jy(ey)*Jz(ez)
     do kx = 1,ngx
     do ky = 1,ngy
@@ -277,12 +295,16 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
         dvy = NNx(0,ax,kx,ex) * NNy(1,ay,ky,ey) * NNz(0,az,kz,ez) 
         dvz = NNx(0,ax,kx,ex) * NNy(0,ay,ky,ey) * NNz(1,az,kz,ez) 
 
+        kqval = Kq(kx,ky,kz,ex-minex+1,ey-miney+1,ez-minez+1)
         !--- Real
         if (t > 0.0) then
-          rhs = Dt * (- (dux*dvx + duy*dvy + duz*dvz) + v * fval)
+          ! rhs = Dt * (- (dux*dvx + duy*dvy + duz*dvz) + v * fval)
+          rhs = Dt * ( - kqval * exp(mi * Uval) * (dux*dvx + duy*dvy + duz*dvz) + v * fval)
           F(ind1,ind23) = F(ind1,ind23) + J*W*(v * Uval + rhs)
+
         else
-          fval = InitialState(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
+          ! fval = InitialState(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
+          fval = initial_state(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
           F(ind1,ind23) = F(ind1,ind23) + J*W*v*fval
         endif
 
@@ -331,25 +353,25 @@ end function
 !
 ! x, y, z   - coordinates
 ! -------------------------------------------------------------------
-function fvalue(x,y,z) result (fval)
-real (kind=8) :: x,y,z
-real (kind=8) :: fval
+! function fvalue(x,y,z) result (fval)
+! real (kind=8) :: x,y,z
+! real (kind=8) :: fval
 
-  fval = 0
+!   fval = 0
 
-end function
+! end function
 
 
-function InitialState(x, y, z) result (val)
-real (kind=8), intent(in) :: x, y, z
-real (kind=8) :: val, d
-real (kind=8) :: cx = 0.5d0, cy = 0.5d0, cz = 0.5d0
-real (kind=8) :: sx = 0.3d0, sy = 0.3d0, sz = 0.3d0
+! function InitialState(x, y, z) result (val)
+! real (kind=8), intent(in) :: x, y, z
+! real (kind=8) :: val, d
+! real (kind=8) :: cx = 0.5d0, cy = 0.5d0, cz = 0.5d0
+! real (kind=8) :: sx = 0.3d0, sy = 0.3d0, sz = 0.3d0
 
-  d = ((x-cx)/sx)**2 + ((y-cy)/sy)**2 + ((z-cz)/sz)**2
-  val = bump(sqrt(d))
+!   d = ((x-cx)/sx)**2 + ((y-cy)/sy)**2 + ((z-cz)/sz)**2
+!   val = bump(sqrt(d))
 
-end function
+! end function
 
 
 ! -------------------------------------------------------------------

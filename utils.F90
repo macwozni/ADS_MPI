@@ -40,27 +40,33 @@ end subroutine
 ! rank    - rank of the current process in this direction
 ! nrproc  - # of processors for this direction
 ! n       - size of the problem
+! p       - order of polynomial basis
 !
 ! Output:
 ! -------
 ! nrcpp   - # of columns per processor
 ! ibeg    - index of first assigned slice
 ! iend    - index of last assigned slice
+! mine    - index of first element corresponding to the assigned slice
+! maxe    - index of last element corresponding to the assigned slice
 ! -------------------------------------------------------------------
-subroutine ComputeEndpoints(rank, nrproc, n, nrcpp, ibeg, iend)
-integer :: rank, nrproc, n
-integer, intent(out) :: nrcpp, ibeg, iend
+subroutine ComputeEndpoints(rank, nrproc, n, p, nrcpp, ibeg, iend, mine, maxe)
+integer, intent(in) :: rank, nrproc, n, p
+integer, intent(out) :: nrcpp, ibeg, iend, mine, maxe
+integer :: elems
 
+  elems = n + 1 - p
   nrcpp = (n+1+1) / nrproc
   if(rank == nrproc-1)then
     ibeg = nrcpp*(nrproc-1)+1
     iend = n+1
   else
-    ! ibeg = nrcpp*(nrproc-2)+1
-    ! iend = nrcpp*(nrproc-1)
     ibeg = nrcpp * rank + 1
     iend = nrcpp * (rank + 1)
   endif
+
+  mine = max(ibeg - p - 1, 1)
+  maxe = min(iend, elems)
 
 end subroutine
 

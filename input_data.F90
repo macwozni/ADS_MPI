@@ -1,6 +1,7 @@
 module input_data
 
 use math
+use basis
 
 implicit none
 
@@ -116,7 +117,7 @@ function fvalue(x, y, z) result (fval)
 real   (kind=8) :: x, y, z
 real   (kind=8) :: fval
 
-  fval = 0.d0 !sin(x**2+y**2+z**2)
+  fval = 0.d0 ! 1.d0 + sin(2*PI*x) * sin(2*PI*y) * sin(2*PI*z)
 
 end function
 
@@ -182,9 +183,56 @@ function initial_state(x, y, z) result (val)
 real   (kind=8) :: x, y, z
 real   (kind=8) :: val
 
-  val = 1
-  !val = kq(x, y, z)
+  val = 0.1d0 * kq(x, y, z)
 
 end function
+
+
+
+subroutine CacheKqValues(Ux,px,nx,minex,maxex,nelemx,Uy,py,ny,miney,maxey,nelemy,Uz,pz,nz,minez,maxez,nelemz,Kq_vals)
+implicit none
+integer(kind=4), intent(in) :: nx, px, minex, maxex, nelemx
+integer(kind=4), intent(in) :: ny, py, miney, maxey, nelemy
+integer(kind=4), intent(in) :: nz, pz, minez, maxez, nelemz
+real   (kind=8), intent(in) :: Ux(0:nx+px+1)
+real   (kind=8), intent(in) :: Uy(0:ny+py+1)
+real   (kind=8), intent(in) :: Uz(0:nz+pz+1)
+real   (kind=8), intent(out) :: Kq_vals(px+1,py+1,pz+1,maxex-minex+1,maxey-miney+1,maxez-minez+1)
+integer(kind=4) :: mx,my,mz,ngx,ngy,ngz,ex,ey,ez
+integer(kind=4) :: kx,ky,kz,ax,ay,az,d
+integer(kind=4) :: Ox(nelemx),Oy(nelemy),Oz(nelemz)
+real   (kind=8) :: Jx(nelemx),Jy(nelemy),Jz(nelemz)
+real   (kind=8) :: Wx(px+1),Wy(py+1),Wz(pz+1)
+real   (kind=8) :: Xx(px+1,nelemx)
+real   (kind=8) :: Xy(py+1,nelemy)
+real   (kind=8) :: Xz(pz+1,nelemz)
+real   (kind=8) :: NNx(0:2,0:px,px+1,nelemx), NNy(0:2,0:py,py+1,nelemy), NNz(0:2,0:pz,pz+1,nelemz)
+d=2
+mx  = nx+px+1
+ngx = px+1
+my  = ny+py+1
+ngy = py+1
+mz  = nz+pz+1
+ngz = pz+1
+
+call BasisData(px,mx,Ux,d,ngx,nelemx,Ox,Jx,Wx,Xx,NNx)
+call BasisData(py,my,Uy,d,ngy,nelemy,Oy,Jy,Wy,Xy,NNy)
+call BasisData(pz,mz,Uz,d,ngz,nelemz,Oz,Jz,Wz,Xz,NNz)
+
+do ex = minex,maxex
+do ey = miney,maxey
+do ez = minez,maxez
+  do kx = 1,ngx
+  do ky = 1,ngy
+  do kz = 1,ngz
+    Kq_vals(kx,ky,kz,ex-minex+1,ey-miney+1,ez-minez+1) = kq(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
+  end do
+  end do
+  end do
+end do
+end do
+end do
+end subroutine
+
 
 end module input_data

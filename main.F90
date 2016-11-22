@@ -62,6 +62,9 @@ real (kind=8), allocatable, dimension(:,:) :: F_out, F2_out, F3_out
 ! Nx*Ny*Nz is the size of part of solution for one fragment of domain.
 real (kind=8), allocatable :: R(:,:,:,:)
 
+! Buffer for values of permeability function
+real (kind=8), allocatable :: Kqvals(:,:,:,:,:,:)
+
 ! Number of subintervals (currently n - p + 1)
 integer(kind=4) :: nelem
 
@@ -96,6 +99,11 @@ integer :: sx,sy,sz
 integer, dimension(3) :: ibegsx,iendsx
 integer, dimension(3) :: ibegsy,iendsy
 integer, dimension(3) :: ibegsz,iendsz
+
+! Range of elements associated with basis functions assigned to this process
+integer :: minex, maxex
+integer :: miney, maxey
+integer :: minez, maxez
 
 contains
 
@@ -146,11 +154,12 @@ end subroutine
 subroutine ComputeDecomposition
 integer :: i
 integer :: ix, iy, iz
+integer :: mine, maxe
 
   ! number of columns per processors
-  call ComputeEndpoints(MYRANKX, NRPROCX, n, nrcppx, ibegx, iendx)
-  call ComputeEndpoints(MYRANKY, NRPROCY, n, nrcppy, ibegy, iendy)
-  call ComputeEndpoints(MYRANKZ, NRPROCZ, n, nrcppz, ibegz, iendz)
+  call ComputeEndpoints(MYRANKX, NRPROCX, n, p, nrcppx, ibegx, iendx, minex, maxex)
+  call ComputeEndpoints(MYRANKY, NRPROCY, n, p, nrcppy, ibegy, iendy, miney, maxey)
+  call ComputeEndpoints(MYRANKZ, NRPROCZ, n, p, nrcppz, ibegz, iendz, minez, maxez)
 
   sx = iendx - ibegx + 1
   sy = iendy - ibegy + 1
@@ -178,15 +187,15 @@ integer :: ix, iy, iz
 
   do i = max(MYRANKX-1,0)+1, min(MYRANKX+1,NRPROCX-1)+1
     ix = i-MYRANKX+1
-    call ComputeEndpoints(i-1, NRPROCX, n, nrcppx, ibegsx(ix), iendsx(ix))
+    call ComputeEndpoints(i-1, NRPROCX, n, p, nrcppx, ibegsx(ix), iendsx(ix), mine, maxe)
   enddo
   do i = max(MYRANKY-1,0)+1, min(MYRANKY+1,NRPROCY-1)+1
     iy = i-MYRANKY+1
-    call ComputeEndpoints(i-1,NRPROCY,n,nrcppy,ibegsy(iy),iendsy(iy))
+    call ComputeEndpoints(i-1,NRPROCY, n, p, nrcppy, ibegsy(iy), iendsy(iy), mine, maxe)
   enddo
   do i = max(MYRANKZ-1,0)+1, min(MYRANKZ+1,NRPROCZ-1)+1
     iz = i-MYRANKZ+1
-    call ComputeEndpoints(i-1,NRPROCZ,n,nrcppz,ibegsz(iz),iendsz(iz))
+    call ComputeEndpoints(i-1,NRPROCZ, n, p, nrcppz, ibegsz(iz), iendsz(iz), mine, maxe)
   enddo
 
 end subroutine
@@ -207,6 +216,8 @@ integer :: ierr
   allocate(F3(sz,sx*sy)) !z,x,y
 
   allocate(Result(sz,sx*sy)) !z,x,y
+
+  allocate(Kqvals(p+1,p+1,p+1,maxex-minex+1,maxey-miney+1,maxez-minez+1))
 
   ! Processes on the border need pivot vector for LAPACK call
   if (MYRANKX == 0 .or. MYRANKY == 0 .or. MYRANKZ == 0) then
@@ -255,6 +266,17 @@ integer :: i
       write(*,*)PRINTRANK,M(i,1:n+1)
     enddo
   endif
+
+end subroutine
+
+
+subroutine PrecomputeKq
+
+  call CacheKqValues                                &
+      (U,p,n,minex,maxex,nelem,                     &
+       U,p,n,miney,maxey,nelem,                     &
+       U,p,n,minez,maxez,nelem,                     &
+       Kqvals)
 
 end subroutine
 
@@ -516,6 +538,7 @@ end subroutine
 subroutine PrintDistributedData
 integer :: i, j, k
 integer :: obegx,oendx,obegy,oendy,obegz,oendz
+integer :: mine, maxe
 
   write(*,*)PRINTRANK,'R:'
 
@@ -524,9 +547,9 @@ integer :: obegx,oendx,obegy,oendy,obegz,oendz
       do k = max(MYRANKZ-1,0)+1, min(MYRANKZ+1,NRPROCZ-1)+1
         write(*,*)'(i,j,k)=',i+1,j+1,k+1
 
-        call ComputeEndpoints(i-1,NRPROCX,n,nrcppx,obegx,oendx)
-        call ComputeEndpoints(j-1,NRPROCY,n,nrcppy,obegy,oendy)
-        call ComputeEndpoints(k-1,NRPROCZ,n,nrcppz,obegz,oendz)
+        call ComputeEndpoints(i-1,NRPROCX,n,p,nrcppx,obegx,oendx,mine,maxe)
+        call ComputeEndpoints(j-1,NRPROCY,n,p,nrcppy,obegy,oendy,mine,maxe)
+        call ComputeEndpoints(k-1,NRPROCZ,n,p,nrcppz,obegz,oendz,mine,maxe)
 
         write(*,*) reshape(                                 &
           R(:,i-MYRANKX+1,j-MYRANKY+1,k-MYRANKZ+1),         &
@@ -558,7 +581,8 @@ integer :: ierr
        ibegy,iendy,MYRANKY,NRPROCY,                 &
        ibegz,iendz,MYRANKZ,NRPROCZ,                 &
        ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz,   &
-       Dt,t,R,F)
+       minex,maxex,miney,maxey,minez,maxez,         &
+       Kqvals,Dt,t,R,F)
 
   if (iprint == 1) then
     write(*,*)PRINTRANK,'F'
@@ -870,12 +894,13 @@ integer, intent(in) :: x, y, z
 integer :: s
 integer :: sx, sy, sz
 integer :: nrcpp, ibeg, iend
+integer :: mine, maxe
 
-  call ComputeEndpoints(x, NRPROCX, n, nrcpp, ibeg, iend)
+  call ComputeEndpoints(x, NRPROCX, n, p, nrcpp, ibeg, iend, mine, maxe)
   sx = iend - ibeg + 1
-  call ComputeEndpoints(y, NRPROCY, n, nrcpp, ibeg, iend)
+  call ComputeEndpoints(y, NRPROCY, n, p, nrcpp, ibeg, iend, mine, maxe)
   sy = iend - ibeg + 1
-  call ComputeEndpoints(z, NRPROCZ, n, nrcpp, ibeg, iend)
+  call ComputeEndpoints(z, NRPROCZ, n, p, nrcpp, ibeg, iend, mine, maxe)
   sz = iend - ibeg + 1
 
   s = sx * sy * sz
@@ -910,6 +935,7 @@ integer :: offset, size
 integer :: ierr
 integer :: array_size
 integer :: begx, begy, begz, endx, endy, endz
+integer :: mine, maxe
 integer :: nrcpp
 integer :: ssx, ssy, ssz
 integer :: xx, yy, zz
@@ -951,9 +977,9 @@ integer :: ix, iy, iz, idx
     do x = 0, NRPROCX-1
       do y = 0, NRPROCY-1
         do z = 0, NRPROCZ-1
-          call ComputeEndpoints(x, NRPROCX, n, nrcpp, begx, endx)
-          call ComputeEndpoints(y, NRPROCY, n, nrcpp, begy, endy)
-          call ComputeEndpoints(z, NRPROCZ, n, nrcpp, begz, endz)
+          call ComputeEndpoints(x, NRPROCX, n, p, nrcpp, begx, endx, mine, maxe)
+          call ComputeEndpoints(y, NRPROCY, n, p, nrcpp, begy, endy, mine, maxe)
+          call ComputeEndpoints(z, NRPROCZ, n, p, nrcpp, begz, endz, mine, maxe)
           ssx = endx - begx + 1
           ssy = endy - begy + 1
           ssz = endz - begz + 1
@@ -1159,6 +1185,8 @@ real (kind=8) :: t = 0
 
   call AllocateArrays
   call PrepareKnot
+  call InitInputData
+  call PrecomputeKq
 
   ! Iterations
   do iter = 0,steps
