@@ -4,4 +4,7 @@ _OBJ
 output
 *.plot
 *.png
+*.o
+*.vti
+*.swp
 nohup.out
