@@ -1,6 +1,7 @@
 module basis
 
 use gauss
+use debug
 
 implicit none
 
@@ -243,7 +244,9 @@ integer(kind=4) :: i, nelem
      do while (i < n .and. U(i) == U(i+1))
         i = i + 1
      enddo
-     write(*,*)'CountSpans:i,n,U(i),U(i+1)',i,n,U(i),U(i+1)
+     if (iprint == 1) then
+       write(*,*)'CountSpans:i,n,U(i),U(i+1)',i,n,U(i),U(i+1)
+     endif
      nelem = nelem + 1
      i = i + 1
   enddo

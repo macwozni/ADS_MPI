@@ -1,6 +1,7 @@
 module vtk
 
 use plot
+use debug
 
 implicit none
 
@@ -23,7 +24,9 @@ character (len=200) :: temp, extent
 
 integer :: outFile = 57 ! random value, Grothendieck's prime
 
-  write(*,*) 'Starting VTK output...'
+  if (iprint == 1) then
+    write(*,*) 'Starting VTK output...'
+  endif
 
   open(unit=outFile, file=trim(filename) // '.vti', &
     form='formatted', access='sequential', status='unknown')
@@ -47,7 +50,9 @@ integer :: outFile = 57 ! random value, Grothendieck's prime
   write(outFile,'(A)')'        <DataArray Name="Result" type="Float32">'
 
   ! outFile result values by X, Y and Z axis
-  write(*,*)'Printing data'
+  if (iprint == 1) then
+    write(*,*)'Printing data'
+  endif
 
   do ix = 1, params%resx
     do iy = 1, params%resy
@@ -66,7 +71,9 @@ integer :: outFile = 57 ! random value, Grothendieck's prime
   write(outFile,'(A)') '</VTKFile>'
 
   close(outFile)
-  write(*,*) 'Done with output.'
+  if (iprint == 1) then
+    write(*,*) 'Done with output.'
+  endif
 
 end subroutine
 
@@ -89,7 +96,9 @@ character(len=200) :: temp, extent
 
 integer :: outFile = 57 ! random value, Grothendieck's prime
 
-  write(*,*) 'Starting VTK output...'
+  if (iprint == 1) then
+    write(*,*) 'Starting VTK output...'
+  endif
 
   open(unit=outFile, file=trim(filename) // '.vts', &
     form='formatted', access='sequential', status='unknown')
@@ -113,7 +122,9 @@ integer :: outFile = 57 ! random value, Grothendieck's prime
   write(outFile,'(A)')'        <DataArray Name="Result" type="Float32">'
 
   ! output result values by X, Y and Z axis
-  write(*,*)'Printing data'
+  if (iprint == 1) then
+    write(*,*)'Printing data'
+  endif
 
   do ix = 1, params%resx
     do iy = 1, params%resy
@@ -146,7 +157,9 @@ integer :: outFile = 57 ! random value, Grothendieck's prime
   write(outFile,'(A)') '</VTKFile>'
 
   close(outFile)
-  write(*,*) 'Done with output.'
+  if (iprint == 1) then
+    write(*,*) 'Done with output.'
+  endif
 
 end subroutine
 

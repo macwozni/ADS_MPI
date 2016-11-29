@@ -128,7 +128,7 @@ subroutine Form3DRHS(          &
    minex,maxex,                &
    miney,maxey,                &
    minez,maxez,                &
-   Kq, Dt,t,R,F)
+   Kq, Dt,t,R,F,drained)
 integer(kind=4), intent(in) :: nx, px, nelemx, nrcppx
 integer(kind=4), intent(in) :: ny, py, nelemy, nrcppy
 integer(kind=4), intent(in) :: nz, pz, nelemz, nrcppz
@@ -138,6 +138,7 @@ real   (kind=8), intent(in) :: Uy(0:ny+py+1)
 real   (kind=8), intent(in) :: Uz(0:nz+pz+1)
 real   (kind=8), intent(in) :: R(0:(nrcppz+pz-2)*(nrcppx+px-2)*(nrcppy+py-2)-1,3,3,3)
 real   (kind=8), intent(in) :: Kq(px+1,py+1,pz+1,maxex-minex+1,maxey-miney+1,maxez-minez+1)
+real   (kind=8), intent(out) :: drained
 integer(kind=4), dimension(3) :: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
 integer, intent(in) :: ibegx,ibegy,ibegz
 integer, intent(in) :: iendx,iendy,iendz
@@ -157,7 +158,7 @@ real   (kind=8) :: Xz(pz+1,nelemz)
 real   (kind=8) :: NNx(0:1,0:px,px+1,nelemx), &
                    NNy(0:1,0:py,py+1,nelemy), &
                    NNz(0:1,0:pz,pz+1,nelemz)
-real   (kind=8) :: J,W,fval,kqval,Uval,t,Dt,ucoeff,mi
+real   (kind=8) :: J,W,fval,vpump,vdrain,kqval,Uval,t,Dt,ucoeff,mi
 real   (kind=8) :: v, rhs
 real   (kind=8) :: dux,duy,duz,dvx,dvy,dvz
 integer :: nreppx,nreppy,nreppz !# elements per proc along x,y,z
@@ -195,7 +196,6 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
   ! minez = max(nreppz*nrankz-pz+1,1)
   ! maxez = min(nelemz,nreppz*(nrankz+1)+pz)
 
-  iprint = 1
   if (iprint == 1) then
     write(*,*)PRINTRANK,'ex:',minex,maxex
     write(*,*)PRINTRANK,'ey:',miney,maxey
@@ -215,7 +215,8 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
     do ky = 1,ngy
     do kz = 1,ngz
       W = Wx(kx)*Wy(ky)*Wz(kz)
-      fval = fvalue(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
+      vpump = pumping(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
+      fval = vpump - vdrain
       do ax = 0,px
       do ay = 0,py
       do az = 0,pz
@@ -296,12 +297,13 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
         dvz = NNx(0,ax,kx,ex) * NNy(0,ay,ky,ey) * NNz(1,az,kz,ez) 
 
         kqval = Kq(kx,ky,kz,ex-minex+1,ey-miney+1,ez-minez+1)
+        vdrain = draining(Uval, Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
         !--- Real
         if (t > 0.0) then
-          ! rhs = Dt * (- (dux*dvx + duy*dvy + duz*dvz) + v * fval)
           rhs = Dt * ( - kqval * exp(mi * Uval) * (dux*dvx + duy*dvy + duz*dvz) + v * fval)
           F(ind1,ind23) = F(ind1,ind23) + J*W*(v * Uval + rhs)
 
+          drained = drained + J*W*v*Dt*vdrain
         else
           ! fval = InitialState(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
           fval = initial_state(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
@@ -322,8 +324,10 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
   enddo
   enddo
 
-  write(*,*) PRINTRANK,'Min =',Umin
-  write(*,*) PRINTRANK,'Max =',Umax
+  if (iprint == 1) then
+    write(*,*) PRINTRANK,'Min =',Umin
+    write(*,*) PRINTRANK,'Max =',Umax
+  endif
   
 end subroutine
 
@@ -397,6 +401,164 @@ integer :: tmp
   x = tmp - y*(nx+1)
 
 end subroutine
+
+
+
+subroutine Contamination(      &
+   Ux,px,nx,nelemx,nrcppx,     &
+   Uy,py,ny,nelemy,nrcppy,     &
+   Uz,pz,nz,nelemz,nrcppz,     &
+   ibegx,iendx,nrankx,nrpx,    &
+   ibegy,iendy,nranky,nrpy,    &
+   ibegz,iendz,nrankz,nrpz,    &
+   ibegsx,iendsx,              &
+   ibegsy,iendsy,              &
+   ibegsz,iendsz,              &
+   minex,maxex,                &
+   miney,maxey,                &
+   minez,maxez,                &
+   R, cont)
+integer(kind=4), intent(in) :: nx, px, nelemx, nrcppx
+integer(kind=4), intent(in) :: ny, py, nelemy, nrcppy
+integer(kind=4), intent(in) :: nz, pz, nelemz, nrcppz
+integer(kind=4), intent(in) :: minex,maxex,miney,maxey,minez,maxez
+real   (kind=8), intent(in) :: Ux(0:nx+px+1)
+real   (kind=8), intent(in) :: Uy(0:ny+py+1)
+real   (kind=8), intent(in) :: Uz(0:nz+pz+1)
+real   (kind=8), intent(in) :: R(0:(nrcppz+pz-2)*(nrcppx+px-2)*(nrcppy+py-2)-1,3,3,3)
+integer(kind=4), dimension(3) :: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
+integer, intent(in) :: ibegx,ibegy,ibegz
+integer, intent(in) :: iendx,iendy,iendz
+integer, intent(in) :: nrankx,nranky,nrankz
+integer, intent(in) :: nrpx,nrpy,nrpz
+integer(kind=4) :: mx,my,mz,ngx,ngy,ngz,ex,ey,ez
+integer(kind=4) :: kx,ky,kz,ax,ay,az,bx,by,bz,d
+integer(kind=4) :: Ox(nelemx),Oy(nelemy),Oz(nelemz)
+real   (kind=8) :: Jx(nelemx),Jy(nelemy),Jz(nelemz)
+real   (kind=8) :: Wx(px+1),Wy(py+1),Wz(pz+1)
+real   (kind=8) :: Xx(px+1,nelemx)
+real   (kind=8) :: Xy(py+1,nelemy)
+real   (kind=8) :: Xz(pz+1,nelemz)
+real   (kind=8) :: NNx(0:1,0:px,px+1,nelemx), &
+                   NNy(0:1,0:py,py+1,nelemy), &
+                   NNz(0:1,0:pz,pz+1,nelemz)
+real   (kind=8) :: J,W,Uval,ucoeff
+real   (kind=8) :: v, rhs
+real   (kind=8), intent(out) :: cont
+integer :: nreppx,nreppy,nreppz !# elements per proc along x,y,z
+integer :: ind,ind1,ind23,indx,indy,indz
+integer :: indbx,indby,indbz
+integer :: rx,ry,rz, ix,iy,iz, sx,sy,sz
+integer :: iprint
+
+  iprint = 0
+
+  d = 0
+  mx  = nx + px + 1
+  ngx = px + 1
+  my  = ny + py + 1
+  ngy = py + 1
+  mz  = nz + pz + 1
+  ngz = pz + 1
+
+  call BasisData(px,mx,Ux,1,ngx,nelemx,Ox,Jx,Wx,Xx,NNx)
+  call BasisData(py,my,Uy,1,ngy,nelemy,Oy,Jy,Wy,Xy,NNy)
+  call BasisData(pz,mz,Uz,1,ngz,nelemz,Oz,Jz,Wz,Xz,NNz)
+
+  if (iprint == 1) then
+    write(*,*)PRINTRANK,'ex:',minex,maxex
+    write(*,*)PRINTRANK,'ey:',miney,maxey
+    write(*,*)PRINTRANK,'ez:',minez,maxez
+    write(*,*)PRINTRANK,'ibegx,iendx',ibegx,iendx
+    write(*,*)PRINTRANK,'ibegy,iendy',ibegy,iendy
+    write(*,*)PRINTRANK,'ibegz,iendz',ibegz,iendz
+  endif
+
+  ! cont = 0
+  do ex = minex, maxex
+  do ey = miney, maxey
+  do ez = minez, maxez
+    J = Jx(ex)*Jy(ey)*Jz(ez)
+    do kx = 1,ngx
+    do ky = 1,ngy
+    do kz = 1,ngz
+      W = Wx(kx)*Wy(ky)*Wz(kz)
+      do ax = 0,px
+      do ay = 0,py
+      do az = 0,pz
+        ind = (Ox(ex)+ax) + (Oy(ey)+ay)*(nx+1) + (Oz(ez)+az)*(ny+1)*(nx+1)
+        call global2local(ind,nx,ny,nz,indx,indy,indz)
+
+        if (indx < ibegx-1 .or. indx > iendx-1) cycle
+        if (indy < ibegy-1 .or. indy > iendy-1) cycle
+        if (indz < ibegz-1 .or. indz > iendz-1) cycle
+
+        ind1 = indx-ibegx+1
+        ind23 = (indy-ibegy+1) + (indz-ibegz+1)*(iendy-ibegy+1)
+
+        Uval = 0
+        do bx = 0,px
+        do by = 0,py
+        do bz = 0,pz
+          ind = (Ox(ex)+bx) + (Oy(ey)+by)*(nx+1) + (Oz(ez)+bz)*(ny+1)*(nx+1)
+          call global2local(ind,nx,ny,nz,indbx,indby,indbz)
+
+          rx = 2
+          ry = 2
+          rz = 2
+          if (indbx < ibegx-1) rx = 1
+          if (indbx > iendx-1) rx = 3
+          if (indby < ibegy-1) ry = 1
+          if (indby > iendy-1) ry = 3
+          if (indbz < ibegz-1) rz = 1
+          if (indbz > iendz-1) rz = 3
+
+          ix = indbx - ibegsx(rx) + 1
+          iy = indby - ibegsy(ry) + 1
+          iz = indbz - ibegsz(rz) + 1
+          sx = iendsx(rx) - ibegsx(rx) + 1
+          sy = iendsy(ry) - ibegsy(ry) + 1
+          sz = iendsz(rz) - ibegsz(rz) + 1
+          ind = ix + sx * (iy + sy * iz)
+
+          if (ind < 0 .or. ind > (nrcppz+pz-2)*(nrcppx+px-2)*(nrcppy+py-2)-1) then
+            write(*,*)PRINTRANK,'Oh crap',ix,iy,iz
+            write(*,*)PRINTRANK,'r',rx,ry,rz
+            write(*,*)PRINTRANK,'x',ibegx,iendx
+            write(*,*)PRINTRANK,'y',ibegy,iendy
+            write(*,*)PRINTRANK,'z',ibegz,iendz
+            write(*,*)PRINTRANK,'idxs',indbx,indby,indbz
+            write(*,*)PRINTRANK,'sizes=',sx,sy,sz
+            write(*,*)PRINTRANK,'begsx=',ibegsx
+            write(*,*)PRINTRANK,'endsx=',iendsx
+            write(*,*)PRINTRANK,'begsy=',ibegsy
+            write(*,*)PRINTRANK,'endsy=',iendsy
+            write(*,*)PRINTRANK,'begsz=',ibegsz
+            write(*,*)PRINTRANK,'endsz=',iendsz
+          endif
+
+          Ucoeff = R(ind,rx,ry,rz)
+          v    = NNx(0,bx,kx,ex) * NNy(0,by,ky,ey) * NNz(0,bz,kz,ez)
+          Uval = Uval + Ucoeff * v
+        enddo
+        enddo
+        enddo
+        if (Xz(kz,ez) >= GROUND) Uval = 0
+
+        v   = NNx(0,ax,kx,ex) * NNy(0,ay,ky,ey) * NNz(0,az,kz,ez)
+        cont = cont + J*W*v*Uval
+      enddo
+      enddo
+      enddo
+    enddo
+    enddo
+    enddo         
+  enddo
+  enddo
+  enddo
+
+end subroutine
+
 
 end module
 

@@ -39,10 +39,10 @@ integer(kind=4) :: n
 integer(kind=4) :: p
 
 ! Number of iterations
-integer, parameter :: steps = 1000
+integer :: steps = 1000
 
 ! Time and timestep
-real (kind=8), parameter :: Dt = 1.d-4
+real (kind=8) :: Dt = 1.d-4
 
 
 ! Knot vector
@@ -56,6 +56,9 @@ real (kind=8), allocatable, dimension(:,:) :: Result
 
 real (kind=8), allocatable, dimension(:,:) :: F, F2, F3
 real (kind=8), allocatable, dimension(:,:) :: F_out, F2_out, F3_out
+
+! Statistics computed during the simulation
+real (kind=8) :: drained = 0, pollution = 0
 
 ! Buffer for coefficients of solution corresponding to neighbouring
 ! parts of the domain. It is (Nx*Ny*Nz) x 3 x 3 x 3 array, where
@@ -114,9 +117,8 @@ contains
 subroutine InitializeParameters
 character(100) :: input
 
-  ! ./l2 <size> <procx> <procy> <procz>
+  ! ./l2 <size> <procx> <procy> <procz> <nsteps> <dt>
   ORDER = 2
-  ! SIZE = 8
 
   call getarg(1,input)
   read(input,*) SIZE
@@ -126,6 +128,10 @@ character(100) :: input
   read(input,*) NRPROCY
   call getarg(4,input)
   read(input,*) NRPROCZ
+  call getarg(5,input)
+  read(input,*) steps
+  call getarg(6,input)
+  read(input,*) Dt
 
 end subroutine
 
@@ -148,13 +154,13 @@ integer :: ierr
   call CreateCommunicators
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
-  if (MYRANK == 0) then
+  if (iinfo == 1) then
     call stop_clock(dtime_i1,iclock_i1)
     write(*,*)'create_communicators:',dtime_i1
     call start_clock(iclock_i2)
   endif
 
-  if (MYRANK == 0) iinfo=1
+  ! if (MYRANK == 0) iinfo=1
   if (iinfo == 1) write(*,*)PRINTRANK,'INITIALIZATION'
 
 end subroutine
@@ -240,7 +246,7 @@ integer :: ierr
   allocate(R((nrcppz+p-2)*(nrcppx+p-2)*(nrcppy+p-2),3,3,3))
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
-  if (MYRANK == 0) then
+  if (iinfo == 1) then
     call stop_clock(dtime_i2,iclock_i2)
     write(*,*)'allocations:',dtime_i2
     call start_clock(iclock_i3)
@@ -595,7 +601,7 @@ integer :: ierr
        ibegz,iendz,MYRANKZ,NRPROCZ,                 &
        ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz,   &
        minex,maxex,miney,maxey,minez,maxez,         &
-       Kqvals,Dt,t,R,F)
+       Kqvals,Dt,t,R,F,drained)
 
   if (iprint == 1) then
     write(*,*)PRINTRANK,'F'
@@ -606,7 +612,7 @@ integer :: ierr
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
-  if (MYRANK == 0) then
+  if (iinfo == 1) then
     call stop_clock(dtime_i4,iclock_i4)
     write(*,*)'Form 3D RHS:',dtime_i4
   endif
@@ -687,7 +693,7 @@ integer :: iret, ierr
   !--------------------------------------------------------------------
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
-  if (MYRANK == 0) then
+  if (iprint == 1) then
     call stop_clock(dtime_init,iclock_init)
     write(*,*)dtime_init
     call start_clock(iclock_gather1)
@@ -709,7 +715,7 @@ integer :: iret, ierr
   endif
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
-  if (MYRANK == 0) then
+  if (iprint == 1) then
     call stop_clock(dtime_gather1,iclock_gather1)
     write(*,*)dtime_gather1
     call start_clock(iclock_solve1)
@@ -724,7 +730,7 @@ integer :: iret, ierr
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
-  if (MYRANK == 0) then
+  if (iprint == 1) then
     call stop_clock(dtime_solve1,iclock_solve1)
     write(*,*)dtime_solve1
     call start_clock(iclock_scatter1)
@@ -737,7 +743,7 @@ integer :: iret, ierr
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
-  if (MYRANK == 0) then
+  if (iprint == 1) then
     call stop_clock(dtime_scatter1,iclock_scatter1)
     write(*,*)dtime_scatter1
     call start_clock(iclock_gather2)
@@ -772,7 +778,7 @@ integer :: iret, ierr
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
-  if (MYRANK == 0) then
+  if (iprint == 1) then
     call stop_clock(dtime_gather2,iclock_gather2)
     write(*,*)dtime_gather2
     call start_clock(iclock_solve2)
@@ -788,7 +794,7 @@ integer :: iret, ierr
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
-  if (MYRANK == 0) then
+  if (iprint == 1) then
     call stop_clock(dtime_solve2,iclock_solve2)
     write(*,*)dtime_solve2
     call start_clock(iclock_scatter2)
@@ -812,7 +818,7 @@ integer :: iret, ierr
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
-  if (MYRANK == 0) then
+  if (iprint == 1) then
     call stop_clock(dtime_scatter2,iclock_scatter2)
     write(*,*)dtime_scatter2
     call start_clock(iclock_gather3)
@@ -847,7 +853,7 @@ integer :: iret, ierr
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
-  if (MYRANK == 0) then
+  if (iprint == 1) then
     call stop_clock(dtime_gather3,iclock_gather3)
     write(*,*)dtime_gather3
     call start_clock(iclock_solve3)
@@ -862,7 +868,7 @@ integer :: iret, ierr
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
-  if (MYRANK == 0) then
+  if (iprint == 1) then
     call stop_clock(dtime_solve3,iclock_solve3)
     write(*,*)dtime_solve3
     call start_clock(iclock_scatter3)
@@ -878,7 +884,7 @@ integer :: iret, ierr
   R(1:sx*sy*sz,2,2,2) = reshape(Result, [sx*sy*sz])
   call DistributeSpline(R)
 
-  if (MYRANK == 0) iprint=1
+  ! if (MYRANK == 0) iprint=1
   if (iprint == 1) then
     write(*,*)PRINTRANK,'Result:'
     do i = 1,sz
@@ -886,7 +892,7 @@ integer :: iret, ierr
     enddo
   endif
 
-  if (MYRANK == 0) then
+  if (iprint == 1) then
     call stop_clock(dtime_scatter3,iclock_scatter3)
     write(*,*)dtime_scatter3
   endif
@@ -1042,7 +1048,7 @@ integer :: ierr
   call mpi_finalize(ierr)
   if (iinfo == 1) write(*,*)PRINTRANK,"Exiting..."
 
-  if (MYRANK == 0) then
+  if (iprint == 1) then
     call stop_clock(dtime,iclock)
     write(*,*)dtime
   endif
@@ -1150,6 +1156,32 @@ character(len=20) :: filename
 end subroutine
 
 
+subroutine ComputeResults()
+real (kind=8) :: fullpollution, fulldrained
+integer :: ierr
+
+  call Contamination                                &
+      (U,p,n,nelem,nrcppx,                          &
+       U,p,n,nelem,nrcppy,                          &
+       U,p,n,nelem,nrcppz,                          &
+       ibegx,iendx,MYRANKX,NRPROCX,                 &
+       ibegy,iendy,MYRANKY,NRPROCY,                 &
+       ibegz,iendz,MYRANKZ,NRPROCZ,                 &
+       ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz,   &
+       minex,maxex,miney,maxey,minez,maxez,         &
+       R, pollution)
+
+  call MPI_Reduce(pollution, fullpollution, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+  call MPI_Reduce(drained, fulldrained, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+
+  if (MYRANK == 0) then
+    write(*,*) fulldrained
+    write(*,*) fullpollution
+  endif
+
+end subroutine
+
+
 end module
 
 
@@ -1204,17 +1236,20 @@ real (kind=8) :: t = 0
   ! Iterations
   do iter = 0,steps
 
-    write(*,*)'Iteration',iter,'/',steps
-    write(*,*)'t = ',t
+    ! if (MYRANK == 0) then
+    !   write(*,*)'Iteration',iter,'/',steps
+    !   write(*,*)'t = ',t
+    ! endif
 
     call Step(iter, t)
     t = t + Dt
 
-    if (mod(iter, 100) == 0) then
-      call PrintSolution(iter, t)
-    endif
+    ! if (mod(iter, 100) == 0) then
+    !   call PrintSolution(iter, t)
+    ! endif
   enddo
 
+  call ComputeResults
   call Cleanup
 
 end

@@ -19,7 +19,52 @@ real   (kind=8) :: cx(cN*cL), cy(cN*cL), cz(cN*cL)
 
 real   (kind=8) :: mi = 10.d0
 
+
+real   (kind=8) :: GROUND = 0.2
+
+integer :: npumps, ndrains
+real (kind=8), allocatable, dimension(:,:) :: pumps, drains
+
+real (kind=8), parameter :: radius = 0.15, pumping_strength = 1, draining_strength = 1
+
 contains
+
+
+subroutine InitPumps()
+character(100) :: input
+integer :: i, arg = 7 ! First argument after "technical" ones
+
+  call getarg(arg,input)
+  read(input,*) npumps
+  arg = arg + 1
+  allocate(pumps(3,npumps))
+
+  do i = 1,npumps
+    call getarg(arg, input)
+    read(input,*) pumps(1,i)
+    call getarg(arg + 1, input)
+    read(input,*) pumps(2,i)
+    call getarg(arg + 2, input)
+    read(input,*) pumps(3,i)
+    arg = arg + 3
+  enddo
+
+  call getarg(arg,input)
+  read(input,*) ndrains
+  arg = arg + 1
+  allocate(drains(3,ndrains))
+
+  do i = 1,ndrains
+    call getarg(arg, input)
+    read(input,*) drains(1,i)
+    call getarg(arg + 1, input)
+    read(input,*) drains(2,i)
+    call getarg(arg + 2, input)
+    read(input,*) drains(3,i)
+    arg = arg + 3
+  enddo
+
+end subroutine
 
 subroutine InitInputData()
 integer       :: i,j
@@ -52,7 +97,9 @@ real (kind=8) :: f = 0.1d0, step = 0.05d0
     end do
   end do
 
-end subroutine InitInputData
+  call InitPumps()
+
+end subroutine
 
 function dist_from_segment(x,y,z,ax,ay,az,bx,by,bz) result (d)
 real   (kind=8) :: x,y,z,ax,ay,az,bx,by,bz
@@ -111,13 +158,48 @@ integer         :: i, j
 
 end function
 
-! Force function
+
+function falloff(r, Rr, t) result (fval)
+real (kind=8) :: r, Rr, t
+real (kind=8) :: h, fval
+
+  if (t < r) then
+    fval = 1.d0
+  else if (t > Rr) then
+    fval = 0.d0
+  else
+    h = (t - r) / (Rr - r)
+    fval = ((h - 1) * (h + 1)) ** 2
+  endif
+
+end function
+
+! Pumping
 ! x, y, z - point in space
-function fvalue(x, y, z) result (fval)
+function pumping(x, y, z) result (fval)
 real   (kind=8) :: x, y, z
 real   (kind=8) :: fval
+integer :: i
 
-  fval = 0.d0 ! 1.d0 + sin(2*PI*x) * sin(2*PI*y) * sin(2*PI*z)
+  fval = 0.d0
+  do i = 1,npumps
+    fval = fval + pumping_strength * falloff(0.d0, radius, norm2(pumps(:,i) - [x, y, z]))
+  enddo
+
+end function
+
+! Draining
+! x, y, z - point in space
+function draining(u, x, y, z) result (fval)
+real   (kind=8) :: u, x, y, z
+real   (kind=8) :: fval
+integer :: i
+
+  fval = 0.d0
+  do i = 1,npumps
+    fval = fval + draining_strength * falloff(0.d0, radius, norm2(pumps(:,i) - [x, y, z]))
+  enddo
+  fval = fval * u
 
 end function
 
@@ -235,4 +317,4 @@ end do
 end subroutine
 
 
-end module input_data
+end module
