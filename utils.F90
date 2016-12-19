@@ -56,7 +56,7 @@ integer, intent(out) :: nrcpp, ibeg, iend, mine, maxe
 integer :: elems
 
   elems = n + 1 - p
-  nrcpp = (n+1+1) / nrproc
+  nrcpp = (n+1 + nrproc-1) / nrproc
   if(rank == nrproc-1)then
     ibeg = nrcpp*(nrproc-1)+1
     iend = n+1

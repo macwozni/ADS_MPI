@@ -185,10 +185,10 @@ integer :: mine, maxe
   sz = iendz - ibegz + 1
 
   if (iinfo == 1) then
-    write(*,*)'Number of cols per processor:',nrcppx,nrcppy,nrcppz
-    write(*,*)'ibegx,iendx',ibegx,iendx
-    write(*,*)'ibegy,iendy',ibegy,iendy
-    write(*,*)'ibegz,iendz',ibegz,iendz
+    write(*,*)PRINTRANK,'Number of cols per processor:',nrcppx,nrcppy,nrcppz
+    write(*,*)PRINTRANK,'ibegx,iendx',ibegx,iendx
+    write(*,*)PRINTRANK,'ibegy,iendy',ibegy,iendy
+    write(*,*)PRINTRANK,'ibegz,iendz',ibegz,iendz
   endif
 
   ! prepare dimensions vectors
