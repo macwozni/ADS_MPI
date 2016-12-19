@@ -128,7 +128,7 @@ subroutine Form3DRHS(          &
    minex,maxex,                &
    miney,maxey,                &
    minez,maxez,                &
-   Kq, Dt,t,R,F,drained)
+   Kq, Dt,t,R,F,drained,l2norm)
 integer(kind=4), intent(in) :: nx, px, nelemx, nrcppx
 integer(kind=4), intent(in) :: ny, py, nelemy, nrcppy
 integer(kind=4), intent(in) :: nz, pz, nelemz, nrcppz
@@ -138,7 +138,7 @@ real   (kind=8), intent(in) :: Uy(0:ny+py+1)
 real   (kind=8), intent(in) :: Uz(0:nz+pz+1)
 real   (kind=8), intent(in) :: R(0:(nrcppz+pz-2)*(nrcppx+px-2)*(nrcppy+py-2)-1,3,3,3)
 real   (kind=8), intent(in) :: Kq(px+1,py+1,pz+1,maxex-minex+1,maxey-miney+1,maxez-minez+1)
-real   (kind=8), intent(out) :: drained
+real   (kind=8), intent(out) :: drained, l2norm
 integer(kind=4), dimension(3) :: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
 integer, intent(in) :: ibegx,ibegy,ibegz
 integer, intent(in) :: iendx,iendy,iendz
@@ -206,6 +206,7 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
   endif
 
   F = 0
+  l2norm = 0
 
   do ex = minex, maxex
   do ey = miney, maxey
@@ -304,6 +305,7 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
           F(ind1,ind23) = F(ind1,ind23) + J*W*(v * Uval + rhs)
 
           drained = drained + J*W*v*Dt*vdrain
+          l2norm = l2norm + J*W*v*Dt*Uval*Uval
         else
           ! fval = InitialState(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
           fval = initial_state(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))

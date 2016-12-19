@@ -591,6 +591,7 @@ subroutine ComputeRHS(t)
 real (kind=8) :: t
 integer :: i
 integer :: ierr
+real (kind=8) :: l2norm, fullnorm
 
   call Form3DRHS                                    &
       (U,p,n,nelem,nrcppx,                          &
@@ -601,7 +602,7 @@ integer :: ierr
        ibegz,iendz,MYRANKZ,NRPROCZ,                 &
        ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz,   &
        minex,maxex,miney,maxey,minez,maxez,         &
-       Kqvals,Dt,t,R,F,drained)
+       Kqvals,Dt,t,R,F,drained,l2norm)
 
   if (iprint == 1) then
     write(*,*)PRINTRANK,'F'
@@ -615,6 +616,11 @@ integer :: ierr
   if (iinfo == 1) then
     call stop_clock(dtime_i4,iclock_i4)
     write(*,*)'Form 3D RHS:',dtime_i4
+  endif
+
+  call MPI_Reduce(l2norm, fullnorm, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+  if (MYRANK == 0) then
+    write(*,*)'L2 norm:', fullnorm
   endif
 
 end subroutine
