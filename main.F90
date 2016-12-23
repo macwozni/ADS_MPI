@@ -39,10 +39,10 @@ integer(kind=4) :: n
 integer(kind=4) :: p
 
 ! Number of iterations
-integer :: steps = 1000
+integer :: steps
 
 ! Time and timestep
-real (kind=8) :: Dt = 1.d-4
+real (kind=8) :: Dt
 
 
 ! Knot vector
