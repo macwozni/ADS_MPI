@@ -289,11 +289,11 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
           F(ind1,ind23) = F(ind1,ind23) + J*W*(v * Uval + rhs)
 
           drained = drained + J*W*v*Dt*vdrain
-          l2norm = l2norm + J*W*v*Dt*Uval*Uval
+          l2norm = l2norm + J*W*v*Uval*Uval
         else
-          ! fval = InitialState(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
           fval = initial_state(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
           F(ind1,ind23) = F(ind1,ind23) + J*W*v*fval
+          l2norm = l2norm + J*W*v*fval*fval
         endif
 
         !--- Test
