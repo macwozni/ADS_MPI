@@ -7,8 +7,8 @@ include "mpif.h"
 contains
 
 ! -------------------------------------------------------------------
-! Fills knot vector on [0, 1] 
-! 
+! Fills knot vector on [0, 1]
+!
 ! U  - array to fill with points
 ! n  - number of functions on the knot minus one
 ! p  - degree of polynomial
@@ -24,7 +24,7 @@ integer :: i
   U(1 : p+1) = 0
   U(n+2 : n+p+2) = 1
 
-  do i = p+2, n+1 
+  do i = p+2, n+1
     U(i) = (i-p-1) / real(n-p+1)
   enddo
 
@@ -57,11 +57,11 @@ integer :: elems
 
   elems = n + 1 - p
   nrcpp = (n+1 + nrproc-1) / nrproc
+  ibeg = nrcpp * rank + 1
+
   if(rank == nrproc-1)then
-    ibeg = nrcpp*(nrproc-1)+1
     iend = n+1
   else
-    ibeg = nrcpp * rank + 1
     iend = nrcpp * (rank + 1)
   endif
 
@@ -115,10 +115,10 @@ end subroutine
 ! For input array like this, where columns are consecutive in memory
 ! (Fortran uses column-major layout), with s = stride, N = elems:
 !
-!     x11 x12 x13 ... x1s          
+!     x11 x12 x13 ... x1s
 !     x21 x22 x23 ... x2s
 !      .   .   .  .    .
-!      .   .   .    .  . 
+!      .   .   .    .  .
 !     xN1 xN2 xN3 ... xNs
 !
 ! output array has the form
@@ -153,11 +153,11 @@ end subroutine
 !     x11 x12 x13 ... x1s x21 x22 ... x2s... xN1 xN2 ... xNs
 !
 ! is reshaped to the following form:
-! 
-!     x11 x12 x13 ... x1s          
+!
+!     x11 x12 x13 ... x1s
 !     x21 x22 x23 ... x2s
 !      .   .   .  .    .
-!      .   .   .    .  . 
+!      .   .   .    .  .
 !     xN1 xN2 xN3 ... xNs
 ! -------------------------------------------------------------------
 subroutine Delinearize(F_lin, F, elems, stride)
@@ -169,7 +169,7 @@ integer :: i, a, b
   do i = 1,elems
     a = (i-1) * stride + 1
     b = i * stride
-    F(i,:) = F_lin(a:b) 
+    F(i,:) = F_lin(a:b)
   enddo
 
 end subroutine
@@ -205,7 +205,7 @@ real (kind=8) :: F_lin(elems * stride), F_out_lin((n+1) * stride)
     F_out_lin,            &
     dims, shifts,         &
     MPI_DOUBLE_PRECISION, &
-    0, comm, ierr) 
+    0, comm, ierr)
 
   call Delinearize(F_out_lin,F_out,n+1,stride)
 
@@ -303,7 +303,7 @@ integer :: ierr
     F_out_lin,               &
     dims, shifts,            &
     MPI_DOUBLE_PRECISION,    &
-    comm, ierr) 
+    comm, ierr)
 
   call Delinearize(F_out_lin,F_out,n+1,stride)
 
