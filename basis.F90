@@ -278,7 +278,7 @@ integer, intent(in) :: nz, pz, nelemz
 real (kind=8), intent(in) :: Ux(0:nx+px+1)
 real (kind=8), intent(in) :: Uy(0:ny+py+1)
 real (kind=8), intent(in) :: Uz(0:nz+pz+1)
-real (kind=8), intent(in) :: coeffs(0:nz,0:ny,0:nx)
+real (kind=8), intent(in) :: coeffs(0:nx,0:ny,0:nz)
 real (kind=8), intent(in) :: x, y, z
 real (kind=8) :: val
 
