@@ -22,6 +22,26 @@ real (kind=8) :: t, x, y, val
 
 end function
 
+! -------------------------------------------------------------------
+! Smoothly decaying function
+! t in [0, r] -> 1
+! t in [r, R] -> from 1 to 0
+! t in [R, inf] -> 0
+! -------------------------------------------------------------------
+function falloff(r, Rr, t) result (fval)
+real (kind=8) :: r, Rr, t
+real (kind=8) :: h, fval
+
+  if (t < r) then
+    fval = 1.d0
+  else if (t > Rr) then
+    fval = 0.d0
+  else
+    h = (t - r) / (Rr - r)
+    fval = ((h - 1) * (h + 1)) ** 2
+  endif
+
+end function
 
 ! -------------------------------------------------------------------
 ! C^1 bump function on [0, 1]. Function and its 1st derivative 
@@ -59,4 +79,14 @@ real (kind=8) :: val
 end function
 
 
+function bump3d(r, Rr, x, y, z) result (val)
+real (kind=8), intent(in) :: r, Rr, x, y, z
+real (kind=8) :: val, t
+
+  t = norm2([x, y, z] - 0.5d0)
+  val = falloff(r/2, Rr/2, t)
+
+end function
+
 end module
+
