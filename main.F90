@@ -587,9 +587,9 @@ end subroutine
 !
 ! t - current time
 ! -------------------------------------------------------------------
-subroutine ComputeRHS(t)
+subroutine ComputeRHS(iter, t)
 real (kind=8) :: t
-integer :: i
+integer :: iter, i
 integer :: ierr
 real (kind=8) :: l2norm, fullnorm
 
@@ -620,7 +620,7 @@ real (kind=8) :: l2norm, fullnorm
 
   call MPI_Reduce(l2norm, fullnorm, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
   if (MYRANK == 0) then
-    write(*,*)'L2 norm:', fullnorm
+    write(*,*)iter, 'L2 norm:', fullnorm
   endif
 
 end subroutine
@@ -692,7 +692,7 @@ integer :: i
 integer :: iret, ierr
 
   ! generate the RHS vectors
-  call ComputeRHS(t)
+  call ComputeRHS(iter, t)
 
   !--------------------------------------------------------------------
   ! Solve the first problem
