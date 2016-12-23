@@ -51,9 +51,6 @@ real (kind=8), allocatable, dimension(:) :: U
 ! Mass matrix
 real (kind=8), allocatable, dimension(:,:) :: M
 
-! Coefficients of the solution
-real (kind=8), allocatable, dimension(:,:) :: Result
-
 real (kind=8), allocatable, dimension(:,:) :: F, F2, F3
 real (kind=8), allocatable, dimension(:,:) :: F_out, F2_out, F3_out
 
@@ -233,8 +230,6 @@ integer :: ierr
   allocate( F(sx,sy*sz)) !x,y,z
   allocate(F2(sy,sx*sz)) !y,x,z
   allocate(F3(sz,sx*sy)) !z,x,y
-
-  allocate(Result(sz,sx*sy)) !z,x,y
 
   allocate(Kqvals(p+1,p+1,p+1,maxex-minex+1,maxey-miney+1,maxez-minez+1))
 
@@ -883,25 +878,47 @@ integer :: iret, ierr
   if (iinfo == 1) write(*,*)PRINTRANK,'3c) SCATTER'
 
   ! CORRECTION
-  call Scatter2(F3_out,Result,n,sz,sx*sy,dimensionsZ,shiftsZ,COMMZ,ierr)
+  allocate(F_out(sz,sx*sy))
+  call Scatter(F3_out,F_out,n,sz,sx*sy,dimensionsZ,shiftsZ,COMMZ,ierr)
   deallocate(F3_out)
 
-  if (iinfo == 1) write(*,*)PRINTRANK,'3d) DISTRIBUTE SOLUTION'
-  R(1:sx*sy*sz,2,2,2) = reshape(Result, [sx*sy*sz])
+  call mpi_barrier(MPI_COMM_WORLD,ierr)
+
+  if (iprint == 1) then
+    call stop_clock(dtime_scatter3,iclock_scatter3)
+    write(*,*)dtime_scatter3
+  endif
+
+  if (iinfo == 1) write(*,*)PRINTRANK,'3d) REORDER'
+  ! Reorder right hand sides
+  call ReorderRHSForX                        &
+    (U,p,n,nelem,U,p,n,nelem,U,p,n,nelem,    &
+     ibegx,iendx,MYRANKX,NRPROCX,            &
+     ibegy,iendy,MYRANKY,NRPROCY,            &
+     ibegz,iendz,MYRANKZ,NRPROCZ,F_out,F)
+  deallocate(F_out)
+
+  if (iprint == 1) then
+    write(*,*)PRINTRANK,'after ReorderRHSForX'
+    write(*,*)PRINTRANK,'F:'
+    do i = 1,sx
+      write(*,*)PRINTRANK,i,'row=',F(i,1:sy*sz)
+    enddo
+  endif
+  iprint = 0
+
+  if (iinfo == 1) write(*,*)PRINTRANK,'3e) DISTRIBUTE SOLUTION'
+  R(1:sx*sy*sz,2,2,2) = reshape(F, [sx*sy*sz])
   call DistributeSpline(R)
 
   ! if (MYRANK == 0) iprint=1
   if (iprint == 1) then
     write(*,*)PRINTRANK,'Result:'
     do i = 1,sz
-      write(*,*)PRINTRANK,i,'row=',Result(i,:)
+      write(*,*)PRINTRANK,i,'row=',F(i,:)
     enddo
   endif
 
-  if (iprint == 1) then
-    call stop_clock(dtime_scatter3,iclock_scatter3)
-    write(*,*)dtime_scatter3
-  endif
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
@@ -1141,7 +1158,7 @@ real (kind=8), allocatable :: solution(:,:,:)
 type (PlotParams) :: params
 character(len=20) :: filename
 
-  call GatherFullSolution(0, Result, solution)
+  call GatherFullSolution(0, F, solution)
 
   if (MYRANK == 0) then
     write(filename,'(I10)') iter
