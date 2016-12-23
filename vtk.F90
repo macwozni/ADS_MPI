@@ -54,9 +54,9 @@ integer :: outFile = 57 ! random value, Grothendieck's prime
     write(*,*)'Printing data'
   endif
 
-  do ix = 1, params%resx
+  do iz = 1, params%resz
     do iy = 1, params%resy
-      do iz = 1, params%resz
+      do ix = 1, params%resx
         write(temp,'(F30.10)') vals(ix, iy, iz)
         write(outFile,'(A)') '          ' // trim(adjustl(temp))
       enddo
