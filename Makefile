@@ -1,7 +1,8 @@
 include m_files
 
 FC = mpifort
-FFLAGS = -g -pthread -p -fbounds-check
+# FFLAGS = -g -pthread -p -fbounds-check
+FFLAGS = -pthread -O3
 
 OS := $(SOURCES:.F90=.o)
 OBJECTS := $(OS:.f=.o)
