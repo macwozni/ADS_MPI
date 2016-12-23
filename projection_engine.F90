@@ -97,10 +97,8 @@ end subroutine
 ! p_              - degrees of approximation
 ! n_              - numbers of functions minus one
 ! nelem_          - number of subintervals
-! nrcpp_          - number of processes 
+! nrcpp_          - number of basis functions per process
 ! ibeg_, iend_    - piece of domain associated with this process
-! nrank_          - cube coordinate of this process
-! nrp_            - number of columns for this process
 ! ibegs_, iends_  - pieces of domain surrounding this process' piece
 ! mine_, maxe_    - indices of first and last elements in each direction
 ! Kq              - array with precomputed permeability values
@@ -119,9 +117,9 @@ subroutine Form3DRHS(          &
    Ux,px,nx,nelemx,nrcppx,     &
    Uy,py,ny,nelemy,nrcppy,     &
    Uz,pz,nz,nelemz,nrcppz,     &
-   ibegx,iendx,nrankx,nrpx,    &
-   ibegy,iendy,nranky,nrpy,    &
-   ibegz,iendz,nrankz,nrpz,    &
+   ibegx,iendx,                &
+   ibegy,iendy,                &
+   ibegz,iendz,                &
    ibegsx,iendsx,              &
    ibegsy,iendsy,              &
    ibegsz,iendsz,              &
@@ -136,14 +134,12 @@ integer(kind=4), intent(in) :: minex,maxex,miney,maxey,minez,maxez
 real   (kind=8), intent(in) :: Ux(0:nx+px+1)
 real   (kind=8), intent(in) :: Uy(0:ny+py+1)
 real   (kind=8), intent(in) :: Uz(0:nz+pz+1)
-real   (kind=8), intent(in) :: R(0:(nrcppz+pz-2)*(nrcppx+px-2)*(nrcppy+py-2)-1,3,3,3)
+real   (kind=8), intent(in) :: R(0:nrcppz*nrcppx*nrcppy-1,3,3,3)
 real   (kind=8), intent(in) :: Kq(px+1,py+1,pz+1,maxex-minex+1,maxey-miney+1,maxez-minez+1)
 real   (kind=8), intent(out) :: drained, l2norm
 integer(kind=4), dimension(3) :: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
 integer, intent(in) :: ibegx,ibegy,ibegz
 integer, intent(in) :: iendx,iendy,iendz
-integer, intent(in) :: nrankx,nranky,nrankz
-integer, intent(in) :: nrpx,nrpy,nrpz
                                
 real   (kind=8), intent(out) :: F(0:(iendx-ibegx+1)-1, &
   0:(iendy-ibegy+1)*(iendz-ibegz+1)-1)
@@ -183,18 +179,6 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
   call BasisData(px,mx,Ux,1,ngx,nelemx,Ox,Jx,Wx,Xx,NNx)
   call BasisData(py,my,Uy,1,ngy,nelemy,Oy,Jy,Wy,Xy,NNy)
   call BasisData(pz,mz,Uz,1,ngz,nelemz,Oz,Jz,Wz,Xz,NNz)
-
-  ! number of elements per processors
-  nreppx = nelemx / nrpx
-  nreppy = nelemy / nrpy
-  nreppz = nelemz / nrpz
-
-  ! minex = max(nreppx*nrankx-px+1,1)
-  ! maxex = min(nelemx,nreppx*(nrankx+1)+px)
-  ! miney = max(nreppy*nranky-py+1,1)
-  ! maxey = min(nelemy,nreppy*(nranky+1)+py)
-  ! minez = max(nreppz*nrankz-pz+1,1)
-  ! maxez = min(nelemz,nreppz*(nrankz+1)+pz)
 
   if (iprint == 1) then
     write(*,*)PRINTRANK,'ex:',minex,maxex
@@ -258,7 +242,7 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
           sz = iendsz(rz) - ibegsz(rz) + 1
           ind = ix + sx * (iy + sy * iz)
 
-          if (ind < 0 .or. ind > (nrcppz+pz-2)*(nrcppx+px-2)*(nrcppy+py-2)-1) then
+          if (ind < 0 .or. ind > nrcppz*nrcppx*nrcppy-1) then
             write(*,*)PRINTRANK,'Oh crap',ix,iy,iz
             write(*,*)PRINTRANK,'r',rx,ry,rz
             write(*,*)PRINTRANK,'x',ibegx,iendx
@@ -427,7 +411,7 @@ integer(kind=4), intent(in) :: minex,maxex,miney,maxey,minez,maxez
 real   (kind=8), intent(in) :: Ux(0:nx+px+1)
 real   (kind=8), intent(in) :: Uy(0:ny+py+1)
 real   (kind=8), intent(in) :: Uz(0:nz+pz+1)
-real   (kind=8), intent(in) :: R(0:(nrcppz+pz-2)*(nrcppx+px-2)*(nrcppy+py-2)-1,3,3,3)
+real   (kind=8), intent(in) :: R(0:nrcppz*nrcppx*nrcppy-1,3,3,3)
 integer(kind=4), dimension(3) :: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
 integer, intent(in) :: ibegx,ibegy,ibegz
 integer, intent(in) :: iendx,iendy,iendz
@@ -523,7 +507,7 @@ integer :: iprint
           sz = iendsz(rz) - ibegsz(rz) + 1
           ind = ix + sx * (iy + sy * iz)
 
-          if (ind < 0 .or. ind > (nrcppz+pz-2)*(nrcppx+px-2)*(nrcppy+py-2)-1) then
+          if (ind < 0 .or. ind > nrcppz*nrcppx*nrcppy-1) then
             write(*,*)PRINTRANK,'Oh crap',ix,iy,iz
             write(*,*)PRINTRANK,'r',rx,ry,rz
             write(*,*)PRINTRANK,'x',ibegx,iendx

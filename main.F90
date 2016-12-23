@@ -238,7 +238,7 @@ integer :: ierr
     allocate(IPIV(n+1))
   endif
 
-  allocate(R((nrcppz+p-2)*(nrcppx+p-2)*(nrcppy+p-2),3,3,3))
+  allocate(R(nrcppz*nrcppx*nrcppy,3,3,3))
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
   if (iinfo == 1) then
@@ -313,7 +313,7 @@ real (kind=8) :: items(:)
 integer :: dst, req
 integer :: ierr
 
-  call mpi_isend(items, (nrcppz+p-2)*(nrcppx+p-2)*(nrcppy+p-2), &
+  call mpi_isend(items, nrcppz*nrcppx*nrcppy, &
     MPI_DOUBLE_PRECISION, dst, 0, MPI_COMM_WORLD, req, ierr)
 
 end subroutine
@@ -324,7 +324,7 @@ real (kind=8) :: items(:)
 integer :: src, req
 integer :: ierr
 
-  call mpi_irecv(items, (nrcppz+p-2)*(nrcppx+p-2)*(nrcppy+p-2), &
+  call mpi_irecv(items, nrcppz*nrcppx*nrcppy, &
     MPI_DOUBLE_PRECISION, src, 0, MPI_COMM_WORLD, req, ierr)
 
 end subroutine
@@ -592,9 +592,9 @@ real (kind=8) :: l2norm, fullnorm
       (U,p,n,nelem,nrcppx,                          &
        U,p,n,nelem,nrcppy,                          &
        U,p,n,nelem,nrcppz,                          &
-       ibegx,iendx,MYRANKX,NRPROCX,                 &
-       ibegy,iendy,MYRANKY,NRPROCY,                 &
-       ibegz,iendz,MYRANKZ,NRPROCZ,                 &
+       ibegx,iendx,                                 &
+       ibegy,iendy,                                 &
+       ibegz,iendz,                                 &
        ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz,   &
        minex,maxex,miney,maxey,minez,maxez,         &
        Kqvals,Dt,t,R,F,drained,l2norm)
