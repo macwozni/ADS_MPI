@@ -5,22 +5,16 @@ use basis
 
 implicit none
 
-
-integer, parameter :: pN = 80
-real   (kind=8) :: s = 0.05d0
-real   (kind=8) :: px(pN), py(pN), pz(pN)
-
-integer, parameter :: lN = 30
-real   (kind=8) :: lx(lN), ly(lN), lz(lN)
-
 ! Curve number and lentgh
-integer, parameter :: cN = 20, cL=16
+integer, parameter :: cN = 30, cL=16
 real   (kind=8) :: cx(cN*cL), cy(cN*cL), cz(cN*cL)
 
 real   (kind=8) :: mi = 10.d0
 
 
 real   (kind=8) :: GROUND = 0.2
+
+real   (kind=8), parameter :: Kqmin = 1.d0, Kqmax = 1000.d0
 
 integer :: npumps, ndrains
 real (kind=8), allocatable, dimension(:,:) :: pumps, drains
@@ -70,14 +64,6 @@ subroutine InitInputData()
 integer       :: i,j
 real (kind=8) :: t(3), x(3), dx(3), ddx(3)
 real (kind=8) :: f = 0.1d0, step = 0.05d0
-
-  call random_number(px)
-  call random_number(py)
-  call random_number(pz)
-
-  call random_number(lx)
-  call random_number(ly)
-  call random_number(lz)
 
   do i = 0,cN-1
     call random_number(x)
@@ -159,20 +145,6 @@ integer         :: i, j
 end function
 
 
-function falloff(r, Rr, t) result (fval)
-real (kind=8) :: r, Rr, t
-real (kind=8) :: h, fval
-
-  if (t < r) then
-    fval = 1.d0
-  else if (t > Rr) then
-    fval = 0.d0
-  else
-    h = (t - r) / (Rr - r)
-    fval = ((h - 1) * (h + 1)) ** 2
-  endif
-
-end function
 
 ! Pumping
 ! x, y, z - point in space
@@ -204,41 +176,12 @@ integer :: i
 end function
 
 
-function bump3d(x, y, z, x0, y0, z0, sx, sy, sz) result (val)
-real   (kind=8) :: x, y, z, x0, y0, z0, sx, sy, sz
-real   (kind=8) :: val
-
-  val = bump((x-x0)/sx) * bump((y-y0)/sy) * bump((z-z0)/sz)
-
-end function
-
-
-function points(x, y, z, sx, sy, sz, n, XX, YY, ZZ) result (val)
-real   (kind=8) :: x, y, z, sx, sy, sz
-integer :: n
-real   (kind=8) :: val, XX(n), YY(n), ZZ(n)
-integer :: i
-
-  val = 0
-
-  do i = 1,n
-    val = val+bump3d(x,y,z,XX(i),YY(i),ZZ(i),sx,sy,sz)
-  end do
-  !val = log(1+3*val) / log(4.d0)
-
-end function
-
-
 function kq(x, y, z) result (val)
 real   (kind=8) :: x, y, z
-real   (kind=8) :: val
+real   (kind=8) :: val, dist
 
-  val = points(x, y, z, s, s, s, pN, px, py, pz)
-  val = val + points(x,y,z,0.04d0,0.4d0,0.04d0,lN,lx,ly,lz)
-  !val = points(x,y,z,0.04d0,0.04d0,0.04d0,cN*cL,cx,cy,cz)
-  val = val + bump(20.d0 * sqrt(dist_from_curves(x,y,z)))
-  val = min(1.d0, log(1+3*val) / log(4.d0))
-
+  dist = sqrt(dist_from_curves(x,y,z))
+  val = lerp(falloff(0.d0, 0.06d0, dist), Kqmin, Kqmax)
 end function
 
 
@@ -251,21 +194,14 @@ real   (kind=8) :: val
 end function
 
 
-function h(x, y, z) result (val)
-real   (kind=8) :: x, y, z
-real   (kind=8) :: val
-
-  val = 1 + sin(2*PI*x) * sin(2*PI*y) * sin(2*PI*z)
-
-end function
-
 
 ! Initial state of the system - u(0)
 function initial_state(x, y, z) result (val)
-real   (kind=8) :: x, y, z
-real   (kind=8) :: val
+real   (kind=8), intent(in) :: x, y, z
+real   (kind=8) :: dist, val
 
-  val = 0.1d0 * kq(x, y, z)
+  dist = sqrt(dist_from_curves(x,y,z))
+  val = 0.1d0 * lerp(falloff(0.d0, 0.1d0, dist), 0.d0, 1.d0) * bump3d(0.2d0, 0.6d0, x, y, z)
 
 end function
 
