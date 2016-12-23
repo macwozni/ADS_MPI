@@ -168,8 +168,8 @@ real   (kind=8) :: fval
 integer :: i
 
   fval = 0.d0
-  do i = 1,npumps
-    fval = fval + draining_strength * falloff(0.d0, radius, norm2(pumps(:,i) - [x, y, z]))
+  do i = 1,ndrains
+    fval = fval + draining_strength * falloff(0.d0, radius, norm2(drains(:,i) - [x, y, z]))
   enddo
   fval = fval * u
 
