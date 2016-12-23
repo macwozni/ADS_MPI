@@ -751,11 +751,7 @@ integer :: iret, ierr
   endif
 
   if (iinfo == 1) write(*,*)PRINTRANK,'1d) REORDER'
-  call ReorderRHSForY                          &
-    (U,p,n,nelem,U,p,n,nelem,U,p,n,nelem,      &
-     ibegx,iendx,MYRANKX,NRPROCX,              &
-     ibegy,iendy,MYRANKY,NRPROCY,              &
-     ibegz,iendz,MYRANKZ,NRPROCZ,F2_out,F2)
+  call ReorderRHSForY(ibegx,iendx,ibegy,iendy,ibegz,iendz,F2_out,F2)
   deallocate(F2_out)
 
   if (iprint == 1) then
@@ -827,11 +823,7 @@ integer :: iret, ierr
 
   if (iinfo == 1) write(*,*)PRINTRANK,'2d) REORDER'
   ! Reorder right hand sides
-  call ReorderRHSForZ                        &
-    (U,p,n,nelem,U,p,n,nelem,U,p,n,nelem,    &
-     ibegx,iendx,MYRANKX,NRPROCX,            &
-     ibegy,iendy,MYRANKY,NRPROCY,            &
-     ibegz,iendz,MYRANKZ,NRPROCZ,F3_out,F3)
+  call ReorderRHSForZ(ibegx,iendx,ibegy,iendy,ibegz,iendz,F3_out,F3)
   deallocate(F3_out)
 
   if (iprint == 1) then
@@ -891,11 +883,7 @@ integer :: iret, ierr
 
   if (iinfo == 1) write(*,*)PRINTRANK,'3d) REORDER'
   ! Reorder right hand sides
-  call ReorderRHSForX                        &
-    (U,p,n,nelem,U,p,n,nelem,U,p,n,nelem,    &
-     ibegx,iendx,MYRANKX,NRPROCX,            &
-     ibegy,iendy,MYRANKY,NRPROCY,            &
-     ibegz,iendz,MYRANKZ,NRPROCZ,F_out,F)
+  call ReorderRHSForX(ibegx,iendx,ibegy,iendy,ibegz,iendz,F_out,F)
   deallocate(F_out)
 
   if (iprint == 1) then
