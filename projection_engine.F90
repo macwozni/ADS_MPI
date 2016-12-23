@@ -217,7 +217,6 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
     do kz = 1,ngz
       W = Wx(kx)*Wy(ky)*Wz(kz)
       vpump = pumping(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
-      fval = vpump - vdrain
       do ax = 0,px
       do ay = 0,py
       do az = 0,pz
@@ -299,6 +298,7 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
 
         kqval = Kq(kx,ky,kz,ex-minex+1,ey-miney+1,ez-minez+1)
         vdrain = draining(Uval, Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
+        fval = vpump - vdrain
         !--- Real
         if (t > 0.0) then
           rhs = Dt * ( - kqval * exp(mi * Uval) * (dux*dvx + duy*dvy + duz*dvz) + v * fval)
