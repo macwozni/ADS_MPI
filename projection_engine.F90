@@ -281,7 +281,7 @@ real (kind=8) :: Umax = -1d10, Umin = 1d10
         dvz = NNx(0,ax,kx,ex) * NNy(0,ay,ky,ey) * NNz(1,az,kz,ez) 
 
         kqval = Kq(kx,ky,kz,ex-minex+1,ey-miney+1,ez-minez+1)
-        vdrain = draining(Uval, Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
+        vdrain = max(0.d0, draining(Uval, Xx(kx,ex),Xy(ky,ey),Xz(kz,ez)))
         fval = vpump - vdrain
         !--- Real
         if (t > 0.0) then
