@@ -10,6 +10,8 @@ contains
 ! -------------------------------------------------------------------
 ! Plot output function for gnuplot.
 !
+! Input:
+! ------
 ! filename    - pattern for layer names
 ! vals        - values to plot
 ! params      - plot parameters
@@ -33,6 +35,8 @@ end subroutine
 ! Auxilary function to create file name from pattern and layer number.
 ! Created name is: pattern{layer}.plot.
 !
+! Input:
+! ------
 ! pattern     - pattern of the name
 ! layer       - layer number
 ! filename    - output buffer to write name
@@ -53,6 +57,8 @@ end subroutine
 ! -------------------------------------------------------------------
 ! Writes one layer as gnuplot file. Its name is: pattern{layer}.plot
 !
+! Input:
+! ------
 ! pattern     - pattern for layer names
 ! zlayer      - number of layer
 ! vals        - values to plot (only one layer)

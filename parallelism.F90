@@ -19,7 +19,7 @@ integer :: NRPROCY
 integer :: NRPROCZ
 
 ! Rank of this processor converted to a string
-character(len=6) :: PRINTRANK
+character(len=7) :: PRINTRANK
 
 ! Total parallel execution time
 real (kind=8) :: DTIME_PARALLEL
@@ -32,6 +32,7 @@ contains
 ! Initializes MPI communicators and global variables of this module.
 ! -------------------------------------------------------------------
 subroutine InitializeParallelism
+USE ISO_FORTRAN_ENV, ONLY : ERROR_UNIT ! access computing environment
 include "mpif.h"
 character(4) :: buffer
 integer :: i1, i2, i3
@@ -42,23 +43,23 @@ integer :: i1, i2, i3
   call mpi_comm_rank(MPI_COMM_WORLD,MYRANK,i3)
 
   if ((i1+i2+i3) /= 0) then
-    write(*,*)MYRANK,': main: error initializing MPI!'
+    write(ERROR_UNIT,*)MYRANK,': main: error initializing MPI!'
     call abort
   endif
-
+  
   call Decompose(MYRANK,MYRANKX,MYRANKY,MYRANKZ)
   call int2str(MYRANK, buffer)
 
   if (MYRANK < 10) then
-    PRINTRANK = "000"//buffer
+    PRINTRANK = "0000"//buffer
   else if (MYRANK < 100) then
-    PRINTRANK = "00"//buffer
+    PRINTRANK = "000"//buffer
   else if (MYRANK < 1000) then
-    PRINTRANK = "0"//buffer
+    PRINTRANK = "00"//buffer
   else if (MYRANK < 10000) then
-    PRINTRANK = buffer
+    PRINTRANK = "0"//buffer
   else
-    write(*,*)'more then 10000 processors'
+    PRINTRANK = buffer
     stop
   endif
 
