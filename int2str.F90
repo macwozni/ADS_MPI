@@ -1,4 +1,9 @@
-
+! -------------------------------------------------------------------
+! Converts integer to string
+!
+! n          - integer to be converted
+! str        - output string
+! -------------------------------------------------------------------
 subroutine int2str(n, str)
 integer, intent(in) :: n             ! Integer to be converted
 character(len=*), intent(out) :: str ! String containing number

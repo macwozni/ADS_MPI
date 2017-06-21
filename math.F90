@@ -1,4 +1,3 @@
-
 module math
 
 implicit none
@@ -22,6 +21,7 @@ real (kind=8) :: t, x, y, val
 
 end function
 
+
 ! -------------------------------------------------------------------
 ! Smoothly decaying function
 ! t in [0, r] -> 1
@@ -42,6 +42,7 @@ real (kind=8) :: h, fval
   endif
 
 end function
+
 
 ! -------------------------------------------------------------------
 ! C^1 bump function on [0, 1]. Function and its 1st derivative 

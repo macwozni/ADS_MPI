@@ -18,18 +18,18 @@ integer :: ix, iy, iz
 integer :: ind2, ind13, ind1, ind23
 
   do ix = ibegx,iendx
-  do iy = ibegy,iendy
-  do iz = ibegz,iendz
+    do iy = ibegy,iendy
+      do iz = ibegz,iendz
 
-    ind2 = iy-ibegy
-    ind13 = (ix-ibegx)+(iz-ibegz)*(iendx-ibegx+1)
+        ind2 = iy-ibegy
+        ind13 = (ix-ibegx)+(iz-ibegz)*(iendx-ibegx+1)
 
-    ind1 = ix-ibegx
-    ind23 = (iy-ibegy)+(iz-ibegz)*(iendy-ibegy+1)
+        ind1 = ix-ibegx
+        ind23 = (iy-ibegy)+(iz-ibegz)*(iendy-ibegy+1)
 
-    F2(ind2,ind13) = F(ind1,ind23)
-  enddo
-  enddo
+        F2(ind2,ind13) = F(ind1,ind23)
+      enddo
+    enddo
   enddo
 
 end subroutine
@@ -46,19 +46,19 @@ integer :: ix, iy, iz
 integer :: ind3, ind12, ind2, ind13
 
   do ix = ibegx,iendx
-  do iy = ibegy,iendy
-  do iz = ibegz,iendz
+   do iy = ibegy,iendy
+      do iz = ibegz,iendz
 
-    ind3 = iz-ibegz
-    ind12 = (ix-ibegx)+(iy-ibegy)*(iendx-ibegx+1)
+        ind3 = iz-ibegz
+        ind12 = (ix-ibegx)+(iy-ibegy)*(iendx-ibegx+1)
 
-    ind2 = iy-ibegy
-    ind13 = (ix-ibegx)+(iz-ibegz)*(iendx-ibegx+1)
+        ind2 = iy-ibegy
+        ind13 = (ix-ibegx)+(iz-ibegz)*(iendx-ibegx+1)
 
-    F2(ind3,ind12) = F(ind2,ind13)
+        F2(ind3,ind12) = F(ind2,ind13)
 
-  enddo
-  enddo
+      enddo
+   enddo
   enddo
 
 end subroutine
@@ -75,19 +75,19 @@ integer :: ix, iy, iz
 integer :: ind1, ind23, ind3, ind12
 
   do ix = ibegx,iendx
-  do iy = ibegy,iendy
-  do iz = ibegz,iendz
+   do iy = ibegy,iendy
+      do iz = ibegz,iendz
 
-    ind1 = ix-ibegx
-    ind23 = (iy-ibegy)+(iz-ibegz)*(iendy-ibegy+1)
+        ind1 = ix-ibegx
+        ind23 = (iy-ibegy)+(iz-ibegz)*(iendy-ibegy+1)
 
-    ind3 = iz-ibegz
-    ind12 = (ix-ibegx)+(iy-ibegy)*(iendx-ibegx+1)
+        ind3 = iz-ibegz
+        ind12 = (ix-ibegx)+(iy-ibegy)*(iendx-ibegx+1)
 
-    F2(ind1,ind23) = F(ind3,ind12)
+        F2(ind1,ind23) = F(ind3,ind12)
 
-  enddo
-  enddo
+      enddo
+   enddo
   enddo
 
 end subroutine
