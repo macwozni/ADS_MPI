@@ -181,14 +181,21 @@ end subroutine
 
 ! -------------------------------------------------------------------
 ! Finds the element that contains specified point. It is given as
-! the index of knot u_i such that [u_i, u_(i+1)) contains the point.
+! the index of knot u_i such that [u_i, u_(i+1)] contains the point.
 ! In case the point lies on the edge, index of innermost edge node
 ! is returned.
 ! 
+! Input:
+! ------
 ! n    - number of functions (control points) minus 1
 ! p    - order of basis functions
 ! uu   - coordinate of the point
 ! U    - knot vector
+!
+! Output:
+! ------
+! span - index of element
+!
 ! -------------------------------------------------------------------
 function FindSpan(n, p, uu, U) result (span)
 integer(kind=4), intent(in) :: n, p
@@ -228,9 +235,16 @@ end function
 ! Calculates number of elements (nonempty subintervals) in the knot 
 ! vector.
 !
-! n   - number of functions (control points) minus 1
-! p   - order of basis functions
-! U   - knot vector
+! Input:
+! ------
+! n     - number of functions (control points) minus 1
+! p     - order of basis functions
+! U     - knot vector
+!
+! Output:
+! ------
+! nelem - number of elements
+!
 ! -------------------------------------------------------------------
 function CountSpans(n, p, U) result (nelem)
 integer(kind=4), intent(in) :: n, p
@@ -258,6 +272,8 @@ end function
 ! Evaluates linear combination of basis spline functions in specified
 ! point.
 !
+! Input:
+! ------
 ! d          - derivative to evaluate
 ! U_         - knot points
 ! p_         - degree of splines
@@ -265,6 +281,11 @@ end function
 ! nelem_     - number of elements
 ! coeffs     - 3D array of coefficients of basis functions (0-based)
 ! x, y, z    - point to evaluate at
+!
+! Output:
+! ------
+! val        - value in specified point
+!
 ! -------------------------------------------------------------------
 function EvalSpline(d,      &
   Ux, px, nx, nelemx,       &

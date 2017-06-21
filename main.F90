@@ -1200,6 +1200,7 @@ end module
 program main
 
 use stuff
+implicit none
 
 ! Iteration counter
 integer :: iter = 0

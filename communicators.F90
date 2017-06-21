@@ -162,6 +162,7 @@ end subroutine
 
 ! -------------------------------------------------------------------
 ! Prints groups used later to create communicators
+! For debug only
 ! -------------------------------------------------------------------
 subroutine PrintGroups
 integer :: i, j, k
@@ -187,6 +188,7 @@ end subroutine
 
 ! -------------------------------------------------------------------
 ! Prints communicators
+! For debug only
 ! -------------------------------------------------------------------
 subroutine PrintCommunicators
 integer :: i, j, k
