@@ -6,14 +6,14 @@ contains
 
 subroutine ReorderRHSForY(ibegx,iendx,ibegy,iendy,ibegz,iendz,F,F2)
 implicit none
-integer, intent(in) :: ibegx,ibegy,ibegz
-integer, intent(in) :: iendx,iendy,iendz
-real   (kind=8), intent(in) :: F(0:(iendx-ibegx+1)-1,    &
+integer(kind=4), intent(in)  :: ibegx,ibegy,ibegz
+integer(kind=4), intent(in)  :: iendx,iendy,iendz
+real   (kind=8), intent(in)  :: F(0:(iendx-ibegx+1)-1,    &
   0:(iendy-ibegy+1)*(iendz-ibegz+1)-1)
 real   (kind=8), intent(out) :: F2(0:(iendy-ibegy+1)-1,  &
   0:(iendx-ibegx+1)*(iendz-ibegz+1)-1)
-integer :: ix, iy, iz
-integer :: ind2, ind13, ind1, ind23
+integer(kind=4) :: ix, iy, iz
+integer(kind=4) :: ind2, ind13, ind1, ind23
 
   do ix = ibegx,iendx
     do iy = ibegy,iendy
@@ -35,14 +35,14 @@ end subroutine
 
 subroutine ReorderRHSForZ(ibegx,iendx,ibegy,iendy,ibegz,iendz,F,F2)
 implicit none
-integer, intent(in) :: ibegx,ibegy,ibegz
-integer, intent(in) :: iendx,iendy,iendz
-real   (kind=8), intent(in) :: F(0:(iendy-ibegy+1)-1,  &
+integer(kind=4), intent(in)  :: ibegx,ibegy,ibegz
+integer(kind=4), intent(in)  :: iendx,iendy,iendz
+real   (kind=8), intent(in)  :: F(0:(iendy-ibegy+1)-1,  &
   0:(iendx-ibegx+1)*(iendz-ibegz+1)-1)
 real   (kind=8), intent(out) :: F2(0:(iendz-ibegz+1)-1, &
   0:(iendx-ibegx+1)*(iendy-ibegy+1)-1)
-integer :: ix, iy, iz
-integer :: ind3, ind12, ind2, ind13
+integer(kind=4) :: ix, iy, iz
+integer(kind=4) :: ind3, ind12, ind2, ind13
 
   do ix = ibegx,iendx
    do iy = ibegy,iendy
@@ -65,14 +65,14 @@ end subroutine
 
 subroutine ReorderRHSForX(ibegx,iendx,ibegy,iendy,ibegz,iendz,F,F2)
 implicit none
-integer, intent(in) :: ibegx,ibegy,ibegz
-integer, intent(in) :: iendx,iendy,iendz
-real   (kind=8), intent(in) :: F(0:(iendz-ibegz+1)-1,    &
+integer(kind=4), intent(in)  :: ibegx,ibegy,ibegz
+integer(kind=4), intent(in)  :: iendx,iendy,iendz
+real   (kind=8), intent(in)  :: F(0:(iendz-ibegz+1)-1,    &
   0:(iendx-ibegx+1)*(iendy-ibegy+1)-1)
 real   (kind=8), intent(out) :: F2(0:(iendx-ibegx+1)-1,  &
   0:(iendy-ibegy+1)*(iendz-ibegz+1)-1)
-integer :: ix, iy, iz
-integer :: ind1, ind23, ind3, ind12
+integer(kind=4) :: ix, iy, iz
+integer(kind=4) :: ind1, ind23, ind3, ind12
 
   do ix = ibegx,iendx
    do iy = ibegy,iendy

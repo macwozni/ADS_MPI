@@ -18,10 +18,10 @@ contains
 subroutine VtkOutput(filename, vals, params)
 use plot, ONLY : PlotParams, params
 implicit none
-character(len=*), intent(in) :: filename
+character (len=*), intent(in) :: filename
 type (PlotParams), intent(in) :: params
-real (kind=8), intent(in) :: vals(params%resx,params%resy,params%resz)
-integer :: ix, iy, iz
+real     (kind=8), intent(in) :: vals(params%resx,params%resy,params%resz)
+integer   (kind=4)  :: ix, iy, iz
 character (len=200) :: temp, extent
 
 integer :: outFile = 57 ! random value, Grothendieck's prime
@@ -91,11 +91,11 @@ end subroutine
 subroutine VtkStructuredGridOutput(filename, vals, X, Y, Z, params)
 use plot, ONLY : PlotParams, params
 implicit none
-character(len=*), intent(in) :: filename
+character(len=*),  intent(in) :: filename
 type (PlotParams), intent(in) :: params
 real (kind=8), dimension(params%resx,params%resy,params%resz), &
   intent(in) :: X, Y, Z, vals
-integer :: ix, iy, iz
+integer(kind=4)    :: ix, iy, iz
 character(len=200) :: temp, extent
 
 integer :: outFile = 57 ! random value, Grothendieck's prime

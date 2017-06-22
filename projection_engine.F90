@@ -3,10 +3,10 @@ module projection_engine
 implicit none
 
 ! order of approximations
-integer :: ORDER
+integer(kind=4) :: ORDER
 
 ! number of elements in one dimension
-integer :: SIZE
+integer(kind=4) :: SIZE
 
 contains
 
@@ -37,17 +37,17 @@ subroutine Form1DMassMatrix(KL,KU,U,p,n,nelem,M)
 use basis, ONLY : BasisData
 implicit none
 integer :: KL,KU
-integer (kind=4), intent(in) :: n, p, nelem
-real    (kind=8), intent(in) :: U(0:n+p+1)
-real    (kind=8), intent(out) :: M(0:(2*KL+KU),0:n)
-integer (kind=4) :: mm,ng,e,k,a,b
-integer (kind=4) :: O(nelem)
-real    (kind=8) :: J(nelem)
-real    (kind=8) :: W(p+1)
-real    (kind=8) :: X(p+1,nelem)
-real    (kind=8) :: NN(0:0,0:p,p+1,nelem)
-integer :: d
-integer :: ia, ib
+integer(kind=4), intent(in)  :: n, p, nelem
+real   (kind=8), intent(in)  :: U(0:n+p+1)
+real   (kind=8), intent(out) :: M(0:(2*KL+KU),0:n)
+integer(kind=4) :: mm,ng,e,k,a,b
+integer(kind=4) :: O(nelem)
+real   (kind=8) :: J(nelem)
+real   (kind=8) :: W(p+1)
+real   (kind=8) :: X(p+1,nelem)
+real   (kind=8) :: NN(0:0,0:p,p+1,nelem)
+integer(kind=4) :: d
+integer(kind=4) :: ia, ib
 
   mm = n+p+1
   ng = p+1
@@ -125,19 +125,19 @@ use parallelism, ONLY : PRINTRANK
 use basis, ONLY : BasisData
 use input_data, ONLY : pumping, draining, initial_state
 implicit none
-integer(kind=4), intent(in) :: nx, px, nelemx, nrcppx
-integer(kind=4), intent(in) :: ny, py, nelemy, nrcppy
-integer(kind=4), intent(in) :: nz, pz, nelemz, nrcppz
-integer(kind=4), intent(in) :: minex,maxex,miney,maxey,minez,maxez
-real   (kind=8), intent(in) :: Ux(0:nx+px+1)
-real   (kind=8), intent(in) :: Uy(0:ny+py+1)
-real   (kind=8), intent(in) :: Uz(0:nz+pz+1)
-real   (kind=8), intent(in) :: R(0:nrcppz*nrcppx*nrcppy-1,3,3,3)
-real   (kind=8), intent(in) :: Kq(px+1,py+1,pz+1,maxex-minex+1,maxey-miney+1,maxez-minez+1)
+integer(kind=4), intent(in)  :: nx, px, nelemx, nrcppx
+integer(kind=4), intent(in)  :: ny, py, nelemy, nrcppy
+integer(kind=4), intent(in)  :: nz, pz, nelemz, nrcppz
+integer(kind=4), intent(in)  :: minex,maxex,miney,maxey,minez,maxez
+real   (kind=8), intent(in)  :: Ux(0:nx+px+1)
+real   (kind=8), intent(in)  :: Uy(0:ny+py+1)
+real   (kind=8), intent(in)  :: Uz(0:nz+pz+1)
+real   (kind=8), intent(in)  :: R(0:nrcppz*nrcppx*nrcppy-1,3,3,3)
+real   (kind=8), intent(in)  :: Kq(px+1,py+1,pz+1,maxex-minex+1,maxey-miney+1,maxez-minez+1)
 real   (kind=8), intent(out) :: drained, l2norm
-integer(kind=4), dimension(3) :: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
-integer, intent(in) :: ibegx,ibegy,ibegz
-integer, intent(in) :: iendx,iendy,iendz
+integer(kind=4), dimension(3):: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
+integer(kind=4), intent(in)  :: ibegx,ibegy,ibegz
+integer(kind=4), intent(in)  :: iendx,iendy,iendz
                                
 real   (kind=8), intent(out) :: F(0:(iendx-ibegx+1)-1, &
   0:(iendy-ibegy+1)*(iendz-ibegz+1)-1)
@@ -155,12 +155,12 @@ real   (kind=8) :: NNx(0:1,0:px,px+1,nelemx), &
 real   (kind=8) :: J,W,fval,vpump,vdrain,kqval,Uval,t,Dt,ucoeff,mi
 real   (kind=8) :: v, rhs
 real   (kind=8) :: dux,duy,duz,dvx,dvy,dvz
-integer :: nreppx,nreppy,nreppz !# elements per proc along x,y,z
-integer :: ind,ind1,ind23,indx,indy,indz
-integer :: indbx,indby,indbz
-integer :: rx,ry,rz, ix,iy,iz, sx,sy,sz
-integer :: iprint
-real (kind=8) :: Umax = -1d10, Umin = 1d10
+integer(kind=4) :: nreppx,nreppy,nreppz !# elements per proc along x,y,z
+integer(kind=4) :: ind,ind1,ind23,indx,indy,indz
+integer(kind=4) :: indbx,indby,indbz
+integer(kind=4) :: rx,ry,rz, ix,iy,iz, sx,sy,sz
+integer(kind=4) :: iprint
+real   (kind=8) :: Umax = -1d10, Umin = 1d10
 
   iprint = 0
 
@@ -326,8 +326,8 @@ end subroutine
 ! -------------------------------------------------------------------
 logical function IndexInRange(indx,indy,indz,ibegx,iendx,ibegy,iendy,ibegz,iendz)
 implicit none
-integer :: indx,indy,indz
-integer :: ibegx,iendx,ibegy,iendy,ibegz,iendz
+integer(kind=4) :: indx,indy,indz
+integer(kind=4) :: ibegx,iendx,ibegy,iendy,ibegz,iendz
 
   IndexInRange = .true.
   if (indx < ibegx-1 .or. indx > iendx-1) IndexInRange = .false.
@@ -376,10 +376,10 @@ end function
 ! -------------------------------------------------------------------
 subroutine global2local(ind,nx,ny,nz,x,y,z)
 implicit none
-integer, intent(in) :: ind
-integer, intent(in) :: nx,ny,nz
-integer, intent(out) :: x,y,z
-integer :: tmp
+integer(kind=4), intent(in)  :: ind
+integer(kind=4), intent(in)  :: nx,ny,nz
+integer(kind=4), intent(out) :: x,y,z
+integer(kind=4) :: tmp
 
   z = ind / ((nx+1)*(ny+1))
   tmp = ind - z*(nx+1)*(ny+1)
@@ -417,10 +417,10 @@ real   (kind=8), intent(in) :: Uy(0:ny+py+1)
 real   (kind=8), intent(in) :: Uz(0:nz+pz+1)
 real   (kind=8), intent(in) :: R(0:nrcppz*nrcppx*nrcppy-1,3,3,3)
 integer(kind=4), dimension(3) :: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
-integer, intent(in) :: ibegx,ibegy,ibegz
-integer, intent(in) :: iendx,iendy,iendz
-integer, intent(in) :: nrankx,nranky,nrankz
-integer, intent(in) :: nrpx,nrpy,nrpz
+integer(kind=4), intent(in) :: ibegx,ibegy,ibegz
+integer(kind=4), intent(in) :: iendx,iendy,iendz
+integer(kind=4), intent(in) :: nrankx,nranky,nrankz
+integer(kind=4), intent(in) :: nrpx,nrpy,nrpz
 integer(kind=4) :: mx,my,mz,ngx,ngy,ngz,ex,ey,ez
 integer(kind=4) :: kx,ky,kz,ax,ay,az,bx,by,bz,d
 integer(kind=4) :: Ox(nelemx),Oy(nelemy),Oz(nelemz)
@@ -435,11 +435,11 @@ real   (kind=8) :: NNx(0:1,0:px,px+1,nelemx), &
 real   (kind=8) :: J,W,Uval,ucoeff
 real   (kind=8) :: v, rhs
 real   (kind=8), intent(out) :: cont
-integer :: nreppx,nreppy,nreppz !# elements per proc along x,y,z
-integer :: ind,ind1,ind23,indx,indy,indz
-integer :: indbx,indby,indbz
-integer :: rx,ry,rz, ix,iy,iz, sx,sy,sz
-integer :: iprint
+integer(kind=4) :: nreppx,nreppy,nreppz !# elements per proc along x,y,z
+integer(kind=4) :: ind,ind1,ind23,indx,indy,indz
+integer(kind=4) :: indbx,indby,indbz
+integer(kind=4) :: rx,ry,rz, ix,iy,iz, sx,sy,sz
+integer(kind=4) :: iprint
 
   iprint = 0
 

@@ -16,6 +16,7 @@ SOURCES = \
           plot.F90 \
           gnuplot.F90 \
           vtk.F90 \
+          time_data.F90 \
           main.F90 
 
 SOURCES_LAPACK = lapack/dgbsv.F \
