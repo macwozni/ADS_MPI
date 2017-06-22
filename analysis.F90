@@ -1,8 +1,4 @@
 module analysis
-      
-use gauss
-use basis
-use projection_engine
 
 implicit none
 
@@ -21,12 +17,15 @@ subroutine NormL2(              &
   ibegx,iendx,nrankx,nrpx,      &
   ibegy,iendy,nranky,nrpy,      &
   ibegz,iendz,nrankz,nrpz,F)
-integer(kind=4), intent(in) :: nx, px, nelemx
-integer(kind=4), intent(in) :: ny, py, nelemy
-integer(kind=4), intent(in) :: nz, pz, nelemz
-real   (kind=8), intent(in) :: Ux(0:nx+px+1)
-real   (kind=8), intent(in) :: Uy(0:ny+py+1)
-real   (kind=8), intent(in) :: Uz(0:nz+pz+1)
+use basis, ONLY : BasisData
+use projection_engine, ONLY : global2local
+implicit none
+integer(kind=4), intent(in)  :: nx, px, nelemx
+integer(kind=4), intent(in)  :: ny, py, nelemy
+integer(kind=4), intent(in)  :: nz, pz, nelemz
+real   (kind=8), intent(in)  :: Ux(0:nx+px+1)
+real   (kind=8), intent(in)  :: Uy(0:ny+py+1)
+real   (kind=8), intent(in)  :: Uz(0:nz+pz+1)
 real   (kind=8), intent(out) :: F(0:(iendx-ibegx+1)-1, &
   0:(iendy-ibegy+1)*(iendz-ibegz+1)-1)
 integer(kind=4) :: mx,my,mz,ngx,ngy,ngz,ex,ey,ez
@@ -41,16 +40,15 @@ real   (kind=8) :: NNx(0:0,0:px,px+1,nelemx), &
                    NNy(0:0,0:py,py+1,nelemy), &
                    NNz(0:0,0:pz,pz+1,nelemz)
 real   (kind=8) :: J,W,value
-integer, intent(in) :: ibegx,ibegy,ibegz
-integer, intent(in) :: iendx,iendy,iendz
-integer, intent(in) :: nrankx,nranky,nrankz
-integer, intent(in) :: nrpx,nrpy,nrpz
-integer :: nreppx,nreppy,nreppz !# elements per proc along x,y,z
-integer :: ind,ind1,ind23,ind23a,indx,indy,indz
-integer :: iprint
+integer(kind=4), intent(in) :: ibegx,ibegy,ibegz
+integer(kind=4), intent(in) :: iendx,iendy,iendz
+integer(kind=4), intent(in) :: nrankx,nranky,nrankz
+integer(kind=4), intent(in) :: nrpx,nrpy,nrpz
+integer(kind=4) :: nreppx,nreppy,nreppz !# elements per proc along x,y,z
+integer(kind=4) :: ind,ind1,ind23,ind23a,indx,indy,indz
+integer(kind=4) :: iprint
 
   iprint=0
-  ! if(MYRANK.eq.2)iprint=1
 
   d = 0
   mx  = nx+px+1
@@ -77,32 +75,16 @@ integer :: iprint
     do ky = 1,ngy
     do kz = 1,ngz
       W = Wx(kx)*Wy(ky)*Wz(kz)
-      !value = fvalue(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
       do ax = 0,px
       do ay = 0,py
       do az = 0,pz
         d = (Ox(ex)+ax)+(Oy(ey)+ay)*(nx+1)+(Oz(ez)+az)*(ny+1)*(nx+1)
         call global2local(ind,nx,ny,nz,indx,indy,indz)
-        ! if(indx.ne.(Ox(ex)+ax))stop
-        ! if(indy.ne.(Oy(ey)+ay))stop
-        ! if(indz.ne.(Oz(ez)+az))stop
         if (indx < ibegx-1 .or. indx > iendx-1) cycle
         if (indy < ibegy-1 .or. indy > iendy-1) cycle
         if (indz < ibegz-1 .or. indz > iendz-1) cycle
         ind1 = indx-ibegx+1
         ind23 = (indy-ibegy+1)+(indz-ibegz+1)*(iendy-ibegy+1)
-
-        ! OLD
-        ! F is a multiple columns vector
-        ! parallel now we have distributed rhs
-        !   ! ind1 = (Ox(ex)+ax) !along x
-        !   ! ind23 = (Oy(ey)+ay) !along y
-        !   ! ind23 = ind23 + (Oz(ez)+az)*(ny+1) !along z
-        !    ind1 = (Ox(ex)+ax-ibegx+1) !along x
-        !    ind23 = (Oy(ey)+ay-ibegy+1) !along y
-        !    ind23a = (Oz(ez)+az-ibegz+1)
-        !    ind23 =ind23+ind23a*(iendy-ibegy+1) !along z
-        ! OLD
 
         if (ind1 < 0 .or. ind1 > (iendx-ibegx)) cycle
         if (ind23 < 0 .or. ind23 > (iendy-ibegy+1)*(iendz-ibegz+1)-1) cycle
