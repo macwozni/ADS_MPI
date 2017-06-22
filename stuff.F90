@@ -101,6 +101,12 @@ integer(kind=4) :: minex, maxex
 integer(kind=4) :: miney, maxey
 integer(kind=4) :: minez, maxez
 
+! order of approximations
+integer(kind=4) :: ORDER
+
+! number of elements in one dimension
+integer(kind=4) :: SIZE
+
 contains
 
 
