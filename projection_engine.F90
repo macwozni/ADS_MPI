@@ -259,12 +259,12 @@ real   (kind=8) :: resvalue
         enddo
         enddo
         enddo
-        call ComputePointForRHS (Xx,Xy,Xz,px,py,pz,kx,ky,kz, &
-   ex,ey,ez,nelemx,nelemy,nelemz,Uval,v,ax,ay,az,NNx,NNy,NNz, &
+          call ComputePointForRHS (Xx,Xy,Xz,px,py,pz,kx,ky,kz, &
+   ex,ey,ez,nelemx,nelemy,nelemz,Uval,ax,ay,az,NNx,NNy,NNz, &
    minex,miney,minez,Kq,maxex,maxey,maxez,t,Dt,mi,dux,duy,duz, &
    ibegx,ibegy,ibegz,iendx,iendy,iendz,resvalue,J,W)
    
-   F(ind1,ind23) = F(ind1,ind23) + resvalue
+          F(ind1,ind23) = F(ind1,ind23) + resvalue
    
       enddo
       enddo
