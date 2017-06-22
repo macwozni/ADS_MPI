@@ -1,4 +1,3 @@
-
 module stuff
 
 use parallelism
@@ -1183,26 +1182,14 @@ end subroutine
 
 subroutine ComputeResults()
 implicit none
-real   (kind=8) :: fullpollution, fulldrained
+real   (kind=8) :: fulldrained
 integer(kind=4) :: ierr
 
-  call Contamination                                &
-      (U,p,n,nelem,nrcppx,                          &
-       U,p,n,nelem,nrcppy,                          &
-       U,p,n,nelem,nrcppz,                          &
-       ibegx,iendx,MYRANKX,NRPROCX,                 &
-       ibegy,iendy,MYRANKY,NRPROCY,                 &
-       ibegz,iendz,MYRANKZ,NRPROCZ,                 &
-       ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz,   &
-       minex,maxex,miney,maxey,minez,maxez,         &
-       R, pollution)
 
-  call MPI_Reduce(pollution, fullpollution, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
   call MPI_Reduce(drained, fulldrained, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
 
   if (MYRANK == 0) then
     write(*,*) fulldrained
-    write(*,*) fullpollution
   endif
 
 end subroutine
