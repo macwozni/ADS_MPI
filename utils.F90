@@ -1,4 +1,3 @@
-
 module utils
 
 implicit none
@@ -21,12 +20,12 @@ integer :: n, p
 real (kind=8), intent(out) :: U(1:n+p+2)
 integer :: i
 
-  U(1 : p+1) = 0
-  U(n+2 : n+p+2) = 1
+U(1 : p+1) = 0
+U(n+2 : n+p+2) = 1
 
-  do i = p+2, n+1
-    U(i) = (i-p-1) / real(n-p+1)
-  enddo
+do i = p+2, n+1
+  U(i) = (i-p-1) / real(n-p+1)
+enddo
 
 end subroutine
 
@@ -55,18 +54,18 @@ integer, intent(in) :: rank, nrproc, n, p
 integer, intent(out) :: nrcpp, ibeg, iend, mine, maxe
 integer :: elems
 
-  elems = n + 1 - p
-  nrcpp = (n+1 + nrproc-1) / nrproc
-  ibeg = nrcpp * rank + 1
+elems = n + 1 - p
+nrcpp = (n+1 + nrproc-1) / nrproc
+ibeg = nrcpp * rank + 1
 
-  if(rank == nrproc-1)then
-    iend = n+1
-  else
-    iend = nrcpp * (rank + 1)
-  endif
+if(rank == nrproc-1)then
+  iend = n+1
+else
+  iend = nrcpp * (rank + 1)
+endif
 
-  mine = max(ibeg - p - 1, 1)
-  maxe = min(iend, elems)
+mine = max(ibeg - p - 1, 1)
+maxe = min(iend, elems)
 
 end subroutine
 
@@ -87,19 +86,19 @@ integer, allocatable :: dims(:), shifts(:)
 integer :: nrcpp, stride, n, nrproc
 integer:: i
 
-  allocate(dims(nrproc))
-  allocate(shifts(nrproc))
+allocate(dims(nrproc))
+allocate(shifts(nrproc))
 
-  shifts = 0
-  dims = 0
+shifts = 0
+dims = 0
 
-  do i = 1,nrproc-1
-    dims(i) = nrcpp * stride
-    if (i > 1) shifts(i) = shifts(i-1) + dims(i-1)
-  enddo
+do i = 1,nrproc-1
+  dims(i) = nrcpp * stride
+  if (i > 1) shifts(i) = shifts(i-1) + dims(i-1)
+enddo
 
-  dims(nrproc) = ((n+1) - nrcpp * (nrproc-1)) * stride
-  shifts(nrproc) = shifts(nrproc-1) + dims(nrproc-1)
+dims(nrproc) = ((n+1) - nrcpp * (nrproc-1)) * stride
+shifts(nrproc) = shifts(nrproc-1) + dims(nrproc-1)
 
 end subroutine
 
@@ -131,11 +130,11 @@ real (kind=8), intent(in)  :: F(elems, stride)
 real (kind=8), intent(out) :: F_lin(elems * stride)
 integer :: i, a, b
 
-  do i = 1,elems
-    a = (i-1) * stride + 1
-    b = i * stride
-    F_lin(a:b) = F(i,:)
-  enddo
+do i = 1,elems
+  a = (i-1) * stride + 1
+  b = i * stride
+  F_lin(a:b) = F(i,:)
+enddo
 
 end subroutine
 
@@ -166,11 +165,11 @@ real (kind=8), intent(in)  :: F_lin(elems * stride)
 real (kind=8), intent(out) :: F(elems, stride)
 integer :: i, a, b
 
-  do i = 1,elems
-    a = (i-1) * stride + 1
-    b = i * stride
-    F(i,:) = F_lin(a:b)
-  enddo
+do i = 1,elems
+  a = (i-1) * stride + 1
+  b = i * stride
+  F(i,:) = F_lin(a:b)
+enddo
 
 end subroutine
 
@@ -197,17 +196,17 @@ integer :: dims(:), shifts(:)
 integer, intent(out) :: ierr
 real (kind=8) :: F_lin(elems * stride), F_out_lin((n+1) * stride)
 
-  call Linearize(F,F_lin,elems,stride)
+call Linearize(F,F_lin,elems,stride)
 
-  call mpi_gatherv(F_lin, &
-    elems * stride,       &
-    MPI_DOUBLE_PRECISION, &
-    F_out_lin,            &
-    dims, shifts,         &
-    MPI_DOUBLE_PRECISION, &
-    0, comm, ierr)
+call mpi_gatherv(F_lin, &
+  elems * stride,       &
+  MPI_DOUBLE_PRECISION, &
+  F_out_lin,            &
+  dims, shifts,         &
+  MPI_DOUBLE_PRECISION, &
+  0, comm, ierr)
 
-  call Delinearize(F_out_lin,F_out,n+1,stride)
+call Delinearize(F_out_lin,F_out,n+1,stride)
 
 end subroutine
 
@@ -234,15 +233,15 @@ integer :: dims(:), shifts(:)
 integer, intent(out) :: ierr
 real (kind=8) :: F_lin((n+1) * stride)
 
-  call Linearize(F, F_lin, n+1, stride)
+call Linearize(F, F_lin, n+1, stride)
 
-  call mpi_scatterv(F_lin, &
-    dims, shifts,          &
-    MPI_DOUBLE_PRECISION,  &
-    F_out,                 &
-    elems * stride,        &
-    MPI_DOUBLE_PRECISION,  &
-    0, comm, ierr)
+call mpi_scatterv(F_lin, &
+  dims, shifts,          &
+  MPI_DOUBLE_PRECISION,  &
+  F_out,                 &
+  elems * stride,        &
+  MPI_DOUBLE_PRECISION,  &
+  0, comm, ierr)
 
 end subroutine
 
@@ -268,8 +267,8 @@ integer :: dims(:), shifts(:)
 integer, intent(out) :: ierr
 real (kind=8) :: F_out_lin(elems * stride)
 
-  call Scatter2(F,F_out_lin,n,elems,stride,dims,shifts,comm,ierr)
-  call Delinearize(F_out_lin, F_out, elems, stride)
+call Scatter2(F,F_out_lin,n,elems,stride,dims,shifts,comm,ierr)
+call Delinearize(F_out_lin, F_out, elems, stride)
 
 end subroutine
 
@@ -288,24 +287,24 @@ end subroutine
 ! ierr     - error code output
 ! -------------------------------------------------------------------
 subroutine AllGather(F, F_out, n, elems, stride, dims, shifts, comm)
-integer :: n, elems, stride, comm
-real (kind=8), intent(in) :: F(elems, stride)
-real (kind=8), intent(out) :: F_out(n+1, stride)
-integer :: dims(:), shifts(:)
-real (kind=8) :: F_lin(elems*stride), F_out_lin((n+1)*stride)
-integer :: ierr
+integer(kind=4), intent(in) :: n, elems, stride, comm
+real   (kind=8), intent(in) :: F(elems, stride)
+real   (kind=8), intent(out) :: F_out(n+1, stride)
+integer(kind=4) :: dims(:), shifts(:)
+real   (kind=8) :: F_lin(elems*stride), F_out_lin((n+1)*stride)
+integer(kind=4) :: ierr
 
-  call Linearize(F,F_lin,elems,stride)
+call Linearize(F,F_lin,elems,stride)
 
-  call mpi_allgatherv(F_lin, &
-    elems * stride,          &
-    MPI_DOUBLE_PRECISION,    &
-    F_out_lin,               &
-    dims, shifts,            &
-    MPI_DOUBLE_PRECISION,    &
-    comm, ierr)
+call mpi_allgatherv(F_lin, &
+  elems * stride,          &
+  MPI_DOUBLE_PRECISION,    &
+  F_out_lin,               &
+  dims, shifts,            &
+  MPI_DOUBLE_PRECISION,    &
+  comm, ierr)
 
-  call Delinearize(F_out_lin,F_out,n+1,stride)
+call Delinearize(F_out_lin,F_out,n+1,stride)
 
 end subroutine
 
