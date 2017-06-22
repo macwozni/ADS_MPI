@@ -2,12 +2,6 @@ module projection_engine
 
 implicit none
 
-! order of approximations
-integer(kind=4) :: ORDER
-
-! number of elements in one dimension
-integer(kind=4) :: SIZE
-
 contains
 
 

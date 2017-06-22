@@ -21,10 +21,6 @@ integer(kind=4) :: NRPROCZ
 ! Rank of this processor converted to a string
 character(len=7) :: PRINTRANK
 
-! Total parallel execution time
-real   (kind=8) :: DTIME_PARALLEL
-integer(kind=4) :: ITIME_PARALLEL
-
 contains
 
      
