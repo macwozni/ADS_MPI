@@ -28,6 +28,11 @@ integer(kind=4) :: CONTEXTX
 integer(kind=4) :: CONTEXTY
 integer(kind=4) :: CONTEXTZ
 
+PRIVATE :: GROUPX,GROUPY,GROUPZ
+PRIVATE :: COMMXALL,COMMYALL,COMMZALL
+PRIVATE :: CONTEXTX,CONTEXTY,CONTEXTZ
+PRIVATE :: PrintGroups,PrintCommunicators
+
 contains
 
 
