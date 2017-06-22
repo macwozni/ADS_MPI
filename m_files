@@ -9,6 +9,7 @@ SOURCES = \
           reorderRHS.F90 \
           input_data.F90 \
           utils.F90 \
+          RHS_eq.F90 \
           projection_engine.F90 \
           analysis.F90 \
           int2str.F90 \

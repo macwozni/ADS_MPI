@@ -118,7 +118,8 @@ subroutine Form3DRHS(          &
 use parallelism, ONLY : PRINTRANK
 USE ISO_FORTRAN_ENV, ONLY : ERROR_UNIT ! access computing environment
 use basis, ONLY : BasisData
-use input_data, ONLY : pumping, draining, initial_state
+use debug, ONLY : iprint
+use RHS_eq, ONLY : ComputePointForRHS
 implicit none
 integer(kind=4), intent(in)  :: nx, px, nelemx, nrcppx
 integer(kind=4), intent(in)  :: ny, py, nelemy, nrcppy
@@ -147,17 +148,14 @@ real   (kind=8) :: Xz(pz+1,nelemz)
 real   (kind=8) :: NNx(0:1,0:px,px+1,nelemx), &
                    NNy(0:1,0:py,py+1,nelemy), &
                    NNz(0:1,0:pz,pz+1,nelemz)
-real   (kind=8) :: J,W,fval,vpump,vdrain,kqval,Uval,t,Dt,ucoeff,mi
+real   (kind=8) :: J,W,Uval,t,Dt,ucoeff,mi
 real   (kind=8) :: v, rhs
 real   (kind=8) :: dux,duy,duz,dvx,dvy,dvz
 integer(kind=4) :: nreppx,nreppy,nreppz !# elements per proc along x,y,z
 integer(kind=4) :: ind,ind1,ind23,indx,indy,indz
 integer(kind=4) :: indbx,indby,indbz
 integer(kind=4) :: rx,ry,rz, ix,iy,iz, sx,sy,sz
-integer(kind=4) :: iprint
-real   (kind=8) :: Umax = -1d10, Umin = 1d10
 
-  iprint = 0
 
   d = 0
   mx  = nx + px + 1
@@ -263,33 +261,10 @@ real   (kind=8) :: Umax = -1d10, Umin = 1d10
         enddo
         enddo
         enddo
-! poczatek funkcji Marcina
-        vpump = pumping(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))    
-        Umax = max(Umax, Uval)
-        Umin = min(Umin, Uval)
-
-        v   = NNx(0,ax,kx,ex) * NNy(0,ay,ky,ey) * NNz(0,az,kz,ez)
-        dvx = NNx(1,ax,kx,ex) * NNy(0,ay,ky,ey) * NNz(0,az,kz,ez) 
-        dvy = NNx(0,ax,kx,ex) * NNy(1,ay,ky,ey) * NNz(0,az,kz,ez) 
-        dvz = NNx(0,ax,kx,ex) * NNy(0,ay,ky,ey) * NNz(1,az,kz,ez) 
-
-        kqval = Kq(kx,ky,kz,ex-minex+1,ey-miney+1,ez-minez+1)
-        vdrain = max(0.d0, draining(Uval, Xx(kx,ex),Xy(ky,ey),Xz(kz,ez)))
-        fval = vpump - vdrain
-        !--- Real
-        if (t > 0.0) then
-          rhs = Dt * ( - kqval * exp(mi * Uval) * (dux*dvx + duy*dvy + duz*dvz) + v * fval)
-          F(ind1,ind23) = F(ind1,ind23) + J*W*(v * Uval + rhs)
-
-          drained = drained + J*W*v*Dt*vdrain
-          l2norm = l2norm + J*W*v*Uval*Uval
-        else
-          fval = initial_state(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
-          F(ind1,ind23) = F(ind1,ind23) + J*W*v*fval
-          l2norm = l2norm + J*W*v*fval*fval
-        endif
-! koniec funkcji Marcina
-
+        call ComputePointForRHS (Xx,Xy,Xz,px,py,pz,kx,ky,kz, &
+   ex,ey,ez,nelemx,nelemy,nelemz,Uval,v,ax,ay,az,NNx,NNy,NNz, &
+   minex,miney,minez,Kq,maxex,maxey,maxez,t,Dt,mi,dux,duy,duz, &
+   ibegx,ibegy,ibegz,iendx,iendy,iendz,F,ind1,ind23,J,W,drained,l2norm)
       enddo
       enddo
       enddo
@@ -300,10 +275,10 @@ real   (kind=8) :: Umax = -1d10, Umin = 1d10
   enddo
   enddo
 
-  if (iprint == 1) then
-    write(*,*) PRINTRANK,'Min =',Umin
-    write(*,*) PRINTRANK,'Max =',Umax
-  endif
+!  if (iprint == 1) then
+!    write(*,*) PRINTRANK,'Min =',Umin
+!    write(*,*) PRINTRANK,'Max =',Umax
+!  endif
   
 end subroutine
 
@@ -321,10 +296,10 @@ implicit none
 integer(kind=4) :: indx,indy,indz
 integer(kind=4) :: ibegx,iendx,ibegy,iendy,ibegz,iendz
 
-  IndexInRange = .true.
-  if (indx < ibegx-1 .or. indx > iendx-1) IndexInRange = .false.
-  if (indy < ibegy-1 .or. indy > iendy-1) IndexInRange = .false.
-  if (indz < ibegz-1 .or. indz > iendz-1) IndexInRange = .false.
+IndexInRange = .true.
+if (indx < ibegx-1 .or. indx > iendx-1) IndexInRange = .false.
+if (indy < ibegy-1 .or. indy > iendy-1) IndexInRange = .false.
+if (indz < ibegz-1 .or. indz > iendz-1) IndexInRange = .false.
 
 end function
 
@@ -347,10 +322,10 @@ integer(kind=4), intent(in)  :: nx,ny,nz
 integer(kind=4), intent(out) :: x,y,z
 integer(kind=4) :: tmp
 
-  z = ind / ((nx+1)*(ny+1))
-  tmp = ind - z*(nx+1)*(ny+1)
-  y = tmp / (nx+1)
-  x = tmp - y*(nx+1)
+z = ind / ((nx+1)*(ny+1))
+tmp = ind - z*(nx+1)*(ny+1)
+y = tmp / (nx+1)
+x = tmp - y*(nx+1)
 
 end subroutine
 
