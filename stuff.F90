@@ -1,17 +1,5 @@
 module stuff
 
-use parallelism
-use projection_engine
-use communicators
-use utils
-use debug
-use plot
-use gnuplot
-use vtk
-use basis
-use reorderRHS
-use input_data
-
 implicit none
 
 ! Number of functions in each dimension minus one
@@ -114,6 +102,7 @@ contains
 ! Sets values of parameters (order and size)
 ! -------------------------------------------------------------------
 subroutine InitializeParameters
+use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ
 implicit none
 character(100) :: input
 
@@ -140,6 +129,9 @@ end subroutine
 ! Initialization of clocks and MPI
 ! -------------------------------------------------------------------
 subroutine Initialize
+use parallelism, ONLY : PRINTRANK,InitializeParallelism
+use communicators, ONLY : CreateCommunicators
+use debug, ONLY : iinfo
 implicit none
 include "mpif.h"
 integer(kind=4) :: ierr
@@ -160,6 +152,10 @@ end subroutine
 ! of the piece for current process.
 ! -------------------------------------------------------------------
 subroutine ComputeDecomposition
+use parallelism, ONLY : MYRANKX,MYRANKY,MYRANKZ,PRINTRANK, &
+   NRPROCX,NRPROCY,NRPROCZ
+use utils, ONLY : ComputeEndpoints,FillDimVector
+use debug, ONLY : iinfo
 implicit none
 integer(kind=4) :: i
 integer(kind=4) :: ix, iy, iz
@@ -214,6 +210,7 @@ end subroutine
 ! Allocates most of the 'static' arrays
 ! -------------------------------------------------------------------
 subroutine AllocateArrays
+use parallelism, ONLY : MYRANKX,MYRANKY,MYRANKZ
 implicit none
 include "mpif.h"
 integer :: ierr
@@ -248,6 +245,9 @@ end subroutine
 ! Allocates and fills the knot vector
 ! -------------------------------------------------------------------
 subroutine PrepareKnot(U,n,p)
+use utils, ONLY : FillOpenKnot
+use debug, ONLY : iinfo
+use basis, ONLY : CountSpans
 implicit none
 integer(kind=4), intent(in) :: n,p
 real   (kind=8), allocatable, dimension(:), intent(out) :: U
@@ -270,6 +270,9 @@ end subroutine
 ! Calculates mass matrix M
 ! -------------------------------------------------------------------
 subroutine ComputeMassMatrix(KL,KU,U,p,n,nelem,M)
+use parallelism, ONLY : PRINTRANK
+use projection_engine, ONLY : Form1DMassMatrix
+use debug, ONLY : iprint
 implicit none
 integer(kind=4), intent(in)  :: KL,KU
 integer(kind=4), intent(in)  :: n, p, nelem
@@ -289,6 +292,7 @@ end subroutine
 
 
 subroutine PrecomputeKq
+use input_data, ONLY : CacheKqValues
 implicit none
 
   call CacheKqValues                                &
@@ -301,6 +305,8 @@ end subroutine
 
 
 function neighbour(dx, dy, dz) result(idx)
+use parallelism, ONLY : MYRANKX,MYRANKY,MYRANKZ
+use communicators, ONLY : processors
 implicit none
 integer(kind=4), intent(in) :: dx, dy, dz
 integer(kind=4) :: idx
@@ -348,6 +354,7 @@ end subroutine
 ! necessitate partial sharing.
 ! -------------------------------------------------------------------
 subroutine DistributeSpline(spline)
+use parallelism, ONLY : MYRANKX,MYRANKY,MYRANKZ,NRPROCX,NRPROCY,NRPROCZ
 implicit none
 include "mpif.h"
 real   (kind=8) :: spline(:,:,:,:)
@@ -562,6 +569,9 @@ end subroutine
 ! data to neighbouring processes.
 ! -------------------------------------------------------------------
 subroutine PrintDistributedData
+use parallelism, ONLY : MYRANKX,MYRANKY,MYRANKZ,PRINTRANK, &
+   NRPROCX,NRPROCY,NRPROCZ
+use utils, ONLY : ComputeEndpoints
 implicit none
 integer(kind=4) :: i, j, k
 integer(kind=4) :: obegx,oendx,obegy,oendy,obegz,oendz
@@ -596,6 +606,9 @@ end subroutine
 ! t - current time
 ! -------------------------------------------------------------------
 subroutine ComputeRHS(iter, t)
+use parallelism, ONLY : MYRANK,PRINTRANK
+use projection_engine, ONLY : Form3DRHS
+use debug, ONLY : iprint
 implicit none
 include "mpif.h"
 real   (kind=8) :: t
@@ -639,6 +652,7 @@ end subroutine
 ! eqnum - number of right-hand sides (equations)
 ! -------------------------------------------------------------------
 subroutine SolveOneDirection(RHS, eqnum,n,KL,KU,p,M,IPIV)
+use debug, ONLY : iprint
 implicit none
 real   (kind=8) :: RHS(:,:)
 integer :: KL, KU
@@ -696,6 +710,11 @@ end subroutine
 ! t    - time at the beginning of step
 ! -------------------------------------------------------------------
 subroutine Step(iter, t)
+use parallelism, ONLY :PRINTRANK,MYRANKX,MYRANKY,MYRANKZ
+use communicators, ONLY : COMMX,COMMY,COMMZ
+use utils, ONLY : Gather,Scatter
+use debug, ONLY : iprint,iinfo
+use reorderRHS, ONLY : ReorderRHSForX,ReorderRHSForY,ReorderRHSForZ
 implicit none
 include "mpif.h"
 integer(kind=4) :: iter
@@ -877,6 +896,8 @@ end subroutine
 ! x, y, z    - coordinates
 ! -------------------------------------------------------------------
 function SizeOfPiece(x, y, z) result (s)
+use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ
+use utils, ONLY : ComputeEndpoints
 implicit none
 integer(kind=4), intent(in) :: x, y, z
 integer(kind=4) :: s
@@ -912,6 +933,8 @@ end function
 !   Inside pieces: (z, y, x), i.e. x changes fastest
 ! -------------------------------------------------------------------
 subroutine GatherFullSolution(at, part, full)
+use parallelism, ONLY : MYRANK,LINEARINDEX,NRPROCX,NRPROCY,NRPROCZ
+use utils, ONLY : ComputeEndpoints
 implicit none
 include "mpif.h"
 integer(kind=4), intent(in) :: at
@@ -1002,6 +1025,8 @@ end subroutine
 ! Deallocates all the resources and finalizes MPI.
 ! -------------------------------------------------------------------
 subroutine Cleanup
+use parallelism, ONLY : PRINTRANK
+use debug, ONLY : iinfo
 implicit none
 integer(kind=4) :: ierr
 
@@ -1033,6 +1058,7 @@ end subroutine
 ! Sanity-check of dimensions vector
 ! -------------------------------------------------------------------
 subroutine ValidateDimensions
+use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ,PRINTRANK
 implicit none
 include "mpif.h"
 integer(kind=4) :: i, k
@@ -1081,6 +1107,8 @@ end subroutine
 ! Displays computed domain decomposition, for debugging.
 ! -------------------------------------------------------------------
 subroutine PrintDecompositionInfo
+use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ,PRINTRANK, &
+MYRANKX,MYRANKY,MYRANKZ
 implicit none
 
   write(*,*)PRINTRANK,'MYRANKX,MYRANKY,MYRANKZ',MYRANKX,MYRANKY,MYRANKZ
@@ -1108,6 +1136,9 @@ end function
 ! Gathers full solution and plots it
 ! -------------------------------------------------------------------
 subroutine PrintSolution(iter, t)
+use parallelism, ONLY : MYRANK
+use plot, ONLY : SaveSplinePlot
+use vtk, ONLY : PlotParams,VtkOutput
 implicit none
 integer(kind=4) :: iter
 real   (kind=8) :: t
@@ -1137,6 +1168,7 @@ end subroutine
 
 
 subroutine ComputeResults()
+use parallelism, ONLY : MYRANK
 implicit none
 include "mpif.h"
 real   (kind=8) :: fulldrained

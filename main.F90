@@ -2,6 +2,10 @@
 
 program main
 
+use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ
+use debug, ONLY : iinfo,idebug,iprint
+use input_data, ONLY : InitInputData
+
 use stuff
 implicit none
 
