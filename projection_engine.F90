@@ -241,21 +241,21 @@ real   (kind=8) :: Umax = -1d10, Umin = 1d10
           ind = ix + sx * (iy + sy * iz)
 
           if (ind < 0 .or. ind > nrcppz*nrcppx*nrcppy-1) then
-            write(*,*)PRINTRANK,'Oh crap',ix,iy,iz
-            write(*,*)PRINTRANK,'r',rx,ry,rz
-            write(*,*)PRINTRANK,'x',ibegx,iendx
-            write(*,*)PRINTRANK,'y',ibegy,iendy
-            write(*,*)PRINTRANK,'z',ibegz,iendz
-            write(*,*)PRINTRANK,'idxs',indbx,indby,indbz
-            write(*,*)PRINTRANK,'sizes=',sx,sy,sz
-            write(*,*)PRINTRANK,'begsx=',ibegsx
-            write(*,*)PRINTRANK,'endsx=',iendsx
-            write(*,*)PRINTRANK,'begsy=',ibegsy
-            write(*,*)PRINTRANK,'endsy=',iendsy
-            write(*,*)PRINTRANK,'begsz=',ibegsz
-            write(*,*)PRINTRANK,'endsz=',iendsz
+            write(ERROR_UNIT,*)PRINTRANK,'Oh crap',ix,iy,iz
+            write(ERROR_UNIT,*)PRINTRANK,'r',rx,ry,rz
+            write(ERROR_UNIT,*)PRINTRANK,'x',ibegx,iendx
+            write(ERROR_UNIT,*)PRINTRANK,'y',ibegy,iendy
+            write(ERROR_UNIT,*)PRINTRANK,'z',ibegz,iendz
+            write(ERROR_UNIT,*)PRINTRANK,'idxs',indbx,indby,indbz
+            write(ERROR_UNIT,*)PRINTRANK,'sizes=',sx,sy,sz
+            write(ERROR_UNIT,*)PRINTRANK,'begsx=',ibegsx
+            write(ERROR_UNIT,*)PRINTRANK,'endsx=',iendsx
+            write(ERROR_UNIT,*)PRINTRANK,'begsy=',ibegsy
+            write(ERROR_UNIT,*)PRINTRANK,'endsy=',iendsy
+            write(ERROR_UNIT,*)PRINTRANK,'begsz=',ibegsz
+            write(ERROR_UNIT,*)PRINTRANK,'endsz=',iendsz
           endif
-
+          
           Ucoeff = R(ind,rx,ry,rz)
           v   = NNx(0,bx,kx,ex) * NNy(0,by,ky,ey) * NNz(0,bz,kz,ez)
           dvx = NNx(1,bx,kx,ex) * NNy(0,by,ky,ey) * NNz(0,bz,kz,ez) 
