@@ -1,10 +1,6 @@
 module basis
 
-use gauss
-use debug
-
 implicit none
-
 
 contains
      
@@ -56,6 +52,8 @@ contains
 ! basis, consisting of dogree p polynomials.
 ! -------------------------------------------------------------------
 subroutine BasisData(p, m, U, d, q, r, O, J, W, X, N)
+use gauss, ONLY : GaussRule
+implicit none
 integer (kind=4), intent(in)  :: p, m
 real    (kind=8), intent(in)  :: U(0:m)
 integer (kind=4), intent(in)  :: d, q, r
@@ -69,27 +67,27 @@ integer (kind=4) i, iq, ir
 real    (kind=8) uu, Xg(q)
 real    (kind=8) basis(0:p,0:d)
 
-  ! Calculates first nonzero basis function for each element
-  ir = 1
-  do i = p, m-p
-     if (U(i) /= U(i+1)) then
-        O(ir) = i - p
-        ir = ir + 1
-     endif
-  enddo
+! Calculates first nonzero basis function for each element
+ir = 1
+do i = p, m-p
+   if (U(i) /= U(i+1)) then
+      O(ir) = i - p
+      ir = ir + 1
+   endif
+enddo
 
-  call GaussRule(q, Xg, W)
+call GaussRule(q, Xg, W)
 
-  do ir = 1, r
-     i = O(ir) + p
-     J(ir) = (U(i+1) - U(i)) / 2.0
-     X(:,ir) = (Xg + 1.0) * J(ir) + U(i) ! translate Gauss [-1,1] -> [0,1]
-     do iq = 1, q
-        uu = X(iq,ir)
-        call DersBasisFuns(i,uu,p,d,U,basis)
-        N(:,:,iq,ir) = transpose(basis)
-     enddo
-  enddo
+do ir = 1, r
+   i = O(ir) + p
+   J(ir) = (U(i+1) - U(i)) / 2.0
+   X(:,ir) = (Xg + 1.0) * J(ir) + U(i) ! translate Gauss [-1,1] -> [0,1]
+   do iq = 1, q
+      uu = X(iq,ir)
+      call DersBasisFuns(i,uu,p,d,U,basis)
+      N(:,:,iq,ir) = transpose(basis)
+   enddo
+enddo
 
 end subroutine
 
@@ -114,6 +112,7 @@ end subroutine
 ! on the element, and order of derivative.
 ! -------------------------------------------------------------------
 subroutine DersBasisFuns(i, uu, p, d, U, ders)
+implicit none
 integer(kind=4), intent(in) :: i, p, d
 real   (kind=8), intent(in) :: uu, U(0:i+p)
 real   (kind=8), intent(out):: ders(0:p,0:d)
@@ -122,59 +121,59 @@ real   (kind=8) :: saved, temp, der
 real   (kind=8) :: left(p), right(p)
 real   (kind=8) :: ndu(0:p,0:p), a(0:1,0:p)
 
-  ndu(0,0) = 1.0
-  do j = 1, p
-     left(j)  = uu - U(i+1-j)
-     right(j) = U(i+j) - uu
-     saved = 0.0
-     do r = 0, j-1
-        ndu(j,r) = right(r+1) + left(j-r)
-        temp = ndu(r,j-1) / ndu(j,r)
-        ndu(r,j) = saved + right(r+1) * temp
-        saved = left(j-r) * temp
-     enddo
-     ndu(j,j) = saved
-  enddo
+ndu(0,0) = 1.0
+do j = 1, p
+   left(j)  = uu - U(i+1-j)
+   right(j) = U(i+j) - uu
+   saved = 0.0
+   do r = 0, j-1
+      ndu(j,r) = right(r+1) + left(j-r)
+      temp = ndu(r,j-1) / ndu(j,r)
+      ndu(r,j) = saved + right(r+1) * temp
+      saved = left(j-r) * temp
+   enddo
+   ndu(j,j) = saved
+enddo
 
-  ders(:,0) = ndu(:,p)
+ders(:,0) = ndu(:,p)
 
-  do r = 0, p
-     s1 = 0; s2 = 1;
-     a(0,0) = 1.0
-     do k = 1, d
-        der = 0.0
-        rk = r-k; pk = p-k;
-        if (r >= k) then
-           a(s2,0) = a(s1,0) / ndu(pk+1,rk)
-           der =  a(s2,0) * ndu(rk,pk)
-        endif
-        if (rk > -1) then
-           j1 = 1
-        else
-           j1 = -rk
-        endif
-        if (r-1 <= pk) then
-           j2 = k-1
-        else
-           j2 = p-r
-        endif
-        do j = j1, j2
-           a(s2,j) = (a(s1,j) - a(s1,j-1)) / ndu(pk+1,rk+j)
-           der =  der + a(s2,j) * ndu(rk+j,pk)
-        enddo
-        if (r <= pk) then
-           a(s2,k) = - a(s1,k-1) / ndu(pk+1,r)
-           der =  der + a(s2,k) * ndu(r,pk)
-        endif
-        ders(r,k) = der
-        j = s1; s1 = s2; s2 = j;
-     enddo
-  enddo
-  r = p
-  do k = 1, d
-     ders(:,k) = ders(:,k) * r
-     r = r * (p-k)
-  enddo
+do r = 0, p
+   s1 = 0; s2 = 1;
+   a(0,0) = 1.0
+   do k = 1, d
+      der = 0.0
+      rk = r-k; pk = p-k;
+      if (r >= k) then
+         a(s2,0) = a(s1,0) / ndu(pk+1,rk)
+         der =  a(s2,0) * ndu(rk,pk)
+      endif
+      if (rk > -1) then
+         j1 = 1
+      else
+         j1 = -rk
+      endif
+      if (r-1 <= pk) then
+         j2 = k-1
+      else
+         j2 = p-r
+      endif
+      do j = j1, j2
+         a(s2,j) = (a(s1,j) - a(s1,j-1)) / ndu(pk+1,rk+j)
+         der =  der + a(s2,j) * ndu(rk+j,pk)
+      enddo
+      if (r <= pk) then
+         a(s2,k) = - a(s1,k-1) / ndu(pk+1,r)
+         der =  der + a(s2,k) * ndu(r,pk)
+      endif
+      ders(r,k) = der
+      j = s1; s1 = s2; s2 = j;
+   enddo
+enddo
+r = p
+do k = 1, d
+   ders(:,k) = ders(:,k) * r
+   r = r * (p-k)
+enddo
 
 end subroutine
 
@@ -198,35 +197,36 @@ end subroutine
 !
 ! -------------------------------------------------------------------
 function FindSpan(n, p, uu, U) result (span)
+implicit none
 integer(kind=4), intent(in) :: n, p
 real   (kind=8), intent(in) :: uu, U(0:n+p+1)
 integer(kind=4)  :: span
 integer(kind=4)  :: low, high
 
-  ! check edge cases
-  if (uu >= U(n+1)) then
-     span = n
-     return
-  endif
+! check edge cases
+if (uu >= U(n+1)) then
+   span = n
+   return
+endif
 
-  if (uu <= U(p)) then
-     span = p
-     return
-  endif
+if (uu <= U(p)) then
+   span = p
+   return
+endif
 
-  ! Binary search for uu
-  low  = p
-  high = n+1
-  span = (low + high) / 2
+! Binary search for uu
+low  = p
+high = n+1
+span = (low + high) / 2
 
-  do while (uu < U(span) .or. uu >= U(span+1))
-     if (uu < U(span)) then
-        high = span
-     else
-        low  = span
-     endif
-     span = (low + high) / 2
-  enddo
+do while (uu < U(span) .or. uu >= U(span+1))
+   if (uu < U(span)) then
+      high = span
+   else
+      low  = span
+   endif
+   span = (low + high) / 2
+enddo
 
 end function
  
@@ -247,23 +247,25 @@ end function
 !
 ! -------------------------------------------------------------------
 function CountSpans(n, p, U) result (nelem)
+use debug, ONLY : iprint
+implicit none
 integer(kind=4), intent(in) :: n, p
 real   (kind=8), intent(in) :: U(0:n+p+1)
 integer(kind=4) :: i, nelem  
 
-  nelem = 0
-  i = p
-  do while (i <= n)
-     ! skip multiple knots
-     do while (i < n .and. U(i) == U(i+1))
-        i = i + 1
-     enddo
-     if (iprint == 1) then
-       write(*,*)'CountSpans:i,n,U(i),U(i+1)',i,n,U(i),U(i+1)
-     endif
-     nelem = nelem + 1
-     i = i + 1
-  enddo
+nelem = 0
+i = p
+do while (i <= n)
+   ! skip multiple knots
+   do while (i < n .and. U(i) == U(i+1))
+      i = i + 1
+   enddo
+   if (iprint == 1) then
+     write(*,*)'CountSpans:i,n,U(i),U(i+1)',i,n,U(i),U(i+1)
+   endif
+   nelem = nelem + 1
+   i = i + 1
+enddo
 
 end function
 
@@ -292,6 +294,7 @@ function EvalSpline(d,      &
   Uy, py, ny, nelemy,       &
   Uz, pz, nz, nelemz,       &
   coeffs, x, y, z) result (val)
+implicit none
 integer(kind=4), intent(in) :: d
 integer(kind=4), intent(in) :: nx, px, nelemx
 integer(kind=4), intent(in) :: ny, py, nelemy
@@ -307,28 +310,28 @@ real   (kind=8) :: bx(0:px,0:d), by(0:py,0:d), bz(0:pz,0:d), b
 integer(kind=4) :: xspan, yspan, zspan
 integer(kind=4) :: ix, iy, iz, x0, y0, z0
 
-  xspan = FindSpan(nx, px, x, Ux)
-  yspan = FindSpan(ny, py, y, Uy)
-  zspan = FindSpan(nz, pz, z, Uz)
+xspan = FindSpan(nx, px, x, Ux)
+yspan = FindSpan(ny, py, y, Uy)
+zspan = FindSpan(nz, pz, z, Uz)
 
-  call DersBasisFuns(xspan, x, px, 0, ux, bx)
-  call DersBasisFuns(yspan, y, py, 0, uy, by)
-  call DersBasisFuns(zspan, z, pz, 0, uz, bz)
+call DersBasisFuns(xspan, x, px, 0, ux, bx)
+call DersBasisFuns(yspan, y, py, 0, uy, by)
+call DersBasisFuns(zspan, z, pz, 0, uz, bz)
 
-  x0 = xspan - px
-  y0 = yspan - py
-  z0 = zspan - pz
+x0 = xspan - px
+y0 = yspan - py
+z0 = zspan - pz
 
-  val = 0
+val = 0
 
-  do ix = 0, px
-    do iy = 0, py
-      do iz = 0, pz
-        b = bx(ix,d) * by(iy,d) * bz(iz,d)
-        val = val + b * coeffs(x0 + ix, y0 + iy, z0 + iz)
-      enddo
+do ix = 0, px
+  do iy = 0, py
+    do iz = 0, pz
+      b = bx(ix,d) * by(iy,d) * bz(iz,d)
+      val = val + b * coeffs(x0 + ix, y0 + iy, z0 + iz)
     enddo
   enddo
+enddo
 
 end function
 
