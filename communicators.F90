@@ -5,30 +5,30 @@ use parallelism
 implicit none
 
 ! Total number of processors along X, Y and Z
-integer, parameter :: NRPROCXMAX = 128
-integer, parameter :: NRPROCYMAX = 128
-integer, parameter :: NRPROCZMAX = 128
+integer(kind=4), parameter :: NRPROCXMAX = 128
+integer(kind=4), parameter :: NRPROCYMAX = 128
+integer(kind=4), parameter :: NRPROCZMAX = 128
 
 ! Global ranks of processors in the cube
-integer :: processors(NRPROCXMAX,NRPROCYMAX,NRPROCZMAX)
+integer(kind=4) :: processors(NRPROCXMAX,NRPROCYMAX,NRPROCZMAX)
 
 ! Group involving processors along X, Y, Z
-integer :: GROUPX(NRPROCYMAX,NRPROCZMAX)
-integer :: GROUPY(NRPROCXMAX,NRPROCZMAX)
-integer :: GROUPZ(NRPROCXMAX,NRPROCYMAX)
+integer(kind=4) :: GROUPX(NRPROCYMAX,NRPROCZMAX)
+integer(kind=4) :: GROUPY(NRPROCXMAX,NRPROCZMAX)
+integer(kind=4) :: GROUPZ(NRPROCXMAX,NRPROCYMAX)
 
 ! Communicatorx along X, Y, Z
-integer :: COMMXALL(NRPROCYMAX,NRPROCZMAX)
-integer :: COMMYALL(NRPROCXMAX,NRPROCZMAX)
-integer :: COMMZALL(NRPROCXMAX,NRPROCYMAX)
+integer(kind=4) :: COMMXALL(NRPROCYMAX,NRPROCZMAX)
+integer(kind=4) :: COMMYALL(NRPROCXMAX,NRPROCZMAX)
+integer(kind=4) :: COMMZALL(NRPROCXMAX,NRPROCYMAX)
 
 ! Local communicators
-integer :: COMMX,COMMY,COMMZ
+integer(kind=4) :: COMMX,COMMY,COMMZ
 
 ! Corresponding contexts for SCALAPACK calls
-integer :: CONTEXTX
-integer :: CONTEXTY
-integer :: CONTEXTZ
+integer(kind=4) :: CONTEXTX
+integer(kind=4) :: CONTEXTY
+integer(kind=4) :: CONTEXTZ
 
 contains
 
@@ -39,15 +39,15 @@ contains
 ! -------------------------------------------------------------------
 subroutine CreateCommunicators
 include "mpif.h"
-integer :: group_comm_world
-integer :: comm_myrank_local
-integer :: processors_X(NRPROCX)
-integer :: processors_Y(NRPROCY)
-integer :: processors_Z(NRPROCZ)
-integer :: i,j,k
-integer :: irank
-integer :: iprint
-integer :: ierr
+integer(kind=4) :: group_comm_world
+integer(kind=4) :: comm_myrank_local
+integer(kind=4) :: processors_X(NRPROCX)
+integer(kind=4) :: processors_Y(NRPROCY)
+integer(kind=4) :: processors_Z(NRPROCZ)
+integer(kind=4) :: i,j,k
+integer(kind=4) :: irank
+integer(kind=4) :: iprint
+integer(kind=4) :: ierr
 
   iprint = 0
   if (iprint == 1) then
@@ -165,7 +165,7 @@ end subroutine
 ! For debug only
 ! -------------------------------------------------------------------
 subroutine PrintGroups
-integer :: i, j, k
+integer(kind=4) :: i, j, k
 
   do i = 1,NRPROCX
     do j = 1,NRPROCY
@@ -191,7 +191,7 @@ end subroutine
 ! For debug only
 ! -------------------------------------------------------------------
 subroutine PrintCommunicators
-integer :: i, j, k
+integer(kind=4) :: i, j, k
 
   do i = 1,NRPROCX
     do j = 1,NRPROCY

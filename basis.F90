@@ -201,7 +201,7 @@ function FindSpan(n, p, uu, U) result (span)
 integer(kind=4), intent(in) :: n, p
 real   (kind=8), intent(in) :: uu, U(0:n+p+1)
 integer(kind=4)  :: span
-integer(kind=4) low, high
+integer(kind=4)  :: low, high
 
   ! check edge cases
   if (uu >= U(n+1)) then
@@ -292,20 +292,20 @@ function EvalSpline(d,      &
   Uy, py, ny, nelemy,       &
   Uz, pz, nz, nelemz,       &
   coeffs, x, y, z) result (val)
-integer, intent(in) :: d
-integer, intent(in) :: nx, px, nelemx
-integer, intent(in) :: ny, py, nelemy
-integer, intent(in) :: nz, pz, nelemz
-real (kind=8), intent(in) :: Ux(0:nx+px+1)
-real (kind=8), intent(in) :: Uy(0:ny+py+1)
-real (kind=8), intent(in) :: Uz(0:nz+pz+1)
-real (kind=8), intent(in) :: coeffs(0:nx,0:ny,0:nz)
-real (kind=8), intent(in) :: x, y, z
-real (kind=8) :: val
+integer(kind=4), intent(in) :: d
+integer(kind=4), intent(in) :: nx, px, nelemx
+integer(kind=4), intent(in) :: ny, py, nelemy
+integer(kind=4), intent(in) :: nz, pz, nelemz
+real   (kind=8), intent(in) :: Ux(0:nx+px+1)
+real   (kind=8), intent(in) :: Uy(0:ny+py+1)
+real   (kind=8), intent(in) :: Uz(0:nz+pz+1)
+real   (kind=8), intent(in) :: coeffs(0:nx,0:ny,0:nz)
+real   (kind=8), intent(in) :: x, y, z
+real   (kind=8) :: val
 
-real (kind=8) :: bx(0:px,0:d), by(0:py,0:d), bz(0:pz,0:d), b
-integer :: xspan, yspan, zspan
-integer :: ix, iy, iz, x0, y0, z0
+real   (kind=8) :: bx(0:px,0:d), by(0:py,0:d), bz(0:pz,0:d), b
+integer(kind=4) :: xspan, yspan, zspan
+integer(kind=4) :: ix, iy, iz, x0, y0, z0
 
   xspan = FindSpan(nx, px, x, Ux)
   yspan = FindSpan(ny, py, y, Uy)

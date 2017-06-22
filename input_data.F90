@@ -16,17 +16,17 @@ real   (kind=8) :: GROUND = 0.2
 
 real   (kind=8), parameter :: Kqmin = 1.d0, Kqmax = 1000.d0
 
-integer :: npumps, ndrains
-real (kind=8), allocatable, dimension(:,:) :: pumps, drains
+integer(kind=4) :: npumps, ndrains
+real   (kind=8), allocatable, dimension(:,:) :: pumps, drains
 
-real (kind=8), parameter :: radius = 0.15, pumping_strength = 1, draining_strength = 1
+real   (kind=8), parameter :: radius = 0.15, pumping_strength = 1, draining_strength = 1
 
 contains
 
 
 subroutine InitPumps()
-character(100) :: input
-integer :: i, arg = 7 ! First argument after "technical" ones
+character(100)  :: input
+integer(kind=4) :: i, arg = 7 ! First argument after "technical" ones
 
   call getarg(arg,input)
   read(input,*) npumps
@@ -61,9 +61,9 @@ integer :: i, arg = 7 ! First argument after "technical" ones
 end subroutine
 
 subroutine InitInputData()
-integer       :: i,j
-real (kind=8) :: t(3), x(3), dx(3), ddx(3)
-real (kind=8) :: f = 0.1d0, step = 0.05d0
+integer(kind=4) :: i,j
+real   (kind=8) :: t(3), x(3), dx(3), ddx(3)
+real   (kind=8) :: f = 0.1d0, step = 0.05d0
 
   do i = 0,cN-1
     call random_number(x)
@@ -126,7 +126,7 @@ end function
 function dist_from_curves(x, y, z) result (fval)
 real   (kind=8) :: x, y, z
 real   (kind=8) :: ax,ay,az,bx,by,bz,fval
-integer         :: i, j
+integer(kind=4) :: i, j
 
  fval = 1e3
  do i = 0,cN-1
@@ -151,7 +151,7 @@ end function
 function pumping(x, y, z) result (fval)
 real   (kind=8) :: x, y, z
 real   (kind=8) :: fval
-integer :: i
+integer(kind=4) :: i
 
   fval = 0.d0
   do i = 1,npumps
