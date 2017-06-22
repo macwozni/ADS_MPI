@@ -84,8 +84,8 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine FillDimVector(dims, shifts, nrcpp, stride, n, nrproc)
 implicit none
-integer(kind=4), allocatable :: dims(:), shifts(:)
-integer(kind=4) :: nrcpp, stride, n, nrproc
+integer(kind=4), intent(in) :: nrcpp, stride, n, nrproc
+integer(kind=4), allocatable, intent(out) :: dims(:), shifts(:)
 integer(kind=4) :: i
 
 allocate(dims(nrproc))
@@ -129,8 +129,8 @@ end subroutine
 subroutine Linearize(F, F_lin, elems, stride)
 implicit none
 integer(kind=4), intent(in) :: elems, stride
-real   (kind=8), intent(in)  :: F(elems, stride)
-real   (kind=8), intent(out) :: F_lin(elems * stride)
+real   (kind=8), intent(in) :: F(elems, stride)
+real   (kind=8), intent(out):: F_lin(elems * stride)
 integer(kind=4) :: i, a, b
 
 do i = 1,elems
