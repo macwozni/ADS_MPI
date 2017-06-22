@@ -15,7 +15,8 @@ contains
 ! x, y   - points to interpolate between (t=0 -> x, t=1 -> y)
 ! -------------------------------------------------------------------
 function lerp(t, x, y) result (val)
-real (kind=8) :: t, x, y, val
+real (kind=8), intent(in) :: t, x, y
+real (kind=8) :: val
 
 val = (1 - t) * x + t * y
 
@@ -29,7 +30,7 @@ end function
 ! t in [R, inf] -> 0
 ! -------------------------------------------------------------------
 function falloff(r, Rr, t) result (fval)
-real (kind=8) :: r, Rr, t
+real (kind=8), intent(in) :: r, Rr, t
 real (kind=8) :: h, fval
 
 if (t < r) then

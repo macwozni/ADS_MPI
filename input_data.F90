@@ -3,7 +3,7 @@ module input_data
 implicit none
 
 ! Curve number and lentgh
-integer, parameter :: cN = 30, cL=16
+integer(kind=4), parameter :: cN = 30, cL=16
 real   (kind=8), parameter :: radius = 0.15, pumping_strength = 1, draining_strength = 1
 
 real   (kind=8) :: cx(cN*cL), cy(cN*cL), cz(cN*cL)
