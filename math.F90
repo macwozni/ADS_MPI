@@ -2,7 +2,7 @@ module math
 
 implicit none
 
-! No predefined constant anywhere, I'm afraid.
+! No predefined constant anywhere else
 real (kind=8), parameter :: PI = 4.d0 * datan(1.d0) 
 
 

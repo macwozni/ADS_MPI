@@ -5,25 +5,25 @@ implicit none
 save
 
 ! Rank of this processor
-integer :: MYRANK
+integer(kind=4) :: MYRANK
 
 ! Number of processors
-integer :: NRPROC
+integer(kind=4) :: NRPROC
 
 ! Integer coordinates of processor along X, Y and Z
-integer :: MYRANKX, MYRANKY, MYRANKZ
+integer(kind=4) :: MYRANKX, MYRANKY, MYRANKZ
 
 ! Total number of processors along X, Y and Z
-integer :: NRPROCX
-integer :: NRPROCY
-integer :: NRPROCZ
+integer(kind=4) :: NRPROCX
+integer(kind=4) :: NRPROCY
+integer(kind=4) :: NRPROCZ
 
 ! Rank of this processor converted to a string
 character(len=7) :: PRINTRANK
 
 ! Total parallel execution time
-real (kind=8) :: DTIME_PARALLEL
-integer :: ITIME_PARALLEL
+real   (kind=8) :: DTIME_PARALLEL
+integer(kind=4) :: ITIME_PARALLEL
 
 contains
 
@@ -33,35 +33,36 @@ contains
 ! -------------------------------------------------------------------
 subroutine InitializeParallelism
 USE ISO_FORTRAN_ENV, ONLY : ERROR_UNIT ! access computing environment
+implicit none
 include "mpif.h"
-character(4) :: buffer
-integer :: i1, i2, i3
+character(4)    :: buffer
+integer(kind=4) :: i1, i2, i3
 
-  ! Initialize MPI
-  call mpi_init(i1)
-  call mpi_comm_size(MPI_COMM_WORLD,NRPROC,i2)
-  call mpi_comm_rank(MPI_COMM_WORLD,MYRANK,i3)
+! Initialize MPI
+call mpi_init(i1)
+call mpi_comm_size(MPI_COMM_WORLD,NRPROC,i2)
+call mpi_comm_rank(MPI_COMM_WORLD,MYRANK,i3)
 
-  if ((i1+i2+i3) /= 0) then
-    write(ERROR_UNIT,*)MYRANK,': main: error initializing MPI!'
-    call abort
-  endif
-  
-  call Decompose(MYRANK,MYRANKX,MYRANKY,MYRANKZ)
-  call int2str(MYRANK, buffer)
+if ((i1+i2+i3) /= 0) then
+  write(ERROR_UNIT,*)MYRANK,': main: error initializing MPI!'
+  call abort
+endif
 
-  if (MYRANK < 10) then
-    PRINTRANK = "0000"//buffer
-  else if (MYRANK < 100) then
-    PRINTRANK = "000"//buffer
-  else if (MYRANK < 1000) then
-    PRINTRANK = "00"//buffer
-  else if (MYRANK < 10000) then
-    PRINTRANK = "0"//buffer
-  else
-    PRINTRANK = buffer
-    stop
-  endif
+call Decompose(MYRANK,MYRANKX,MYRANKY,MYRANKZ)
+call int2str(MYRANK, buffer)
+
+if (MYRANK < 10) then
+  PRINTRANK = "0000"//buffer
+else if (MYRANK < 100) then
+  PRINTRANK = "000"//buffer
+else if (MYRANK < 1000) then
+  PRINTRANK = "00"//buffer
+else if (MYRANK < 10000) then
+  PRINTRANK = "0"//buffer
+else
+  PRINTRANK = buffer
+  stop
+endif
 
 end subroutine 
 
@@ -82,13 +83,14 @@ end subroutine
 ! etc.
 ! -------------------------------------------------------------------
 subroutine Decompose(rank,rankx,ranky,rankz)
-integer, intent(in) :: rank
-integer, intent(out) :: rankx, ranky, rankz
+implicit none
+integer(kind=4), intent(in)  :: rank
+integer(kind=4), intent(out) :: rankx, ranky, rankz
 
-  rankz = rank / (NRPROCX*NRPROCY)
-  ranky = (rank - rankz*(NRPROCX*NRPROCY)) / NRPROCX
-  rankx = rank - rankz*(NRPROCX*NRPROCY) 
-  rankx = rankx - ranky*NRPROCX 
+rankz = rank / (NRPROCX*NRPROCY)
+ranky = (rank - rankz*(NRPROCX*NRPROCY)) / NRPROCX
+rankx = rank - rankz*(NRPROCX*NRPROCY) 
+rankx = rankx - ranky*NRPROCX 
 
 end subroutine 
 
@@ -104,12 +106,13 @@ end subroutine
 !          (Z changes slowest)
 ! -------------------------------------------------------------------
 function LinearIndex(rankx, ranky, rankz) result (rank)
-integer, intent(in) :: rankx, ranky, rankz
-integer :: rank
+implicit none
+integer(kind=4), intent(in) :: rankx, ranky, rankz
+integer(kind=4) :: rank
 
-  rank = rankz
-  rank = rank * NRPROCY + ranky
-  rank = rank * NRPROCX + rankx
+rank = rankz
+rank = rank * NRPROCY + ranky
+rank = rank * NRPROCX + rankx
 
 end function
 
