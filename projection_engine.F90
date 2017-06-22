@@ -114,7 +114,7 @@ subroutine Form3DRHS(          &
    minex,maxex,                &
    miney,maxey,                &
    minez,maxez,                &
-   Kq, Dt,t,R,F,drained,l2norm)
+   Kq, Dt,t,R,F)
 use parallelism, ONLY : PRINTRANK
 USE ISO_FORTRAN_ENV, ONLY : ERROR_UNIT ! access computing environment
 use basis, ONLY : BasisData
@@ -130,7 +130,6 @@ real   (kind=8), intent(in)  :: Uy(0:ny+py+1)
 real   (kind=8), intent(in)  :: Uz(0:nz+pz+1)
 real   (kind=8), intent(in)  :: R(0:nrcppz*nrcppx*nrcppy-1,3,3,3)
 real   (kind=8), intent(in)  :: Kq(px+1,py+1,pz+1,maxex-minex+1,maxey-miney+1,maxez-minez+1)
-real   (kind=8), intent(out) :: drained, l2norm
 integer(kind=4), dimension(3):: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
 integer(kind=4), intent(in)  :: ibegx,ibegy,ibegz
 integer(kind=4), intent(in)  :: iendx,iendy,iendz
@@ -155,7 +154,7 @@ integer(kind=4) :: nreppx,nreppy,nreppz !# elements per proc along x,y,z
 integer(kind=4) :: ind,ind1,ind23,indx,indy,indz
 integer(kind=4) :: indbx,indby,indbz
 integer(kind=4) :: rx,ry,rz, ix,iy,iz, sx,sy,sz
-
+real   (kind=8) :: resvalue
 
   d = 0
   mx  = nx + px + 1
@@ -181,7 +180,6 @@ integer(kind=4) :: rx,ry,rz, ix,iy,iz, sx,sy,sz
   endif
 
   F = 0
-  l2norm = 0
 
   do ex = minex, maxex
   do ey = miney, maxey
@@ -264,7 +262,10 @@ integer(kind=4) :: rx,ry,rz, ix,iy,iz, sx,sy,sz
         call ComputePointForRHS (Xx,Xy,Xz,px,py,pz,kx,ky,kz, &
    ex,ey,ez,nelemx,nelemy,nelemz,Uval,v,ax,ay,az,NNx,NNy,NNz, &
    minex,miney,minez,Kq,maxex,maxey,maxez,t,Dt,mi,dux,duy,duz, &
-   ibegx,ibegy,ibegz,iendx,iendy,iendz,F,ind1,ind23,J,W,drained,l2norm)
+   ibegx,ibegy,ibegz,iendx,iendy,iendz,resvalue,J,W)
+   
+   F(ind1,ind23) = F(ind1,ind23) + resvalue
+   
       enddo
       enddo
       enddo

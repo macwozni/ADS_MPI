@@ -33,7 +33,7 @@ real (kind=8), allocatable, dimension(:,:) :: F, F2, F3
 real (kind=8), allocatable, dimension(:,:) :: F_out, F2_out, F3_out
 
 ! Statistics computed during the simulation
-real (kind=8) :: drained = 0, pollution = 0
+real (kind=8) ::  pollution = 0
 
 ! Buffer for coefficients of solution corresponding to neighbouring
 ! parts of the domain. It is (Nx*Ny*Nz) x 3 x 3 x 3 array, where
@@ -609,12 +609,15 @@ subroutine ComputeRHS(iter, t)
 use parallelism, ONLY : MYRANK,PRINTRANK
 use projection_engine, ONLY : Form3DRHS
 use debug, ONLY : iprint
+use RHS_eq, ONLY : drained,l2norm
 implicit none
 include "mpif.h"
 real   (kind=8) :: t
 integer(kind=4) :: iter, i
 integer(kind=4) :: ierr
-real   (kind=8) :: l2norm, fullnorm
+real   (kind=8) :: fullnorm
+
+l2norm=0
 
   call Form3DRHS                                    &
       (Ux,px,nx,nelemx,nrcppx,                          &
@@ -625,7 +628,7 @@ real   (kind=8) :: l2norm, fullnorm
        ibegz,iendz,                                 &
        ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz,   &
        minex,maxex,miney,maxey,minez,maxez,         &
-       Kqvals,Dt,t,R,F,drained,l2norm)
+       Kqvals,Dt,t,R,F)
 
   if (iprint == 1) then
     write(*,*)PRINTRANK,'F'
@@ -1169,6 +1172,7 @@ end subroutine
 
 subroutine ComputeResults()
 use parallelism, ONLY : MYRANK
+use RHS_eq, ONLY : drained
 implicit none
 include "mpif.h"
 real   (kind=8) :: fulldrained
