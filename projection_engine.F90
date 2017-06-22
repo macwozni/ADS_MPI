@@ -122,6 +122,7 @@ subroutine Form3DRHS(          &
    minez,maxez,                &
    Kq, Dt,t,R,F,drained,l2norm)
 use parallelism, ONLY : PRINTRANK
+USE ISO_FORTRAN_ENV, ONLY : ERROR_UNIT ! access computing environment
 use basis, ONLY : BasisData
 use input_data, ONLY : pumping, draining, initial_state
 implicit none
@@ -197,8 +198,7 @@ real   (kind=8) :: Umax = -1d10, Umin = 1d10
     do kx = 1,ngx
     do ky = 1,ngy
     do kz = 1,ngz
-      W = Wx(kx)*Wy(ky)*Wz(kz)
-      vpump = pumping(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))
+      W = Wx(kx)*Wy(ky)*Wz(kz)  
       do ax = 0,px
       do ay = 0,py
       do az = 0,pz
@@ -269,7 +269,8 @@ real   (kind=8) :: Umax = -1d10, Umin = 1d10
         enddo
         enddo
         enddo
-
+! poczatek funkcji Marcina
+        vpump = pumping(Xx(kx,ex),Xy(ky,ey),Xz(kz,ez))    
         Umax = max(Umax, Uval)
         Umin = min(Umin, Uval)
 
@@ -293,6 +294,7 @@ real   (kind=8) :: Umax = -1d10, Umin = 1d10
           F(ind1,ind23) = F(ind1,ind23) + J*W*v*fval
           l2norm = l2norm + J*W*v*fval*fval
         endif
+! koniec funkcji Marcina
 
       enddo
       enddo
