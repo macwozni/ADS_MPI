@@ -1,13 +1,11 @@
 module reorderRHS
 
-use basis
-use parallelism
-
 implicit none
 
 contains
 
 subroutine ReorderRHSForY(ibegx,iendx,ibegy,iendy,ibegz,iendz,F,F2)
+implicit none
 integer, intent(in) :: ibegx,ibegy,ibegz
 integer, intent(in) :: iendx,iendy,iendz
 real   (kind=8), intent(in) :: F(0:(iendx-ibegx+1)-1,    &
@@ -36,6 +34,7 @@ end subroutine
 
 
 subroutine ReorderRHSForZ(ibegx,iendx,ibegy,iendy,ibegz,iendz,F,F2)
+implicit none
 integer, intent(in) :: ibegx,ibegy,ibegz
 integer, intent(in) :: iendx,iendy,iendz
 real   (kind=8), intent(in) :: F(0:(iendy-ibegy+1)-1,  &
@@ -65,6 +64,7 @@ end subroutine
 
 
 subroutine ReorderRHSForX(ibegx,iendx,ibegy,iendy,ibegz,iendz,F,F2)
+implicit none
 integer, intent(in) :: ibegx,ibegy,ibegz
 integer, intent(in) :: iendx,iendy,iendz
 real   (kind=8), intent(in) :: F(0:(iendz-ibegz+1)-1,    &

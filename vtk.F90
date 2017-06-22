@@ -1,6 +1,6 @@
 module vtk
 
-use plot
+!use plot
 use debug
 
 implicit none
@@ -16,6 +16,8 @@ contains
 ! params      - plot parameters
 ! -------------------------------------------------------------------
 subroutine VtkOutput(filename, vals, params)
+use plot, ONLY : PlotParams, params
+implicit none
 character(len=*), intent(in) :: filename
 type (PlotParams), intent(in) :: params
 real (kind=8), intent(in) :: vals(params%resx,params%resy,params%resz)
@@ -87,6 +89,8 @@ end subroutine
 ! params      - plot parameters
 ! -------------------------------------------------------------------
 subroutine VtkStructuredGridOutput(filename, vals, X, Y, Z, params)
+use plot, ONLY : PlotParams, params
+implicit none
 character(len=*), intent(in) :: filename
 type (PlotParams), intent(in) :: params
 real (kind=8), dimension(params%resx,params%resy,params%resz), &

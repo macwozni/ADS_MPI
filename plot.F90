@@ -4,9 +4,6 @@
 
 module plot
 
-use basis
-use math
-
 implicit none
 
 
@@ -40,6 +37,7 @@ contains
 ! params     - various options governing plot parameters
 ! -------------------------------------------------------------------
 subroutine SavePlot(filename, f, output, params)
+use math, ONLY : lerp
 interface
   function f(x, y, z) result (val)
     real (kind=8) :: x, y, z, val
@@ -100,6 +98,8 @@ subroutine SaveSplinePlot(filename, &
   Uy, py, ny, nelemy,         &
   Uz, pz, nz, nelemz,         &
   coeffs, output, params)
+use math,  ONLY : lerp
+use basis, ONLY : EvalSpline
 interface
   subroutine output(filename, vals, params)
     import PlotParams

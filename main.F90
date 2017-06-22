@@ -29,6 +29,9 @@ use debug
 use plot
 use gnuplot
 use vtk
+use basis
+use reorderRHS
+use input_data
 
 implicit none
 
@@ -112,6 +115,7 @@ contains
 ! Sets values of parameters (order and size)
 ! -------------------------------------------------------------------
 subroutine InitializeParameters
+implicit none
 character(100) :: input
 
   ! ./l2 <size> <procx> <procy> <procz> <nsteps> <dt>
@@ -137,6 +141,7 @@ end subroutine
 ! Initialization of clocks and MPI
 ! -------------------------------------------------------------------
 subroutine Initialize
+implicit none
 integer :: ierr
 
   call start_clock(iclock)
@@ -168,6 +173,7 @@ end subroutine
 ! of the piece for current process.
 ! -------------------------------------------------------------------
 subroutine ComputeDecomposition
+implicit none
 integer :: i
 integer :: ix, iy, iz
 integer :: mine, maxe
@@ -221,6 +227,7 @@ end subroutine
 ! Allocates most of the 'static' arrays
 ! -------------------------------------------------------------------
 subroutine AllocateArrays
+implicit none
 integer :: ierr
 
   allocate(M(2*KL+KU+1,n+1))
@@ -254,6 +261,7 @@ end subroutine
 ! Allocates and fills the knot vector
 ! -------------------------------------------------------------------
 subroutine PrepareKnot
+implicit none
 
   allocate(U(n+p+2))
   call FillOpenKnot(U, n, p)
@@ -271,6 +279,7 @@ end subroutine
 ! Calculates mass matrix M
 ! -------------------------------------------------------------------
 subroutine ComputeMassMatrix
+implicit none
 integer :: i
 
   call Form1DMassMatrix(KL,KU,U,p,n,nelem,M)
@@ -285,6 +294,7 @@ end subroutine
 
 
 subroutine PrecomputeKq
+implicit none
 
   call CacheKqValues                                &
       (U,p,n,minex,maxex,nelem,                     &
@@ -296,6 +306,7 @@ end subroutine
 
 
 function neighbour(dx, dy, dz) result(idx)
+implicit none
 integer, intent(in) :: dx, dy, dz
 integer :: idx
 integer :: ix, iy, iz
@@ -309,6 +320,7 @@ end function
 
 
 subroutine send_piece(items, dst, req)
+implicit none
 real (kind=8) :: items(:)
 integer :: dst, req
 integer :: ierr
@@ -320,6 +332,7 @@ end subroutine
 
 
 subroutine recv_piece(items, src, req)
+implicit none
 real (kind=8) :: items(:)
 integer :: src, req
 integer :: ierr
@@ -338,6 +351,7 @@ end subroutine
 ! necessitate partial sharing.
 ! -------------------------------------------------------------------
 subroutine DistributeSpline(spline)
+implicit none
 real (kind=8) :: spline(:,:,:,:)
 integer :: i, j, k, s
 integer :: request(3*3*3*2), stat(MPI_STATUS_SIZE)
@@ -550,6 +564,7 @@ end subroutine
 ! data to neighbouring processes.
 ! -------------------------------------------------------------------
 subroutine PrintDistributedData
+implicit none
 integer :: i, j, k
 integer :: obegx,oendx,obegy,oendy,obegz,oendz
 integer :: mine, maxe
@@ -583,6 +598,7 @@ end subroutine
 ! t - current time
 ! -------------------------------------------------------------------
 subroutine ComputeRHS(iter, t)
+implicit none
 real (kind=8) :: t
 integer :: iter, i
 integer :: ierr
@@ -629,6 +645,7 @@ end subroutine
 ! eqnum - number of right-hand sides (equations)
 ! -------------------------------------------------------------------
 subroutine SolveOneDirection(RHS, eqnum)
+implicit none
 real (kind=8) :: RHS(:,:)
 integer :: eqnum
 integer :: i, iret
@@ -681,6 +698,7 @@ end subroutine
 ! t    - time at the beginning of step
 ! -------------------------------------------------------------------
 subroutine Step(iter, t)
+implicit none
 integer :: iter
 real (kind=8) :: t
 integer :: i
@@ -920,6 +938,7 @@ end subroutine
 ! x, y, z    - coordinates
 ! -------------------------------------------------------------------
 function SizeOfPiece(x, y, z) result (s)
+implicit none
 integer, intent(in) :: x, y, z
 integer :: s
 integer :: sx, sy, sz
@@ -954,6 +973,7 @@ end function
 !   Inside pieces: (z, y, x), i.e. x changes fastest
 ! -------------------------------------------------------------------
 subroutine GatherFullSolution(at, part, full)
+implicit none
 integer, intent(in) :: at
 real (kind=8), intent(in) :: part(:,:)
 real (kind=8), intent(out), allocatable :: full(:,:,:)
@@ -1042,6 +1062,7 @@ end subroutine
 ! Deallocates all the resources and finalizes MPI.
 ! -------------------------------------------------------------------
 subroutine Cleanup
+implicit none
 integer :: ierr
 
   deallocate(shiftsX)
@@ -1070,6 +1091,7 @@ end subroutine
 ! Sanity-check of dimensions vector
 ! -------------------------------------------------------------------
 subroutine ValidateDimensions
+implicit none
 integer :: i, k
 
   k = 0
@@ -1116,6 +1138,7 @@ end subroutine
 ! Displays computed domain decomposition, for debugging.
 ! -------------------------------------------------------------------
 subroutine PrintDecompositionInfo
+implicit none
 
   write(*,*)PRINTRANK,'MYRANKX,MYRANKY,MYRANKZ',MYRANKX,MYRANKY,MYRANKZ
   write(*,*)PRINTRANK,'NRPROCX,NRPROCY,NRPROCZ',NRPROCX,NRPROCY,NRPROCZ
@@ -1140,6 +1163,7 @@ end function
 ! Gathers full solution and plots it
 ! -------------------------------------------------------------------
 subroutine PrintSolution(iter, t)
+implicit none
 integer :: iter
 real (kind=8) :: t
 real (kind=8), allocatable :: solution(:,:,:)
@@ -1168,6 +1192,7 @@ end subroutine
 
 
 subroutine ComputeResults()
+implicit none
 real (kind=8) :: fullpollution, fulldrained
 integer :: ierr
 

@@ -1,13 +1,5 @@
 module projection_engine
 
-use gauss
-use basis
-use parallelism
-use reorderRHS
-use utils
-use math
-use input_data
-
 implicit none
 
 ! order of approximations
@@ -42,6 +34,8 @@ contains
 !     A(i, j) = M(KL + KU + 1 + i - j, j)
 ! -------------------------------------------------------------------
 subroutine Form1DMassMatrix(KL,KU,U,p,n,nelem,M)
+use basis, ONLY : BasisData
+implicit none
 integer :: KL,KU
 integer (kind=4), intent(in) :: n, p, nelem
 real    (kind=8), intent(in) :: U(0:n+p+1)
@@ -127,6 +121,10 @@ subroutine Form3DRHS(          &
    miney,maxey,                &
    minez,maxez,                &
    Kq, Dt,t,R,F,drained,l2norm)
+use parallelism, ONLY : PRINTRANK
+use basis, ONLY : BasisData
+use input_data, ONLY : pumping, draining, initial_state
+implicit none
 integer(kind=4), intent(in) :: nx, px, nelemx, nrcppx
 integer(kind=4), intent(in) :: ny, py, nelemy, nrcppy
 integer(kind=4), intent(in) :: nz, pz, nelemz, nrcppz
@@ -327,6 +325,7 @@ end subroutine
 ! ibegz,iendz      - z range
 ! -------------------------------------------------------------------
 logical function IndexInRange(indx,indy,indz,ibegx,iendx,ibegy,iendy,ibegz,iendz)
+implicit none
 integer :: indx,indy,indz
 integer :: ibegx,iendx,ibegy,iendy,ibegz,iendz
 
@@ -376,6 +375,7 @@ end function
 ! x,y,z      - output coordinates
 ! -------------------------------------------------------------------
 subroutine global2local(ind,nx,ny,nz,x,y,z)
+implicit none
 integer, intent(in) :: ind
 integer, intent(in) :: nx,ny,nz
 integer, intent(out) :: x,y,z
@@ -404,6 +404,10 @@ subroutine Contamination(      &
    miney,maxey,                &
    minez,maxez,                &
    R, cont)
+use parallelism, ONLY : PRINTRANK
+use basis, ONLY : BasisData
+use input_data, ONLY : GROUND
+implicit none
 integer(kind=4), intent(in) :: nx, px, nelemx, nrcppx
 integer(kind=4), intent(in) :: ny, py, nelemy, nrcppy
 integer(kind=4), intent(in) :: nz, pz, nelemz, nrcppz

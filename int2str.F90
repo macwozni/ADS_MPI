@@ -12,9 +12,9 @@
 ! -------------------------------------------------------------------
 subroutine int2str(n, str)
 USE ISO_FORTRAN_ENV, ONLY : ERROR_UNIT ! access computing environment
-integer, intent(in) :: n             ! Integer to be converted
-character(len=*), intent(out) :: str ! String containing number
-character(len=11) :: longstr         ! Longest is -2147483647
+integer (kind=4), intent(in)  :: n     ! Integer to be converted
+character(len=*), intent(out) :: str   ! String containing number
+character(len=11) :: longstr           ! Longest is -2147483647
 
 write(longstr,'(I11)') n
   longstr = adjustl(longstr)

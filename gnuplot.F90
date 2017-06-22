@@ -1,7 +1,5 @@
 module gnuplot
 
-use plot
-
 implicit none
 
 contains
@@ -17,6 +15,8 @@ contains
 ! params      - plot parameters
 ! -------------------------------------------------------------------
 subroutine GnuPlotOutput(filename, vals, params)
+use plot, ONLY : PlotParams, params
+implicit none
 character(len=*), intent(in) :: filename
 type (PlotParams), intent(in) :: params
 real (kind=8), intent(in) :: vals(params%resx,params%resy,params%resz)
@@ -42,6 +42,7 @@ end subroutine
 ! filename    - output buffer to write name
 ! -------------------------------------------------------------------
 subroutine BuildFileName(pattern, layer, filename)
+implicit none
 character(len=*), intent(in) :: pattern
 integer :: layer
 character(len=*), intent(out) :: filename
@@ -65,6 +66,8 @@ end subroutine
 ! params      - plot parameters
 ! -------------------------------------------------------------------
 subroutine OutputLayer(pattern, zlayer, vals, params)
+use plot, ONLY : PlotParams, params
+implicit none
 character(len=*), intent(in) :: pattern
 integer, intent(in) :: zlayer
 type (PlotParams), intent(in) :: params
