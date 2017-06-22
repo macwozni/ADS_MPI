@@ -62,7 +62,6 @@ real    (kind=8), intent(out) :: J(r)
 real    (kind=8), intent(out) :: W(q)
 real    (kind=8), intent(out) :: X(q,r)
 real    (kind=8), intent(out) :: N(0:d,0:p,q,r)
-
 integer (kind=4) i, iq, ir
 real    (kind=8) uu, Xg(q)
 real    (kind=8) basis(0:p,0:d)

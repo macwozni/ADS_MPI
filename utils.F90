@@ -2,7 +2,6 @@ module utils
 
 implicit none
 
-include "mpif.h"
 contains
 
 ! -------------------------------------------------------------------
@@ -16,9 +15,10 @@ contains
 ! 0 and 1 are repeated (p+1) times.
 ! -------------------------------------------------------------------
 subroutine FillOpenKnot(U, n, p)
-integer :: n, p
-real (kind=8), intent(out) :: U(1:n+p+2)
-integer :: i
+implicit none
+integer(kind=4), intent(in) :: n, p
+real   (kind=8), intent(out):: U(1:n+p+2)
+integer(kind=4) :: i
 
 U(1 : p+1) = 0
 U(n+2 : n+p+2) = 1
@@ -50,9 +50,10 @@ end subroutine
 ! maxe    - index of last element corresponding to the assigned slice
 ! -------------------------------------------------------------------
 subroutine ComputeEndpoints(rank, nrproc, n, p, nrcpp, ibeg, iend, mine, maxe)
-integer, intent(in) :: rank, nrproc, n, p
-integer, intent(out) :: nrcpp, ibeg, iend, mine, maxe
-integer :: elems
+implicit none
+integer(kind=4), intent(in) :: rank, nrproc, n, p
+integer(kind=4), intent(out):: nrcpp, ibeg, iend, mine, maxe
+integer(kind=4) :: elems
 
 elems = n + 1 - p
 nrcpp = (n+1 + nrproc-1) / nrproc
@@ -82,9 +83,10 @@ end subroutine
 ! nrproc   - # of processors for this direction
 ! -------------------------------------------------------------------
 subroutine FillDimVector(dims, shifts, nrcpp, stride, n, nrproc)
-integer, allocatable :: dims(:), shifts(:)
-integer :: nrcpp, stride, n, nrproc
-integer:: i
+implicit none
+integer(kind=4), allocatable :: dims(:), shifts(:)
+integer(kind=4) :: nrcpp, stride, n, nrproc
+integer(kind=4) :: i
 
 allocate(dims(nrproc))
 allocate(shifts(nrproc))
@@ -125,10 +127,11 @@ end subroutine
 !     x11 x12 x13 ... x1s x21 x22 ... x2s... xN1 xN2 ... xNs
 ! -------------------------------------------------------------------
 subroutine Linearize(F, F_lin, elems, stride)
-integer :: elems, stride
-real (kind=8), intent(in)  :: F(elems, stride)
-real (kind=8), intent(out) :: F_lin(elems * stride)
-integer :: i, a, b
+implicit none
+integer(kind=4), intent(in) :: elems, stride
+real   (kind=8), intent(in)  :: F(elems, stride)
+real   (kind=8), intent(out) :: F_lin(elems * stride)
+integer(kind=4) :: i, a, b
 
 do i = 1,elems
   a = (i-1) * stride + 1
@@ -160,10 +163,11 @@ end subroutine
 !     xN1 xN2 xN3 ... xNs
 ! -------------------------------------------------------------------
 subroutine Delinearize(F_lin, F, elems, stride)
-integer :: elems, stride
-real (kind=8), intent(in)  :: F_lin(elems * stride)
-real (kind=8), intent(out) :: F(elems, stride)
-integer :: i, a, b
+implicit none
+integer(kind=4), intent(in) :: elems, stride
+real   (kind=8), intent(in)  :: F_lin(elems * stride)
+real   (kind=8), intent(out) :: F(elems, stride)
+integer(kind=4) :: i, a, b
 
 do i = 1,elems
   a = (i-1) * stride + 1
@@ -189,12 +193,14 @@ end subroutine
 ! ierr      - error code output
 ! -------------------------------------------------------------------
 subroutine Gather(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
-integer :: n, elems, stride, comm
-real (kind=8), intent(in)  :: F(elems, stride)
-real (kind=8), intent(out) :: F_out(n+1, stride)
-integer :: dims(:), shifts(:)
-integer, intent(out) :: ierr
-real (kind=8) :: F_lin(elems * stride), F_out_lin((n+1) * stride)
+implicit none
+include "mpif.h"
+integer(kind=4), intent(in) :: n, elems, stride, comm
+real   (kind=8), intent(in) :: F(elems, stride)
+integer(kind=4), intent(in) :: dims(:), shifts(:)
+real   (kind=8), intent(out):: F_out(n+1, stride)
+integer(kind=4), intent(out):: ierr
+real   (kind=8) :: F_lin(elems * stride), F_out_lin((n+1) * stride)
 
 call Linearize(F,F_lin,elems,stride)
 
@@ -226,12 +232,14 @@ end subroutine
 ! ierr      - error code output
 ! -------------------------------------------------------------------
 subroutine Scatter2(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
-integer :: n, elems, stride, comm
-real (kind=8), intent(in) :: F(n+1, stride)
-real (kind=8), intent(out) :: F_out(elems * stride)
-integer :: dims(:), shifts(:)
-integer, intent(out) :: ierr
-real (kind=8) :: F_lin((n+1) * stride)
+implicit none
+include "mpif.h"
+integer(kind=4), intent(in) :: n, elems, stride, comm
+real   (kind=8), intent(in) :: F(n+1, stride)
+integer(kind=4), intent(in) :: dims(:), shifts(:)
+real   (kind=8), intent(out):: F_out(elems * stride)
+integer(kind=4), intent(out):: ierr
+real   (kind=8) :: F_lin((n+1) * stride)
 
 call Linearize(F, F_lin, n+1, stride)
 
@@ -260,12 +268,13 @@ end subroutine
 ! ierr      - error code output
 ! -------------------------------------------------------------------
 subroutine Scatter(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
-integer :: n, elems, stride, comm
-real (kind=8), intent(in) :: F(n+1, stride)
-real (kind=8), intent(out) :: F_out(elems, stride)
-integer :: dims(:), shifts(:)
-integer, intent(out) :: ierr
-real (kind=8) :: F_out_lin(elems * stride)
+implicit none
+integer(kind=4), intent(in) :: n, elems, stride, comm
+real   (kind=8), intent(in) :: F(n+1, stride)
+integer(kind=4), intent(in) :: dims(:), shifts(:)
+real   (kind=8), intent(out):: F_out(elems, stride)
+integer(kind=4), intent(out) :: ierr
+real   (kind=8) :: F_out_lin(elems * stride)
 
 call Scatter2(F,F_out_lin,n,elems,stride,dims,shifts,comm,ierr)
 call Delinearize(F_out_lin, F_out, elems, stride)
@@ -287,6 +296,8 @@ end subroutine
 ! ierr     - error code output
 ! -------------------------------------------------------------------
 subroutine AllGather(F, F_out, n, elems, stride, dims, shifts, comm)
+implicit none
+include "mpif.h"
 integer(kind=4), intent(in) :: n, elems, stride, comm
 real   (kind=8), intent(in) :: F(elems, stride)
 real   (kind=8), intent(out) :: F_out(n+1, stride)

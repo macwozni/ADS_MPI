@@ -121,6 +121,7 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine Initialize
 implicit none
+include "mpif.h"
 integer(kind=4) :: ierr
 
   call InitializeParameters
@@ -194,6 +195,7 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine AllocateArrays
 implicit none
+include "mpif.h"
 integer :: ierr
 
   allocate(M(2*KL+KU+1,n+1))
@@ -290,6 +292,7 @@ end function
 
 subroutine send_piece(items, dst, req)
 implicit none
+include "mpif.h"
 real (kind=8) :: items(:)
 integer :: dst, req
 integer :: ierr
@@ -302,6 +305,7 @@ end subroutine
 
 subroutine recv_piece(items, src, req)
 implicit none
+include "mpif.h"
 real   (kind=8) :: items(:)
 integer(kind=4) :: src, req
 integer(kind=4) :: ierr
@@ -321,6 +325,7 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine DistributeSpline(spline)
 implicit none
+include "mpif.h"
 real   (kind=8) :: spline(:,:,:,:)
 integer(kind=4) :: i, j, k, s
 integer(kind=4) :: request(3*3*3*2), stat(MPI_STATUS_SIZE)
@@ -568,6 +573,7 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine ComputeRHS(iter, t)
 implicit none
+include "mpif.h"
 real   (kind=8) :: t
 integer(kind=4) :: iter, i
 integer(kind=4) :: ierr
@@ -663,6 +669,7 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine Step(iter, t)
 implicit none
+include "mpif.h"
 integer(kind=4) :: iter
 real   (kind=8) :: t
 integer(kind=4) :: i
@@ -878,6 +885,7 @@ end function
 ! -------------------------------------------------------------------
 subroutine GatherFullSolution(at, part, full)
 implicit none
+include "mpif.h"
 integer(kind=4), intent(in) :: at
 real   (kind=8), intent(in) :: part(:,:)
 real   (kind=8), intent(out), allocatable :: full(:,:,:)
@@ -992,6 +1000,7 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine ValidateDimensions
 implicit none
+include "mpif.h"
 integer(kind=4) :: i, k
 
   k = 0
@@ -1093,6 +1102,7 @@ end subroutine
 
 subroutine ComputeResults()
 implicit none
+include "mpif.h"
 real   (kind=8) :: fulldrained
 integer(kind=4) :: ierr
 
