@@ -8,7 +8,7 @@ subroutine ReorderRHSForY(ibegx,iendx,ibegy,iendy,ibegz,iendz,F,F2)
 implicit none
 integer(kind=4), intent(in)  :: ibegx,ibegy,ibegz
 integer(kind=4), intent(in)  :: iendx,iendy,iendz
-real   (kind=8), intent(in)  :: F(0:(iendx-ibegx+1)-1,    &
+real   (kind=8), intent(in)  :: F(0:(iendx-ibegx+1)-1,   &
   0:(iendy-ibegy+1)*(iendz-ibegz+1)-1)
 real   (kind=8), intent(out) :: F2(0:(iendy-ibegy+1)-1,  &
   0:(iendx-ibegx+1)*(iendz-ibegz+1)-1)

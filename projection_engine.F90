@@ -294,10 +294,6 @@ real   (kind=8) :: Umax = -1d10, Umin = 1d10
           l2norm = l2norm + J*W*v*fval*fval
         endif
 
-        !--- Test
-        ! rhs = Dt * v * fval
-        ! F(ind1,ind23) = F(ind1,ind23) + J*W*v*fval
-
       enddo
       enddo
       enddo
@@ -335,32 +331,6 @@ integer(kind=4) :: ibegx,iendx,ibegy,iendy,ibegz,iendz
   if (indz < ibegz-1 .or. indz > iendz-1) IndexInRange = .false.
 
 end function
-
-
-! -------------------------------------------------------------------
-! Load function (RHS of the PDE)
-!
-! x, y, z   - coordinates
-! -------------------------------------------------------------------
-! function fvalue(x,y,z) result (fval)
-! real (kind=8) :: x,y,z
-! real (kind=8) :: fval
-
-!   fval = 0
-
-! end function
-
-
-! function InitialState(x, y, z) result (val)
-! real (kind=8), intent(in) :: x, y, z
-! real (kind=8) :: val, d
-! real (kind=8) :: cx = 0.5d0, cy = 0.5d0, cz = 0.5d0
-! real (kind=8) :: sx = 0.3d0, sy = 0.3d0, sz = 0.3d0
-
-!   d = ((x-cx)/sx)**2 + ((y-cy)/sy)**2 + ((z-cz)/sz)**2
-!   val = bump(sqrt(d))
-
-! end function
 
 
 ! -------------------------------------------------------------------
