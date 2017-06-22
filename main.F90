@@ -54,41 +54,41 @@ real (kind=8), allocatable :: Kqvals(:,:,:,:,:,:)
 integer(kind=4) :: nelem
 
 ! Size of slices of domain in each dimension
-integer, allocatable, dimension(:) :: dimensionsX
-integer, allocatable, dimension(:) :: dimensionsY
-integer, allocatable, dimension(:) :: dimensionsZ
+integer(kind=4), allocatable, dimension(:) :: dimensionsX
+integer(kind=4), allocatable, dimension(:) :: dimensionsY
+integer(kind=4), allocatable, dimension(:) :: dimensionsZ
 
 ! Offsets of slices of domain in each direction
-integer, allocatable, dimension(:) :: shiftsX
-integer, allocatable, dimension(:) :: shiftsY
-integer, allocatable, dimension(:) :: shiftsZ
+integer(kind=4), allocatable, dimension(:) :: shiftsX
+integer(kind=4), allocatable, dimension(:) :: shiftsY
+integer(kind=4), allocatable, dimension(:) :: shiftsZ
 
 ! Pivot array for these processes that need to solve systems
-integer, allocatable, dimension(:) :: IPIV
+integer(kind=4), allocatable, dimension(:) :: IPIV
 
 ! Number of lower and upper diagonal entries in mass matrix
-integer :: KL, KU
+integer(kind=4) :: KL, KU
 
 ! Number of columns (average) per processor
-integer :: nrcppx,nrcppy,nrcppz
+integer(kind=4) :: nrcppx,nrcppy,nrcppz
 
 ! Range of piece of domain assigned to this process
-integer :: ibegx,iendx
-integer :: ibegy,iendy
-integer :: ibegz,iendz
+integer(kind=4) :: ibegx,iendx
+integer(kind=4) :: ibegy,iendy
+integer(kind=4) :: ibegz,iendz
 
 ! Size of piece of domain assigned to this process
-integer :: sx,sy,sz
+integer(kind=4) :: sx,sy,sz
 
 ! Ranges of pieces of domain around the one assigned to this process
-integer, dimension(3) :: ibegsx,iendsx
-integer, dimension(3) :: ibegsy,iendsy
-integer, dimension(3) :: ibegsz,iendsz
+integer(kind=4), dimension(3) :: ibegsx,iendsx
+integer(kind=4), dimension(3) :: ibegsy,iendsy
+integer(kind=4), dimension(3) :: ibegsz,iendsz
 
 ! Range of elements associated with basis functions assigned to this process
-integer :: minex, maxex
-integer :: miney, maxey
-integer :: minez, maxez
+integer(kind=4) :: minex, maxex
+integer(kind=4) :: miney, maxey
+integer(kind=4) :: minez, maxez
 
 contains
 
@@ -124,7 +124,7 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine Initialize
 implicit none
-integer :: ierr
+integer(kind=4) :: ierr
 
   call start_clock(iclock)
   call start_clock(iclock_init)
@@ -156,9 +156,9 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine ComputeDecomposition
 implicit none
-integer :: i
-integer :: ix, iy, iz
-integer :: mine, maxe
+integer(kind=4) :: i
+integer(kind=4) :: ix, iy, iz
+integer(kind=4) :: mine, maxe
 
   ! number of columns per processors
   call ComputeEndpoints(MYRANKX, NRPROCX, n, p, nrcppx, ibegx, iendx, minex, maxex)
@@ -242,8 +242,12 @@ end subroutine
 ! -------------------------------------------------------------------
 ! Allocates and fills the knot vector
 ! -------------------------------------------------------------------
-subroutine PrepareKnot
+subroutine PrepareKnot(U,n,p)
 implicit none
+integer(kind=4), intent(in) :: n,p
+real   (kind=8), allocatable, dimension(:), intent(out) :: U
+integer(kind=4) :: nelem
+
 
   allocate(U(n+p+2))
   call FillOpenKnot(U, n, p)
@@ -260,8 +264,12 @@ end subroutine
 ! -------------------------------------------------------------------
 ! Calculates mass matrix M
 ! -------------------------------------------------------------------
-subroutine ComputeMassMatrix
+subroutine ComputeMassMatrix(KL,KU,U,p,n,nelem,M)
 implicit none
+integer(kind=4), intent(in)  :: KL,KU
+integer(kind=4), intent(in)  :: n, p, nelem
+real   (kind=8), intent(in)  :: U(0:n+p+1)
+real   (kind=8), intent(out) :: M(0:(2*KL+KU),0:n)
 integer :: i
 
   call Form1DMassMatrix(KL,KU,U,p,n,nelem,M)
@@ -289,9 +297,9 @@ end subroutine
 
 function neighbour(dx, dy, dz) result(idx)
 implicit none
-integer, intent(in) :: dx, dy, dz
-integer :: idx
-integer :: ix, iy, iz
+integer(kind=4), intent(in) :: dx, dy, dz
+integer(kind=4) :: idx
+integer(kind=4) :: ix, iy, iz
 
   ix = MYRANKX + dx + 1
   iy = MYRANKY + dy + 1
@@ -315,9 +323,9 @@ end subroutine
 
 subroutine recv_piece(items, src, req)
 implicit none
-real (kind=8) :: items(:)
-integer :: src, req
-integer :: ierr
+real   (kind=8) :: items(:)
+integer(kind=4) :: src, req
+integer(kind=4) :: ierr
 
   call mpi_irecv(items, nrcppz*nrcppx*nrcppy, &
     MPI_DOUBLE_PRECISION, src, 0, MPI_COMM_WORLD, req, ierr)
@@ -334,11 +342,11 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine DistributeSpline(spline)
 implicit none
-real (kind=8) :: spline(:,:,:,:)
-integer :: i, j, k, s
-integer :: request(3*3*3*2), stat(MPI_STATUS_SIZE)
-integer :: ierr(3*3*3*2)
-integer :: dst, src
+real   (kind=8) :: spline(:,:,:,:)
+integer(kind=4) :: i, j, k, s
+integer(kind=4) :: request(3*3*3*2), stat(MPI_STATUS_SIZE)
+integer(kind=4) :: ierr(3*3*3*2)
+integer(kind=4) :: dst, src
 
   s = 1
 
@@ -547,9 +555,9 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine PrintDistributedData
 implicit none
-integer :: i, j, k
-integer :: obegx,oendx,obegy,oendy,obegz,oendz
-integer :: mine, maxe
+integer(kind=4) :: i, j, k
+integer(kind=4) :: obegx,oendx,obegy,oendy,obegz,oendz
+integer(kind=4) :: mine, maxe
 
   write(*,*)PRINTRANK,'R:'
 
@@ -581,10 +589,10 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine ComputeRHS(iter, t)
 implicit none
-real (kind=8) :: t
-integer :: iter, i
-integer :: ierr
-real (kind=8) :: l2norm, fullnorm
+real   (kind=8) :: t
+integer(kind=4) :: iter, i
+integer(kind=4) :: ierr
+real   (kind=8) :: l2norm, fullnorm
 
   call Form3DRHS                                    &
       (U,p,n,nelem,nrcppx,                          &
@@ -628,9 +636,9 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine SolveOneDirection(RHS, eqnum)
 implicit none
-real (kind=8) :: RHS(:,:)
-integer :: eqnum
-integer :: i, iret
+real   (kind=8) :: RHS(:,:)
+integer(kind=4) :: eqnum
+integer(kind=4) :: i, iret
 
   IPIV = 0
 
@@ -681,10 +689,10 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine Step(iter, t)
 implicit none
-integer :: iter
-real (kind=8) :: t
-integer :: i
-integer :: iret, ierr
+integer(kind=4) :: iter
+real   (kind=8) :: t
+integer(kind=4) :: i
+integer(kind=4) :: iret, ierr
 
   ! generate the RHS vectors
   call ComputeRHS(iter, t)
@@ -725,7 +733,7 @@ integer :: iret, ierr
   if (MYRANKX == 0) then
     if (iinfo == 1) write(*,*)PRINTRANK,'1b) SOLVE THE FIRST PROBLEM'
 
-    call ComputeMassMatrix
+    call ComputeMassMatrix(KL,KU,U,p,n,nelem,M)
     call SolveOneDirection(F_out, sy*sz)
   endif
 
@@ -785,7 +793,7 @@ integer :: iret, ierr
   if (MYRANKY == 0) then
     if (iinfo == 1) write(*,*)PRINTRANK,'2b) SOLVE THE SECOND PROBLEM'
 
-    call ComputeMassMatrix
+    call ComputeMassMatrix(KL,KU,U,p,n,nelem,M)
     call SolveOneDirection(F2_out, sx*sz)
   endif
 
@@ -855,7 +863,7 @@ integer :: iret, ierr
   if (MYRANKZ == 0) then
     if (iinfo == 1) write(*,*)PRINTRANK,'3b) SOLVE THE THIRD PROBLEM'
 
-    call ComputeMassMatrix
+    call ComputeMassMatrix(KL,KU,U,p,n,nelem,M)
     call SolveOneDirection(F3_out, sx*sy)
   endif
 
@@ -921,11 +929,11 @@ end subroutine
 ! -------------------------------------------------------------------
 function SizeOfPiece(x, y, z) result (s)
 implicit none
-integer, intent(in) :: x, y, z
-integer :: s
-integer :: sx, sy, sz
-integer :: nrcpp, ibeg, iend
-integer :: mine, maxe
+integer(kind=4), intent(in) :: x, y, z
+integer(kind=4) :: s
+integer(kind=4) :: sx, sy, sz
+integer(kind=4) :: nrcpp, ibeg, iend
+integer(kind=4) :: mine, maxe
 
   call ComputeEndpoints(x, NRPROCX, n, p, nrcpp, ibeg, iend, mine, maxe)
   sx = iend - ibeg + 1
@@ -956,22 +964,22 @@ end function
 ! -------------------------------------------------------------------
 subroutine GatherFullSolution(at, part, full)
 implicit none
-integer, intent(in) :: at
-real (kind=8), intent(in) :: part(:,:)
-real (kind=8), intent(out), allocatable :: full(:,:,:)
-real (kind=8), allocatable :: buffer(:)
-integer :: recvcounts(0:NRPROCX*NRPROCY*NRPROCZ-1)
-integer :: displs(0:NRPROCX*NRPROCY*NRPROCZ-1)
-integer :: x, y, z
-integer :: offset, size
-integer :: ierr
-integer :: array_size
-integer :: begx, begy, begz, endx, endy, endz
-integer :: mine, maxe
-integer :: nrcpp
-integer :: ssx, ssy, ssz
-integer :: xx, yy, zz
-integer :: ix, iy, iz, idx
+integer(kind=4), intent(in) :: at
+real   (kind=8), intent(in) :: part(:,:)
+real   (kind=8), intent(out), allocatable :: full(:,:,:)
+real   (kind=8), allocatable :: buffer(:)
+integer(kind=4) :: recvcounts(0:NRPROCX*NRPROCY*NRPROCZ-1)
+integer(kind=4) :: displs(0:NRPROCX*NRPROCY*NRPROCZ-1)
+integer(kind=4) :: x, y, z
+integer(kind=4) :: offset, size
+integer(kind=4) :: ierr
+integer(kind=4) :: array_size
+integer(kind=4) :: begx, begy, begz, endx, endy, endz
+integer(kind=4) :: mine, maxe
+integer(kind=4) :: nrcpp
+integer(kind=4) :: ssx, ssy, ssz
+integer(kind=4) :: xx, yy, zz
+integer(kind=4) :: ix, iy, iz, idx
 
   ! Only the root process needs buffer, but passing unallocated array
   ! is illegal in Fortran, hence we allocate it as array of size 0
@@ -1045,7 +1053,7 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine Cleanup
 implicit none
-integer :: ierr
+integer(kind=4) :: ierr
 
   deallocate(shiftsX)
   deallocate(shiftsY)
@@ -1074,7 +1082,7 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine ValidateDimensions
 implicit none
-integer :: i, k
+integer(kind=4) :: i, k
 
   k = 0
   do i = 1,NRPROCX
@@ -1146,9 +1154,9 @@ end function
 ! -------------------------------------------------------------------
 subroutine PrintSolution(iter, t)
 implicit none
-integer :: iter
-real (kind=8) :: t
-real (kind=8), allocatable :: solution(:,:,:)
+integer(kind=4) :: iter
+real   (kind=8) :: t
+real   (kind=8), allocatable :: solution(:,:,:)
 type (PlotParams) :: params
 character(len=20) :: filename
 
@@ -1175,8 +1183,8 @@ end subroutine
 
 subroutine ComputeResults()
 implicit none
-real (kind=8) :: fullpollution, fulldrained
-integer :: ierr
+real   (kind=8) :: fullpollution, fulldrained
+integer(kind=4) :: ierr
 
   call Contamination                                &
       (U,p,n,nelem,nrcppx,                          &
@@ -1248,7 +1256,7 @@ real (kind=8) :: t = 0
   endif
 
   call AllocateArrays
-  call PrepareKnot
+  call PrepareKnot(U,n,p)
   call InitInputData
   call PrecomputeKq
 

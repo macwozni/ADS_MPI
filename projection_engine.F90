@@ -36,18 +36,18 @@ contains
 subroutine Form1DMassMatrix(KL,KU,U,p,n,nelem,M)
 use basis, ONLY : BasisData
 implicit none
-integer :: KL,KU
+integer(kind=4), intent(in)  :: KL,KU
 integer(kind=4), intent(in)  :: n, p, nelem
 real   (kind=8), intent(in)  :: U(0:n+p+1)
 real   (kind=8), intent(out) :: M(0:(2*KL+KU),0:n)
-integer(kind=4) :: mm,ng,e,k,a,b
-integer(kind=4) :: O(nelem)
 real   (kind=8) :: J(nelem)
 real   (kind=8) :: W(p+1)
 real   (kind=8) :: X(p+1,nelem)
 real   (kind=8) :: NN(0:0,0:p,p+1,nelem)
 integer(kind=4) :: d
 integer(kind=4) :: ia, ib
+integer(kind=4) :: mm,ng,e,k,a,b
+integer(kind=4) :: O(nelem)
 
   mm = n+p+1
   ng = p+1
