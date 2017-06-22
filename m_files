@@ -12,11 +12,9 @@ SOURCES = \
           projection_engine.F90 \
           analysis.F90 \
           int2str.F90 \
-          stopwatch.F90 \
           plot.F90 \
           gnuplot.F90 \
           vtk.F90 \
-          time_data.F90 \
           main.F90 
 
 SOURCES_LAPACK = lapack/dgbsv.F \

@@ -4,8 +4,6 @@ use parallelism
 use projection_engine
 use communicators
 use utils
-use stopwatch
-use time_data
 use debug
 use plot
 use gnuplot
@@ -125,25 +123,12 @@ subroutine Initialize
 implicit none
 integer(kind=4) :: ierr
 
-  call start_clock(iclock)
-  call start_clock(iclock_init)
-
-  if (MYRANK == 0) then
-    call start_clock(iclock_i1)
-  endif
-
   call InitializeParameters
   call InitializeParallelism
   call CreateCommunicators
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
-  if (iinfo == 1) then
-    call stop_clock(dtime_i1,iclock_i1)
-    write(*,*)'create_communicators:',dtime_i1
-    call start_clock(iclock_i2)
-  endif
 
-  ! if (MYRANK == 0) iinfo=1
   if (iinfo == 1) write(*,*)PRINTRANK,'INITIALIZATION'
 
 end subroutine
@@ -229,11 +214,6 @@ integer :: ierr
   allocate(R(nrcppz*nrcppx*nrcppy,3,3,3))
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
-  if (iinfo == 1) then
-    call stop_clock(dtime_i2,iclock_i2)
-    write(*,*)'allocations:',dtime_i2
-    call start_clock(iclock_i3)
-  endif
 
 end subroutine
 
@@ -613,11 +593,6 @@ real   (kind=8) :: l2norm, fullnorm
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
-  if (iinfo == 1) then
-    call stop_clock(dtime_i4,iclock_i4)
-    write(*,*)'Form 3D RHS:',dtime_i4
-  endif
-
   call MPI_Reduce(l2norm, fullnorm, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
   if (MYRANK == 0) then
     write(*,*)iter, 'L2 norm:', fullnorm
@@ -701,12 +676,6 @@ integer(kind=4) :: iret, ierr
   !--------------------------------------------------------------------
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
-  if (iprint == 1) then
-    call stop_clock(dtime_init,iclock_init)
-    write(*,*)dtime_init
-    call start_clock(iclock_gather1)
-  endif
-
   if (iinfo == 1) write(*,*)PRINTRANK,'1a) GATHER'
 
   allocate(F_out((n+1),sy*sz))
@@ -723,12 +692,6 @@ integer(kind=4) :: iret, ierr
   endif
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
-  if (iprint == 1) then
-    call stop_clock(dtime_gather1,iclock_gather1)
-    write(*,*)dtime_gather1
-    call start_clock(iclock_solve1)
-  endif
-
   if (MYRANKX == 0) then
     if (iinfo == 1) write(*,*)PRINTRANK,'1b) SOLVE THE FIRST PROBLEM'
 
@@ -738,24 +701,12 @@ integer(kind=4) :: iret, ierr
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
-  if (iprint == 1) then
-    call stop_clock(dtime_solve1,iclock_solve1)
-    write(*,*)dtime_solve1
-    call start_clock(iclock_scatter1)
-  endif
-
   if (iinfo == 1) write(*,*)PRINTRANK,'1c) SCATTER'
   allocate(F2_out(sx,sy*sz))
   call Scatter(F_out,F2_out,n,sx,sy*sz,dimensionsX,shiftsX,COMMX,ierr)
   deallocate(F_out)
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-  if (iprint == 1) then
-    call stop_clock(dtime_scatter1,iclock_scatter1)
-    write(*,*)dtime_scatter1
-    call start_clock(iclock_gather2)
-  endif
 
   if (iinfo == 1) write(*,*)PRINTRANK,'1d) REORDER'
   call ReorderRHSForY(ibegx,iendx,ibegy,iendy,ibegz,iendz,F2_out,F2)
@@ -782,13 +733,6 @@ integer(kind=4) :: iret, ierr
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
-  if (iprint == 1) then
-    call stop_clock(dtime_gather2,iclock_gather2)
-    write(*,*)dtime_gather2
-    call start_clock(iclock_solve2)
-  endif
-
-
   if (MYRANKY == 0) then
     if (iinfo == 1) write(*,*)PRINTRANK,'2b) SOLVE THE SECOND PROBLEM'
 
@@ -797,12 +741,6 @@ integer(kind=4) :: iret, ierr
   endif
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-  if (iprint == 1) then
-    call stop_clock(dtime_solve2,iclock_solve2)
-    write(*,*)dtime_solve2
-    call start_clock(iclock_scatter2)
-  endif
 
   if (iinfo == 1) write(*,*)PRINTRANK,'2c) SCATHER'
 
@@ -821,12 +759,6 @@ integer(kind=4) :: iret, ierr
   endif
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-  if (iprint == 1) then
-    call stop_clock(dtime_scatter2,iclock_scatter2)
-    write(*,*)dtime_scatter2
-    call start_clock(iclock_gather3)
-  endif
 
   if (iinfo == 1) write(*,*)PRINTRANK,'2d) REORDER'
   ! Reorder right hand sides
@@ -853,12 +785,6 @@ integer(kind=4) :: iret, ierr
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
-  if (iprint == 1) then
-    call stop_clock(dtime_gather3,iclock_gather3)
-    write(*,*)dtime_gather3
-    call start_clock(iclock_solve3)
-  endif
-
   if (MYRANKZ == 0) then
     if (iinfo == 1) write(*,*)PRINTRANK,'3b) SOLVE THE THIRD PROBLEM'
 
@@ -868,12 +794,6 @@ integer(kind=4) :: iret, ierr
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
-  if (iprint == 1) then
-    call stop_clock(dtime_solve3,iclock_solve3)
-    write(*,*)dtime_solve3
-    call start_clock(iclock_scatter3)
-  endif
-
   if (iinfo == 1) write(*,*)PRINTRANK,'3c) SCATTER'
 
   ! CORRECTION
@@ -882,11 +802,6 @@ integer(kind=4) :: iret, ierr
   deallocate(F3_out)
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-  if (iprint == 1) then
-    call stop_clock(dtime_scatter3,iclock_scatter3)
-    write(*,*)dtime_scatter3
-  endif
 
   if (iinfo == 1) write(*,*)PRINTRANK,'3d) REORDER'
   ! Reorder right hand sides
@@ -1069,10 +984,6 @@ integer(kind=4) :: ierr
   call mpi_finalize(ierr)
   if (iinfo == 1) write(*,*)PRINTRANK,"Exiting..."
 
-  if (iprint == 1) then
-    call stop_clock(dtime,iclock)
-    write(*,*)dtime
-  endif
 end subroutine
 
 
