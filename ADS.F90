@@ -547,15 +547,22 @@ end subroutine
 !
 ! t - current time
 ! -------------------------------------------------------------------
-subroutine ComputeRHS(iter,RHS_fun)
+subroutine ComputeRHS(iter,before_RHS_fun,RHS_fun,after_RHS_fun)
 use parallelism, ONLY : MYRANK,PRINTRANK
 use projection_engine, ONLY : Form3DRHS
 use debug, ONLY : iprint
-!use RHS_eq, ONLY : l2norm !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 use input_data, ONLY : Kqvals
 implicit none
 include "mpif.h"
 interface
+  subroutine before_RHS_fun(iter)
+     implicit none
+     integer(kind=4), intent(in)  :: iter
+  end subroutine
+  subroutine after_RHS_fun(iter)
+     implicit none
+     integer(kind=4), intent(in)  :: iter
+  end subroutine
   subroutine RHS_fun( &
          Xx,Xy,Xz, &
          kx,ky,kz, &
@@ -594,12 +601,10 @@ interface
       real   (kind=8), intent(out) :: F
   end subroutine
 end interface
-integer(kind=4) :: iter, i
-integer(kind=4) :: ierr
-real   (kind=8) :: fullnorm,l2norm !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+integer(kind=4), intent(in) :: iter
+integer(kind=4) :: ierr,i
 
-l2norm=0
-
+  call before_RHS_fun(iter)
   call Form3DRHS                                    &
       (Ux,px,nx,nelemx,nrcppx,                          &
        Uy,py,ny,nelemy,nrcppy,                          &
@@ -620,10 +625,7 @@ l2norm=0
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
-  call MPI_Reduce(l2norm, fullnorm, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-  if (MYRANK == 0) then
-    write(*,*)iter, 'L2 norm:', fullnorm
-  endif
+  call after_RHS_fun(iter)
 
 end subroutine
 
@@ -695,7 +697,7 @@ end subroutine
 ! iter - number of the iteration
 ! t    - time at the beginning of step
 ! -------------------------------------------------------------------
-subroutine Step(iter,RHS_fun)
+subroutine Step(iter,before_RHS_fun,RHS_fun,after_RHS_fun)
 use parallelism, ONLY :PRINTRANK,MYRANKX,MYRANKY,MYRANKZ
 use communicators, ONLY : COMMX,COMMY,COMMZ
 use utils, ONLY : Gather,Scatter
@@ -704,6 +706,14 @@ use reorderRHS, ONLY : ReorderRHSForX,ReorderRHSForY,ReorderRHSForZ
 implicit none
 include "mpif.h"
 interface
+  subroutine before_RHS_fun(iter)
+     implicit none
+     integer(kind=4), intent(in)  :: iter
+  end subroutine
+  subroutine after_RHS_fun(iter)
+     implicit none
+     integer(kind=4), intent(in)  :: iter
+  end subroutine
   subroutine RHS_fun( &
          Xx,Xy,Xz, &
          kx,ky,kz, &
@@ -747,7 +757,7 @@ integer(kind=4) :: i
 integer(kind=4) :: iret, ierr
 
   ! generate the RHS vectors
-  call ComputeRHS(iter,RHS_fun)
+  call ComputeRHS(iter,before_RHS_fun,RHS_fun,after_RHS_fun)
 
   !--------------------------------------------------------------------
   ! Solve the first problem
