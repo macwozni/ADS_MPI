@@ -70,17 +70,9 @@ t = 0
   ! Iterations
   do iter = 0,steps
 
-    ! if (MYRANK == 0) then
-    !   write(*,*)'Iteration',iter,'/',steps
-    !   write(*,*)'t = ',t
-    ! endif
-
     call Step(iter,beforeComputePointForRHS,ComputePointForRHS,afterComputePointForRHS)
     t = t + Dt
-
-    ! if (mod(iter, 100) == 0) then
-    !   call PrintSolution(iter, t)
-    ! endif
+    
   enddo
 
   call ComputeResults
