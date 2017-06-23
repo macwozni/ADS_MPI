@@ -13,6 +13,9 @@ real   (kind=8), parameter :: Kqmin = 1.d0, Kqmax = 1000.d0
 integer(kind=4) :: npumps, ndrains
 real   (kind=8), allocatable, dimension(:,:) :: pumps, drains
 
+! Buffer for values of permeability function
+real (kind=8), allocatable :: Kqvals(:,:,:,:,:,:)
+
 contains
 
 

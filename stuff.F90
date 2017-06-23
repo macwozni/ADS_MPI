@@ -40,9 +40,6 @@ real (kind=8) ::  pollution = 0
 ! Nx*Ny*Nz is the size of part of solution for one fragment of domain.
 real (kind=8), allocatable :: R(:,:,:,:)
 
-! Buffer for values of permeability function
-real (kind=8), allocatable :: Kqvals(:,:,:,:,:,:)
-
 ! Number of subintervals (currently n - p + 1)
 integer(kind=4) :: nelemx
 integer(kind=4) :: nelemy
@@ -211,6 +208,7 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine AllocateArrays
 use parallelism, ONLY : MYRANKX,MYRANKY,MYRANKZ
+use input_data, ONLY : Kqvals
 implicit none
 include "mpif.h"
 integer :: ierr
@@ -292,7 +290,7 @@ end subroutine
 
 
 subroutine PrecomputeKq
-use input_data, ONLY : CacheKqValues
+use input_data, ONLY : CacheKqValues,Kqvals
 implicit none
 
   call CacheKqValues                                &
@@ -610,6 +608,7 @@ use parallelism, ONLY : MYRANK,PRINTRANK
 use projection_engine, ONLY : Form3DRHS
 use debug, ONLY : iprint
 use RHS_eq, ONLY : drained,l2norm
+use input_data, ONLY : Kqvals
 implicit none
 include "mpif.h"
 real   (kind=8) :: t
@@ -628,7 +627,7 @@ l2norm=0
        ibegz,iendz,                                 &
        ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz,   &
        minex,maxex,miney,maxey,minez,maxez,         &
-       Kqvals,Dt,t,R,F)
+       Dt,t,R,F)
 
   if (iprint == 1) then
     write(*,*)PRINTRANK,'F'

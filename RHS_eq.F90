@@ -9,9 +9,9 @@ contains
 
 subroutine ComputePointForRHS(Xx,Xy,Xz,px,py,pz,kx,ky,kz, &
    ex,ey,ez,nelemx,nelemy,nelemz,Uval,ax,ay,az,NNx,NNy,NNz, &
-   minex,miney,minez,Kq,maxex,maxey,maxez,t,Dt,mi,dux,duy,duz, &
+   minex,miney,minez,maxex,maxey,maxez,t,Dt,mi,dux,duy,duz, &
    ibegx,ibegy,ibegz,iendx,iendy,iendz,F,J,W)
-use input_data, ONLY : pumping, draining, initial_state
+use input_data, ONLY : pumping,draining,initial_state,Kqvals
 implicit none
 integer(kind=4), intent(in)  :: px,py,pz
 real   (kind=8), intent(in)  :: Xx(px+1,nelemx)
@@ -24,7 +24,6 @@ real   (kind=8), intent(in)  :: Uval
 integer(kind=4), intent(in)  :: ibegx,ibegy,ibegz
 integer(kind=4), intent(in)  :: iendx,iendy,iendz
 integer(kind=4), intent(in)  :: maxex,maxey,maxez
-real   (kind=8), intent(in)  :: Kq(px+1,py+1,pz+1,maxex-minex+1,maxey-miney+1,maxez-minez+1)
 integer(kind=4), intent(in)  :: minex,miney,minez
 integer(kind=4), intent(in)  :: ax,ay,az
 real   (kind=8), intent(in)  :: dux,duy,duz
@@ -46,7 +45,7 @@ real   (kind=8) :: dvx,dvy,dvz,rhs,v
         dvy = NNx(0,ax,kx,ex) * NNy(1,ay,ky,ey) * NNz(0,az,kz,ez) 
         dvz = NNx(0,ax,kx,ex) * NNy(0,ay,ky,ey) * NNz(1,az,kz,ez) 
 
-        kqval = Kq(kx,ky,kz,ex-minex+1,ey-miney+1,ez-minez+1)
+        kqval = Kqvals(kx,ky,kz,ex-minex+1,ey-miney+1,ez-minez+1)
         vdrain = max(0.d0, draining(Uval, Xx(kx,ex),Xy(ky,ey),Xz(kz,ez)))
         fval = vpump - vdrain
         !--- Real
