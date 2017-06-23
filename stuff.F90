@@ -604,7 +604,7 @@ subroutine ComputeRHS(iter)
 use parallelism, ONLY : MYRANK,PRINTRANK
 use projection_engine, ONLY : Form3DRHS
 use debug, ONLY : iprint
-use RHS_eq, ONLY : drained,l2norm
+use RHS_eq, ONLY : drained,l2norm,ComputePointForRHS
 use input_data, ONLY : Kqvals
 implicit none
 include "mpif.h"
@@ -623,7 +623,7 @@ l2norm=0
        ibegz,iendz,                                 &
        ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz,   &
        minex,maxex,miney,maxey,minez,maxez,         &
-       R,F)
+       R,F,ComputePointForRHS)
 
   if (iprint == 1) then
     write(*,*)PRINTRANK,'F'

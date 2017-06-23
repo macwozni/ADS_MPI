@@ -111,13 +111,51 @@ subroutine Form3DRHS(          &
    minex,maxex,                &
    miney,maxey,                &
    minez,maxez,                &
-   R,F)
+   R,F,RHS_fun)
 use parallelism, ONLY : PRINTRANK
 USE ISO_FORTRAN_ENV, ONLY : ERROR_UNIT ! access computing environment
 use basis, ONLY : BasisData
 use debug, ONLY : iprint
-use RHS_eq, ONLY : ComputePointForRHS
 implicit none
+interface
+  subroutine RHS_fun( &
+         Xx,Xy,Xz, &
+         kx,ky,kz, &
+         ex,ey,ez, &
+         px,py,pz, &
+         nelemx,nelemy,nelemz, &
+         ax,ay,az, &
+         bx,by,bz, &
+         NNx,NNy,NNz, &
+         dux,duy,duz, &
+         ibegx,ibegy,ibegz, &
+         iendx,iendy,iendz, &
+         minex,miney,minez, &
+         maxex,maxey,maxez, &
+         Uval,J,W,F)
+      implicit none
+      integer(kind=4), intent(in)  :: px,py,pz
+      real   (kind=8), intent(in)  :: Xx(px+1,nelemx)
+      real   (kind=8), intent(in)  :: Xy(py+1,nelemy)
+      real   (kind=8), intent(in)  :: Xz(pz+1,nelemz)
+      integer(kind=4), intent(in)  :: kx,ky,kz
+      integer(kind=4), intent(in)  :: ex,ey,ez
+      integer(kind=4), intent(in)  :: nelemx,nelemy,nelemz
+      real   (kind=8), intent(in)  :: Uval
+      integer(kind=4), intent(in)  :: ibegx,ibegy,ibegz
+      integer(kind=4), intent(in)  :: iendx,iendy,iendz
+      integer(kind=4), intent(in)  :: maxex,maxey,maxez
+      integer(kind=4), intent(in)  :: minex,miney,minez
+      integer(kind=4), intent(in)  :: ax,ay,az
+      integer(kind=4), intent(in)  :: bx,by,bz
+      real   (kind=8), intent(in)  :: dux,duy,duz
+      real   (kind=8), intent(in)  :: J,W
+      real   (kind=8), intent(in)  :: NNx(0:px-1,0:px,px+1,nelemx), &
+                         NNy(0:py-1,0:py,py+1,nelemy), &
+                         NNz(0:pz-1,0:pz,pz+1,nelemz)
+      real   (kind=8), intent(out) :: F
+  end subroutine
+end interface
 integer(kind=4), intent(in)  :: nx, px, nelemx, nrcppx
 integer(kind=4), intent(in)  :: ny, py, nelemy, nrcppy
 integer(kind=4), intent(in)  :: nz, pz, nelemz, nrcppz
@@ -253,7 +291,7 @@ real   (kind=8) :: resvalue
         enddo
         enddo
         enddo
-          call ComputePointForRHS ( &
+          call RHS_fun ( &
                Xx,Xy,Xz, &
                kx,ky,kz, &
                ex,ey,ez, &
