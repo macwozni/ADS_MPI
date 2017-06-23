@@ -6,21 +6,52 @@ real (kind=8) :: l2norm
 
 contains
 
+! -------------------------------------------------------------------
+! Right-hand side of the equation.
+!
+! Input:
+! ------
+! Xx              - quadrature points
+! k_              - indexes for quadrature points
+! e_              - indexes for elements
+! p_              - degrees of approximation
+! nelem_          - number of subintervals
+! a_              - 
+! b_              - 
+! NN_             -
+! du_             -
+! ibeg_, iend_    - piece of domain associated with this process
+! ibegs_, iends_  - pieces of domain surrounding this process' piece
+! mine_, maxe_    - indices of first and last elements in each direction
+! Uval            - previous solution coefficient at given point
+! J               - jacobian
+! W               - weight for quadratures
+!
+! Output:
+! -------
+! F               - value of RHS function at given point
+!
+! -------------------------------------------------------------------
 
-! xx - punkty kwadrautry
-! kx - indeksy do punktów kwadratury
-! ex - po elementach
-! Uval - wartość funkcji z poprzedniego kroku
+
 ! ax, bx - po funkcjach bazwoych
 ! dux - wartośc pochodnej z poprzedniego kroku
 ! NNx - wartości funkcji bazowych w puntach kwadraury
-! J -jacobian
-! W - wagi kwadraury
-subroutine ComputePointForRHS(Xx,Xy,Xz,px,py,pz,kx,ky,kz, &
-   ex,ey,ez,nelemx,nelemy,nelemz,Uval,ax,ay,az,bx,by,bz, &
+subroutine ComputePointForRHS( &
+   Xx,Xy,Xz, &
+   kx,ky,kz, &
+   ex,ey,ez, &
+   px,py,pz, &
+   nelemx,nelemy,nelemz, &
+   ax,ay,az, &
+   bx,by,bz, &
    NNx,NNy,NNz, &
-   minex,miney,minez,maxex,maxey,maxez,dux,duy,duz, &
-   ibegx,ibegy,ibegz,iendx,iendy,iendz,F,J,W)
+   dux,duy,duz, &
+   ibegx,ibegy,ibegz, &
+   iendx,iendy,iendz, &
+   minex,miney,minez, &
+   maxex,maxey,maxez, &
+   Uval,J,W,F)
 use input_data, ONLY : pumping,draining,initial_state,Kqvals,t,Dt
 implicit none
 integer(kind=4), intent(in)  :: px,py,pz
