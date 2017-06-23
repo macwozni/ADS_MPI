@@ -38,6 +38,7 @@ contains
 ! -------------------------------------------------------------------
 subroutine SavePlot(filename, f, output, params)
 use math, ONLY : lerp
+implicit none
 interface
   function f(x, y, z) result (val)
     real (kind=8) :: x, y, z, val
