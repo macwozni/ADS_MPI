@@ -7,17 +7,16 @@ SOURCES = \
           basis.F90 \
           math.F90 \
           reorderRHS.F90 \
-          input_data.F90 \
           utils.F90 \
-          RHS_eq.F90 \
           projection_engine.F90 \
           analysis.F90 \
           int2str.F90 \
           plot.F90 \
           gnuplot.F90 \
           vtk.F90 \
-          ADS.F90 \
+          input_data.F90 \
           stuff.F90 \
+          ADS.F90 \
           main.F90 
 
 SOURCES_LAPACK = lapack/dgbsv.F \

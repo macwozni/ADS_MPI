@@ -4,10 +4,9 @@ program main
 
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ
 use debug, ONLY : iinfo,idebug,iprint
-use input_data, ONLY : InitInputData,t,Dt
-use input_data, ONLY : Kqvals
+use input_data
 use stuff
-use RHS_eq
+use ADS
 
 implicit none
 
