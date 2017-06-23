@@ -5,6 +5,7 @@ program main
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ
 use debug, ONLY : iinfo,idebug,iprint
 use input_data, ONLY : InitInputData,t,Dt
+use input_data, ONLY : Kqvals
 use stuff
 use RHS_eq
 
@@ -19,6 +20,7 @@ t = 0
 ! Code
 ! -------------------------------------------------------------------
 
+  call InitializeParameters
   call Initialize
 
   ! prepare the problem dimensions
@@ -61,6 +63,7 @@ t = 0
   call PrepareKnot(Ux,nx,px)
   call PrepareKnot(Uy,ny,py)
   call PrepareKnot(Uz,nz,pz)
+  allocate(Kqvals(px+1,py+1,pz+1,maxex-minex+1,maxey-miney+1,maxez-minez+1))
   call InitInputData
   call PrecomputeKq
 

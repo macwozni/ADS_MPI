@@ -2,6 +2,20 @@ module stuff
 
 implicit none
 
+! Number of iterations
+integer :: steps
+
+! Statistics computed during the simulation
+real (kind=8) ::  pollution = 0
+
+! order of approximations
+integer(kind=4) :: ORDER
+
+! number of elements in one dimension
+integer(kind=4) :: SIZE
+
+
+
 ! Number of functions in each dimension minus one
 integer(kind=4) :: nx
 integer(kind=4) :: ny
@@ -11,9 +25,6 @@ integer(kind=4) :: nz
 integer(kind=4) :: px
 integer(kind=4) :: py
 integer(kind=4) :: pz
-
-! Number of iterations
-integer :: steps
 
 ! Knot vector
 real (kind=8), allocatable, dimension(:) :: Ux
@@ -27,9 +38,6 @@ real (kind=8), allocatable, dimension(:,:) :: Mz
 
 real (kind=8), allocatable, dimension(:,:) :: F, F2, F3
 real (kind=8), allocatable, dimension(:,:) :: F_out, F2_out, F3_out
-
-! Statistics computed during the simulation
-real (kind=8) ::  pollution = 0
 
 ! Buffer for coefficients of solution corresponding to neighbouring
 ! parts of the domain. It is (Nx*Ny*Nz) x 3 x 3 x 3 array, where
@@ -82,11 +90,6 @@ integer(kind=4) :: minex, maxex
 integer(kind=4) :: miney, maxey
 integer(kind=4) :: minez, maxez
 
-! order of approximations
-integer(kind=4) :: ORDER
-
-! number of elements in one dimension
-integer(kind=4) :: SIZE
 
 contains
 
@@ -130,7 +133,6 @@ implicit none
 include "mpif.h"
 integer(kind=4) :: ierr
 
-  call InitializeParameters
   call InitializeParallelism
   call CreateCommunicators
 
@@ -205,7 +207,6 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine AllocateArrays
 use parallelism, ONLY : MYRANKX,MYRANKY,MYRANKZ
-use input_data, ONLY : Kqvals
 implicit none
 include "mpif.h"
 integer :: ierr
@@ -220,7 +221,6 @@ integer :: ierr
   allocate(F2(sy,sx*sz)) !y,x,z
   allocate(F3(sz,sx*sy)) !z,x,y
 
-  allocate(Kqvals(px+1,py+1,pz+1,maxex-minex+1,maxey-miney+1,maxez-minez+1))
 
   ! Processes on the border need pivot vector for LAPACK call
   if (MYRANKX == 0 .or. MYRANKY == 0 .or. MYRANKZ == 0) then
@@ -544,17 +544,6 @@ integer(kind=4) :: dst, src
 
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
-  !if (MYRANK == 0) then
-  !  call PrintDistributedData
-  !endif
-
-  !do i=ibegx,iendx
-  !  do j=ibegy,iendy
-  !    do k=ibegz,iendz
-  !       Result(k-ibegz+1,(j-ibegy)*sx + i-ibegx+1)=(10*i+j)*10 + k
-  !    enddo
-  !  enddo
-  !enddo
 
 end subroutine
 
@@ -604,7 +593,7 @@ subroutine ComputeRHS(iter,RHS_fun)
 use parallelism, ONLY : MYRANK,PRINTRANK
 use projection_engine, ONLY : Form3DRHS
 use debug, ONLY : iprint
-use RHS_eq, ONLY : drained,l2norm,ComputePointForRHS
+use RHS_eq, ONLY : l2norm
 use input_data, ONLY : Kqvals
 implicit none
 include "mpif.h"
