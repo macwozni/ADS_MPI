@@ -16,6 +16,12 @@ real   (kind=8), allocatable, dimension(:,:) :: pumps, drains
 ! Buffer for values of permeability function
 real (kind=8), allocatable :: Kqvals(:,:,:,:,:,:)
 
+! Current time
+real   (kind=8) :: t
+
+! Time and timestep
+real (kind=8) :: Dt
+
 contains
 
 

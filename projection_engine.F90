@@ -89,9 +89,6 @@ end subroutine
 ! ibeg_, iend_    - piece of domain associated with this process
 ! ibegs_, iends_  - pieces of domain surrounding this process' piece
 ! mine_, maxe_    - indices of first and last elements in each direction
-! Kq              - array with precomputed permeability values
-! Dt              - time step size
-! t               - current time
 ! R               - previous solution coefficients
 !
 ! Output:
@@ -114,7 +111,7 @@ subroutine Form3DRHS(          &
    minex,maxex,                &
    miney,maxey,                &
    minez,maxez,                &
-   Dt,t,R,F)
+   R,F)
 use parallelism, ONLY : PRINTRANK
 USE ISO_FORTRAN_ENV, ONLY : ERROR_UNIT ! access computing environment
 use basis, ONLY : BasisData
@@ -129,7 +126,7 @@ real   (kind=8), intent(in)  :: Ux(0:nx+px+1)
 real   (kind=8), intent(in)  :: Uy(0:ny+py+1)
 real   (kind=8), intent(in)  :: Uz(0:nz+pz+1)
 real   (kind=8), intent(in)  :: R(0:nrcppz*nrcppx*nrcppy-1,3,3,3)
-integer(kind=4), dimension(3):: ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz
+integer(kind=4), intent(in) :: ibegsx(3),iendsx(3),ibegsy(3),iendsy(3),ibegsz(3),iendsz(3)
 integer(kind=4), intent(in)  :: ibegx,ibegy,ibegz
 integer(kind=4), intent(in)  :: iendx,iendy,iendz
                                
@@ -146,7 +143,7 @@ real   (kind=8) :: Xz(pz+1,nelemz)
 real   (kind=8) :: NNx(0:1,0:px,px+1,nelemx), &
                    NNy(0:1,0:py,py+1,nelemy), &
                    NNz(0:1,0:pz,pz+1,nelemz)
-real   (kind=8) :: J,W,Uval,t,Dt,ucoeff,mi
+real   (kind=8) :: J,W,Uval,ucoeff
 real   (kind=8) :: v, rhs
 real   (kind=8) :: dux,duy,duz,dvx,dvy,dvz
 integer(kind=4) :: nreppx,nreppy,nreppz !# elements per proc along x,y,z
@@ -162,8 +159,6 @@ real   (kind=8) :: resvalue
   ngy = py + 1
   mz  = nz + pz + 1
   ngz = pz + 1
-
-  mi = 10.0
 
   call BasisData(px,mx,Ux,1,ngx,nelemx,Ox,Jx,Wx,Xx,NNx)
   call BasisData(py,my,Uy,1,ngy,nelemy,Oy,Jy,Wy,Xy,NNy)
@@ -259,8 +254,9 @@ real   (kind=8) :: resvalue
         enddo
         enddo
           call ComputePointForRHS (Xx,Xy,Xz,px,py,pz,kx,ky,kz, &
-   ex,ey,ez,nelemx,nelemy,nelemz,Uval,ax,ay,az,NNx,NNy,NNz, &
-   minex,miney,minez,maxex,maxey,maxez,t,Dt,mi,dux,duy,duz, &
+   ex,ey,ez,nelemx,nelemy,nelemz,Uval,ax,ay,az,bx,by,bz, &
+   NNx,NNy,NNz, &
+   minex,miney,minez,maxex,maxey,maxez,dux,duy,duz, &
    ibegx,ibegy,ibegz,iendx,iendy,iendz,resvalue,J,W)
    
           F(ind1,ind23) = F(ind1,ind23) + resvalue

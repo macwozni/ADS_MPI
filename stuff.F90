@@ -15,10 +15,6 @@ integer(kind=4) :: pz
 ! Number of iterations
 integer :: steps
 
-! Time and timestep
-real (kind=8) :: Dt
-
-
 ! Knot vector
 real (kind=8), allocatable, dimension(:) :: Ux
 real (kind=8), allocatable, dimension(:) :: Uy
@@ -100,6 +96,7 @@ contains
 ! -------------------------------------------------------------------
 subroutine InitializeParameters
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ
+use input_data, ONLY : Dt
 implicit none
 character(100) :: input
 
@@ -603,7 +600,7 @@ end subroutine
 !
 ! t - current time
 ! -------------------------------------------------------------------
-subroutine ComputeRHS(iter, t)
+subroutine ComputeRHS(iter)
 use parallelism, ONLY : MYRANK,PRINTRANK
 use projection_engine, ONLY : Form3DRHS
 use debug, ONLY : iprint
@@ -611,7 +608,6 @@ use RHS_eq, ONLY : drained,l2norm
 use input_data, ONLY : Kqvals
 implicit none
 include "mpif.h"
-real   (kind=8) :: t
 integer(kind=4) :: iter, i
 integer(kind=4) :: ierr
 real   (kind=8) :: fullnorm
@@ -627,7 +623,7 @@ l2norm=0
        ibegz,iendz,                                 &
        ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz,   &
        minex,maxex,miney,maxey,minez,maxez,         &
-       Dt,t,R,F)
+       R,F)
 
   if (iprint == 1) then
     write(*,*)PRINTRANK,'F'
@@ -711,7 +707,7 @@ end subroutine
 ! iter - number of the iteration
 ! t    - time at the beginning of step
 ! -------------------------------------------------------------------
-subroutine Step(iter, t)
+subroutine Step(iter)
 use parallelism, ONLY :PRINTRANK,MYRANKX,MYRANKY,MYRANKZ
 use communicators, ONLY : COMMX,COMMY,COMMZ
 use utils, ONLY : Gather,Scatter
@@ -720,12 +716,11 @@ use reorderRHS, ONLY : ReorderRHSForX,ReorderRHSForY,ReorderRHSForZ
 implicit none
 include "mpif.h"
 integer(kind=4) :: iter
-real   (kind=8) :: t
 integer(kind=4) :: i
 integer(kind=4) :: iret, ierr
 
   ! generate the RHS vectors
-  call ComputeRHS(iter, t)
+  call ComputeRHS(iter)
 
   !--------------------------------------------------------------------
   ! Solve the first problem

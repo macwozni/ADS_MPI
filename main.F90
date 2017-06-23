@@ -4,7 +4,7 @@ program main
 
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ
 use debug, ONLY : iinfo,idebug,iprint
-use input_data, ONLY : InitInputData
+use input_data, ONLY : InitInputData,t,Dt
 use stuff
 
 implicit none
@@ -12,8 +12,7 @@ implicit none
 ! Iteration counter
 integer :: iter = 0
 
-! Current time
-real (kind=8) :: t = 0
+t = 0
 
 ! -------------------------------------------------------------------
 ! Code
@@ -72,7 +71,7 @@ real (kind=8) :: t = 0
     !   write(*,*)'t = ',t
     ! endif
 
-    call Step(iter, t)
+    call Step(iter)
     t = t + Dt
 
     ! if (mod(iter, 100) == 0) then
