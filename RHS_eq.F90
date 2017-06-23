@@ -16,10 +16,9 @@ contains
 ! e_              - indexes for elements
 ! p_              - degrees of approximation
 ! nelem_          - number of subintervals
-! a_              - 
-! b_              - 
-! NN_             -
-! du_             -
+! a_, b_          - indexes of basis functions
+! NN_             - values of basis functions in quadrature points
+! du_             - value of 
 ! ibeg_, iend_    - piece of domain associated with this process
 ! ibegs_, iends_  - pieces of domain surrounding this process' piece
 ! mine_, maxe_    - indices of first and last elements in each direction
@@ -70,9 +69,9 @@ integer(kind=4), intent(in)  :: ax,ay,az
 integer(kind=4), intent(in)  :: bx,by,bz
 real   (kind=8), intent(in)  :: dux,duy,duz
 real   (kind=8), intent(in)  :: J,W
-real   (kind=8), intent(in)  :: NNx(0:1,0:px,px+1,nelemx), &
-                   NNy(0:1,0:py,py+1,nelemy), &
-                   NNz(0:1,0:pz,pz+1,nelemz)
+real   (kind=8), intent(in)  :: NNx(0:px-1,0:px,px+1,nelemx), &
+                   NNy(0:py-1,0:py,py+1,nelemy), &
+                   NNz(0:pz-1,0:pz,pz+1,nelemz)
 real   (kind=8), intent(out) :: F
 real   (kind=8) :: fval,vpump,vdrain,kqval
 real   (kind=8) :: Umax = -1d10, Umin = 1d10

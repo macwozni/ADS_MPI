@@ -140,9 +140,9 @@ real   (kind=8) :: Wx(px+1),Wy(py+1),Wz(pz+1)
 real   (kind=8) :: Xx(px+1,nelemx)
 real   (kind=8) :: Xy(py+1,nelemy)
 real   (kind=8) :: Xz(pz+1,nelemz)
-real   (kind=8) :: NNx(0:1,0:px,px+1,nelemx), &
-                   NNy(0:1,0:py,py+1,nelemy), &
-                   NNz(0:1,0:pz,pz+1,nelemz)
+real   (kind=8) :: NNx(0:px-1,0:px,px+1,nelemx), &
+                   NNy(0:py-1,0:py,py+1,nelemy), &
+                   NNz(0:pz-1,0:pz,pz+1,nelemz)
 real   (kind=8) :: J,W,Uval,ucoeff
 real   (kind=8) :: v, rhs
 real   (kind=8) :: dux,duy,duz,dvx,dvy,dvz
@@ -160,9 +160,9 @@ real   (kind=8) :: resvalue
   mz  = nz + pz + 1
   ngz = pz + 1
 
-  call BasisData(px,mx,Ux,1,ngx,nelemx,Ox,Jx,Wx,Xx,NNx)
-  call BasisData(py,my,Uy,1,ngy,nelemy,Oy,Jy,Wy,Xy,NNy)
-  call BasisData(pz,mz,Uz,1,ngz,nelemz,Oz,Jz,Wz,Xz,NNz)
+  call BasisData(px,mx,Ux,px-1,ngx,nelemx,Ox,Jx,Wx,Xx,NNx)
+  call BasisData(py,my,Uy,py-1,ngy,nelemy,Oy,Jy,Wy,Xy,NNy)
+  call BasisData(pz,mz,Uz,pz-1,ngz,nelemz,Oz,Jz,Wz,Xz,NNz)
 
   if (iprint == 1) then
     write(*,*)PRINTRANK,'ex:',minex,maxex
