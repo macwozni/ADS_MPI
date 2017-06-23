@@ -18,7 +18,7 @@ contains
 ! nelem_          - number of subintervals
 ! a_, b_          - indexes of basis functions
 ! NN_             - values of basis functions in quadrature points
-! du_             - value of 
+! du_             - value of derivative from previous time step
 ! ibeg_, iend_    - piece of domain associated with this process
 ! ibegs_, iends_  - pieces of domain surrounding this process' piece
 ! mine_, maxe_    - indices of first and last elements in each direction
@@ -32,10 +32,6 @@ contains
 !
 ! -------------------------------------------------------------------
 
-
-! ax, bx - po funkcjach bazwoych
-! dux - wartośc pochodnej z poprzedniego kroku
-! NNx - wartości funkcji bazowych w puntach kwadraury
 subroutine ComputePointForRHS( &
    Xx,Xy,Xz, &
    kx,ky,kz, &
