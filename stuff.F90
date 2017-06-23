@@ -600,7 +600,7 @@ end subroutine
 !
 ! t - current time
 ! -------------------------------------------------------------------
-subroutine ComputeRHS(iter)
+subroutine ComputeRHS(iter,RHS_fun)
 use parallelism, ONLY : MYRANK,PRINTRANK
 use projection_engine, ONLY : Form3DRHS
 use debug, ONLY : iprint
@@ -608,6 +608,45 @@ use RHS_eq, ONLY : drained,l2norm,ComputePointForRHS
 use input_data, ONLY : Kqvals
 implicit none
 include "mpif.h"
+interface
+  subroutine RHS_fun( &
+         Xx,Xy,Xz, &
+         kx,ky,kz, &
+         ex,ey,ez, &
+         px,py,pz, &
+         nelemx,nelemy,nelemz, &
+         ax,ay,az, &
+         bx,by,bz, &
+         NNx,NNy,NNz, &
+         dux,duy,duz, &
+         ibegx,ibegy,ibegz, &
+         iendx,iendy,iendz, &
+         minex,miney,minez, &
+         maxex,maxey,maxez, &
+         Uval,J,W,F)
+      implicit none
+      integer(kind=4), intent(in)  :: px,py,pz
+      real   (kind=8), intent(in)  :: Xx(px+1,nelemx)
+      real   (kind=8), intent(in)  :: Xy(py+1,nelemy)
+      real   (kind=8), intent(in)  :: Xz(pz+1,nelemz)
+      integer(kind=4), intent(in)  :: kx,ky,kz
+      integer(kind=4), intent(in)  :: ex,ey,ez
+      integer(kind=4), intent(in)  :: nelemx,nelemy,nelemz
+      real   (kind=8), intent(in)  :: Uval
+      integer(kind=4), intent(in)  :: ibegx,ibegy,ibegz
+      integer(kind=4), intent(in)  :: iendx,iendy,iendz
+      integer(kind=4), intent(in)  :: maxex,maxey,maxez
+      integer(kind=4), intent(in)  :: minex,miney,minez
+      integer(kind=4), intent(in)  :: ax,ay,az
+      integer(kind=4), intent(in)  :: bx,by,bz
+      real   (kind=8), intent(in)  :: dux,duy,duz
+      real   (kind=8), intent(in)  :: J,W
+      real   (kind=8), intent(in)  :: NNx(0:px-1,0:px,px+1,nelemx), &
+                         NNy(0:py-1,0:py,py+1,nelemy), &
+                         NNz(0:pz-1,0:pz,pz+1,nelemz)
+      real   (kind=8), intent(out) :: F
+  end subroutine
+end interface
 integer(kind=4) :: iter, i
 integer(kind=4) :: ierr
 real   (kind=8) :: fullnorm
@@ -623,7 +662,7 @@ l2norm=0
        ibegz,iendz,                                 &
        ibegsx,iendsx,ibegsy,iendsy,ibegsz,iendsz,   &
        minex,maxex,miney,maxey,minez,maxez,         &
-       R,F,ComputePointForRHS)
+       R,F,RHS_fun)
 
   if (iprint == 1) then
     write(*,*)PRINTRANK,'F'
@@ -707,7 +746,7 @@ end subroutine
 ! iter - number of the iteration
 ! t    - time at the beginning of step
 ! -------------------------------------------------------------------
-subroutine Step(iter)
+subroutine Step(iter,RHS_fun)
 use parallelism, ONLY :PRINTRANK,MYRANKX,MYRANKY,MYRANKZ
 use communicators, ONLY : COMMX,COMMY,COMMZ
 use utils, ONLY : Gather,Scatter
@@ -715,12 +754,51 @@ use debug, ONLY : iprint,iinfo
 use reorderRHS, ONLY : ReorderRHSForX,ReorderRHSForY,ReorderRHSForZ
 implicit none
 include "mpif.h"
+interface
+  subroutine RHS_fun( &
+         Xx,Xy,Xz, &
+         kx,ky,kz, &
+         ex,ey,ez, &
+         px,py,pz, &
+         nelemx,nelemy,nelemz, &
+         ax,ay,az, &
+         bx,by,bz, &
+         NNx,NNy,NNz, &
+         dux,duy,duz, &
+         ibegx,ibegy,ibegz, &
+         iendx,iendy,iendz, &
+         minex,miney,minez, &
+         maxex,maxey,maxez, &
+         Uval,J,W,F)
+      implicit none
+      integer(kind=4), intent(in)  :: px,py,pz
+      real   (kind=8), intent(in)  :: Xx(px+1,nelemx)
+      real   (kind=8), intent(in)  :: Xy(py+1,nelemy)
+      real   (kind=8), intent(in)  :: Xz(pz+1,nelemz)
+      integer(kind=4), intent(in)  :: kx,ky,kz
+      integer(kind=4), intent(in)  :: ex,ey,ez
+      integer(kind=4), intent(in)  :: nelemx,nelemy,nelemz
+      real   (kind=8), intent(in)  :: Uval
+      integer(kind=4), intent(in)  :: ibegx,ibegy,ibegz
+      integer(kind=4), intent(in)  :: iendx,iendy,iendz
+      integer(kind=4), intent(in)  :: maxex,maxey,maxez
+      integer(kind=4), intent(in)  :: minex,miney,minez
+      integer(kind=4), intent(in)  :: ax,ay,az
+      integer(kind=4), intent(in)  :: bx,by,bz
+      real   (kind=8), intent(in)  :: dux,duy,duz
+      real   (kind=8), intent(in)  :: J,W
+      real   (kind=8), intent(in)  :: NNx(0:px-1,0:px,px+1,nelemx), &
+                         NNy(0:py-1,0:py,py+1,nelemy), &
+                         NNz(0:pz-1,0:pz,pz+1,nelemz)
+      real   (kind=8), intent(out) :: F
+  end subroutine
+end interface
 integer(kind=4) :: iter
 integer(kind=4) :: i
 integer(kind=4) :: iret, ierr
 
   ! generate the RHS vectors
-  call ComputeRHS(iter)
+  call ComputeRHS(iter,RHS_fun)
 
   !--------------------------------------------------------------------
   ! Solve the first problem

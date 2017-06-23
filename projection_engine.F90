@@ -318,11 +318,6 @@ real   (kind=8) :: resvalue
   enddo
   enddo
   enddo
-
-!  if (iprint == 1) then
-!    write(*,*) PRINTRANK,'Min =',Umin
-!    write(*,*) PRINTRANK,'Max =',Umax
-!  endif
   
 end subroutine
 

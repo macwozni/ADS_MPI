@@ -6,6 +6,7 @@ use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ
 use debug, ONLY : iinfo,idebug,iprint
 use input_data, ONLY : InitInputData,t,Dt
 use stuff
+use RHS_eq
 
 implicit none
 
@@ -71,7 +72,7 @@ t = 0
     !   write(*,*)'t = ',t
     ! endif
 
-    call Step(iter)
+    call Step(iter,ComputePointForRHS)
     t = t + Dt
 
     ! if (mod(iter, 100) == 0) then

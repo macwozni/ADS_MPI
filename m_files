@@ -16,6 +16,7 @@ SOURCES = \
           plot.F90 \
           gnuplot.F90 \
           vtk.F90 \
+          ADS.F90 \
           stuff.F90 \
           main.F90 
 
