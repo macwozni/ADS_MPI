@@ -14,9 +14,9 @@ SOURCES = \
           plot.F90 \
           gnuplot.F90 \
           vtk.F90 \
-          input_data.F90 \
           stuff.F90 \
           ADS.F90 \
+          input_data.F90 \
           RHS_eq.F90 \
           main.F90 
 

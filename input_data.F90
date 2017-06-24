@@ -89,6 +89,8 @@ integer(kind=4) :: ierr
 end subroutine
 
 
+
+
 subroutine InitPumps()
 character(100)  :: input
 integer(kind=4) :: i, arg = 7 ! First argument after "technical" ones
@@ -153,6 +155,9 @@ call InitPumps()
 
 end subroutine
 
+
+
+
 function dist_from_segment(x,y,z,ax,ay,az,bx,by,bz) result (d)
 real   (kind=8) :: x,y,z,ax,ay,az,bx,by,bz
 real   (kind=8) :: dx,dy,dz,cx,cy,cz,xx,yy,zz
@@ -187,6 +192,8 @@ end if
 d = (x - xx)**2 + (y - yy)**2 + (z - zz)**2
 
 end function
+
+
 
 
 function dist_from_curves(x, y, z) result (fval)
@@ -226,6 +233,9 @@ do i = 1,npumps
 enddo
 
 end function
+
+
+
 
 ! Draining
 ! x, y, z - point in space
@@ -323,6 +333,20 @@ do ex = minex,maxex
       end do
    end do
 end do
+
+end subroutine
+
+
+
+subroutine PrecomputeKq
+use ADS
+implicit none
+
+  call CacheKqValues                                &
+      (Ux,px,nx,minex,maxex,nelemx,                     &
+       Uy,py,ny,miney,maxey,nelemy,                     &
+       Uz,pz,nz,minez,maxez,nelemz,                     &
+       Kqvals)
 
 end subroutine
 

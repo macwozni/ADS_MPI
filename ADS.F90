@@ -244,17 +244,6 @@ integer :: i
 end subroutine
 
 
-subroutine PrecomputeKq
-use input_data, ONLY : CacheKqValues,Kqvals
-implicit none
-
-  call CacheKqValues                                &
-      (Ux,px,nx,minex,maxex,nelemx,                     &
-       Uy,py,ny,miney,maxey,nelemy,                     &
-       Uz,pz,nz,minez,maxez,nelemz,                     &
-       Kqvals)
-
-end subroutine
 
 
 function neighbour(dx, dy, dz) result(idx)
@@ -547,22 +536,13 @@ end subroutine
 !
 ! t - current time
 ! -------------------------------------------------------------------
-subroutine ComputeRHS(iter,before_RHS_fun,RHS_fun,after_RHS_fun)
+subroutine ComputeRHS(iter,RHS_fun)
 use parallelism, ONLY : MYRANK,PRINTRANK
 use projection_engine, ONLY : Form3DRHS
 use debug, ONLY : iprint
-use input_data, ONLY : Kqvals
 implicit none
 include "mpif.h"
 interface
-  subroutine before_RHS_fun(iter)
-     implicit none
-     integer(kind=4), intent(in)  :: iter
-  end subroutine
-  subroutine after_RHS_fun(iter)
-     implicit none
-     integer(kind=4), intent(in)  :: iter
-  end subroutine
   subroutine RHS_fun( &
          Xx,Xy,Xz, &
          kx,ky,kz, &
@@ -604,7 +584,6 @@ end interface
 integer(kind=4), intent(in) :: iter
 integer(kind=4) :: ierr,i
 
-  call before_RHS_fun(iter)
   call Form3DRHS                                    &
       (Ux,px,nx,nelemx,nrcppx,                          &
        Uy,py,ny,nelemy,nrcppy,                          &
@@ -624,8 +603,6 @@ integer(kind=4) :: ierr,i
   endif
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-  call after_RHS_fun(iter)
 
 end subroutine
 
@@ -697,7 +674,7 @@ end subroutine
 ! iter - number of the iteration
 ! t    - time at the beginning of step
 ! -------------------------------------------------------------------
-subroutine Step(iter,before_RHS_fun,RHS_fun,after_RHS_fun)
+subroutine Step(iter,RHS_fun)
 use parallelism, ONLY :PRINTRANK,MYRANKX,MYRANKY,MYRANKZ
 use communicators, ONLY : COMMX,COMMY,COMMZ
 use utils, ONLY : Gather,Scatter
@@ -706,14 +683,6 @@ use reorderRHS, ONLY : ReorderRHSForX,ReorderRHSForY,ReorderRHSForZ
 implicit none
 include "mpif.h"
 interface
-  subroutine before_RHS_fun(iter)
-     implicit none
-     integer(kind=4), intent(in)  :: iter
-  end subroutine
-  subroutine after_RHS_fun(iter)
-     implicit none
-     integer(kind=4), intent(in)  :: iter
-  end subroutine
   subroutine RHS_fun( &
          Xx,Xy,Xz, &
          kx,ky,kz, &
@@ -757,7 +726,7 @@ integer(kind=4) :: i
 integer(kind=4) :: iret, ierr
 
   ! generate the RHS vectors
-  call ComputeRHS(iter,before_RHS_fun,RHS_fun,after_RHS_fun)
+  call ComputeRHS(iter,RHS_fun)
 
   !--------------------------------------------------------------------
   ! Solve the first problem

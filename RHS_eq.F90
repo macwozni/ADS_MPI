@@ -101,33 +101,4 @@ endif
 end subroutine
 
 
-
-subroutine beforeComputePointForRHS(iter)
-use input_data, ONLY : l2norm,fullnorm
-implicit none
-integer(kind=4), intent(in)  :: iter
-
-l2norm=0
-
-end subroutine
-
-
-
-subroutine afterComputePointForRHS(iter)
-use input_data, ONLY : l2norm,fullnorm
-use parallelism, ONLY : MYRANK
-implicit none
-include "mpif.h"
-integer(kind=4), intent(in)  :: iter
-integer(kind=4) :: ierr
-
-call MPI_Reduce(l2norm, fullnorm, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-if (MYRANK == 0) then
-  write(*,*)iter, 'L2 norm:', fullnorm
-endif
-  
-end subroutine
-
-
-
 end module
