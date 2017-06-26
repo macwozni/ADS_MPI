@@ -83,10 +83,11 @@ contains
 ! -------------------------------------------------------------------
 ! Initialization of clocks and MPI
 ! -------------------------------------------------------------------
-subroutine Initialize
+subroutine initialize
 use parallelism, ONLY : PRINTRANK,InitializeParallelism
 use communicators, ONLY : CreateCommunicators
-use debug, ONLY : iinfo
+use debug, ONLY : iinfo,idebug,iprint
+use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ
 implicit none
 include "mpif.h"
 integer(kind=4) :: ierr
@@ -98,6 +99,40 @@ integer(kind=4) :: ierr
 
   if (iinfo == 1) write(*,*)PRINTRANK,'INITIALIZATION'
 
+  if (iinfo == 1) then
+    write(*,*)'px',px,'py',py,'pz',pz, &
+    'nx',nx,'ny',ny,'nz',nz, &
+    'size of Ux',nx+px+2,'size of Uy',ny+py+2,'size of Uz',nz+pz+2
+  endif
+
+  if (nx<NRPROCX .or. ny<NRPROCY .or. nz<NRPROCZ) then
+    write(*,*)'Number of elements smaller than number of processors'
+    stop
+  endif
+  
+  KLx = px
+  KUx = px
+  KLy = py
+  KUy = py
+  KLz = pz
+  KUz = pz
+
+  call ComputeDecomposition
+  
+  if (idebug == 1) then
+    call ValidateDimensions
+  endif
+
+  if (iprint == 1) then
+    call PrintDecompositionInfo
+  endif
+  
+  call AllocateArrays
+  
+  call PrepareKnot(Ux,nx,px)
+  call PrepareKnot(Uy,ny,py)
+  call PrepareKnot(Uz,nz,pz)
+  
 end subroutine
 
 
