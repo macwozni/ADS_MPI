@@ -223,6 +223,7 @@ integer :: ierr
   endif
 
   allocate(R(nrcppz*nrcppx*nrcppy,3,3,3))
+  R=0.d0
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
