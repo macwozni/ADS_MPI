@@ -129,9 +129,9 @@ integer(kind=4) :: ierr
   
   call AllocateArrays
   
-  call PrepareKnot(Ux,nx,px)
-  call PrepareKnot(Uy,ny,py)
-  call PrepareKnot(Uz,nz,pz)
+  call PrepareKnot(Ux,nx,px,nelemx)
+  call PrepareKnot(Uy,ny,py,nelemy)
+  call PrepareKnot(Uz,nz,pz,nelemz)
   
 end subroutine
 
@@ -232,14 +232,14 @@ end subroutine
 ! -------------------------------------------------------------------
 ! Allocates and fills the knot vector
 ! -------------------------------------------------------------------
-subroutine PrepareKnot(U,n,p)
+subroutine PrepareKnot(U,n,p,nelem)
 use utils, ONLY : FillOpenKnot
 use debug, ONLY : iinfo
 use basis, ONLY : CountSpans
 implicit none
 integer(kind=4), intent(in) :: n,p
 real   (kind=8), allocatable, dimension(:), intent(out) :: U
-integer(kind=4) :: nelem
+integer(kind=4), intent(out) :: nelem
 
 
   allocate(U(n+p+2))
