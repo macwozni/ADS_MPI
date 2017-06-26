@@ -3,6 +3,7 @@
 program main
 
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ
+use parallelism, ONLY : MYRANK
 use debug, ONLY : iinfo,idebug,iprint
 use stuff
 use RHS_eq
@@ -11,8 +12,12 @@ use input_data
 
 implicit none
 
+include "mpif.h"
+
 ! Iteration counter
 integer :: iter = 0
+
+integer(kind=4) :: ierr
 
 t = 0
 
@@ -70,7 +75,12 @@ t = 0
   ! Iterations
   do iter = 0,steps
 
-    call Step(iter,beforeComputePointForRHS,ComputePointForRHS,afterComputePointForRHS)
+    l2norm=0
+    call Step(iter,ComputePointForRHS)
+    call MPI_Reduce(l2norm, fullnorm, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+    if (MYRANK == 0) then
+      write(*,*)iter, 'L2 norm:', fullnorm
+    endif
     t = t + Dt
     
   enddo
