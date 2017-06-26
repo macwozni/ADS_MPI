@@ -15,7 +15,7 @@ contains
 ! params      - plot parameters
 ! -------------------------------------------------------------------
 subroutine GnuPlotOutput(filename, vals, params)
-use plot, ONLY : PlotParams, params
+use plot, ONLY : PlotParams
 implicit none
 character(len=*), intent(in) :: filename
 type (PlotParams), intent(in) :: params
@@ -66,7 +66,7 @@ end subroutine
 ! params      - plot parameters
 ! -------------------------------------------------------------------
 subroutine OutputLayer(pattern, zlayer, vals, params)
-use plot, ONLY : PlotParams, params
+use plot, ONLY : PlotParams
 implicit none
 character(len=*), intent(in) :: pattern
 integer, intent(in) :: zlayer

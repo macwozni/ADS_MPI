@@ -1175,8 +1175,8 @@ end function
 ! -------------------------------------------------------------------
 subroutine PrintSolution(iter, t)
 use parallelism, ONLY : MYRANK
-use plot, ONLY : SaveSplinePlot
-use vtk, ONLY : PlotParams,VtkOutput
+use plot, ONLY : SaveSplinePlot,PlotParams
+use vtk, ONLY : VtkOutput
 implicit none
 integer(kind=4) :: iter
 real   (kind=8) :: t
