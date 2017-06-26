@@ -88,20 +88,25 @@ integer(kind=4), intent(in) :: nrcpp, stride, n, nrproc
 integer(kind=4), allocatable, intent(out) :: dims(:), shifts(:)
 integer(kind=4) :: i
 
-allocate(dims(nrproc))
-allocate(shifts(nrproc))
+  allocate(dims(nrproc))
+  allocate(shifts(nrproc))
 
-shifts = 0
-dims = 0
+  shifts = 0
+  dims = 0
 
-do i = 1,nrproc-1
-  dims(i) = nrcpp * stride
-  if (i > 1) shifts(i) = shifts(i-1) + dims(i-1)
-enddo
+  do i = 1,nrproc-1
+    dims(i) = nrcpp * stride
+    if (i > 1) shifts(i) = shifts(i-1) + dims(i-1)
+  enddo
 
-dims(nrproc) = ((n+1) - nrcpp * (nrproc-1)) * stride
-shifts(nrproc) = shifts(nrproc-1) + dims(nrproc-1)
-
+  if (nrproc > 1) then
+     dims(nrproc) = ((n+1) - nrcpp * (nrproc-1)) * stride
+     shifts(nrproc) = shifts(nrproc-1) + dims(nrproc-1)
+  else
+     dims(1) = (n+1) * stride
+     shifts(1) = 0
+  endif
+  
 end subroutine
 
 
