@@ -92,6 +92,7 @@ end subroutine
 
 
 subroutine InitPumps()
+implicit none
 character(100)  :: input
 integer(kind=4) :: i, arg = 7 ! First argument after "technical" ones
 
@@ -129,6 +130,7 @@ end subroutine
 
 
 subroutine InitInputData()
+implicit none
 integer(kind=4) :: i,j
 real   (kind=8) :: t(3), x(3), dx(3), ddx(3)
 real   (kind=8) :: f = 0.1d0, step = 0.05d0
@@ -159,7 +161,8 @@ end subroutine
 
 
 function dist_from_segment(x,y,z,ax,ay,az,bx,by,bz) result (d)
-real   (kind=8) :: x,y,z,ax,ay,az,bx,by,bz
+implicit none
+real   (kind=8), intent(in) :: x,y,z,ax,ay,az,bx,by,bz
 real   (kind=8) :: dx,dy,dz,cx,cy,cz,xx,yy,zz
 real   (kind=8) :: dot, len2, proj, d
 
@@ -197,6 +200,7 @@ end function
 
 
 function dist_from_curves(x, y, z) result (fval)
+implicit none
 real   (kind=8) :: x, y, z
 real   (kind=8) :: ax,ay,az,bx,by,bz,fval
 integer(kind=4) :: i, j
@@ -223,6 +227,7 @@ end function
 ! x, y, z - point in space
 function pumping(x, y, z) result (fval)
 use math, ONLY : falloff
+implicit none
 real   (kind=8) :: x, y, z
 real   (kind=8) :: fval
 integer(kind=4) :: i
@@ -241,6 +246,7 @@ end function
 ! x, y, z - point in space
 function draining(u, x, y, z) result (fval)
 use math, ONLY : falloff
+implicit none
 real   (kind=8) :: u, x, y, z
 real   (kind=8) :: fval
 integer :: i
@@ -256,7 +262,8 @@ end function
 
 function kq(x, y, z) result (val)
 use math, ONLY : falloff,lerp
-real   (kind=8) :: x, y, z
+implicit none
+real   (kind=8),intent(in) :: x, y, z
 real   (kind=8) :: val, dist
 
 dist = sqrt(dist_from_curves(x,y,z))
@@ -278,6 +285,7 @@ end function
 ! Initial state of the system - u(0)
 function initial_state(x, y, z) result (val)
 use math, ONLY : falloff,bump3d,lerp
+implicit none
 real   (kind=8), intent(in) :: x, y, z
 real   (kind=8) :: dist, val
 
