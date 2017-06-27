@@ -908,7 +908,6 @@ integer(kind=4) :: iret, ierr
   R(1:sx*sy*sz,2,2,2) = reshape(F, [sx*sy*sz])
   call DistributeSpline(R)
 
-  ! if (MYRANK == 0) iprint=1
 #ifdef IPRINT
     write(*,*)PRINTRANK,'Result:'
     do i = 1,sz
