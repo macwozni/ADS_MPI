@@ -3,9 +3,8 @@ include m_files
 FC = /opt/mpich/bin/mpif90
 #FC = /opt/mpich/bin/mpif90 -f90=gfortran
 # FFLAGS = -g -pthread -p -fbounds-check
-FFLAGS = -pthread -g
-#-DIPRINT
-#-DIDEBUG
+FFLAGS = -pthread -O3
+#-DIINFO -DIPRINT -DIDEBUG
 
 OS := $(SOURCES:.F90=.o)
 OBJECTS := $(OS:.f=.o)
