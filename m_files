@@ -1,6 +1,5 @@
 
 SOURCES = \
-          debug.F90 \
           parallelism.F90 \
           communicators.F90 \
           gauss.F90 \
