@@ -86,7 +86,7 @@ contains
 subroutine initialize
 use parallelism, ONLY : PRINTRANK,InitializeParallelism
 use communicators, ONLY : CreateCommunicators
-use debug, ONLY : iinfo,idebug,iprint
+use debug, ONLY : iinfo,iprint
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ
 implicit none
 include "mpif.h"
@@ -119,9 +119,9 @@ integer(kind=4) :: ierr
 
   call ComputeDecomposition
   
-  if (idebug == 1) then
+#ifdef IDEBUG
     call ValidateDimensions
-  endif
+#endif
 
   if (iprint == 1) then
     call PrintDecompositionInfo

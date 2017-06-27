@@ -3,7 +3,6 @@
 program main
 
 use parallelism, ONLY : MYRANK
-use debug, ONLY : iinfo,idebug,iprint
 use stuff
 use RHS_eq
 use ADS
@@ -18,6 +17,10 @@ integer :: iter = 0
 
 integer(kind=4) :: ierr
 
+#ifdef DEBUG
+   write (*,*) 'debug'
+#endif
+   
 t = 0
 
 ! -------------------------------------------------------------------
