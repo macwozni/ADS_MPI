@@ -246,7 +246,6 @@ end function
 !
 ! -------------------------------------------------------------------
 function CountSpans(n, p, U) result (nelem)
-use debug, ONLY : iprint
 implicit none
 integer(kind=4), intent(in) :: n, p
 real   (kind=8), intent(in) :: U(0:n+p+1)
@@ -259,9 +258,9 @@ do while (i <= n)
    do while (i < n .and. U(i) == U(i+1))
       i = i + 1
    enddo
-   if (iprint == 1) then
+#ifdef IPRINT
      write(*,*)'CountSpans:i,n,U(i),U(i+1)',i,n,U(i),U(i+1)
-   endif
+#endif
    nelem = nelem + 1
    i = i + 1
 enddo

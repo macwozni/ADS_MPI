@@ -14,7 +14,6 @@ contains
 ! -------------------------------------------------------------------
 subroutine VtkOutput(filename, vals, params)
 use plot,  ONLY : PlotParams
-use debug, ONLY : iprint
 implicit none
 character (len=*), intent(in) :: filename
 type (PlotParams), intent(in) :: params
@@ -24,9 +23,9 @@ character (len=200) :: temp, extent
 
 integer :: outFile = 57 ! random value, Grothendieck's prime
 
-  if (iprint == 1) then
+#ifdef IPRINT
     write(*,*) 'Starting VTK output...'
-  endif
+#endif
 
   open(unit=outFile, file=trim(filename) // '.vti', &
     form='formatted', access='sequential', status='unknown')
@@ -50,9 +49,9 @@ integer :: outFile = 57 ! random value, Grothendieck's prime
   write(outFile,'(A)')'        <DataArray Name="Result" type="Float32">'
 
   ! outFile result values by X, Y and Z axis
-  if (iprint == 1) then
+#ifdef IPRINT
     write(*,*)'Printing data'
-  endif
+#endif
 
   do iz = 1, params%resz
     do iy = 1, params%resy
@@ -71,9 +70,9 @@ integer :: outFile = 57 ! random value, Grothendieck's prime
   write(outFile,'(A)') '</VTKFile>'
 
   close(outFile)
-  if (iprint == 1) then
+#ifdef IPRINT
     write(*,*) 'Done with output.'
-  endif
+#endif
 
 end subroutine
 
@@ -88,7 +87,6 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine VtkStructuredGridOutput(filename, vals, X, Y, Z, params)
 use plot,  ONLY : PlotParams
-use debug, ONLY : iprint
 implicit none
 character(len=*),  intent(in) :: filename
 type (PlotParams), intent(in) :: params
@@ -99,9 +97,9 @@ character(len=200) :: temp, extent
 
 integer :: outFile = 57 ! random value, Grothendieck's prime
 
-  if (iprint == 1) then
+#ifdef IPRINT
     write(*,*) 'Starting VTK output...'
-  endif
+#endif
 
   open(unit=outFile, file=trim(filename) // '.vts', &
     form='formatted', access='sequential', status='unknown')
@@ -125,9 +123,9 @@ integer :: outFile = 57 ! random value, Grothendieck's prime
   write(outFile,'(A)')'        <DataArray Name="Result" type="Float32">'
 
   ! output result values by X, Y and Z axis
-  if (iprint == 1) then
+#ifdef IPRINT
     write(*,*)'Printing data'
-  endif
+#endif
 
   do ix = 1, params%resx
     do iy = 1, params%resy
@@ -160,9 +158,9 @@ integer :: outFile = 57 ! random value, Grothendieck's prime
   write(outFile,'(A)') '</VTKFile>'
 
   close(outFile)
-  if (iprint == 1) then
+#ifdef IPRINT
     write(*,*) 'Done with output.'
-  endif
+#endif
 
 end subroutine
 

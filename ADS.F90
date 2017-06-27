@@ -86,7 +86,7 @@ contains
 subroutine initialize
 use parallelism, ONLY : PRINTRANK,InitializeParallelism
 use communicators, ONLY : CreateCommunicators
-use debug, ONLY : iinfo,iprint
+use debug, ONLY : iinfo
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ
 implicit none
 include "mpif.h"
@@ -123,9 +123,9 @@ integer(kind=4) :: ierr
     call ValidateDimensions
 #endif
 
-  if (iprint == 1) then
+#ifdef IPRINT
     call PrintDecompositionInfo
-  endif
+#endif
   
   call AllocateArrays
   
@@ -261,7 +261,6 @@ end subroutine
 subroutine ComputeMassMatrix(KL,KU,U,p,n,nelem,M)
 use parallelism, ONLY : PRINTRANK
 use projection_engine, ONLY : Form1DMassMatrix
-use debug, ONLY : iprint
 implicit none
 integer(kind=4), intent(in)  :: KL,KU
 integer(kind=4), intent(in)  :: n, p, nelem
@@ -270,12 +269,12 @@ real   (kind=8), intent(out) :: M(0:(2*KL+KU),0:n)
 integer :: i
 
   call Form1DMassMatrix(KL,KU,U,p,n,nelem,M)
-  if (iprint == 1) then
+#ifdef IPRINT
     write(*,*)PRINTRANK,'M'
     do i = 1,2*KL+KU+1
       write(*,*)PRINTRANK,M(i,1:n+1)
     enddo
-  endif
+#endif
 
 end subroutine
 
@@ -575,7 +574,6 @@ end subroutine
 subroutine ComputeRHS(iter,RHS_fun)
 use parallelism, ONLY : MYRANK,PRINTRANK
 use projection_engine, ONLY : Form3DRHS
-use debug, ONLY : iprint
 implicit none
 include "mpif.h"
 interface
@@ -631,12 +629,12 @@ integer(kind=4) :: ierr,i
        minex,maxex,miney,maxey,minez,maxez,         &
        R,F,RHS_fun)
 
-  if (iprint == 1) then
+#ifdef IPRINT
     write(*,*)PRINTRANK,'F'
     do i = 1,sx
       write(*,*)PRINTRANK,F(i,1:sy*sz)
     enddo
-  endif
+#endif
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
@@ -653,7 +651,6 @@ end subroutine
 ! eqnum - number of right-hand sides (equations)
 ! -------------------------------------------------------------------
 subroutine SolveOneDirection(RHS, eqnum,n,KL,KU,p,M,IPIV)
-use debug, ONLY : iprint
 implicit none
 real   (kind=8) :: RHS(:,:)
 integer :: KL, KU
@@ -665,7 +662,7 @@ integer(kind=4) :: i, iret
 
   IPIV = 0
 
-  if (iprint == 1) then
+#ifdef IPRINT
     write(*,*)'CALL DGBSV'
     write(*,*)'N=',n+1
     write(*,*)'KL=',KL
@@ -682,7 +679,7 @@ integer(kind=4) :: i, iret
       write(*,*)i,'row=',RHS(i,1:eqnum)
     enddo
     write(*,*)'LDB=',n+1
-  endif
+#endif
 
   ! SUBROUTINE DGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
   ! .. Scalar Arguments ..
@@ -693,13 +690,13 @@ integer(kind=4) :: i, iret
 
   call DGBSV(n+1,KL,KU,eqnum,M,2*KL+KU+1,IPIV,RHS,n+1,iret)
 
-  if (iprint == 1) then
+#ifdef IPRINT
     write(*,*)'iret=',iret
     write(*,*)'Solution='
     do i = 1,n+1
       write(*,*)i,'row=',RHS(i,1:eqnum)
     enddo
-  endif
+#endif
 
 end subroutine
 
@@ -714,7 +711,7 @@ subroutine Step(iter,RHS_fun)
 use parallelism, ONLY :PRINTRANK,MYRANKX,MYRANKY,MYRANKZ
 use communicators, ONLY : COMMX,COMMY,COMMZ
 use utils, ONLY : Gather,Scatter
-use debug, ONLY : iprint,iinfo
+use debug, ONLY : iinfo
 use reorderRHS, ONLY : ReorderRHSForX,ReorderRHSForY,ReorderRHSForZ
 implicit none
 include "mpif.h"
@@ -775,14 +772,14 @@ integer(kind=4) :: iret, ierr
 
   call Gather(F,F_out,nx,sx,sy*sz,dimensionsX,shiftsX,COMMX,ierr)
 
-  if (iprint == 1) then
+#ifdef IPRINT
     write(*,*)PRINTRANK,'after call mpi_gather'
     write(*,*)PRINTRANK,'ierr',ierr
     write(*,*)PRINTRANK,'F_out:'
     do i=1,nx+1
       write(*,*)PRINTRANK,i,'row=',F_out(i,1:sy*sz)
     enddo
-  endif
+#endif
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
   if (MYRANKX == 0) then
@@ -805,14 +802,13 @@ integer(kind=4) :: iret, ierr
   call ReorderRHSForY(ibegx,iendx,ibegy,iendy,ibegz,iendz,F2_out,F2)
   deallocate(F2_out)
 
-  if (iprint == 1) then
+#ifdef IPRINT
     write(*,*)PRINTRANK,'after ReorderRHSForY'
     write(*,*)PRINTRANK,'F2:'
     do i = 1,sy
       write(*,*)PRINTRANK,i,'row=',F2(i,1:sx*sz)
     enddo
-  endif
-  iprint = 0
+#endif
 
   !--------------------------------------------------------------------
   ! Solve the second problem
@@ -842,14 +838,14 @@ integer(kind=4) :: iret, ierr
   call Scatter(F2_out,F3_out,ny,sy,sx*sz,dimensionsY,shiftsY,COMMY,ierr)
   deallocate(F2_out)
 
-  if(iprint == 1)then
+#ifdef IPRINT
     write(*,*)PRINTRANK,'after call mpi_scatterv'
     write(*,*)PRINTRANK,'ierr',ierr
     write(*,*)PRINTRANK,'F3_out:'
     do i = 1,sy
       write(*,*)PRINTRANK,i,'row=',F3_out(i,1:sx*sz)
     enddo
-  endif
+#endif
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
@@ -858,14 +854,13 @@ integer(kind=4) :: iret, ierr
   call ReorderRHSForZ(ibegx,iendx,ibegy,iendy,ibegz,iendz,F3_out,F3)
   deallocate(F3_out)
 
-  if (iprint == 1) then
+#ifdef IPRINT
     write(*,*)PRINTRANK,'after ReorderRHSForZ'
     write(*,*)PRINTRANK,'F3:'
     do i = 1,sz
       write(*,*)PRINTRANK,i,'row=',F3(i,1:sx*sy)
     enddo
-  endif
-  iprint = 0
+#endif
 
   !--------------------------------------------------------------------
   ! Solve the third problem
@@ -901,26 +896,25 @@ integer(kind=4) :: iret, ierr
   call ReorderRHSForX(ibegx,iendx,ibegy,iendy,ibegz,iendz,F_out,F)
   deallocate(F_out)
 
-  if (iprint == 1) then
+#ifdef IPRINT
     write(*,*)PRINTRANK,'after ReorderRHSForX'
     write(*,*)PRINTRANK,'F:'
     do i = 1,sx
       write(*,*)PRINTRANK,i,'row=',F(i,1:sy*sz)
     enddo
-  endif
-  iprint = 0
+#endif
 
   if (iinfo == 1) write(*,*)PRINTRANK,'3e) DISTRIBUTE SOLUTION'
   R(1:sx*sy*sz,2,2,2) = reshape(F, [sx*sy*sz])
   call DistributeSpline(R)
 
   ! if (MYRANK == 0) iprint=1
-  if (iprint == 1) then
+#ifdef IPRINT
     write(*,*)PRINTRANK,'Result:'
     do i = 1,sz
       write(*,*)PRINTRANK,i,'row=',F(i,:)
     enddo
-  endif
+#endif
 
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)

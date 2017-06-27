@@ -1,8 +1,11 @@
 include m_files
 
-FC = mpifort
+FC = /opt/mpich/bin/mpif90
+#FC = /opt/mpich/bin/mpif90 -f90=gfortran
 # FFLAGS = -g -pthread -p -fbounds-check
-FFLAGS = -pthread -O3
+FFLAGS = -pthread -g
+#-DIPRINT
+#-DIDEBUG
 
 OS := $(SOURCES:.F90=.o)
 OBJECTS := $(OS:.f=.o)
@@ -22,5 +25,5 @@ l2: $(OBJECTS)
 
 .PHONY: clean
 clean:
-	rm -f *.o *.mod */*.o */*.mod
+	rm -f *.o *.mod */*.o */*.mod l2
 

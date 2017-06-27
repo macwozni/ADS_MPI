@@ -43,7 +43,7 @@ contains
 subroutine CreateCommunicators
 use parallelism, ONLY : MYRANK,NRPROC,MYRANKX,MYRANKY,MYRANKZ,PRINTRANK,&
   NRPROCX,NRPROCY,NRPROCZ
-use debug, ONLY :iprint
+USE ISO_FORTRAN_ENV, ONLY : ERROR_UNIT
 implicit none
 include "mpif.h"
 integer(kind=4) :: group_comm_world
@@ -55,9 +55,9 @@ integer(kind=4) :: i,j,k
 integer(kind=4) :: irank
 integer(kind=4) :: ierr
 
-if (iprint == 1) then
+#ifdef IPRINT
   write(*,*)MYRANK,'NRPROC',NRPROC
-endif
+#endif
 
 call mpi_comm_group(MPI_COMM_WORLD,group_comm_world,ierr)
 
@@ -65,9 +65,9 @@ if (ierr /= 0) then
   write(*,*)MYRANK,': main: error calling mpi_comm_group!'
   call abort
 endif
-if (iprint == 1) then
+#ifdef IPRINT
   write(*,*)MYRANK,'got group',group_comm_world
-endif
+#endif
 
 call mpi_barrier(MPI_COMM_WORLD,ierr)
 
@@ -84,7 +84,7 @@ do i = 1,NRPROCX
     processors_Z(1:NRPROCZ) = processors(i,j,1:NRPROCZ)
     call mpi_group_incl(group_comm_world,NRPROCZ,processors_Z,GROUPZ(i,j),ierr)
     if (ierr /=0 ) then
-      write(*,*)MYRANK,': main: error calling mpi_group_incl for Z',i,j
+      write(ERROR_UNIT,*)MYRANK,': main: error calling mpi_group_incl for Z',i,j
       call abort
     endif
   enddo
@@ -94,7 +94,7 @@ do i = 1,NRPROCX
     processors_Y(1:NRPROCY) = processors(i,1:NRPROCY,k)
     call mpi_group_incl(group_comm_world,NRPROCY,processors_Y,GROUPY(i,k),ierr)
     if (ierr /= 0) then
-      write(*,*)MYRANK,': main: error calling mpi_group_incl for Y',i,k
+      write(ERROR_UNIT,*)MYRANK,': main: error calling mpi_group_incl for Y',i,k
       call abort
     endif
   enddo
@@ -104,15 +104,15 @@ do j = 1,NRPROCY
     processors_X(1:NRPROCX) = processors(1:NRPROCX,j,k)
     call mpi_group_incl(group_comm_world,NRPROCX,processors_X,GROUPX(j,k),ierr)
     if (ierr /= 0) then
-      write(*,*)MYRANK,': main: error calling mpi_group_incl for X',j,k
+      write(ERROR_UNIT,*)MYRANK,': main: error calling mpi_group_incl for X',j,k
       call abort
     endif
   enddo
 enddo
 
-if (iprint == 1) then
+#ifdef IPRINT
   call PrintGroups
-endif
+#endif
 
 call mpi_barrier(MPI_COMM_WORLD,ierr)
 
@@ -122,7 +122,7 @@ do i = 1,NRPROCX
     call mpi_comm_create(MPI_COMM_WORLD,GROUPZ(i,j),comm_myrank_local,ierr)
     COMMZALL(i,j) = comm_myrank_local
     if (ierr /= 0) then
-      write(*,*)MYRANK,': main: error calling mpi_com_create for Z',i,j
+      write(ERROR_UNIT,*)MYRANK,': main: error calling mpi_com_create for Z',i,j
       call abort
     endif
   enddo
@@ -132,7 +132,7 @@ do i = 1,NRPROCX
     call mpi_comm_create(MPI_COMM_WORLD,GROUPY(i,k),comm_myrank_local,ierr)
     COMMYALL(i,k) = comm_myrank_local
     if (ierr /= 0) then
-      write(*,*)MYRANK,': main: error calling mpi_com_create for Y',i,k
+      write(ERROR_UNIT,*)MYRANK,': main: error calling mpi_com_create for Y',i,k
       call abort
     endif
   enddo
@@ -142,14 +142,14 @@ do j = 1,NRPROCY
     call mpi_comm_create(MPI_COMM_WORLD,GROUPX(j,k),comm_myrank_local,ierr)
     COMMXALL(j,k) = comm_myrank_local
     if (ierr /= 0) then
-      write(*,*)MYRANK,': main: error calling mpi_com_create for X',j,k
+      write(ERROR_UNIT,*)MYRANK,': main: error calling mpi_com_create for X',j,k
       call abort
     endif
   enddo
 enddo
-if (iprint == 1) then
+#ifdef IPRINT
   call PrintCommunicators
-endif      
+#endif     
 
 call mpi_barrier(MPI_COMM_WORLD,ierr)
 
@@ -158,9 +158,9 @@ COMMX = COMMXALL(myranky+1,myrankz+1)
 COMMY = COMMYALL(myrankx+1,myrankz+1)
 COMMZ = COMMZALL(myrankx+1,myranky+1)
 
-if (iprint == 1) then
+#ifdef IPRINT
   write(*,*)PRINTRANK,'COMMX(Y,Z)',COMMX,COMMY,COMMZ
-endif
+#endif
 
 end subroutine
 

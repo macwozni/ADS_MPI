@@ -115,7 +115,6 @@ subroutine Form3DRHS(          &
 use parallelism, ONLY : PRINTRANK
 USE ISO_FORTRAN_ENV, ONLY : ERROR_UNIT ! access computing environment
 use basis, ONLY : BasisData
-use debug, ONLY : iprint
 implicit none
 interface
   subroutine RHS_fun( &
@@ -202,14 +201,14 @@ real   (kind=8) :: resvalue
   call BasisData(py,my,Uy,py-1,ngy,nelemy,Oy,Jy,Wy,Xy,NNy)
   call BasisData(pz,mz,Uz,pz-1,ngz,nelemz,Oz,Jz,Wz,Xz,NNz)
 
-  if (iprint == 1) then
+#ifdef IPRINT
     write(*,*)PRINTRANK,'ex:',minex,maxex
     write(*,*)PRINTRANK,'ey:',miney,maxey
     write(*,*)PRINTRANK,'ez:',minez,maxez
     write(*,*)PRINTRANK,'ibegx,iendx',ibegx,iendx
     write(*,*)PRINTRANK,'ibegy,iendy',ibegy,iendy
     write(*,*)PRINTRANK,'ibegz,iendz',ibegz,iendz
-  endif
+#endif
 
   F = 0
 
