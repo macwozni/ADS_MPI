@@ -20,11 +20,11 @@ integer(kind=4), intent(in) :: n, p
 real   (kind=8), intent(out):: U(1:n+p+2)
 integer(kind=4) :: i
 
-U(1 : p+1) = 0
-U(n+2 : n+p+2) = 1
+U(1 : p+1) = 0.d0
+U(n+2 : n+p+2) = 1.d0
 
 do i = p+2, n+1
-  U(i) = (i-p-1) / real(n-p+1)
+  U(i) = real(i-p-1) / real(n-p+1)
 enddo
 
 end subroutine
