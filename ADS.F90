@@ -1186,23 +1186,29 @@ implicit none
 type   (ADS_setup) :: ads
 integer(kind=4) :: ierr
 
-  deallocate(ads%shiftsX)
-  deallocate(ads%shiftsY)
-  deallocate(ads%shiftsZ)
-  deallocate(ads%dimensionsX)
-  deallocate(ads%dimensionsY)
-  deallocate(ads%dimensionsZ)
+  if (allocated(ads%shiftsX)) deallocate(ads%shiftsX)
+  if (allocated(ads%shiftsY)) deallocate(ads%shiftsY)
+  if (allocated(ads%shiftsZ)) deallocate(ads%shiftsZ)
+  
+  if (allocated(ads%dimensionsX)) deallocate(ads%dimensionsX)
+  if (allocated(ads%dimensionsX)) deallocate(ads%dimensionsY)
+  if (allocated(ads%dimensionsZ)) deallocate(ads%dimensionsZ)
 
   if (allocated(ads%IPIVx)) deallocate(ads%IPIVx)
   if (allocated(ads%IPIVy)) deallocate(ads%IPIVy)
   if (allocated(ads%IPIVz)) deallocate(ads%IPIVz)
-  deallocate(ads%Ux)
-  deallocate(ads%Uy)
-  deallocate(ads%Uz)
-  deallocate(ads%Mx)
-  deallocate(ads%My)
-  deallocate(ads%Mz)
-  deallocate(ads%F)
+  
+  if (allocated(ads%Ux)) deallocate(ads%Ux)
+  if (allocated(ads%Uy)) deallocate(ads%Uy)
+  if (allocated(ads%Uz)) deallocate(ads%Uz)
+  
+  if (allocated(ads%Mx)) deallocate(ads%Mx)
+  if (allocated(ads%My)) deallocate(ads%My)
+  if (allocated(ads%Mz)) deallocate(ads%Mz)
+  
+  if (allocated(ads%F))  deallocate(ads%F)
+  if (allocated(ads%F2)) deallocate(ads%F2)
+  if (allocated(ads%F3)) deallocate(ads%F3)
 
   call mpi_finalize(ierr)
 #ifdef IINFO
