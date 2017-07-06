@@ -115,16 +115,16 @@ integer(kind=4) :: ierr
     stop
   endif
   
-  ads%KLx = ads%px
-  ads%KUx = ads%px
-  ads%KLy = ads%py
-  ads%KUy = ads%py
-  ads%KLz = ads%pz
-  ads%KUz = ads%pz
+  ads%KLx = px
+  ads%KUx = px
+  ads%KLy = py
+  ads%KUy = py
+  ads%KLz = pz
+  ads%KUz = pz
 
   call ComputeDecomposition( &
-      ads%nx,ads%ny,ads%nz, &
-      ads%px,ads%py,ads%pz, &
+      nx,ny,nz, &
+      px,py,pz, &
       ads%sx,ads%sy,ads%sz, &
       ads%ibegx,ads%ibegy,ads%ibegz, &
       ads%iendx,ads%iendy,ads%iendz, &
@@ -138,7 +138,7 @@ integer(kind=4) :: ierr
   
 #ifdef IDEBUG
     call ValidateDimensions(&
-      ads%nx,ads%ny,ads%nz, &
+      nx,ny,nz, &
       ads%sx,ads%sy,ads%sz, &
       ads%nrcppx,ads%nrcppy,ads%nrcppz, &
       ads%dimensionsX,ads%dimensionsY,ads%dimensionsZ)
@@ -146,14 +146,14 @@ integer(kind=4) :: ierr
 
 #ifdef IPRINT
     call PrintDecompositionInfo(&
-      ads%nx,ads%ny,ads%nz, &
+      nx,ny,nz, &
       ads%nrcppx,ads%nrcppy,ads%nrcppz, &
       ads%ibegx,ads%ibegy,ads%ibegz, &
       ads%iendx,ads%iendy,ads%iendz)
 #endif
   
   call AllocateArrays(&
-      ads%nx,ads%ny,ads%nz, &
+      nx,ny,nz, &
       ads%sx,ads%sy,ads%sz, &
       ads%nrcppx,ads%nrcppy,ads%nrcppz, &
       ads%Klx,ads%Kly,ads%Klz, &
@@ -163,9 +163,9 @@ integer(kind=4) :: ierr
       ads%IPIVx,ads%IPIVy,ads%IPIVz, &
       ads%R)
   
-  call PrepareKnot(ads%Ux,ads%nx,ads%px,ads%nelemx)
-  call PrepareKnot(ads%Uy,ads%ny,ads%py,ads%nelemy)
-  call PrepareKnot(ads%Uz,ads%nz,ads%pz,ads%nelemz)
+  call PrepareKnot(ads%Ux,nx,px,ads%nelemx)
+  call PrepareKnot(ads%Uy,ny,py,ads%nelemy)
+  call PrepareKnot(ads%Uz,nz,pz,ads%nelemz)
   
 end subroutine
 
