@@ -1230,13 +1230,13 @@ subroutine PrintDecompositionInfo(&
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ,PRINTRANK, &
 MYRANKX,MYRANKY,MYRANKZ
 implicit none
-   integer(kind=4) :: nx
-   integer(kind=4) :: ny
-   integer(kind=4) :: nz
-   integer(kind=4) :: nrcppx,nrcppy,nrcppz
-   integer(kind=4) :: ibegx,iendx
-   integer(kind=4) :: ibegy,iendy
-   integer(kind=4) :: ibegz,iendz
+integer(kind=4), intent(in) :: nx
+integer(kind=4), intent(in) :: ny
+integer(kind=4), intent(in) :: nz
+integer(kind=4), intent(in) :: nrcppx,nrcppy,nrcppz
+integer(kind=4), intent(in) :: ibegx,iendx
+integer(kind=4), intent(in) :: ibegy,iendy
+integer(kind=4), intent(in) :: ibegz,iendz
 
   write(*,*)PRINTRANK,'MYRANKX,MYRANKY,MYRANKZ',MYRANKX,MYRANKY,MYRANKZ
   write(*,*)PRINTRANK,'NRPROCX,NRPROCY,NRPROCZ',NRPROCX,NRPROCY,NRPROCZ
@@ -1268,8 +1268,8 @@ use plot, ONLY : SaveSplinePlot,PlotParams
 use vtk, ONLY : VtkOutput
 implicit none
 type   (ADS_setup), intent(in) :: ads
-integer(kind=4) :: iter
-real   (kind=8) :: t
+integer(kind=4), intent(in) :: iter
+real   (kind=8), intent(in) :: t
 real   (kind=8), allocatable :: solution(:,:,:)
 type (PlotParams) :: params
 character(len=20) :: filename
