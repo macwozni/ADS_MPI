@@ -91,7 +91,7 @@ implicit none
 include "mpif.h"
 integer(kind=4), intent(in) :: nx,ny,nz
 integer(kind=4), intent(in) :: px,py,pz
-type   (ADS_setup), intent(out) :: ads
+type(ADS_setup), intent(out) :: ads
 integer(kind=4) :: ierr
 
   ads%px = px ! order
@@ -105,12 +105,12 @@ integer(kind=4) :: ierr
 
 #ifdef IINFO
   write(*,*)PRINTRANK,'INITIALIZATION'
-    write(*,*)'px',ads%px,'py',ads%py,'pz',ads%pz, &
-    'nx',ads%nx,'ny',ads%ny,'nz',ads%nz, &
-    'size of Ux',ads%nx+ads%px+2,'size of Uy',ads%ny+ads%py+2,'size of Uz',ads%nz+ads%pz+2
+    write(*,*)'px',px,'py',py,'pz',pz, &
+    'nx',nx,'ny',ny,'nz',nz, &
+    'size of Ux',nx+px+2,'size of Uy',ny+py+2,'size of Uz',nz+pz+2
 #endif
 
-  if (ads%nx<NRPROCX .or. ads%ny<NRPROCY .or. ads%nz<NRPROCZ) then
+  if (nx<NRPROCX .or. ny<NRPROCY .or. nz<NRPROCZ) then
     write(*,*)'Number of elements smaller than number of processors'
     stop
   endif
