@@ -120,11 +120,11 @@ type   (ADS_setup) :: ads
   call ComputeDecomposition(ads)
   
 #ifdef IDEBUG
-    call ValidateDimensions
+    call ValidateDimensions(ads)
 #endif
 
 #ifdef IPRINT
-    call PrintDecompositionInfo
+    call PrintDecompositionInfo(ads)
 #endif
   
   call AllocateArrays(ads)
@@ -160,10 +160,10 @@ integer(kind=4) :: mine, maxe
   ads%sz = ads%iendz - ads%ibegz + 1
 
 #ifdef IINFO
-    write(*,*)PRINTRANK,'Number of cols per processor:',nrcppx,nrcppy,nrcppz
-    write(*,*)PRINTRANK,'ibegx,iendx',ibegx,iendx
-    write(*,*)PRINTRANK,'ibegy,iendy',ibegy,iendy
-    write(*,*)PRINTRANK,'ibegz,iendz',ibegz,iendz
+    write(*,*)PRINTRANK,'Number of cols per processor:',ads%nrcppx,ads%nrcppy,ads%nrcppz
+    write(*,*)PRINTRANK,'ibegx,iendx',ads%ibegx,ads%iendx
+    write(*,*)PRINTRANK,'ibegy,iendy',ads%ibegy,ads%iendy
+    write(*,*)PRINTRANK,'ibegz,iendz',ads%ibegz,ads%iendz
 #endif
 
   ! prepare dimensions vectors
@@ -638,8 +638,8 @@ integer(kind=4) :: ierr,i
 
 #ifdef IPRINT
     write(*,*)PRINTRANK,'F'
-    do i = 1,sx
-      write(*,*)PRINTRANK,F(i,1:sy*sz)
+    do i = 1,ads%sx
+      write(*,*)PRINTRANK,ads%F(i,1:ads%sy*ads%sz)
     enddo
 #endif
 
@@ -786,8 +786,8 @@ integer(kind=4) :: iret, ierr
     write(*,*)PRINTRANK,'after call mpi_gather'
     write(*,*)PRINTRANK,'ierr',ierr
     write(*,*)PRINTRANK,'F_out:'
-    do i=1,nx+1
-      write(*,*)PRINTRANK,i,'row=',F_out(i,1:sy*sz)
+    do i=1,ads%nx+1
+      write(*,*)PRINTRANK,i,'row=',ads%F_out(i,1:ads%sy*ads%sz)
     enddo
 #endif
   call mpi_barrier(MPI_COMM_WORLD,ierr)
