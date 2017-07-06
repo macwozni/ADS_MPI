@@ -657,85 +657,6 @@ integer(kind=4) :: mine, maxe
 end subroutine
 
 
-! -------------------------------------------------------------------
-! Calculates force (load)
-!
-! t - current time
-! -------------------------------------------------------------------
-subroutine ComputeRHS(iter,RHS_fun,ads)
-use parallelism, ONLY : MYRANK,PRINTRANK
-use projection_engine, ONLY : Form3DRHS
-implicit none
-include "mpif.h"
-interface
-  subroutine RHS_fun( &
-         Xx,Xy,Xz, &
-         kx,ky,kz, &
-         ex,ey,ez, &
-         px,py,pz, &
-         nelemx,nelemy,nelemz, &
-         ax,ay,az, &
-         bx,by,bz, &
-         NNx,NNy,NNz, &
-         dux,duy,duz, &
-         ibegx,ibegy,ibegz, &
-         iendx,iendy,iendz, &
-         minex,miney,minez, &
-         maxex,maxey,maxez, &
-         Uval,J,W,F)
-      implicit none
-      integer(kind=4), intent(in)  :: px,py,pz
-      real   (kind=8), intent(in)  :: Xx(px+1,nelemx)
-      real   (kind=8), intent(in)  :: Xy(py+1,nelemy)
-      real   (kind=8), intent(in)  :: Xz(pz+1,nelemz)
-      integer(kind=4), intent(in)  :: kx,ky,kz
-      integer(kind=4), intent(in)  :: ex,ey,ez
-      integer(kind=4), intent(in)  :: nelemx,nelemy,nelemz
-      real   (kind=8), intent(in)  :: Uval
-      integer(kind=4), intent(in)  :: ibegx,ibegy,ibegz
-      integer(kind=4), intent(in)  :: iendx,iendy,iendz
-      integer(kind=4), intent(in)  :: maxex,maxey,maxez
-      integer(kind=4), intent(in)  :: minex,miney,minez
-      integer(kind=4), intent(in)  :: ax,ay,az
-      integer(kind=4), intent(in)  :: bx,by,bz
-      real   (kind=8), intent(in)  :: dux,duy,duz
-      real   (kind=8), intent(in)  :: J,W
-      real   (kind=8), intent(in)  :: NNx(0:px-1,0:px,px+1,nelemx), &
-                         NNy(0:py-1,0:py,py+1,nelemy), &
-                         NNz(0:pz-1,0:pz,pz+1,nelemz)
-      real   (kind=8), intent(out) :: F
-  end subroutine
-end interface
-type   (ADS_setup) :: ads
-integer(kind=4), intent(in) :: iter
-integer(kind=4) :: ierr,i
-
-  call Form3DRHS                                    &
-      (ads%Ux,ads%px,ads%nx,ads%nelemx,ads%nrcppx,  &
-       ads%Uy,ads%py,ads%ny,ads%nelemy,ads%nrcppy,  &
-       ads%Uz,ads%pz,ads%nz,ads%nelemz,ads%nrcppz,  &
-       ads%ibegx,ads%iendx,                             &
-       ads%ibegy,ads%iendy,                             &
-       ads%ibegz,ads%iendz,                             &
-       ads%ibegsx,ads%iendsx,ads%ibegsy,     &
-       ads%iendsy,ads%ibegsz,ads%iendsz,   &
-       ads%minex,ads%maxex,ads%miney,              &
-       ads%maxey,ads%minez,ads%maxez,              &
-       ads%R,ads%F,RHS_fun)
-
-#ifdef IPRINT
-    write(*,*)PRINTRANK,'F'
-    do i = 1,ads%sx
-      write(*,*)PRINTRANK,ads%F(i,1:ads%sy*ads%sz)
-    enddo
-#endif
-
-  call mpi_barrier(MPI_COMM_WORLD,ierr)
-
-end subroutine
-
-
-
 
 ! -------------------------------------------------------------------
 ! Solves 1D linear system (one of 3 steps of solving the whole),
@@ -807,6 +728,7 @@ use parallelism, ONLY :PRINTRANK,MYRANKX,MYRANKY,MYRANKZ
 use communicators, ONLY : COMMX,COMMY,COMMZ
 use utils, ONLY : Gather,Scatter
 use reorderRHS, ONLY : ReorderRHSForX,ReorderRHSForY,ReorderRHSForZ
+use projection_engine, ONLY : Form3DRHS
 implicit none
 include "mpif.h"
 interface
@@ -854,7 +776,25 @@ integer(kind=4) :: i
 integer(kind=4) :: iret, ierr
 
   ! generate the RHS vectors
-  call ComputeRHS(iter,RHS_fun,ads)
+    call Form3DRHS                                    &
+      (ads%Ux,ads%px,ads%nx,ads%nelemx,ads%nrcppx,  &
+       ads%Uy,ads%py,ads%ny,ads%nelemy,ads%nrcppy,  &
+       ads%Uz,ads%pz,ads%nz,ads%nelemz,ads%nrcppz,  &
+       ads%ibegx,ads%iendx,                             &
+       ads%ibegy,ads%iendy,                             &
+       ads%ibegz,ads%iendz,                             &
+       ads%ibegsx,ads%iendsx,ads%ibegsy,     &
+       ads%iendsy,ads%ibegsz,ads%iendsz,   &
+       ads%minex,ads%maxex,ads%miney,              &
+       ads%maxey,ads%minez,ads%maxez,              &
+       ads%R,ads%F,RHS_fun)
+
+#ifdef IPRINT
+    write(*,*)PRINTRANK,'F'
+    do i = 1,ads%sx
+      write(*,*)PRINTRANK,ads%F(i,1:ads%sy*ads%sz)
+    enddo
+#endif
 
   !--------------------------------------------------------------------
   ! Solve the first problem
