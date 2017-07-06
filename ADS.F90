@@ -85,16 +85,13 @@ contains
 ! Initialization of clocks and MPI
 ! -------------------------------------------------------------------
 subroutine initialize (ads)
-use parallelism, ONLY : PRINTRANK,InitializeParallelism
-use communicators, ONLY : CreateCommunicators
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ
+use parallelism, ONLY : PRINTRANK
 implicit none
 include "mpif.h"
 integer(kind=4) :: ierr
 type   (ADS_setup) :: ads
 
-  call InitializeParallelism
-  call CreateCommunicators
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
@@ -117,7 +114,19 @@ type   (ADS_setup) :: ads
   ads%KLz = ads%pz
   ads%KUz = ads%pz
 
-  call ComputeDecomposition(ads)
+  call ComputeDecomposition( &
+      ads%nx,ads%ny,ads%nz, &
+      ads%px,ads%py,ads%pz, &
+      ads%sx,ads%sy,ads%sz, &
+      ads%ibegx,ads%ibegy,ads%ibegz, &
+      ads%iendx,ads%iendy,ads%iendz, &
+      ads%ibegsx,ads%ibegsy,ads%ibegsz, &
+      ads%iendsx,ads%iendsy,ads%iendsz, &
+      ads%minex,ads%miney,ads%minez, &
+      ads%maxex,ads%maxey,ads%maxez, &
+      ads%nrcppx,ads%nrcppy,ads%nrcppz, &
+      ads%dimensionsX,ads%dimensionsY,ads%dimensionsZ, &
+      ads%shiftsX,ads%shiftsY,ads%shiftsZ)
   
 #ifdef IDEBUG
     call ValidateDimensions(ads)
@@ -140,56 +149,87 @@ end subroutine
 ! Establishes decomposition of the domain. Calculates size and location
 ! of the piece for current process.
 ! -------------------------------------------------------------------
-subroutine ComputeDecomposition(ads)
+subroutine ComputeDecomposition( &
+   nx,ny,nz, &
+   px,py,pz, &
+   sx,sy,sz, &
+   ibegx,ibegy,ibegz, &
+   iendx,iendy,iendz, &
+   ibegsx,ibegsy,ibegsz, &
+   iendsx,iendsy,iendsz, &
+   minex,miney,minez, &
+   maxex,maxey,maxez, &
+   nrcppx,nrcppy,nrcppz, &
+   dimensionsX,dimensionsY,dimensionsZ, &
+   shiftsX,shiftsY,shiftsZ)
 use parallelism, ONLY : MYRANKX,MYRANKY,MYRANKZ,PRINTRANK, &
    NRPROCX,NRPROCY,NRPROCZ
 use utils, ONLY : ComputeEndpoints,FillDimVector
 implicit none
-type   (ADS_setup) :: ads
+integer(kind=4), intent(in) :: nx,ny,nz
+integer(kind=4), intent(in) :: px,py,pz
+integer(kind=4), intent(out) :: ibegx,iendx
+integer(kind=4), intent(out) :: ibegy,iendy
+integer(kind=4), intent(out) :: ibegz,iendz
+integer(kind=4), intent(out) :: minex, maxex
+integer(kind=4), intent(out) :: miney, maxey
+integer(kind=4), intent(out) :: minez, maxez
+integer(kind=4), intent(out) :: nrcppx,nrcppy,nrcppz
+integer(kind=4), intent(out) :: sx,sy,sz
+integer(kind=4), allocatable, dimension(:), intent(out) :: dimensionsX
+integer(kind=4), allocatable, dimension(:), intent(out) :: dimensionsY
+integer(kind=4), allocatable, dimension(:), intent(out) :: dimensionsZ
+integer(kind=4), allocatable, dimension(:), intent(out) :: shiftsX
+integer(kind=4), allocatable, dimension(:), intent(out) :: shiftsY
+integer(kind=4), allocatable, dimension(:), intent(out) :: shiftsZ
+integer(kind=4), dimension(3), intent(out) :: ibegsx,iendsx
+integer(kind=4), dimension(3), intent(out) :: ibegsy,iendsy
+integer(kind=4), dimension(3), intent(out) :: ibegsz,iendsz
+   
 integer(kind=4) :: i
 integer(kind=4) :: ix, iy, iz
 integer(kind=4) :: mine, maxe
 
   ! number of columns per processors
-  call ComputeEndpoints(MYRANKX, NRPROCX, ads%nx, ads%px, ads%nrcppx, ads%ibegx, ads%iendx, ads%minex, ads%maxex)
-  call ComputeEndpoints(MYRANKY, NRPROCY, ads%ny, ads%py, ads%nrcppy, ads%ibegy, ads%iendy, ads%miney, ads%maxey)
-  call ComputeEndpoints(MYRANKZ, NRPROCZ, ads%nz, ads%pz, ads%nrcppz, ads%ibegz, ads%iendz, ads%minez, ads%maxez)
+  call ComputeEndpoints(MYRANKX, NRPROCX, nx, px, nrcppx, ibegx, iendx, minex, maxex)
+  call ComputeEndpoints(MYRANKY, NRPROCY, ny, py, nrcppy, ibegy, iendy, miney, maxey)
+  call ComputeEndpoints(MYRANKZ, NRPROCZ, nz, pz, nrcppz, ibegz, iendz, minez, maxez)
 
-  ads%sx = ads%iendx - ads%ibegx + 1
-  ads%sy = ads%iendy - ads%ibegy + 1
-  ads%sz = ads%iendz - ads%ibegz + 1
+  sx = iendx - ibegx + 1
+  sy = iendy - ibegy + 1
+  sz = iendz - ibegz + 1
 
 #ifdef IINFO
-    write(*,*)PRINTRANK,'Number of cols per processor:',ads%nrcppx,ads%nrcppy,ads%nrcppz
-    write(*,*)PRINTRANK,'ibegx,iendx',ads%ibegx,ads%iendx
-    write(*,*)PRINTRANK,'ibegy,iendy',ads%ibegy,ads%iendy
-    write(*,*)PRINTRANK,'ibegz,iendz',ads%ibegz,ads%iendz
+    write(*,*)PRINTRANK,'Number of cols per processor:',nrcppx,nrcppy,nrcppz
+    write(*,*)PRINTRANK,'ibegx,iendx',ibegx,iendx
+    write(*,*)PRINTRANK,'ibegy,iendy',ibegy,iendy
+    write(*,*)PRINTRANK,'ibegz,iendz',ibegz,iendz
 #endif
 
   ! prepare dimensions vectors
-  call FillDimVector(ads%dimensionsX, ads%shiftsX, ads%nrcppx, ads%sy*ads%sz, ads%nx, NRPROCX)
-  call FillDimVector(ads%dimensionsY, ads%shiftsY, ads%nrcppy, ads%sx*ads%sz, ads%ny, NRPROCY)
-  call FillDimVector(ads%dimensionsZ, ads%shiftsZ, ads%nrcppz, ads%sx*ads%sy, ads%nz, NRPROCZ)
+  call FillDimVector(dimensionsX, shiftsX, nrcppx, sy*sz, nx, NRPROCX)
+  call FillDimVector(dimensionsY, shiftsY, nrcppy, sx*sz, ny, NRPROCY)
+  call FillDimVector(dimensionsZ, shiftsZ, nrcppz, sx*sy, nz, NRPROCZ)
 
   ! Compute indices for neighbours
-  ads%ibegsx = -1
-  ads%iendsx = -1
-  ads%ibegsy = -1
-  ads%iendsy = -1
-  ads%ibegsz = -1
-  ads%iendsz = -1
+  ibegsx = -1
+  iendsx = -1
+  ibegsy = -1
+  iendsy = -1
+  ibegsz = -1
+  iendsz = -1
 
   do i = max(MYRANKX-1,0)+1, min(MYRANKX+1,NRPROCX-1)+1
     ix = i-MYRANKX+1
-    call ComputeEndpoints(i-1, NRPROCX, ads%nx, ads%px, ads%nrcppx, ads%ibegsx(ix), ads%iendsx(ix), mine, maxe)
+    call ComputeEndpoints(i-1, NRPROCX, nx, px, nrcppx, ibegsx(ix), iendsx(ix), mine, maxe)
   enddo
   do i = max(MYRANKY-1,0)+1, min(MYRANKY+1,NRPROCY-1)+1
     iy = i-MYRANKY+1
-    call ComputeEndpoints(i-1,NRPROCY, ads%ny, ads%py, ads%nrcppy, ads%ibegsy(iy), ads%iendsy(iy), mine, maxe)
+    call ComputeEndpoints(i-1,NRPROCY, ny, py, nrcppy, ibegsy(iy), iendsy(iy), mine, maxe)
   enddo
   do i = max(MYRANKZ-1,0)+1, min(MYRANKZ+1,NRPROCZ-1)+1
     iz = i-MYRANKZ+1
-    call ComputeEndpoints(i-1,NRPROCZ, ads%nz, ads%pz, ads%nrcppz, ads%ibegsz(iz), ads%iendsz(iz), mine, maxe)
+    call ComputeEndpoints(i-1,NRPROCZ, nz, pz, nrcppz, ibegsz(iz), iendsz(iz), mine, maxe)
   enddo
 
 end subroutine
