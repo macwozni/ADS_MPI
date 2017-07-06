@@ -133,7 +133,11 @@ type   (ADS_setup) :: ads
 #endif
 
 #ifdef IPRINT
-    call PrintDecompositionInfo(ads)
+    call PrintDecompositionInfo(&
+      ads%nx,ads%ny,ads%nz, &
+      ads%nrcppx,ads%nrcppy,ads%nrcppz, &
+      ads%ibegx,ads%ibegy,ads%ibegz, &
+      ads%iendx,ads%iendy,ads%iendz)
 #endif
   
   call AllocateArrays(ads)
@@ -1218,21 +1222,31 @@ end subroutine
 ! -------------------------------------------------------------------
 ! Displays computed domain decomposition, for debugging.
 ! -------------------------------------------------------------------
-subroutine PrintDecompositionInfo(ads)
+subroutine PrintDecompositionInfo(&
+      nx,ny,nz, &
+      nrcppx,nrcppy,nrcppz, &
+      ibegx,ibegy,ibegz, &
+      iendx,iendy,iendz)
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ,PRINTRANK, &
 MYRANKX,MYRANKY,MYRANKZ
 implicit none
-type   (ADS_setup) :: ads
+   integer(kind=4) :: nx
+   integer(kind=4) :: ny
+   integer(kind=4) :: nz
+   integer(kind=4) :: nrcppx,nrcppy,nrcppz
+   integer(kind=4) :: ibegx,iendx
+   integer(kind=4) :: ibegy,iendy
+   integer(kind=4) :: ibegz,iendz
 
   write(*,*)PRINTRANK,'MYRANKX,MYRANKY,MYRANKZ',MYRANKX,MYRANKY,MYRANKZ
   write(*,*)PRINTRANK,'NRPROCX,NRPROCY,NRPROCZ',NRPROCX,NRPROCY,NRPROCZ
-  write(*,*)PRINTRANK,'nx+1',ads%nx+1
-  write(*,*)PRINTRANK,'ny+1',ads%ny+1
-  write(*,*)PRINTRANK,'nz+1',ads%nz+1
-  write(*,*)PRINTRANK,'nrcppx,nrcppy,nrcppz',ads%nrcppx,ads%nrcppy,ads%nrcppz
-  write(*,*)PRINTRANK,'ibegx,iendx',ads%ibegx,ads%iendx
-  write(*,*)PRINTRANK,'ibegy,iendy',ads%ibegy,ads%iendy
-  write(*,*)PRINTRANK,'ibegz,iendz',ads%ibegz,ads%iendz
+  write(*,*)PRINTRANK,'nx+1',nx+1
+  write(*,*)PRINTRANK,'ny+1',ny+1
+  write(*,*)PRINTRANK,'nz+1',nz+1
+  write(*,*)PRINTRANK,'nrcppx,nrcppy,nrcppz',nrcppx,nrcppy,nrcppz
+  write(*,*)PRINTRANK,'ibegx,iendx',ibegx,iendx
+  write(*,*)PRINTRANK,'ibegy,iendy',ibegy,iendy
+  write(*,*)PRINTRANK,'ibegz,iendz',ibegz,iendz
 
 end subroutine
 
