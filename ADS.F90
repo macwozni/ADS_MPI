@@ -1248,12 +1248,12 @@ end function
 ! -------------------------------------------------------------------
 ! Gathers full solution and plots it
 ! -------------------------------------------------------------------
-subroutine PrintSolution(iter, t)
+subroutine PrintSolution(iter, t, ads)
 use parallelism, ONLY : MYRANK
 use plot, ONLY : SaveSplinePlot,PlotParams
 use vtk, ONLY : VtkOutput
 implicit none
-type   (ADS_setup) :: ads
+type   (ADS_setup), intent(in) :: ads
 integer(kind=4) :: iter
 real   (kind=8) :: t
 real   (kind=8), allocatable :: solution(:,:,:)
