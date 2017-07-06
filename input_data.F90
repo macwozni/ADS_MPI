@@ -346,14 +346,15 @@ end subroutine
 
 
 
-subroutine PrecomputeKq
-use ADS
+subroutine PrecomputeKq(ads)
+use ADSS, ONLY : ADS_setup
 implicit none
+type   (ADS_setup) :: ads
 
-  call CacheKqValues                                &
-      (Ux,px,nx,minex,maxex,nelemx,                     &
-       Uy,py,ny,miney,maxey,nelemy,                     &
-       Uz,pz,nz,minez,maxez,nelemz,                     &
+  call CacheKqValues                                        &
+      (ads%Ux,ads%px,ads%nx,ads%minex,ads%maxex,ads%nelemx, &
+       ads%Uy,ads%py,ads%ny,ads%miney,ads%maxey,ads%nelemy, &
+       ads%Uz,ads%pz,ads%nz,ads%minez,ads%maxez,ads%nelemz, &
        Kqvals)
  
 end subroutine

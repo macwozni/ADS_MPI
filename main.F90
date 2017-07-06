@@ -5,7 +5,7 @@ program main
 use parallelism, ONLY : MYRANK
 use stuff
 use RHS_eq
-use ADS
+use ADSS
 use input_data
 
 implicit none
@@ -16,6 +16,8 @@ include "mpif.h"
 integer :: iter = 0
 
 integer(kind=4) :: ierr
+
+type   (ADS_setup) :: ads
 
 #ifdef DEBUG
    write (*,*) 'debug'
@@ -30,24 +32,24 @@ t = 0
   call InitializeParameters
 
   ! prepare the problem dimensions
-  px = ORDER ! order
-  py = ORDER ! order
-  pz = ORDER ! order
-  nx = SIZE  ! intervals
-  ny = SIZE  ! intervals
-  nz = SIZE  ! intervals
+  ads%px = ORDER ! order
+  ads%py = ORDER ! order
+  ads%pz = ORDER ! order
+  ads%nx = SIZE  ! intervals
+  ads%ny = SIZE  ! intervals
+  ads%nz = SIZE  ! intervals
 
-  call Initialize
+  call Initialize(ads)
 
-  allocate(Kqvals(px+1,py+1,pz+1,maxex-minex+1,maxey-miney+1,maxez-minez+1))
+  allocate(Kqvals(ads%px+1,ads%py+1,ads%pz+1,ads%maxex-ads%minex+1,ads%maxey-ads%miney+1,ads%maxez-ads%minez+1))
   call InitInputData
-  call PrecomputeKq
+  call PrecomputeKq(ads)
 
   ! Iterations
   do iter = 0,steps
 
     l2norm=0
-    call Step(iter,ComputePointForRHS)
+    call Step(iter,ComputePointForRHS,ads)
     call MPI_Reduce(l2norm, fullnorm, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
     if (MYRANK == 0) then
       write(*,*)iter, 'L2 norm:', fullnorm
@@ -57,7 +59,7 @@ t = 0
   enddo
 
   call ComputeResults
-  call Cleanup
+  call Cleanup(ads)
 
 end
 
