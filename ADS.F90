@@ -129,7 +129,11 @@ type   (ADS_setup) :: ads
       ads%shiftsX,ads%shiftsY,ads%shiftsZ)
   
 #ifdef IDEBUG
-    call ValidateDimensions(ads)
+    call ValidateDimensions(&
+      ads%nx,ads%ny,ads%nz, &
+      ads%sx,ads%sy,ads%sz, &
+      ads%nrcppx,ads%nrcppy,ads%nrcppz, &
+      ads%dimensionsX,ads%dimensionsY,ads%dimensionsZ)
 #endif
 
 #ifdef IPRINT
@@ -1172,47 +1176,57 @@ end subroutine
 ! -------------------------------------------------------------------
 ! Sanity-check of dimensions vector
 ! -------------------------------------------------------------------
-subroutine ValidateDimensions(ads)
+subroutine ValidateDimensions(&
+      nx,ny,nz, &
+      sx,sy,sz, &
+      nrcppx,nrcppy,nrcppz, &
+      dimensionsX,dimensionsY,dimensionsZ)
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ,PRINTRANK
 implicit none
 include "mpif.h"
-type   (ADS_setup) :: ads
+integer(kind=4), intent(in) :: nx,ny,nz
+integer(kind=4), intent(in) :: sx,sy,sz
+integer(kind=4), intent(in) :: nrcppx,nrcppy,nrcppz
+integer(kind=4), intent(in), allocatable, dimension(:) :: dimensionsX
+integer(kind=4), intent(in), allocatable, dimension(:) :: dimensionsY
+integer(kind=4), intent(in), allocatable, dimension(:) :: dimensionsZ
+   
 integer(kind=4) :: i, k
 
   k = 0
   do i = 1,NRPROCX
-    k = k + ads%dimensionsX(i)
+    k = k + dimensionsX(i)
   enddo
-  if (k /= (ads%nx+1)*ads%sy*ads%sz) then
-    write(*,*)PRINTRANK,'problem with dimensionsX',ads%dimensionsX
-    write(*,*)PRINTRANK,'nx+1',ads%nx+1
-    write(*,*)PRINTRANK,'sy',ads%sy
-    write(*,*)PRINTRANK,'sz',ads%sz
-    write(*,*)PRINTRANK,'nrcppx',ads%nrcppx
+  if (k /= (nx+1)*sy*sz) then
+    write(*,*)PRINTRANK,'problem with dimensionsX',dimensionsX
+    write(*,*)PRINTRANK,'nx+1',nx+1
+    write(*,*)PRINTRANK,'sy',sy
+    write(*,*)PRINTRANK,'sz',sz
+    write(*,*)PRINTRANK,'nrcppx',nrcppx
     stop
   endif
 
   k = 0
   do i = 1,NRPROCY
-    k = k + ads%dimensionsY(i)
+    k = k + dimensionsY(i)
   enddo
-  if (k /= (ads%ny+1)*ads%sx*ads%sz) then
-    write(*,*)PRINTRANK,'problem with dimensionsY',ads%dimensionsY
-    write(*,*)PRINTRANK,'n+1',ads%ny+1
-    write(*,*)PRINTRANK,'sx',ads%sx
-    write(*,*)PRINTRANK,'sz',ads%sz
+  if (k /= (ny+1)*sx*sz) then
+    write(*,*)PRINTRANK,'problem with dimensionsY',dimensionsY
+    write(*,*)PRINTRANK,'n+1',ny+1
+    write(*,*)PRINTRANK,'sx',sx
+    write(*,*)PRINTRANK,'sz',sz
     stop
   endif
 
   k = 0
   do i = 1,NRPROCZ
-    k = k + ads%dimensionsZ(i)
+    k = k + dimensionsZ(i)
   enddo
-  if (k /= (ads%nz+1)*ads%sx*ads%sy) then
-    write(*,*)PRINTRANK,'problem with dimensionsZ',ads%dimensionsZ
-    write(*,*)PRINTRANK,'n+1',ads%nz+1
-    write(*,*)PRINTRANK,'sx',ads%sx
-    write(*,*)PRINTRANK,'sy',ads%sy
+  if (k /= (nz+1)*sx*sy) then
+    write(*,*)PRINTRANK,'problem with dimensionsZ',dimensionsZ
+    write(*,*)PRINTRANK,'n+1',nz+1
+    write(*,*)PRINTRANK,'sx',sx
+    write(*,*)PRINTRANK,'sy',sy
     stop
   endif
 
