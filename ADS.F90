@@ -144,7 +144,16 @@ type   (ADS_setup) :: ads
       ads%iendx,ads%iendy,ads%iendz)
 #endif
   
-  call AllocateArrays(ads)
+  call AllocateArrays(&
+      ads%nx,ads%ny,ads%nz, &
+      ads%sx,ads%sy,ads%sz, &
+      ads%nrcppx,ads%nrcppy,ads%nrcppz, &
+      ads%Klx,ads%Kly,ads%Klz, &
+      ads%KUx,ads%KUy,ads%KUz, &
+      ads%Mx,ads%My,ads%Mz, &
+      ads%F,ads%F2,ads%F3, &
+      ads%IPIVx,ads%IPIVy,ads%IPIVz, &
+      ads%R)
   
   call PrepareKnot(ads%Ux,ads%nx,ads%px,ads%nelemx)
   call PrepareKnot(ads%Uy,ads%ny,ads%py,ads%nelemy)
@@ -184,15 +193,15 @@ integer(kind=4), intent(out) :: miney, maxey
 integer(kind=4), intent(out) :: minez, maxez
 integer(kind=4), intent(out) :: nrcppx,nrcppy,nrcppz
 integer(kind=4), intent(out) :: sx,sy,sz
-integer(kind=4), allocatable, dimension(:), intent(out) :: dimensionsX
-integer(kind=4), allocatable, dimension(:), intent(out) :: dimensionsY
-integer(kind=4), allocatable, dimension(:), intent(out) :: dimensionsZ
-integer(kind=4), allocatable, dimension(:), intent(out) :: shiftsX
-integer(kind=4), allocatable, dimension(:), intent(out) :: shiftsY
-integer(kind=4), allocatable, dimension(:), intent(out) :: shiftsZ
-integer(kind=4), dimension(3), intent(out) :: ibegsx,iendsx
-integer(kind=4), dimension(3), intent(out) :: ibegsy,iendsy
-integer(kind=4), dimension(3), intent(out) :: ibegsz,iendsz
+integer(kind=4), intent(out), allocatable, dimension(:) :: dimensionsX
+integer(kind=4), intent(out), allocatable, dimension(:) :: dimensionsY
+integer(kind=4), intent(out), allocatable, dimension(:) :: dimensionsZ
+integer(kind=4), intent(out), allocatable, dimension(:) :: shiftsX
+integer(kind=4), intent(out), allocatable, dimension(:) :: shiftsY
+integer(kind=4), intent(out), allocatable, dimension(:) :: shiftsZ
+integer(kind=4), intent(out), dimension(3) :: ibegsx,iendsx
+integer(kind=4), intent(out), dimension(3) :: ibegsy,iendsy
+integer(kind=4), intent(out), dimension(3) :: ibegsz,iendsz
    
 integer(kind=4) :: i
 integer(kind=4) :: ix, iy, iz
@@ -246,33 +255,55 @@ end subroutine
 ! -------------------------------------------------------------------
 ! Allocates most of the 'static' arrays
 ! -------------------------------------------------------------------
-subroutine AllocateArrays(ads)
+subroutine AllocateArrays(&
+      nx,ny,nz, &
+      sx,sy,sz, &
+      nrcppx,nrcppy,nrcppz, &
+      Klx,Kly,Klz, &
+      KUx,KUy,KUz, &
+      Mx,My,Mz, &
+      F,F2,F3, &
+      IPIVx,IPIVy,IPIVz, &
+      R)
 use parallelism, ONLY : MYRANKX,MYRANKY,MYRANKZ
 implicit none
 include "mpif.h"
-type   (ADS_setup) :: ads
+integer(kind=4), intent(in) :: nx,ny,nz
+integer(kind=4), intent(in) :: sx,sy,sz
+integer(kind=4), intent(in) :: nrcppx,nrcppy,nrcppz
+integer(kind=4), intent(in) :: KLx, KUx
+integer(kind=4), intent(in) :: KLy, KUy
+integer(kind=4), intent(in) :: KLz, KUz
+real (kind=8), intent(out), allocatable, dimension(:,:) :: Mx
+real (kind=8), intent(out), allocatable, dimension(:,:) :: My
+real (kind=8), intent(out), allocatable, dimension(:,:) :: Mz
+real (kind=8), intent(out), allocatable, dimension(:,:) :: F, F2, F3
+integer(kind=4), intent(out), allocatable, dimension(:) :: IPIVx
+integer(kind=4), intent(out), allocatable, dimension(:) :: IPIVy
+integer(kind=4), intent(out), allocatable, dimension(:) :: IPIVz
+real (kind=8), intent(out), allocatable :: R(:,:,:,:)
 integer :: ierr
 
-  allocate(ads%Mx(2*ads%KLx+ads%KUx+1,ads%nx+1))
-  allocate(ads%My(2*ads%KLy+ads%KUy+1,ads%ny+1))
-  allocate(ads%Mz(2*ads%KLz+ads%KUz+1,ads%nz+1))
+  allocate(Mx(2*KLx+KUx+1,nx+1))
+  allocate(My(2*KLy+KUy+1,ny+1))
+  allocate(Mz(2*KLz+KUz+1,nz+1))
 
   ! OLD: MP start with system fully generated along X
   ! allocate( F((n+1),(sy)*(sz))) !x,y,z
-  allocate( ads%F(ads%sx,ads%sy*ads%sz)) !x,y,z
-  allocate(ads%F2(ads%sy,ads%sx*ads%sz)) !y,x,z
-  allocate(ads%F3(ads%sz,ads%sx*ads%sy)) !z,x,y
+  allocate( F(sx,sy*sz)) !x,y,z
+  allocate(F2(sy,sx*sz)) !y,x,z
+  allocate(F3(sz,sx*sy)) !z,x,y
 
 
   ! Processes on the border need pivot vector for LAPACK call
   if (MYRANKX == 0 .or. MYRANKY == 0 .or. MYRANKZ == 0) then
-    allocate(ads%IPIVx(ads%nx+1))
-    allocate(ads%IPIVy(ads%ny+1))
-    allocate(ads%IPIVz(ads%nz+1))
+    allocate(IPIVx(nx+1))
+    allocate(IPIVy(ny+1))
+    allocate(IPIVz(nz+1))
   endif
 
-  allocate(ads%R(ads%nrcppz*ads%nrcppx*ads%nrcppy,3,3,3))
-  ads%R=0.d0
+  allocate(R(nrcppz*nrcppx*nrcppy,3,3,3))
+  R=0.d0
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
