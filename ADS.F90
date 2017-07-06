@@ -1001,22 +1001,23 @@ end subroutine
 !
 ! x, y, z    - coordinates
 ! -------------------------------------------------------------------
-function SizeOfPiece(x, y, z,ads) result (s)
+function SizeOfPiece(x,y,z,nx,ny,nz,px,py,pz) result (s)
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ
 use utils, ONLY : ComputeEndpoints
 implicit none
-type   (ADS_setup) :: ads
 integer(kind=4), intent(in) :: x, y, z
+integer(kind=4), intent(in) :: nx, ny, nz
+integer(kind=4), intent(in) :: px, py, pz
 integer(kind=4) :: s
 integer(kind=4) :: sx, sy, sz
 integer(kind=4) :: nrcpp, ibeg, iend
 integer(kind=4) :: mine, maxe
 
-  call ComputeEndpoints(x, NRPROCX, ads%nx, ads%px, nrcpp, ibeg, iend, mine, maxe)
+  call ComputeEndpoints(x, NRPROCX, nx, px, nrcpp, ibeg, iend, mine, maxe)
   sx = iend - ibeg + 1
-  call ComputeEndpoints(y, NRPROCY, ads%ny, ads%py, nrcpp, ibeg, iend, mine, maxe)
+  call ComputeEndpoints(y, NRPROCY, ny, py, nrcpp, ibeg, iend, mine, maxe)
   sy = iend - ibeg + 1
-  call ComputeEndpoints(z, NRPROCZ, ads%nz, ads%pz, nrcpp, ibeg, iend, mine, maxe)
+  call ComputeEndpoints(z, NRPROCZ, nz, pz, nrcpp, ibeg, iend, mine, maxe)
   sz = iend - ibeg + 1
 
   s = sx * sy * sz
@@ -1081,7 +1082,7 @@ integer(kind=4) :: ix, iy, iz, idx
     do y = 0, NRPROCY-1
       do z = 0, NRPROCZ-1
         idx = LinearIndex(x, y, z)
-        size = SizeOfPiece(x, y, z,ads)
+        size = SizeOfPiece(x,y,z,ads%nx,ads%ny,ads%nz,ads%px,ads%py,ads%pz)
         recvcounts(idx) = size
         displs(idx) = offset
         offset = offset + size
@@ -1118,7 +1119,7 @@ integer(kind=4) :: ix, iy, iz, idx
             enddo
           enddo
 
-          offset = offset + SizeOfPiece(x, y, z,ads)
+          offset = offset + SizeOfPiece(x,y,z,ads%nx,ads%ny,ads%nz,ads%px,ads%py,ads%pz)
         enddo
       enddo
     enddo
