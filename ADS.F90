@@ -84,14 +84,22 @@ contains
 ! -------------------------------------------------------------------
 ! Initialization of clocks and MPI
 ! -------------------------------------------------------------------
-subroutine initialize (ads)
+subroutine initialize (nx,ny,nz,px,py,pz,ads)
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ
 use parallelism, ONLY : PRINTRANK
 implicit none
 include "mpif.h"
+integer(kind=4), intent(in) :: nx,ny,nz
+integer(kind=4), intent(in) :: px,py,pz
+type   (ADS_setup), intent(out) :: ads
 integer(kind=4) :: ierr
-type   (ADS_setup) :: ads
 
+  ads%px = px ! order
+  ads%py = py ! order
+  ads%pz = pz ! order
+  ads%nx = nx  ! intervals
+  ads%ny = ny  ! intervals
+  ads%nz = nz  ! intervals
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 

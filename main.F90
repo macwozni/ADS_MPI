@@ -34,16 +34,10 @@ t = 0
   call InitializeParameters
 
   ! prepare the problem dimensions
-  ads%px = ORDER ! order
-  ads%py = ORDER ! order
-  ads%pz = ORDER ! order
-  ads%nx = SIZE  ! intervals
-  ads%ny = SIZE  ! intervals
-  ads%nz = SIZE  ! intervals
 
   call InitializeParallelism
   call CreateCommunicators
-  call Initialize(ads)
+  call Initialize(SIZE,SIZE,SIZE,ORDER,ORDER,ORDER,ads)
 
   allocate(Kqvals(ads%px+1,ads%py+1,ads%pz+1,ads%maxex-ads%minex+1,ads%maxey-ads%miney+1,ads%maxez-ads%minez+1))
   call InitInputData
