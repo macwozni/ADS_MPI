@@ -35,7 +35,7 @@ integer :: ierr
 end subroutine
 
 
-! odbiera cala kostke
+!! odbiera cala kostke
 subroutine recv_piece(items,src,req,nrcppz,nrcppx,nrcppy)
 implicit none
 include "mpif.h"
@@ -541,15 +541,20 @@ end subroutine
 ! -------------------------------------------------------------------
 ! Broadcasts computed partial solution along one axis
 !
+! Input:
+! ------
 ! F        - data to distribute
-! F_out    - buffer to receive data
 ! n        - problem size
 ! elems    - length of received slice
 ! stride   - total size of each slice layer
 ! dims     - sizes of slices for all processors
 ! shifts   - offsets (linearized) of slices for all processors
 ! comm     - communicator of the axis
-! ierr     - error code output
+!
+! Output:
+! ------
+! F_out    - buffer to receive data
+!
 ! -------------------------------------------------------------------
 subroutine AllGather(F, F_out, n, elems, stride, dims, shifts, comm)
 implicit none
@@ -580,10 +585,15 @@ end subroutine
 ! -------------------------------------------------------------------
 ! Linearizes and transposes an array.
 !
+! Input:
+! ------
 ! F        - input rank-2 array
-! F_lin    - output rank-1 array
 ! elems    - first dimension of F
 ! stride   - second dimension of F
+!
+! Output:
+! ------
+! F_lin    - output rank-1 array
 !
 ! For input array like this, where columns are consecutive in memory
 ! (Fortran uses column-major layout), with s = stride, N = elems:

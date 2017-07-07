@@ -4,7 +4,20 @@ contains
 
 
 ! -------------------------------------------------------------------
-! Allocates and fills the knot vector
+! Allocates and fills the knot vector on [0, 1]
+!
+! Input:
+! ------
+! U  - array to fill with points
+! n  - number of functions on the knot minus one
+! p  - degree of polynomial
+!
+! Output:
+! ------
+! nelem - number of elements
+!
+! Number of subintervals is N = n-p+1.
+! 0 and 1 are repeated (p+1) times.
 ! -------------------------------------------------------------------
 subroutine PrepareKnot(U,n,p,nelem)
 implicit none
@@ -29,9 +42,14 @@ end subroutine
 ! -------------------------------------------------------------------
 ! Fills knot vector on [0, 1]
 !
-! U  - array to fill with points
+! Input:
+! ------
 ! n  - number of functions on the knot minus one
 ! p  - degree of polynomial
+!
+! Output:
+! ------
+! U  - array to fill with points
 !
 ! Number of subintervals is N = n-p+1.
 ! 0 and 1 are repeated (p+1) times.
