@@ -827,16 +827,6 @@ integer(kind=4), intent(in) :: ibegz,iendz
 end subroutine
 
 
-!!!! WTF ?????
-!!!! wypierdolic
-function ftest(x, y, z) result(val)
-real (kind=8) :: x, y, z, val
-
-  val = x**2 + y**2 + z**2
-
-end function
-
-
 ! -------------------------------------------------------------------
 ! Gathers full solution and plots it
 ! -------------------------------------------------------------------
