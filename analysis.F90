@@ -82,7 +82,7 @@ integer(kind=4) :: iprint
       do ay = 0,py
       do az = 0,pz
         d = (Ox(ex)+ax)+(Oy(ey)+ay)*(nx+1)+(Oz(ez)+az)*(ny+1)*(nx+1)
-        call global2local(ind,nx,ny,nz,indx,indy,indz)
+        call global2local(ind,[nx,ny,nz],indx,indy,indz)
         if (indx < ibegx-1 .or. indx > iendx-1) cycle
         if (indy < ibegy-1 .or. indy > iendy-1) cycle
         if (indz < ibegz-1 .or. indz > iendz-1) cycle

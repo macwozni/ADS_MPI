@@ -214,7 +214,7 @@ real   (kind=8) :: resvalue
       do ay = 0,p(2)
       do az = 0,p(3)
         ind = (Ox(ex)+ax) + (Oy(ey)+ay)*(n(1)+1) + (Oz(ez)+az)*(n(2)+1)*(n(1)+1)
-        call global2local(ind,n(1),n(2),n(3),indx,indy,indz)
+        call global2local(ind,n,indx,indy,indz)
 
         if (indx < ibeg(1)-1 .or. indx > iend(1)-1) cycle
         if (indy < ibeg(2)-1 .or. indy > iend(2)-1) cycle
@@ -231,7 +231,7 @@ real   (kind=8) :: resvalue
         do by = 0,p(2)
         do bz = 0,p(3)
           ind = (Ox(ex)+bx) + (Oy(ey)+by)*(n(1)+1) + (Oz(ez)+bz)*(n(2)+1)*(n(1)+1)
-          call global2local(ind,n(1),n(2),n(3),indbx,indby,indbz)
+          call global2local(ind,n,indbx,indby,indbz)
 
           rx = 2
           ry = 2
@@ -349,17 +349,17 @@ end function
 ! nx,ny,nz   - sizes of the solution cube minus one
 ! x,y,z      - output coordinates
 ! -------------------------------------------------------------------
-subroutine global2local(ind,nx,ny,nz,x,y,z)
+subroutine global2local(ind,n,x,y,z)
 implicit none
 integer(kind=4), intent(in)  :: ind
-integer(kind=4), intent(in)  :: nx,ny,nz
+integer(kind=4), intent(in), dimension(3)  :: n
 integer(kind=4), intent(out) :: x,y,z
 integer(kind=4) :: tmp
 
-z = ind / ((nx+1)*(ny+1))
-tmp = ind - z*(nx+1)*(ny+1)
-y = tmp / (nx+1)
-x = tmp - y*(nx+1)
+z = ind / ((n(1)+1)*(n(2)+1))
+tmp = ind - z*(n(1)+1)*(n(2)+1)
+y = tmp / (n(1)+1)
+x = tmp - y*(n(1)+1)
 
 end subroutine
 
