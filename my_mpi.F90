@@ -306,7 +306,7 @@ end function
 !   Of the pieces: process coordinates = (z, y, x)
 !   Inside pieces: (z, y, x), i.e. x changes fastest
 ! -------------------------------------------------------------------
-subroutine GatherFullSolution(at, part, full,nx,ny,nz,px,py,pz,sx,sy,sz)
+subroutine GatherFullSolution(at,part,full,nx,ny,nz,px,py,pz,sx,sy,sz)
 use parallelism, ONLY : MYRANK,LINEARINDEX,NRPROCX,NRPROCY,NRPROCZ
 use utils, ONLY : ComputeEndpoints
 implicit none
