@@ -5,7 +5,6 @@ program main
 use parallelism, ONLY : MYRANK
 use parallelism, ONLY : PRINTRANK,InitializeParallelism
 use communicators, ONLY : CreateCommunicators
-use stuff
 use RHS_eq
 use ADSS
 use input_data
