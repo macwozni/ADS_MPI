@@ -4,6 +4,9 @@ implicit none
 
 contains
 
+!!!!!!! udostepnic uzytkownikowi
+! udostepnic wrapper
+! utils?
 
 ! Ux,Uy,Uz  knots vectors
 ! px,py,py  orders

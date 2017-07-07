@@ -261,6 +261,7 @@ real   (kind=8) :: resvalue
           sz = iendsz(rz) - ibegsz(rz) + 1
           ind = ix + sx * (iy + sy * iz)
 
+!!!!! debug
           if (ind < 0 .or. ind > nrcppz*nrcppx*nrcppy-1) then
             write(ERROR_UNIT,*)PRINTRANK,'Oh crap',ix,iy,iz
             write(ERROR_UNIT,*)PRINTRANK,'r',rx,ry,rz
@@ -321,6 +322,9 @@ real   (kind=8) :: resvalue
 end subroutine
 
 
+
+!!!!!!! debug?????
+!!!!!!! nie jest uzywany
 ! -------------------------------------------------------------------
 ! Checks whether the index is within range.
 !
@@ -342,6 +346,7 @@ if (indz < ibegz-1 .or. indz > iendz-1) IndexInRange = .false.
 end function
 
 
+!!!!! to nie tu
 ! -------------------------------------------------------------------
 ! Translates global linearized index given by
 !
@@ -367,6 +372,30 @@ x = tmp - y*(nx+1)
 
 end subroutine
 
+
+
+
+! -------------------------------------------------------------------
+! Calculates mass matrix M
+! -------------------------------------------------------------------
+subroutine ComputeMassMatrix(KL,KU,U,p,n,nelem,M)
+use parallelism, ONLY : PRINTRANK
+implicit none
+integer(kind=4), intent(in)  :: KL,KU
+integer(kind=4), intent(in)  :: n, p, nelem
+real   (kind=8), intent(in)  :: U(0:n+p+1)
+real   (kind=8), intent(out) :: M(0:(2*KL+KU),0:n)
+integer :: i
+
+  call Form1DMassMatrix(KL,KU,U,p,n,nelem,M)
+#ifdef IPRINT
+    write(*,*)PRINTRANK,'M'
+    do i = 1,2*KL+KU+1
+      write(*,*)PRINTRANK,M(i,1:n+1)
+    enddo
+#endif
+
+end subroutine
 
 
 end module

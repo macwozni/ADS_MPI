@@ -164,7 +164,7 @@ COMMZ = COMMZALL(myrankx+1,myranky+1)
 
 end subroutine
 
-
+!!!!! przeniesc do debug
 ! -------------------------------------------------------------------
 ! Prints groups used later to create communicators
 ! For debug only
@@ -192,7 +192,7 @@ enddo
 
 end subroutine
 
-
+!!! przeniesc do debug
 ! -------------------------------------------------------------------
 ! Prints communicators
 ! For debug only
@@ -219,5 +219,8 @@ do j = 1,NRPROCY
 enddo
 
 end subroutine
+
+!!!!! dodac czyszczenie komunikatorow
+
 
 end module

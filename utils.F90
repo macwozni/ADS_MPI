@@ -4,32 +4,8 @@ implicit none
 
 contains
 
-! -------------------------------------------------------------------
-! Fills knot vector on [0, 1]
-!
-! U  - array to fill with points
-! n  - number of functions on the knot minus one
-! p  - degree of polynomial
-!
-! Number of subintervals is N = n-p+1.
-! 0 and 1 are repeated (p+1) times.
-! -------------------------------------------------------------------
-subroutine FillOpenKnot(U, n, p)
-implicit none
-integer(kind=4), intent(in) :: n, p
-real   (kind=8), intent(out):: U(1:n+p+2)
-integer(kind=4) :: i
 
-U(1 : p+1) = 0.d0
-U(n+2 : n+p+2) = 1.d0
-
-do i = p+2, n+1
-  U(i) = real(i-p-1) / real(n-p+1)
-enddo
-
-end subroutine
-
-
+!!!! parallelism
 ! -------------------------------------------------------------------
 ! Calculates the range of the direction that is assigned to processor
 ! with specified rank.
@@ -71,6 +47,7 @@ maxe = min(iend, elems)
 end subroutine
 
 
+!!!!! parallelism
 ! -------------------------------------------------------------------
 ! Calculates sizes and ranges of slices for each processor in
 ! given direction.
@@ -110,6 +87,8 @@ integer(kind=4) :: i
 end subroutine
 
 
+
+!!!!!! my_mpi
 ! -------------------------------------------------------------------
 ! Linearizes and transposes an array.
 !
@@ -147,6 +126,8 @@ enddo
 end subroutine
 
 
+
+!!!!!! my_mpi
 ! -------------------------------------------------------------------
 ! Delinearizes an array
 !
@@ -183,6 +164,8 @@ enddo
 end subroutine
 
 
+
+!!!!!! my_mpi
 ! -------------------------------------------------------------------
 ! Gathers data along one axis to the processes on the corresponding
 ! face of the cube.
@@ -222,6 +205,8 @@ call Delinearize(F_out_lin,F_out,n+1,stride)
 end subroutine
 
 
+
+!!!!!! my_mpi
 ! -------------------------------------------------------------------
 ! Scatters computed partial solution along one axis, but does not
 ! delinearize the output (used at the very end of computation)
@@ -259,6 +244,8 @@ call mpi_scatterv(F_lin, &
 end subroutine
 
 
+
+!!!!!! my_mpi
 ! -------------------------------------------------------------------
 ! Scatters computed partial solution along one axis
 !
@@ -287,6 +274,8 @@ call Delinearize(F_out_lin, F_out, elems, stride)
 end subroutine
 
 
+
+!!!!!! my_mpi
 ! -------------------------------------------------------------------
 ! Broadcasts computed partial solution along one axis
 !

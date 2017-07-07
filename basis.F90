@@ -228,9 +228,7 @@ do while (uu < U(span) .or. uu >= U(span+1))
 enddo
 
 end function
- 
-
-! -------------------------------------------------------------------
+ ! -------------------------------------------------------------------
 ! Calculates number of elements (nonempty subintervals) in the knot 
 ! vector.
 !

@@ -5,6 +5,8 @@ implicit none
 contains
 
 
+
+!!!!! inferface do refaktoryzacji
 ! -------------------------------------------------------------------
 ! Right-hand side of the equation.
 !

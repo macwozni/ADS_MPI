@@ -6,6 +6,7 @@ implicit none
 integer(kind=4), parameter :: cN = 30, cL=16
 real   (kind=8), parameter :: radius = 0.15, pumping_strength = 1, draining_strength = 1
 
+!!! krzywe dane przez segmenty
 real   (kind=8) :: cx(cN*cL), cy(cN*cL), cz(cN*cL)
 real   (kind=8) :: mi = 10.d0
 real   (kind=8) :: GROUND = 0.2
@@ -159,7 +160,8 @@ end subroutine
 
 
 
-
+!!!! liczy odleglosc punktu od odcinka
+!!!!! przeniesc gdzies indziej
 function dist_from_segment(x,y,z,ax,ay,az,bx,by,bz) result (d)
 implicit none
 real   (kind=8), intent(in) :: x,y,z,ax,ay,az,bx,by,bz
@@ -198,7 +200,9 @@ end function
 
 
 
-
+!!!!! liczy odleglosc punktu od krzywych
+!!!!! krzywe jako zmienne globalne
+!!!!! przeniesc do gdziesc indziej
 function dist_from_curves(x, y, z) result (fval)
 implicit none
 real   (kind=8) :: x, y, z

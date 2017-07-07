@@ -1,7 +1,10 @@
 module math
 
+!!!!! helper matematyczny
+    
 implicit none
 
+!!!! definicja PI
 ! No predefined constant anywhere else
 real (kind=8), parameter :: PI = 4.d0 * datan(1.d0) 
 
@@ -45,6 +48,8 @@ endif
 end function
 
 
+
+!!!!!! to samo, co fall off tylko uproszczone
 ! -------------------------------------------------------------------
 ! C^1 bump function on [0, 1]. Function and its 1st derivative 
 ! vanish at the endpoints, maximum is attained for x = 0.5 and its
@@ -65,6 +70,7 @@ endif
 end function
 
 
+!!!!! przeskalowany bump
 ! -------------------------------------------------------------------
 ! C^1 bump function on [0, 1]. Function and its 1st derivative 
 ! vanish at the endpoints, maximum is attained for x = 0.5 and its
@@ -81,6 +87,7 @@ real (kind=8) :: val
 end function
 
 
+!!!!!! 3D fall off, jedynka w 1/2. 1/2. 1/2
 function bump3d(r, Rr, x, y, z) result (val)
 real (kind=8), intent(in) :: r, Rr, x, y, z
 real (kind=8) :: val, t
@@ -89,6 +96,9 @@ t = norm2([x, y, z] - 0.5d0)
 val = falloff(r/2, Rr/2, t)
 
 end function
+
+
+!!!!!! przerobic
 
 end module
 

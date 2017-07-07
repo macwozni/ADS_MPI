@@ -87,6 +87,7 @@ contains
 subroutine initialize (nx,ny,nz,px,py,pz,ads)
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ
 use parallelism, ONLY : PRINTRANK
+use knot_vector, ONLY : PrepareKnot
 implicit none
 include "mpif.h"
 integer(kind=4), intent(in) :: nx,ny,nz
@@ -318,56 +319,8 @@ integer :: ierr
 end subroutine
 
 
-! -------------------------------------------------------------------
-! Allocates and fills the knot vector
-! -------------------------------------------------------------------
-subroutine PrepareKnot(U,n,p,nelem)
-use utils, ONLY : FillOpenKnot
-use basis, ONLY : CountSpans
-implicit none
-integer(kind=4), intent(in) :: n,p
-real   (kind=8), allocatable, dimension(:), intent(out) :: U
-integer(kind=4), intent(out) :: nelem
-
-
-  allocate(U(n+p+2))
-  call FillOpenKnot(U, n, p)
-  nelem = CountSpans(n,p,U)
-
-#ifdef IINFO
-    write(*,*)'n,p,nelem',n,p,nelem
-    write(*,*)'U',U
-#endif
-
-end subroutine
-
-
-! -------------------------------------------------------------------
-! Calculates mass matrix M
-! -------------------------------------------------------------------
-subroutine ComputeMassMatrix(KL,KU,U,p,n,nelem,M)
-use parallelism, ONLY : PRINTRANK
-use projection_engine, ONLY : Form1DMassMatrix
-implicit none
-integer(kind=4), intent(in)  :: KL,KU
-integer(kind=4), intent(in)  :: n, p, nelem
-real   (kind=8), intent(in)  :: U(0:n+p+1)
-real   (kind=8), intent(out) :: M(0:(2*KL+KU),0:n)
-integer :: i
-
-  call Form1DMassMatrix(KL,KU,U,p,n,nelem,M)
-#ifdef IPRINT
-    write(*,*)PRINTRANK,'M'
-    do i = 1,2*KL+KU+1
-      write(*,*)PRINTRANK,M(i,1:n+1)
-    enddo
-#endif
-
-end subroutine
-
-
-
-
+!!!!! przeniesc do my_mpi
+! liczy pozycje sasiedniego procesora
 function neighbour(dx, dy, dz) result(idx)
 use parallelism, ONLY : MYRANKX,MYRANKY,MYRANKZ
 use communicators, ONLY : processors
@@ -384,6 +337,8 @@ integer(kind=4) :: ix, iy, iz
 end function
 
 
+!!!! przeniesc do my_mpi
+! przesyla cala kostke
 subroutine send_piece(items, dst, req, nrcppx,nrcppy,nrcppz)
 implicit none
 include "mpif.h"
@@ -398,6 +353,8 @@ integer :: ierr
 end subroutine
 
 
+!!!! przeniesc do my_mpi
+! odbiera cala kostke
 subroutine recv_piece(items, src, req,ads)
 implicit none
 include "mpif.h"
@@ -412,6 +369,8 @@ integer(kind=4) :: ierr
 end subroutine
 
 
+
+!!!! przeniesc do my_mpi
 ! -------------------------------------------------------------------
 ! Distributes spline (e.g. solution from previous timestep, or parametrization
 ! approximation for Jacobian calculation) to neighbouring processes. It is
@@ -620,6 +579,8 @@ integer(kind=4) :: dst, src
 end subroutine
 
 
+
+!!!!! przeniesc do debug
 ! -------------------------------------------------------------------
 ! Prints debugging information about results of distributing
 ! data to neighbouring processes.
@@ -657,7 +618,7 @@ integer(kind=4) :: mine, maxe
 end subroutine
 
 
-
+!!!! przeniesc do solver
 ! -------------------------------------------------------------------
 ! Solves 1D linear system (one of 3 steps of solving the whole),
 ! using DGBSV.
@@ -717,6 +678,9 @@ integer(kind=4) :: i, iret
 end subroutine
 
 
+
+!!!! podzielic na wraper i czesc wlasciwa
+! przeniesc czesc do solver
 ! -------------------------------------------------------------------
 ! Performs one step of the simulation
 !
@@ -728,7 +692,7 @@ use parallelism, ONLY :PRINTRANK,MYRANKX,MYRANKY,MYRANKZ
 use communicators, ONLY : COMMX,COMMY,COMMZ
 use utils, ONLY : Gather,Scatter
 use reorderRHS, ONLY : ReorderRHSForX,ReorderRHSForY,ReorderRHSForZ
-use projection_engine, ONLY : Form3DRHS
+use projection_engine, ONLY : Form3DRHS, ComputeMassMatrix
 implicit none
 include "mpif.h"
 interface
@@ -982,6 +946,7 @@ integer(kind=4) :: iret, ierr
 end subroutine
 
 
+!!!!! przeniesc do my_mpi
 ! -------------------------------------------------------------------
 ! Calculates size of the piece corresponding to process with
 ! specified coordinates. Concretly, number of coefficients.
@@ -1012,6 +977,7 @@ integer(kind=4) :: mine, maxe
 end function
 
 
+!!!!! przeniesc do my_mpi
 ! -------------------------------------------------------------------
 ! Gathers full solution at the specified process. It is stored in
 ! 3D array.
@@ -1150,6 +1116,7 @@ integer(kind=4) :: ierr
   if (allocated(ads%F2)) deallocate(ads%F2)
   if (allocated(ads%F3)) deallocate(ads%F3)
 
+!!!!!! wyciac
   call mpi_finalize(ierr)
 #ifdef IINFO
   write(*,*)PRINTRANK,"Exiting..."
@@ -1158,6 +1125,8 @@ integer(kind=4) :: ierr
 end subroutine
 
 
+
+!!!! przeniesc do debug
 ! -------------------------------------------------------------------
 ! Sanity-check of dimensions vector
 ! -------------------------------------------------------------------
@@ -1218,6 +1187,8 @@ integer(kind=4) :: i, k
 end subroutine
 
 
+
+!!!!! przeniesc do debug
 ! -------------------------------------------------------------------
 ! Displays computed domain decomposition, for debugging.
 ! -------------------------------------------------------------------
@@ -1250,6 +1221,8 @@ integer(kind=4), intent(in) :: ibegz,iendz
 end subroutine
 
 
+!!!! WTF ?????
+!!!! wypierdolic
 function ftest(x, y, z) result(val)
 real (kind=8) :: x, y, z, val
 
