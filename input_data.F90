@@ -162,39 +162,39 @@ end subroutine
 
 !!!! liczy odleglosc punktu od odcinka
 !!!!! przeniesc gdzies indziej
-function dist_from_segment(x,y,z,ax,ay,az,bx,by,bz) result (d)
+function dist_from_segment(point,ibeg,iend) result (d)
 implicit none
-real   (kind=8), intent(in) :: x,y,z,ax,ay,az,bx,by,bz
+real   (kind=8), intent(in), dimension(3) :: point,ibeg,iend
 real   (kind=8) :: dx,dy,dz,cx,cy,cz,xx,yy,zz
 real   (kind=8) :: dot, len2, proj, d
 
-dx = bx - ax
-dy = by - ay
-dz = bz - az
+dx = iend(1) - ibeg(1)
+dy = iend(2) - ibeg(2)
+dz = iend(3) - ibeg(3)
 
-cx = x - ax
-cy = y - ay
-cz = z - az
+cx = point(1) - ibeg(1)
+cy = point(2) - ibeg(2)
+cz = point(3) - ibeg(3)
 
 dot = dx * cx + dy * cy + dz * cz
 len2 = dx ** 2 + dy **2 + dz ** 2
 proj = dot / len2
 
 if (proj < 0) then
-  xx = ax
-  yy = ay
-  zz = az
+  xx = ibeg(1)
+  yy = ibeg(2)
+  zz = ibeg(3)
 else if (proj > 1) then
-  xx = bx
-  yy = by
-  zz = bz
+  xx = iend(1)
+  yy = iend(2)
+  zz = iend(3)
 else
-  xx = ax + proj * dx
-  yy = ay + proj * dy
-  zz = az + proj * dz
+  xx = ibeg(1) + proj * dx
+  yy = ibeg(2) + proj * dy
+  zz = ibeg(3) + proj * dz
 end if
 
-d = (x - xx)**2 + (y - yy)**2 + (z - zz)**2
+d = (point(1) - xx)**2 + (point(2) - yy)**2 + (point(3) - zz)**2
 
 end function
 
@@ -203,9 +203,11 @@ end function
 !!!!! liczy odleglosc punktu od krzywych
 !!!!! krzywe jako zmienne globalne
 !!!!! przeniesc do gdziesc indziej
-function dist_from_curves(x, y, z) result (fval)
+function dist_from_curves(point,cx,cy,cz,cN,cL) result (fval)
 implicit none
-real   (kind=8) :: x, y, z
+real   (kind=8), intent(in), dimension(3) :: point
+integer(kind=4), intent(in) :: cN, cL
+real   (kind=8), intent(in) :: cx(cN*cL), cy(cN*cL), cz(cN*cL)
 real   (kind=8) :: ax,ay,az,bx,by,bz,fval
 integer(kind=4) :: i, j
 
@@ -219,7 +221,7 @@ do i = 0,cN-1
     az = cz(i*cL + j - 1)
     bz = cz(i*cL + j)
 
-    fval = min(fval, dist_from_segment(x,y,z,ax,ay,az,bx,by,bz))
+    fval = min(fval, dist_from_segment(point,[ax,ay,az],[bx,by,bz]))
   end do
 end do
 
@@ -270,7 +272,7 @@ implicit none
 real   (kind=8),intent(in) :: x, y, z
 real   (kind=8) :: val, dist
 
-dist = sqrt(dist_from_curves(x,y,z))
+dist = sqrt(dist_from_curves([x,y,z],cx,cy,cz,cN,cL))
 val = lerp(falloff(0.d0, 0.06d0, dist), Kqmin, Kqmax)
 
 end function
@@ -293,7 +295,7 @@ implicit none
 real   (kind=8), intent(in) :: x, y, z
 real   (kind=8) :: dist, val
 
-dist = sqrt(dist_from_curves(x,y,z))
+dist = sqrt(dist_from_curves([x,y,z],cx,cy,cz,cN,cL))
 val = 0.1d0 * lerp(falloff(0.d0, 0.1d0, dist), 0.d0, 1.d0) * bump3d(0.2d0, 0.6d0, x, y, z)
 
 end function

@@ -409,40 +409,38 @@ implicit none
 include "mpif.h"
 interface
   subroutine RHS_fun( &
-         Xx,Xy,Xz, &
-         kx,ky,kz, &
-         ex,ey,ez, &
-         px,py,pz, &
-         nelemx,nelemy,nelemz, &
-         ax,ay,az, &
-         bx,by,bz, &
+         X, &
+         k, &
+         e, &
+         p, &
+         nelem, &
+         a, &
+         b, &
          NNx,NNy,NNz, &
-         dux,duy,duz, &
-         ibegx,ibegy,ibegz, &
-         iendx,iendy,iendz, &
-         minex,miney,minez, &
-         maxex,maxey,maxez, &
+         du, &
+         ibeg, &
+         iend, &
+         mine, &
+         maxe, &
          Uval,J,W,F)
       implicit none
-      integer(kind=4), intent(in)  :: px,py,pz
-      real   (kind=8), intent(in)  :: Xx(px+1,nelemx)
-      real   (kind=8), intent(in)  :: Xy(py+1,nelemy)
-      real   (kind=8), intent(in)  :: Xz(pz+1,nelemz)
-      integer(kind=4), intent(in)  :: kx,ky,kz
-      integer(kind=4), intent(in)  :: ex,ey,ez
-      integer(kind=4), intent(in)  :: nelemx,nelemy,nelemz
+      integer(kind=4), intent(in), dimension(3)  :: p
+      real   (kind=8), intent(in), dimension(3)  :: X
+      integer(kind=4), intent(in), dimension(3)  :: k
+      integer(kind=4), intent(in), dimension(3)  :: e
+      integer(kind=4), intent(in), dimension(3)  :: nelem
       real   (kind=8), intent(in)  :: Uval
-      integer(kind=4), intent(in)  :: ibegx,ibegy,ibegz
-      integer(kind=4), intent(in)  :: iendx,iendy,iendz
-      integer(kind=4), intent(in)  :: maxex,maxey,maxez
-      integer(kind=4), intent(in)  :: minex,miney,minez
-      integer(kind=4), intent(in)  :: ax,ay,az
-      integer(kind=4), intent(in)  :: bx,by,bz
-      real   (kind=8), intent(in)  :: dux,duy,duz
+      integer(kind=4), intent(in), dimension(3)  :: ibeg
+      integer(kind=4), intent(in), dimension(3)  :: iend
+      integer(kind=4), intent(in), dimension(3)  :: maxe
+      integer(kind=4), intent(in), dimension(3)  :: mine
+      integer(kind=4), intent(in), dimension(3)  :: a
+      integer(kind=4), intent(in), dimension(3)  :: b
+      real   (kind=8), intent(in), dimension(3)  :: du
       real   (kind=8), intent(in)  :: J,W
-      real   (kind=8), intent(in)  :: NNx(0:px-1,0:px,px+1,nelemx), &
-                         NNy(0:py-1,0:py,py+1,nelemy), &
-                         NNz(0:pz-1,0:pz,pz+1,nelemz)
+      real   (kind=8), intent(in)  :: NNx(0:p(1)-1,0:p(1),p(1)+1,nelem(1)), &
+                         NNy(0:p(2)-1,0:p(2),p(2)+1,nelem(2)), &
+                         NNz(0:p(3)-1,0:p(3),p(3)+1,nelem(3))
       real   (kind=8), intent(out) :: F
   end subroutine
 end interface
