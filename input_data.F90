@@ -356,9 +356,9 @@ implicit none
 type   (ADS_setup) :: ads
 
   call CacheKqValues                                        &
-      (ads%Ux,ads%p(1),ads%n(1),ads%minex,ads%maxex,ads%nelemx, &
-       ads%Uy,ads%p(2),ads%n(2),ads%miney,ads%maxey,ads%nelemy, &
-       ads%Uz,ads%p(3),ads%n(3),ads%minez,ads%maxez,ads%nelemz, &
+      (ads%Ux,ads%p(1),ads%n(1),ads%mine(1),ads%maxe(1),ads%nelem(1), &
+       ads%Uy,ads%p(2),ads%n(2),ads%mine(2),ads%maxe(2),ads%nelem(2), &
+       ads%Uz,ads%p(3),ads%n(3),ads%mine(3),ads%maxe(3),ads%nelem(3), &
        Kqvals)
  
 end subroutine

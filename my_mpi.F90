@@ -4,47 +4,47 @@ contains
 
 
 !!! liczy pozycje sasiedniego procesora
-function neighbour(dx, dy, dz) result(idx)
+function neighbour(d) result(idx)
 use parallelism, ONLY : MYRANKX,MYRANKY,MYRANKZ
 use communicators, ONLY : processors
 implicit none
-integer(kind=4), intent(in) :: dx, dy, dz
+integer(kind=4), intent(in), dimension(3) :: d
 integer(kind=4) :: idx
 integer(kind=4) :: ix, iy, iz
 
-  ix = MYRANKX + dx + 1
-  iy = MYRANKY + dy + 1
-  iz = MYRANKZ + dz + 1
+  ix = MYRANKX + d(1) + 1
+  iy = MYRANKY + d(2) + 1
+  iz = MYRANKZ + d(3) + 1
   idx = processors(ix, iy, iz)
 
 end function
 
 
 !!! przesyla cala kostke
-subroutine send_piece(items, dst, req, nrcppx,nrcppy,nrcppz)
+subroutine send_piece(items,dst,req,nrcpp)
 implicit none
 include "mpif.h"
 real (kind=8), intent(in) :: items(:)
 integer, intent(in) :: dst, req
-integer(kind=4), intent(in) :: nrcppx,nrcppy,nrcppz
+integer(kind=4), intent(in), dimension(3) :: nrcpp
 integer :: ierr
 
-  call mpi_isend(items, nrcppz*nrcppx*nrcppy, &
+  call mpi_isend(items, nrcpp(3)*nrcpp(1)*nrcpp(2), &
     MPI_DOUBLE_PRECISION, dst, 0, MPI_COMM_WORLD, req, ierr)
 
 end subroutine
 
 
 !! odbiera cala kostke
-subroutine recv_piece(items,src,req,nrcppz,nrcppx,nrcppy)
+subroutine recv_piece(items,src,req,nrcpp)
 implicit none
 include "mpif.h"
 real   (kind=8) :: items(:)
 integer(kind=4) :: src, req
-integer(kind=4) :: nrcppz,nrcppx,nrcppy
+integer(kind=4), dimension(3) :: nrcpp
 integer(kind=4) :: ierr
 
-  call mpi_irecv(items, nrcppz*nrcppx*nrcppy, &
+  call mpi_irecv(items, nrcpp(3)*nrcpp(1)*nrcpp(2), &
     MPI_DOUBLE_PRECISION, src, 0, MPI_COMM_WORLD, req, ierr)
 
 end subroutine
@@ -58,11 +58,11 @@ end subroutine
 ! calculate values near the boundary, hence overlapping supports of B-splines
 ! necessitate partial sharing.
 ! -------------------------------------------------------------------
-subroutine DistributeSpline(spline,nrcppz,nrcppx,nrcppy,R)
+subroutine DistributeSpline(spline,nrcpp,R)
 use parallelism, ONLY : MYRANKX,MYRANKY,MYRANKZ,NRPROCX,NRPROCY,NRPROCZ
 implicit none
 include "mpif.h"
-integer(kind=4), intent(in) :: nrcppx,nrcppy,nrcppz
+integer(kind=4), intent(in), dimension(3) :: nrcpp
 real   (kind=8) :: spline(:,:,:,:)
 real (kind=8), allocatable :: R(:,:,:,:)
 integer(kind=4) :: i, j, k, s
@@ -74,13 +74,13 @@ integer(kind=4) :: dst, src
 
   ! Right
   if (MYRANKX < NRPROCX - 1) then
-    dst = neighbour(1, 0, 0)
-    call send_piece(spline(:,2,2,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    dst = neighbour([1, 0, 0])
+    call send_piece(spline(:,2,2,2), dst, request(s),nrcpp)
     s = s + 1
   endif
   if (MYRANKX > 0) then
-    src = neighbour(-1, 0, 0)
-    call recv_piece(spline(:,1,2,2), src, request(s),nrcppx,nrcppy,nrcppz)
+    src = neighbour([-1, 0, 0])
+    call recv_piece(spline(:,1,2,2), src, request(s),nrcpp)
     s = s + 1
   endif
 
@@ -91,17 +91,17 @@ integer(kind=4) :: dst, src
 
   ! Up
   if (MYRANKY > 0) then
-    dst = neighbour(0, -1, 0)
-    call send_piece(spline(:,2,2,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    dst = neighbour([0, -1, 0])
+    call send_piece(spline(:,2,2,2), dst, request(s),nrcpp)
     s = s + 1
-    call send_piece(spline(:,1,2,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    call send_piece(spline(:,1,2,2), dst, request(s),nrcpp)
     s = s + 1
   endif
   if (MYRANKY < NRPROCY - 1) then
-    src = neighbour(0, 1, 0)
-    call recv_piece(spline(:,2,3,2), src, request(s),nrcppx,nrcppy,nrcppz)
+    src = neighbour([0, 1, 0])
+    call recv_piece(spline(:,2,3,2), src, request(s),nrcpp)
     s = s + 1
-    call recv_piece(spline(:,1,3,2), src, request(s),nrcppx,nrcppy,nrcppz)
+    call recv_piece(spline(:,1,3,2), src, request(s),nrcpp)
     s = s + 1
   endif
 
@@ -112,17 +112,17 @@ integer(kind=4) :: dst, src
 
   ! Left
   if (MYRANKX > 0) then
-    dst = neighbour(-1, 0, 0)
-    call send_piece(R(:,2,2,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    dst = neighbour([-1, 0, 0])
+    call send_piece(R(:,2,2,2), dst, request(s),nrcpp)
     s = s + 1
-    call send_piece(R(:,2,3,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    call send_piece(R(:,2,3,2), dst, request(s),nrcpp)
     s = s + 1
   endif
   if (MYRANKX < NRPROCX - 1) then
-    src = neighbour(1, 0, 0)
-    call recv_piece(R(:,3,2,2), src, request(s),nrcppx,nrcppy,nrcppz)
+    src = neighbour([1, 0, 0])
+    call recv_piece(R(:,3,2,2), src, request(s),nrcpp)
     s = s + 1
-    call recv_piece(R(:,3,3,2), src, request(s),nrcppx,nrcppy,nrcppz)
+    call recv_piece(R(:,3,3,2), src, request(s),nrcpp)
     s = s + 1
   endif
 
@@ -133,33 +133,33 @@ integer(kind=4) :: dst, src
 
   ! Above
   if (MYRANKZ < NRPROCZ - 1) then
-    dst = neighbour(0, 0, 1)
-    call send_piece(spline(:,2,2,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    dst = neighbour([0, 0, 1])
+    call send_piece(spline(:,2,2,2), dst, request(s),nrcpp)
     s = s + 1
-    call send_piece(spline(:,1,2,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    call send_piece(spline(:,1,2,2), dst, request(s),nrcpp)
     s = s + 1
-    call send_piece(spline(:,1,3,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    call send_piece(spline(:,1,3,2), dst, request(s),nrcpp)
     s = s + 1
-    call send_piece(spline(:,2,3,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    call send_piece(spline(:,2,3,2), dst, request(s),nrcpp)
     s = s + 1
-    call send_piece(spline(:,3,3,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    call send_piece(spline(:,3,3,2), dst, request(s),nrcpp)
     s = s + 1
-    call send_piece(spline(:,3,2,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    call send_piece(spline(:,3,2,2), dst, request(s),nrcpp)
     s = s + 1
   endif
   if (MYRANKZ > 0) then
-    src = neighbour(0, 0, -1)
-    call recv_piece(spline(:,2,2,1), src, request(s),nrcppx,nrcppy,nrcppz)
+    src = neighbour([0, 0, -1])
+    call recv_piece(spline(:,2,2,1), src, request(s),nrcpp)
     s = s + 1
-    call recv_piece(spline(:,1,2,1), src, request(s),nrcppx,nrcppy,nrcppz)
+    call recv_piece(spline(:,1,2,1), src, request(s),nrcpp)
     s = s + 1
-    call recv_piece(spline(:,1,3,1), src, request(s),nrcppx,nrcppy,nrcppz)
+    call recv_piece(spline(:,1,3,1), src, request(s),nrcpp)
     s = s + 1
-    call recv_piece(spline(:,2,3,1), src, request(s),nrcppx,nrcppy,nrcppz)
+    call recv_piece(spline(:,2,3,1), src, request(s),nrcpp)
     s = s + 1
-    call recv_piece(spline(:,3,3,1), src, request(s),nrcppx,nrcppy,nrcppz)
+    call recv_piece(spline(:,3,3,1), src, request(s),nrcpp)
     s = s + 1
-    call recv_piece(spline(:,3,2,1), src, request(s),nrcppx,nrcppy,nrcppz)
+    call recv_piece(spline(:,3,2,1), src, request(s),nrcpp)
     s = s + 1
   endif
 
@@ -170,33 +170,33 @@ integer(kind=4) :: dst, src
 
   ! Down
   if (MYRANKY < NRPROCY - 1) then
-    dst = neighbour(0, 1, 0)
-    call send_piece(spline(:,2,2,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    dst = neighbour([0, 1, 0])
+    call send_piece(spline(:,2,2,2), dst, request(s),nrcpp)
     s = s + 1
-    call send_piece(spline(:,1,2,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    call send_piece(spline(:,1,2,2), dst, request(s),nrcpp)
     s = s + 1
-    call send_piece(spline(:,3,2,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    call send_piece(spline(:,3,2,2), dst, request(s),nrcpp)
     s = s + 1
-    call send_piece(spline(:,1,2,1), dst, request(s),nrcppx,nrcppy,nrcppz)
+    call send_piece(spline(:,1,2,1), dst, request(s),nrcpp)
     s = s + 1
-    call send_piece(spline(:,2,2,1), dst, request(s),nrcppx,nrcppy,nrcppz)
+    call send_piece(spline(:,2,2,1), dst, request(s),nrcpp)
     s = s + 1
-    call send_piece(spline(:,3,2,1), dst, request(s),nrcppx,nrcppy,nrcppz)
+    call send_piece(spline(:,3,2,1), dst, request(s),nrcpp)
     s = s + 1
   endif
   if (MYRANKY > 0) then
-    src = neighbour(0, -1, 0)
-    call recv_piece(spline(:,2,1,2), src, request(s),nrcppx,nrcppy,nrcppz)
+    src = neighbour([0, -1, 0])
+    call recv_piece(spline(:,2,1,2), src, request(s),nrcpp)
     s = s + 1
-    call recv_piece(spline(:,1,1,2), src, request(s),nrcppx,nrcppy,nrcppz)
+    call recv_piece(spline(:,1,1,2), src, request(s),nrcpp)
     s = s + 1
-    call recv_piece(spline(:,3,1,2), src, request(s),nrcppx,nrcppy,nrcppz)
+    call recv_piece(spline(:,3,1,2), src, request(s),nrcpp)
     s = s + 1
-    call recv_piece(spline(:,1,1,1), src, request(s),nrcppx,nrcppy,nrcppz)
+    call recv_piece(spline(:,1,1,1), src, request(s),nrcpp)
     s = s + 1
-    call recv_piece(spline(:,2,1,1), src, request(s),nrcppx,nrcppy,nrcppz)
+    call recv_piece(spline(:,2,1,1), src, request(s),nrcpp)
     s = s + 1
-    call recv_piece(spline(:,3,1,1), src, request(s),nrcppx,nrcppy,nrcppz)
+    call recv_piece(spline(:,3,1,1), src, request(s),nrcpp)
     s = s + 1
   endif
 
@@ -207,45 +207,45 @@ integer(kind=4) :: dst, src
 
   ! Below
   if (MYRANKZ > 0) then
-    dst = neighbour(0, 0, -1)
-    call send_piece(spline(:,1,1,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    dst = neighbour([0, 0, -1])
+    call send_piece(spline(:,1,1,2), dst, request(s),nrcpp)
     s = s + 1
-    call send_piece(spline(:,1,2,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    call send_piece(spline(:,1,2,2), dst, request(s),nrcpp)
     s = s + 1
-    call send_piece(spline(:,1,3,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    call send_piece(spline(:,1,3,2), dst, request(s),nrcpp)
     s = s + 1
-    call send_piece(spline(:,2,1,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    call send_piece(spline(:,2,1,2), dst, request(s),nrcpp)
     s = s + 1
-    call send_piece(spline(:,2,2,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    call send_piece(spline(:,2,2,2), dst, request(s),nrcpp)
     s = s + 1
-    call send_piece(spline(:,2,3,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    call send_piece(spline(:,2,3,2), dst, request(s),nrcpp)
     s = s + 1
-    call send_piece(spline(:,3,1,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    call send_piece(spline(:,3,1,2), dst, request(s),nrcpp)
     s = s + 1
-    call send_piece(spline(:,3,2,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    call send_piece(spline(:,3,2,2), dst, request(s),nrcpp)
     s = s + 1
-    call send_piece(spline(:,3,3,2), dst, request(s),nrcppx,nrcppy,nrcppz)
+    call send_piece(spline(:,3,3,2), dst, request(s),nrcpp)
     s = s + 1
   endif
   if (MYRANKZ < NRPROCZ - 1) then
-    src = neighbour(0, 0, 1)
-    call recv_piece(spline(:,1,1,3), src, request(s),nrcppx,nrcppy,nrcppz)
+    src = neighbour([0, 0, 1])
+    call recv_piece(spline(:,1,1,3), src, request(s),nrcpp)
     s = s + 1
-    call recv_piece(spline(:,1,2,3), src, request(s),nrcppx,nrcppy,nrcppz)
+    call recv_piece(spline(:,1,2,3), src, request(s),nrcpp)
     s = s + 1
-    call recv_piece(spline(:,1,3,3), src, request(s),nrcppx,nrcppy,nrcppz)
+    call recv_piece(spline(:,1,3,3), src, request(s),nrcpp)
     s = s + 1
-    call recv_piece(spline(:,2,1,3), src, request(s),nrcppx,nrcppy,nrcppz)
+    call recv_piece(spline(:,2,1,3), src, request(s),nrcpp)
     s = s + 1
-    call recv_piece(spline(:,2,2,3), src, request(s),nrcppx,nrcppy,nrcppz)
+    call recv_piece(spline(:,2,2,3), src, request(s),nrcpp)
     s = s + 1
-    call recv_piece(spline(:,2,3,3), src, request(s),nrcppx,nrcppy,nrcppz)
+    call recv_piece(spline(:,2,3,3), src, request(s),nrcpp)
     s = s + 1
-    call recv_piece(spline(:,3,1,3), src, request(s),nrcppx,nrcppy,nrcppz)
+    call recv_piece(spline(:,3,1,3), src, request(s),nrcpp)
     s = s + 1
-    call recv_piece(spline(:,3,2,3), src, request(s),nrcppx,nrcppy,nrcppz)
+    call recv_piece(spline(:,3,2,3), src, request(s),nrcpp)
     s = s + 1
-    call recv_piece(spline(:,3,3,3), src, request(s),nrcppx,nrcppy,nrcppz)
+    call recv_piece(spline(:,3,3,3), src, request(s),nrcpp)
     s = s + 1
   endif
 
@@ -266,22 +266,22 @@ end subroutine
 !
 ! x, y, z    - coordinates
 ! -------------------------------------------------------------------
-function SizeOfPiece(x,y,z,nx,ny,nz,px,py,pz) result (s)
+function SizeOfPiece(point,n,p) result (s)
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ,ComputeEndpoints
 implicit none
-integer(kind=4), intent(in) :: x, y, z
-integer(kind=4), intent(in) :: nx, ny, nz
-integer(kind=4), intent(in) :: px, py, pz
+integer(kind=4), intent(in), dimension(3) :: point
+integer(kind=4), intent(in), dimension(3) :: n
+integer(kind=4), intent(in), dimension(3) :: p
 integer(kind=4) :: s
 integer(kind=4) :: sx, sy, sz
 integer(kind=4) :: nrcpp, ibeg, iend
 integer(kind=4) :: mine, maxe
 
-  call ComputeEndpoints(x, NRPROCX, nx, px, nrcpp, ibeg, iend, mine, maxe)
+  call ComputeEndpoints(point(1), NRPROCX, n(1), p(1), nrcpp, ibeg, iend, mine, maxe)
   sx = iend - ibeg + 1
-  call ComputeEndpoints(y, NRPROCY, ny, py, nrcpp, ibeg, iend, mine, maxe)
+  call ComputeEndpoints(point(2), NRPROCY, n(2), p(2), nrcpp, ibeg, iend, mine, maxe)
   sy = iend - ibeg + 1
-  call ComputeEndpoints(z, NRPROCZ, nz, pz, nrcpp, ibeg, iend, mine, maxe)
+  call ComputeEndpoints(point(3), NRPROCZ, n(3), p(3), nrcpp, ibeg, iend, mine, maxe)
   sz = iend - ibeg + 1
 
   s = sx * sy * sz
@@ -304,36 +304,37 @@ end function
 !   Of the pieces: process coordinates = (z, y, x)
 !   Inside pieces: (z, y, x), i.e. x changes fastest
 ! -------------------------------------------------------------------
-subroutine GatherFullSolution(at,part,full,nx,ny,nz,px,py,pz,sx,sy,sz)
+subroutine GatherFullSolution(at,part,full,n,p,s)
 use parallelism, ONLY : MYRANK,LINEARINDEX,NRPROCX,NRPROCY,NRPROCZ,ComputeEndpoints
 implicit none
 include "mpif.h"
 integer(kind=4), intent(in) :: at
-integer(kind=4), intent(in) :: nx,ny,nz
-integer(kind=4), intent(in) :: px,py,pz
-integer(kind=4), intent(in) :: sx,sy,sz
+integer(kind=4), intent(in), dimension(3) :: n
+integer(kind=4), intent(in), dimension(3) :: p
+integer(kind=4), intent(in), dimension(3) :: s
 real   (kind=8), intent(in) :: part(:,:)
 real   (kind=8), intent(out), allocatable :: full(:,:,:)
 real   (kind=8), allocatable :: buffer(:)
 integer(kind=4) :: recvcounts(0:NRPROCX*NRPROCY*NRPROCZ-1)
 integer(kind=4) :: displs(0:NRPROCX*NRPROCY*NRPROCZ-1)
-integer(kind=4) :: x, y, z
 integer(kind=4) :: offset, size
 integer(kind=4) :: ierr
 integer(kind=4) :: array_size
-integer(kind=4) :: begx, begy, begz, endx, endy, endz
+integer(kind=4), dimension(3) :: begs, ends
 integer(kind=4) :: mine, maxe
 integer(kind=4) :: nrcpp
-integer(kind=4) :: ssx, ssy, ssz
+integer(kind=4), dimension(3) :: ss
 integer(kind=4) :: xx, yy, zz
-integer(kind=4) :: ix, iy, iz, idx
+integer(kind=4) :: x, y, z
+integer(kind=4), dimension(3) :: i
+integer(kind=4) :: idx
 
   ! Only the root process needs buffer, but passing unallocated array
   ! is illegal in Fortran, hence we allocate it as array of size 0
   ! in other processes.
   if (MYRANK == at) then
-    array_size = (nx+1)*(ny+1)*(nz+1)
-    allocate(full(0:nx,0:ny,0:nz))
+    array_size = (n(1)+1)*(n(2)+1)*(n(3)+1)
+    allocate(full(0:n(1),0:n(2),0:n(3)))
   else
     array_size = 0
   endif
@@ -346,8 +347,8 @@ integer(kind=4) :: ix, iy, iz, idx
   do x = 0, NRPROCX-1
     do y = 0, NRPROCY-1
       do z = 0, NRPROCZ-1
-        idx = LinearIndex(x, y, z)
-        size = SizeOfPiece(x,y,z,nx,ny,nz,px,py,pz)
+        idx = LinearIndex(x,y,z)
+        size = SizeOfPiece([x,y,z],n,p)
         recvcounts(idx) = size
         displs(idx) = offset
         offset = offset + size
@@ -355,7 +356,7 @@ integer(kind=4) :: ix, iy, iz, idx
     enddo
   enddo
 
-  call mpi_gatherv(part, sx*sy*sz, MPI_DOUBLE_PRECISION, buffer, &
+  call mpi_gatherv(part, s(1)*s(2)*s(3), MPI_DOUBLE_PRECISION, buffer, &
     recvcounts, displs, MPI_DOUBLE_PRECISION, at, MPI_COMM_WORLD, ierr)
 
   ! Reordering of the array at root
@@ -364,27 +365,27 @@ integer(kind=4) :: ix, iy, iz, idx
     do x = 0, NRPROCX-1
       do y = 0, NRPROCY-1
         do z = 0, NRPROCZ-1
-          call ComputeEndpoints(x, NRPROCX, nx, px, nrcpp, begx, endx, mine, maxe)
-          call ComputeEndpoints(y, NRPROCY, ny, py, nrcpp, begy, endy, mine, maxe)
-          call ComputeEndpoints(z, NRPROCZ, nz, pz, nrcpp, begz, endz, mine, maxe)
-          ssx = endx - begx + 1
-          ssy = endy - begy + 1
-          ssz = endz - begz + 1
+          call ComputeEndpoints(x, NRPROCX, n(1), p(1), nrcpp, begs(1), ends(1), mine, maxe)
+          call ComputeEndpoints(y, NRPROCY, n(2), p(2), nrcpp, begs(2), ends(2), mine, maxe)
+          call ComputeEndpoints(z, NRPROCZ, n(3), p(3), nrcpp, begs(3), ends(3), mine, maxe)
+          ss(1) = ends(1) - begs(1) + 1
+          ss(2) = ends(2) - begs(2) + 1
+          ss(3) = ends(3) - begs(3) + 1
 
-          do xx = 0, ssx-1
-            do yy = 0, ssy-1
-              do zz = 0, ssz-1
-                ix = begx - 1 + xx   ! beg_ starts from 1, hence -1
-                iy = begy - 1 + yy
-                iz = begz - 1 + zz
-                idx = (zz * ssy + yy) * ssx + xx
+          do xx = 0, ss(1)-1
+            do yy = 0, ss(2)-1
+              do zz = 0, ss(3)-1
+                i(1) = begs(1) - 1 + xx   ! beg_ starts from 1, hence -1
+                i(2) = begs(2) - 1 + yy
+                i(3) = begs(3) - 1 + zz
+                idx = (zz * ss(2) + yy) * ss(1) + xx
 
-                full(ix, iy, iz) = buffer(offset + idx)
+                full(i(1), i(2), i(3)) = buffer(offset + idx)
               enddo
             enddo
           enddo
 
-          offset = offset + SizeOfPiece(x,y,z,nx,ny,nz,px,py,pz)
+          offset = offset + SizeOfPiece([x,y,z],n,p)
         enddo
       enddo
     enddo
@@ -447,7 +448,7 @@ end subroutine
 ! comm      - communicator of the axis
 ! ierr      - error code output
 ! -------------------------------------------------------------------
-subroutine Gather(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
+subroutine Gather(F,F_out,n,elems,stride,dims,shifts,comm,ierr)
 implicit none
 include "mpif.h"
 integer(kind=4), intent(in) :: n, elems, stride, comm
@@ -487,7 +488,7 @@ end subroutine
 ! comm      - communicator of the axis
 ! ierr      - error code output
 ! -------------------------------------------------------------------
-subroutine Scatter2(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
+subroutine Scatter2(F,F_out,n,elems,stride,dims,shifts,comm,ierr)
 implicit none
 include "mpif.h"
 integer(kind=4), intent(in) :: n, elems, stride, comm
@@ -523,7 +524,7 @@ end subroutine
 ! comm      - communicator of the axis
 ! ierr      - error code output
 ! -------------------------------------------------------------------
-subroutine Scatter(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
+subroutine Scatter(F,F_out,n,elems,stride,dims,shifts,comm,ierr)
 implicit none
 integer(kind=4), intent(in) :: n, elems, stride, comm
 real   (kind=8), intent(in) :: F(n+1, stride)

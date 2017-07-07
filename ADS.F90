@@ -26,9 +26,7 @@ type ADS_setup
    real (kind=8), allocatable :: R(:,:,:,:)
 
    ! Number of subintervals (currently n - p + 1)
-   integer(kind=4) :: nelemx
-   integer(kind=4) :: nelemy
-   integer(kind=4) :: nelemz
+   integer(kind=4), dimension(3) :: nelem
 
    ! Size of slices of domain in each dimension
    integer(kind=4), allocatable, dimension(:) :: dimensionsX
@@ -46,20 +44,16 @@ type ADS_setup
    integer(kind=4), allocatable, dimension(:) :: IPIVz
 
    ! Number of lower and upper diagonal entries in mass matrix
-   integer(kind=4) :: KLx, KUx
-   integer(kind=4) :: KLy, KUy
-   integer(kind=4) :: KLz, KUz
+   integer(kind=4), dimension(3) :: KL, KU
 
    ! Number of columns (average) per processor
-   integer(kind=4) :: nrcppx,nrcppy,nrcppz
+   integer(kind=4), dimension(3) :: nrcpp
 
    ! Range of piece of domain assigned to this process
-   integer(kind=4) :: ibegx,iendx
-   integer(kind=4) :: ibegy,iendy
-   integer(kind=4) :: ibegz,iendz
+   integer(kind=4), dimension(3) :: ibeg,iend
 
    ! Size of piece of domain assigned to this process
-   integer(kind=4) :: sx,sy,sz
+   integer(kind=4), dimension(3) :: s
 
    ! Ranges of pieces of domain around the one assigned to this process
    integer(kind=4), dimension(3) :: ibegsx,iendsx
@@ -67,9 +61,7 @@ type ADS_setup
    integer(kind=4), dimension(3) :: ibegsz,iendsz
 
    ! Range of elements associated with basis functions assigned to this process
-   integer(kind=4) :: minex, maxex
-   integer(kind=4) :: miney, maxey
-   integer(kind=4) :: minez, maxez
+   integer(kind=4), dimension(3) :: mine, maxe
 end type
    
 contains
@@ -112,57 +104,57 @@ integer(kind=4) :: ierr
     stop
   endif
   
-  ads%KLx = px
-  ads%KUx = px
-  ads%KLy = py
-  ads%KUy = py
-  ads%KLz = pz
-  ads%KUz = pz
+  ads%KL(1) = px
+  ads%KU(1) = px
+  ads%KL(2) = py
+  ads%KU(2) = py
+  ads%KL(3) = pz
+  ads%KU(3) = pz
 
   call ComputeDecomposition( &
       ads%n, &
       ads%p, &
-      ads%sx,ads%sy,ads%sz, &
-      ads%ibegx,ads%ibegy,ads%ibegz, &
-      ads%iendx,ads%iendy,ads%iendz, &
+      ads%s, &
+      ads%ibeg, &
+      ads%iend, &
       ads%ibegsx,ads%ibegsy,ads%ibegsz, &
       ads%iendsx,ads%iendsy,ads%iendsz, &
-      ads%minex,ads%miney,ads%minez, &
-      ads%maxex,ads%maxey,ads%maxez, &
-      ads%nrcppx,ads%nrcppy,ads%nrcppz, &
+      ads%mine, &
+      ads%maxe, &
+      ads%nrcpp, &
       ads%dimensionsX,ads%dimensionsY,ads%dimensionsZ, &
       ads%shiftsX,ads%shiftsY,ads%shiftsZ)
   
 #ifdef IDEBUG
     call ValidateDimensions(&
       ads%n, &
-      ads%sx,ads%sy,ads%sz, &
-      ads%nrcppx,ads%nrcppy,ads%nrcppz, &
+      ads%s, &
+      ads%nrcpp, &
       ads%dimensionsX,ads%dimensionsY,ads%dimensionsZ)
 #endif
 
 #ifdef IPRINT
     call PrintDecompositionInfo(&
       ads%n, &
-      ads%nrcppx,ads%nrcppy,ads%nrcppz, &
-      ads%ibegx,ads%ibegy,ads%ibegz, &
-      ads%iendx,ads%iendy,ads%iendz)
+      ads%nrcpp, &
+      ads%ibeg, &
+      ads%iend)
 #endif
   
   call AllocateArrays(&
-      nx,ny,nz, &
-      ads%sx,ads%sy,ads%sz, &
-      ads%nrcppx,ads%nrcppy,ads%nrcppz, &
-      ads%Klx,ads%Kly,ads%Klz, &
-      ads%KUx,ads%KUy,ads%KUz, &
+      ads%n, &
+      ads%s, &
+      ads%nrcpp, &
+      ads%Kl, &
+      ads%KU, &
       ads%Mx,ads%My,ads%Mz, &
       ads%F,ads%F2,ads%F3, &
       ads%IPIVx,ads%IPIVy,ads%IPIVz, &
       ads%R)
   
-  call PrepareKnot(ads%Ux,nx,px,ads%nelemx)
-  call PrepareKnot(ads%Uy,ny,py,ads%nelemy)
-  call PrepareKnot(ads%Uz,nz,pz,ads%nelemz)
+  call PrepareKnot(ads%Ux,nx,px,ads%nelem(1))
+  call PrepareKnot(ads%Uy,ny,py,ads%nelem(2))
+  call PrepareKnot(ads%Uz,nz,pz,ads%nelem(3))
   
 end subroutine
 
@@ -174,14 +166,14 @@ end subroutine
 subroutine ComputeDecomposition( &
    n, &
    p, &
-   sx,sy,sz, &
-   ibegx,ibegy,ibegz, &
-   iendx,iendy,iendz, &
+   s, &
+   ibeg, &
+   iend, &
    ibegsx,ibegsy,ibegsz, &
    iendsx,iendsy,iendsz, &
-   minex,miney,minez, &
-   maxex,maxey,maxez, &
-   nrcppx,nrcppy,nrcppz, &
+   mine, &
+   maxe, &
+   nrcpp, &
    dimensionsX,dimensionsY,dimensionsZ, &
    shiftsX,shiftsY,shiftsZ)
 use parallelism, ONLY : MYRANKX,MYRANKY,MYRANKZ,PRINTRANK, &
@@ -189,14 +181,10 @@ use parallelism, ONLY : MYRANKX,MYRANKY,MYRANKZ,PRINTRANK, &
 implicit none
 integer(kind=4), intent(in), dimension(3) :: n
 integer(kind=4), intent(in), dimension(3) :: p
-integer(kind=4), intent(out) :: ibegx,iendx
-integer(kind=4), intent(out) :: ibegy,iendy
-integer(kind=4), intent(out) :: ibegz,iendz
-integer(kind=4), intent(out) :: minex, maxex
-integer(kind=4), intent(out) :: miney, maxey
-integer(kind=4), intent(out) :: minez, maxez
-integer(kind=4), intent(out) :: nrcppx,nrcppy,nrcppz
-integer(kind=4), intent(out) :: sx,sy,sz
+integer(kind=4), intent(out), dimension(3) :: ibeg,iend
+integer(kind=4), intent(out), dimension(3) :: mine, maxe
+integer(kind=4), intent(out), dimension(3) :: nrcpp
+integer(kind=4), intent(out), dimension(3) :: s
 integer(kind=4), intent(out), allocatable, dimension(:) :: dimensionsX
 integer(kind=4), intent(out), allocatable, dimension(:) :: dimensionsY
 integer(kind=4), intent(out), allocatable, dimension(:) :: dimensionsZ
@@ -209,28 +197,28 @@ integer(kind=4), intent(out), dimension(3) :: ibegsz,iendsz
    
 integer(kind=4) :: i
 integer(kind=4) :: ix, iy, iz
-integer(kind=4) :: mine, maxe
+integer(kind=4) :: imine, imaxe
 
   ! number of columns per processors
-  call ComputeEndpoints(MYRANKX, NRPROCX, n(1), p(1), nrcppx, ibegx, iendx, minex, maxex)
-  call ComputeEndpoints(MYRANKY, NRPROCY, n(2), p(2), nrcppy, ibegy, iendy, miney, maxey)
-  call ComputeEndpoints(MYRANKZ, NRPROCZ, n(3), p(3), nrcppz, ibegz, iendz, minez, maxez)
+  call ComputeEndpoints(MYRANKX, NRPROCX, n(1), p(1), nrcpp(1), ibeg(1), iend(1), mine(1), maxe(1))
+  call ComputeEndpoints(MYRANKY, NRPROCY, n(2), p(2), nrcpp(2), ibeg(2), iend(2), mine(2), maxe(2))
+  call ComputeEndpoints(MYRANKZ, NRPROCZ, n(3), p(3), nrcpp(3), ibeg(3), iend(3), mine(3), maxe(3))
 
-  sx = iendx - ibegx + 1
-  sy = iendy - ibegy + 1
-  sz = iendz - ibegz + 1
+  s(1) = iend(1) - ibeg(1) + 1
+  s(2) = iend(2) - ibeg(2) + 1
+  s(3) = iend(3) - ibeg(3) + 1
 
 #ifdef IINFO
-    write(*,*)PRINTRANK,'Number of cols per processor:',nrcppx,nrcppy,nrcppz
-    write(*,*)PRINTRANK,'ibegx,iendx',ibegx,iendx
-    write(*,*)PRINTRANK,'ibegy,iendy',ibegy,iendy
-    write(*,*)PRINTRANK,'ibegz,iendz',ibegz,iendz
+    write(*,*)PRINTRANK,'Number of cols per processor:',nrcpp(1),nrcpp(2),nrcpp(3)
+    write(*,*)PRINTRANK,'ibegx,iendx',ibeg(1),iend(1)
+    write(*,*)PRINTRANK,'ibegy,iendy',ibeg(2),iend(2)
+    write(*,*)PRINTRANK,'ibegz,iendz',ibeg(3),iend(3)
 #endif
 
   ! prepare dimensions vectors
-  call FillDimVector(dimensionsX, shiftsX, nrcppx, sy*sz, n(1), NRPROCX)
-  call FillDimVector(dimensionsY, shiftsY, nrcppy, sx*sz, n(2), NRPROCY)
-  call FillDimVector(dimensionsZ, shiftsZ, nrcppz, sx*sy, n(3), NRPROCZ)
+  call FillDimVector(dimensionsX, shiftsX, nrcpp(1), s(2)*s(3), n(1), NRPROCX)
+  call FillDimVector(dimensionsY, shiftsY, nrcpp(2), s(1)*s(3), n(2), NRPROCY)
+  call FillDimVector(dimensionsZ, shiftsZ, nrcpp(3), s(1)*s(2), n(3), NRPROCZ)
 
   ! Compute indices for neighbours
   ibegsx = -1
@@ -242,15 +230,15 @@ integer(kind=4) :: mine, maxe
 
   do i = max(MYRANKX-1,0)+1, min(MYRANKX+1,NRPROCX-1)+1
     ix = i-MYRANKX+1
-    call ComputeEndpoints(i-1, NRPROCX, n(1), p(1), nrcppx, ibegsx(ix), iendsx(ix), mine, maxe)
+    call ComputeEndpoints(i-1, NRPROCX, n(1), p(1), nrcpp(1), ibegsx(ix), iendsx(ix), imine, imaxe)
   enddo
   do i = max(MYRANKY-1,0)+1, min(MYRANKY+1,NRPROCY-1)+1
     iy = i-MYRANKY+1
-    call ComputeEndpoints(i-1,NRPROCY, n(2), p(2), nrcppy, ibegsy(iy), iendsy(iy), mine, maxe)
+    call ComputeEndpoints(i-1,NRPROCY, n(2), p(2), nrcpp(2), ibegsy(iy), iendsy(iy), imine, imaxe)
   enddo
   do i = max(MYRANKZ-1,0)+1, min(MYRANKZ+1,NRPROCZ-1)+1
     iz = i-MYRANKZ+1
-    call ComputeEndpoints(i-1,NRPROCZ, n(3), p(3), nrcppz, ibegsz(iz), iendsz(iz), mine, maxe)
+    call ComputeEndpoints(i-1,NRPROCZ, n(3), p(3), nrcpp(3), ibegsz(iz), iendsz(iz), imine, imaxe)
   enddo
 
 end subroutine
@@ -260,11 +248,11 @@ end subroutine
 ! Allocates most of the 'static' arrays
 ! -------------------------------------------------------------------
 subroutine AllocateArrays(&
-      nx,ny,nz, &
-      sx,sy,sz, &
-      nrcppx,nrcppy,nrcppz, &
-      Klx,Kly,Klz, &
-      KUx,KUy,KUz, &
+      n, &
+      s, &
+      nrcpp, &
+      Kl, &
+      KU, &
       Mx,My,Mz, &
       F,F2,F3, &
       IPIVx,IPIVy,IPIVz, &
@@ -272,12 +260,10 @@ subroutine AllocateArrays(&
 use parallelism, ONLY : MYRANKX,MYRANKY,MYRANKZ
 implicit none
 include "mpif.h"
-integer(kind=4), intent(in) :: nx,ny,nz
-integer(kind=4), intent(in) :: sx,sy,sz
-integer(kind=4), intent(in) :: nrcppx,nrcppy,nrcppz
-integer(kind=4), intent(in) :: KLx, KUx
-integer(kind=4), intent(in) :: KLy, KUy
-integer(kind=4), intent(in) :: KLz, KUz
+integer(kind=4), intent(in), dimension(3) :: n
+integer(kind=4), intent(in), dimension(3) :: s
+integer(kind=4), intent(in), dimension(3) :: nrcpp
+integer(kind=4), intent(in), dimension(3) :: KL, KU
 real (kind=8), intent(out), allocatable, dimension(:,:) :: Mx
 real (kind=8), intent(out), allocatable, dimension(:,:) :: My
 real (kind=8), intent(out), allocatable, dimension(:,:) :: Mz
@@ -288,25 +274,25 @@ integer(kind=4), intent(out), allocatable, dimension(:) :: IPIVz
 real (kind=8), intent(out), allocatable :: R(:,:,:,:)
 integer :: ierr
 
-  allocate(Mx(2*KLx+KUx+1,nx+1))
-  allocate(My(2*KLy+KUy+1,ny+1))
-  allocate(Mz(2*KLz+KUz+1,nz+1))
+  allocate(Mx(2*KL(1)+KU(1)+1,n(1)+1))
+  allocate(My(2*KL(2)+KU(2)+1,n(2)+1))
+  allocate(Mz(2*KL(3)+KU(3)+1,n(3)+1))
 
   ! OLD: MP start with system fully generated along X
   ! allocate( F((n+1),(sy)*(sz))) !x,y,z
-  allocate( F(sx,sy*sz)) !x,y,z
-  allocate(F2(sy,sx*sz)) !y,x,z
-  allocate(F3(sz,sx*sy)) !z,x,y
+  allocate( F(s(1),s(2)*s(3))) !x,y,z
+  allocate(F2(s(2),s(1)*s(3))) !y,x,z
+  allocate(F3(s(3),s(1)*s(2))) !z,x,y
 
 
   ! Processes on the border need pivot vector for LAPACK call
   if (MYRANKX == 0 .or. MYRANKY == 0 .or. MYRANKZ == 0) then
-    allocate(IPIVx(nx+1))
-    allocate(IPIVy(ny+1))
-    allocate(IPIVz(nz+1))
+    allocate(IPIVx(n(1)+1))
+    allocate(IPIVy(n(2)+1))
+    allocate(IPIVz(n(3)+1))
   endif
 
-  allocate(R(nrcppz*nrcppx*nrcppy,3,3,3))
+  allocate(R(nrcpp(3)*nrcpp(1)*nrcpp(2),3,3,3))
   R=0.d0
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
@@ -336,9 +322,9 @@ integer(kind=4) :: mine, maxe
       do k = max(MYRANKZ-1,0)+1, min(MYRANKZ+1,NRPROCZ-1)+1
         write(*,*)'(i,j,k)=',i+1,j+1,k+1
 
-        call ComputeEndpoints(i-1,NRPROCX,ads%n(1),ads%p(1),ads%nrcppx,obegx,oendx,mine,maxe)
-        call ComputeEndpoints(j-1,NRPROCY,ads%n(2),ads%p(2),ads%nrcppy,obegy,oendy,mine,maxe)
-        call ComputeEndpoints(k-1,NRPROCZ,ads%n(3),ads%p(3),ads%nrcppz,obegz,oendz,mine,maxe)
+        call ComputeEndpoints(i-1,NRPROCX,ads%n(1),ads%p(1),ads%nrcpp(1),obegx,oendx,mine,maxe)
+        call ComputeEndpoints(j-1,NRPROCY,ads%n(2),ads%p(2),ads%nrcpp(2),obegy,oendy,mine,maxe)
+        call ComputeEndpoints(k-1,NRPROCZ,ads%n(3),ads%p(3),ads%nrcpp(3),obegz,oendz,mine,maxe)
 
         write(*,*) reshape(                                 &
           ads%R(:,i-MYRANKX+1,j-MYRANKY+1,k-MYRANKZ+1),         &
@@ -475,22 +461,22 @@ integer(kind=4) :: iret, ierr
 
   ! generate the RHS vectors
     call Form3DRHS                                    &
-      (ads%Ux,ads%p(1),ads%n(1),ads%nelemx,ads%nrcppx,  &
-       ads%Uy,ads%p(2),ads%n(2),ads%nelemy,ads%nrcppy,  &
-       ads%Uz,ads%p(3),ads%n(3),ads%nelemz,ads%nrcppz,  &
-       ads%ibegx,ads%iendx,                             &
-       ads%ibegy,ads%iendy,                             &
-       ads%ibegz,ads%iendz,                             &
+      (ads%Ux,ads%p(1),ads%n(1),ads%nelem(1),ads%nrcpp(1),  &
+       ads%Uy,ads%p(2),ads%n(2),ads%nelem(2),ads%nrcpp(2),  &
+       ads%Uz,ads%p(3),ads%n(3),ads%nelem(3),ads%nrcpp(3),  &
+       ads%ibeg(1),ads%iend(1),                             &
+       ads%ibeg(2),ads%iend(2),                             &
+       ads%ibeg(3),ads%iend(3),                             &
        ads%ibegsx,ads%iendsx,ads%ibegsy,     &
        ads%iendsy,ads%ibegsz,ads%iendsz,   &
-       ads%minex,ads%maxex,ads%miney,              &
-       ads%maxey,ads%minez,ads%maxez,              &
+       ads%mine(1),ads%maxe(1),ads%mine(2),              &
+       ads%maxe(2),ads%mine(3),ads%maxe(3),              &
        ads%R,ads%F,RHS_fun)
 
 #ifdef IPRINT
     write(*,*)PRINTRANK,'F'
-    do i = 1,ads%sx
-      write(*,*)PRINTRANK,ads%F(i,1:ads%sy*ads%sz)
+    do i = 1,ads%s(1)
+      write(*,*)PRINTRANK,ads%F(i,1:ads%s(2)*ads%s(3))
     enddo
 #endif
 
@@ -503,16 +489,16 @@ integer(kind=4) :: iret, ierr
   write(*,*)PRINTRANK,'1a) GATHER'
 #endif
 
-  allocate(ads%F_out((ads%n(1)+1),ads%sy*ads%sz))
+  allocate(ads%F_out((ads%n(1)+1),ads%s(2)*ads%s(3)))
 
-  call Gather(ads%F,ads%F_out,ads%n(1),ads%sx,ads%sy*ads%sz,ads%dimensionsX,ads%shiftsX,COMMX,ierr)
+  call Gather(ads%F,ads%F_out,ads%n(1),ads%s(1),ads%s(2)*ads%s(3),ads%dimensionsX,ads%shiftsX,COMMX,ierr)
 
 #ifdef IPRINT
     write(*,*)PRINTRANK,'after call mpi_gather'
     write(*,*)PRINTRANK,'ierr',ierr
     write(*,*)PRINTRANK,'F_out:'
     do i=1,ads%n(1)+1
-      write(*,*)PRINTRANK,i,'row=',ads%F_out(i,1:ads%sy*ads%sz)
+      write(*,*)PRINTRANK,i,'row=',ads%F_out(i,1:ads%s(2)*ads%s(3))
     enddo
 #endif
   call mpi_barrier(MPI_COMM_WORLD,ierr)
@@ -522,8 +508,8 @@ integer(kind=4) :: iret, ierr
      write(*,*)PRINTRANK,'1b) SOLVE THE FIRST PROBLEM'
 #endif
 
-    call ComputeMassMatrix(ads%KLx,ads%KUx,ads%Ux,ads%p(1),ads%n(1),ads%nelemx,ads%Mx)
-    call SolveOneDirection(ads%F_out, ads%sy*ads%sz,ads%n(1),ads%KLx,ads%KUx,ads%p(1),ads%Mx,ads%IPIVx)
+    call ComputeMassMatrix(ads%KL(1),ads%KU(1),ads%Ux,ads%p(1),ads%n(1),ads%nelem(1),ads%Mx)
+    call SolveOneDirection(ads%F_out, ads%s(2)*ads%s(3),ads%n(1),ads%KL(1),ads%KU(1),ads%p(1),ads%Mx,ads%IPIVx)
   endif
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
@@ -531,8 +517,8 @@ integer(kind=4) :: iret, ierr
 #ifdef IINFO
   write(*,*)PRINTRANK,'1c) SCATTER'
 #endif
-  allocate(ads%F2_out(ads%sx,ads%sy*ads%sz))
-  call Scatter(ads%F_out,ads%F2_out,ads%n(1),ads%sx,ads%sy*ads%sz,ads%dimensionsX,ads%shiftsX,COMMX,ierr)
+  allocate(ads%F2_out(ads%s(1),ads%s(2)*ads%s(3)))
+  call Scatter(ads%F_out,ads%F2_out,ads%n(1),ads%s(1),ads%s(2)*ads%s(3),ads%dimensionsX,ads%shiftsX,COMMX,ierr)
   deallocate(ads%F_out)
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
@@ -540,14 +526,14 @@ integer(kind=4) :: iret, ierr
 #ifdef IINFO
   write(*,*)PRINTRANK,'1d) REORDER'
 #endif
-  call ReorderRHSForY(ads%ibegx,ads%iendx,ads%ibegy,ads%iendy,ads%ibegz,ads%iendz,ads%F2_out,ads%F2)
+  call ReorderRHSForY(ads%ibeg(1),ads%iend(1),ads%ibeg(2),ads%iend(2),ads%ibeg(3),ads%iend(3),ads%F2_out,ads%F2)
   deallocate(ads%F2_out)
 
 #ifdef IPRINT
     write(*,*)PRINTRANK,'after ReorderRHSForY'
     write(*,*)PRINTRANK,'F2:'
-    do i = 1,ads%sy
-      write(*,*)PRINTRANK,i,'row=',ads%F2(i,1:ads%sx*ads%sz)
+    do i = 1,ads%s(2)
+      write(*,*)PRINTRANK,i,'row=',ads%F2(i,1:ads%s(1)*ads%s(3))
     enddo
 #endif
 
@@ -560,8 +546,8 @@ integer(kind=4) :: iret, ierr
   write(*,*)PRINTRANK,'2a) GATHER'
 #endif
 
-  allocate(ads%F2_out((ads%n(2)+1),ads%sx*ads%sz))
-  call Gather(ads%F2,ads%F2_out,ads%n(2),ads%sy,ads%sx*ads%sz,ads%dimensionsY,ads%shiftsY,COMMY,ierr)
+  allocate(ads%F2_out((ads%n(2)+1),ads%s(1)*ads%s(3)))
+  call Gather(ads%F2,ads%F2_out,ads%n(2),ads%s(2),ads%s(1)*ads%s(3),ads%dimensionsY,ads%shiftsY,COMMY,ierr)
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
@@ -570,8 +556,8 @@ integer(kind=4) :: iret, ierr
      write(*,*)PRINTRANK,'2b) SOLVE THE SECOND PROBLEM'
 #endif
 
-    call ComputeMassMatrix(ads%KLy,ads%KUy,ads%Uy,ads%p(2),ads%n(2),ads%nelemy,ads%My)
-    call SolveOneDirection(ads%F2_out, ads%sx*ads%sz,ads%n(2),ads%KLy,ads%KUy,ads%p(2),ads%My,ads%IPIVy)
+    call ComputeMassMatrix(ads%KL(2),ads%KU(2),ads%Uy,ads%p(2),ads%n(2),ads%nelem(2),ads%My)
+    call SolveOneDirection(ads%F2_out, ads%s(1)*ads%s(3),ads%n(2),ads%KL(2),ads%KU(2),ads%p(2),ads%My,ads%IPIVy)
   endif
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
@@ -581,16 +567,16 @@ integer(kind=4) :: iret, ierr
 #endif
 
   ! CORRECTION
-  allocate(ads%F3_out(ads%sy,ads%sx*ads%sz))
-  call Scatter(ads%F2_out,ads%F3_out,ads%n(2),ads%sy,ads%sx*ads%sz,ads%dimensionsY,ads%shiftsY,COMMY,ierr)
+  allocate(ads%F3_out(ads%s(3),ads%s(1)*ads%s(3)))
+  call Scatter(ads%F2_out,ads%F3_out,ads%n(2),ads%s(2),ads%s(1)*ads%s(3),ads%dimensionsY,ads%shiftsY,COMMY,ierr)
   deallocate(ads%F2_out)
 
 #ifdef IPRINT
     write(*,*)PRINTRANK,'after call mpi_scatterv'
     write(*,*)PRINTRANK,'ierr',ierr
     write(*,*)PRINTRANK,'F3_out:'
-    do i = 1,ads%sy
-      write(*,*)PRINTRANK,i,'row=',ads%F3_out(i,1:ads%sx*ads%sz)
+    do i = 1,ads%s(2)
+      write(*,*)PRINTRANK,i,'row=',ads%F3_out(i,1:ads%s(1)*ads%s(3))
     enddo
 #endif
 
@@ -600,14 +586,14 @@ integer(kind=4) :: iret, ierr
   write(*,*)PRINTRANK,'2d) REORDER'
 #endif
   ! Reorder right hand sides
-  call ReorderRHSForZ(ads%ibegx,ads%iendx,ads%ibegy,ads%iendy,ads%ibegz,ads%iendz,ads%F3_out,ads%F3)
+  call ReorderRHSForZ(ads%ibeg(1),ads%iend(1),ads%ibeg(2),ads%iend(2),ads%ibeg(3),ads%iend(3),ads%F3_out,ads%F3)
   deallocate(ads%F3_out)
 
 #ifdef IPRINT
     write(*,*)PRINTRANK,'after ReorderRHSForZ'
     write(*,*)PRINTRANK,'F3:'
-    do i = 1,ads%sz
-      write(*,*)PRINTRANK,i,'row=',ads%F3(i,1:ads%sx*ads%sy)
+    do i = 1,ads%s(3)
+      write(*,*)PRINTRANK,i,'row=',ads%F3(i,1:ads%s(1)*ads%s(2))
     enddo
 #endif
 
@@ -619,8 +605,8 @@ integer(kind=4) :: iret, ierr
 #endif
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
-  allocate(ads%F3_out((ads%n(3)+1),ads%sx*ads%sy))
-  call Gather(ads%F3,ads%F3_out,ads%n(3),ads%sz,ads%sx*ads%sy,ads%dimensionsZ,ads%shiftsZ,COMMZ,ierr)
+  allocate(ads%F3_out((ads%n(3)+1),ads%s(1)*ads%s(2)))
+  call Gather(ads%F3,ads%F3_out,ads%n(3),ads%s(3),ads%s(1)*ads%s(2),ads%dimensionsZ,ads%shiftsZ,COMMZ,ierr)
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
@@ -629,8 +615,8 @@ integer(kind=4) :: iret, ierr
      write(*,*)PRINTRANK,'3b) SOLVE THE THIRD PROBLEM'
 #endif
 
-    call ComputeMassMatrix(ads%KLz,ads%KUz,ads%Uz,ads%p(3),ads%n(3),ads%nelemz,ads%Mz)
-    call SolveOneDirection(ads%F3_out, ads%sx*ads%sy,ads%n(3),ads%KLz,ads%KUz,ads%p(3),ads%Mz,ads%IPIVz)
+    call ComputeMassMatrix(ads%KL(3),ads%KU(3),ads%Uz,ads%p(3),ads%n(3),ads%nelem(3),ads%Mz)
+    call SolveOneDirection(ads%F3_out, ads%s(1)*ads%s(2),ads%n(3),ads%KL(3),ads%KU(3),ads%p(3),ads%Mz,ads%IPIVz)
   endif
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
@@ -640,8 +626,8 @@ integer(kind=4) :: iret, ierr
 #endif
 
   ! CORRECTION
-  allocate(ads%F_out(ads%sz,ads%sx*ads%sy))
-  call Scatter(ads%F3_out,ads%F_out,ads%n(3),ads%sz,ads%sx*ads%sy,ads%dimensionsZ,ads%shiftsZ,COMMZ,ierr)
+  allocate(ads%F_out(ads%s(3),ads%s(1)*ads%s(2)))
+  call Scatter(ads%F3_out,ads%F_out,ads%n(3),ads%s(3),ads%s(1)*ads%s(2),ads%dimensionsZ,ads%shiftsZ,COMMZ,ierr)
   deallocate(ads%F3_out)
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
@@ -650,26 +636,26 @@ integer(kind=4) :: iret, ierr
   write(*,*)PRINTRANK,'3d) REORDER'
 #endif
   ! Reorder right hand sides
-  call ReorderRHSForX(ads%ibegx,ads%iendx,ads%ibegy,ads%iendy,ads%ibegz,ads%iendz,ads%F_out,ads%F)
+  call ReorderRHSForX(ads%ibeg(1),ads%iend(1),ads%ibeg(2),ads%iend(2),ads%ibeg(3),ads%iend(3),ads%F_out,ads%F)
   deallocate(ads%F_out)
 
 #ifdef IPRINT
     write(*,*)PRINTRANK,'after ReorderRHSForX'
     write(*,*)PRINTRANK,'F:'
-    do i = 1,ads%sx
-      write(*,*)PRINTRANK,i,'row=',ads%F(i,1:ads%sy*ads%sz)
+    do i = 1,ads%s(1)
+      write(*,*)PRINTRANK,i,'row=',ads%F(i,1:ads%s(2)*ads%s(3))
     enddo
 #endif
 
 #ifdef IINFO
     write(*,*)PRINTRANK,'3e) DISTRIBUTE SOLUTION'
 #endif
-  ads%R(1:ads%sx*ads%sy*ads%sz,2,2,2) = reshape(ads%F, [ads%sx*ads%sy*ads%sz])
-  call DistributeSpline(ads%R,ads%nrcppz,ads%nrcppx,ads%nrcppy,ads%R)
+  ads%R(1:ads%s(1)*ads%s(2)*ads%s(3),2,2,2) = reshape(ads%F, [ads%s(1)*ads%s(2)*ads%s(3)])
+  call DistributeSpline(ads%R,[ads%nrcpp(3),ads%nrcpp(1),ads%nrcpp(2)],ads%R)
 
 #ifdef IPRINT
     write(*,*)PRINTRANK,'Result:'
-    do i = 1,ads%sz
+    do i = 1,ads%s(3)
       write(*,*)PRINTRANK,i,'row=',ads%F(i,:)
     enddo
 #endif
@@ -835,7 +821,7 @@ type (PlotParams) :: params
 character(len=20) :: filename
 
   call GatherFullSolution(0,ads%F,solution, &
-         ads%n(1),ads%n(2),ads%n(3),ads%p(1),ads%p(2),ads%p(3),ads%sx,ads%sy,ads%sz)
+         [ads%n(1),ads%n(2),ads%n(3)],[ads%p(1),ads%p(2),ads%p(3)],[ads%s(1),ads%s(2),ads%s(3)])
 
   if (MYRANK == 0) then
     write(filename,'(I10)') iter
@@ -844,9 +830,9 @@ character(len=20) :: filename
 
     params = PlotParams(0,1,0,1,0,1,31,31,31)
     call SaveSplinePlot(trim(filename), &
-      ads%Ux,ads%p(1),ads%n(1),ads%nelemx, &
-      ads%Uy,ads%p(2),ads%n(2),ads%nelemy, &
-      ads%Uz,ads%p(3),ads%n(3),ads%nelemz, &
+      ads%Ux,ads%p(1),ads%n(1),ads%nelem(1), &
+      ads%Uy,ads%p(2),ads%n(2),ads%nelem(2), &
+      ads%Uz,ads%p(3),ads%n(3),ads%nelem(3), &
       ! solution, GnuPlotOutput, params)
       solution, VtkOutput, params)
 
