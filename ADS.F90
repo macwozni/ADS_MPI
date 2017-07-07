@@ -518,7 +518,7 @@ integer(kind=4) :: iret, ierr
 #ifdef IINFO
   write(*,*)PRINTRANK,'1d) REORDER'
 #endif
-  call ReorderRHSForY(ads%ibeg(1),ads%iend(1),ads%ibeg(2),ads%iend(2),ads%ibeg(3),ads%iend(3),ads%F2_out,ads%F2)
+  call ReorderRHSForY(ads%ibeg,ads%iend,ads%F2_out,ads%F2)
   deallocate(ads%F2_out)
 
 #ifdef IPRINT
@@ -578,7 +578,7 @@ integer(kind=4) :: iret, ierr
   write(*,*)PRINTRANK,'2d) REORDER'
 #endif
   ! Reorder right hand sides
-  call ReorderRHSForZ(ads%ibeg(1),ads%iend(1),ads%ibeg(2),ads%iend(2),ads%ibeg(3),ads%iend(3),ads%F3_out,ads%F3)
+  call ReorderRHSForZ(ads%ibeg,ads%iend,ads%F3_out,ads%F3)
   deallocate(ads%F3_out)
 
 #ifdef IPRINT
@@ -628,7 +628,7 @@ integer(kind=4) :: iret, ierr
   write(*,*)PRINTRANK,'3d) REORDER'
 #endif
   ! Reorder right hand sides
-  call ReorderRHSForX(ads%ibeg(1),ads%iend(1),ads%ibeg(2),ads%iend(2),ads%ibeg(3),ads%iend(3),ads%F_out,ads%F)
+  call ReorderRHSForX(ads%ibeg,ads%iend,ads%F_out,ads%F)
   deallocate(ads%F_out)
 
 #ifdef IPRINT
@@ -707,10 +707,7 @@ end subroutine
 ! -------------------------------------------------------------------
 ! Sanity-check of dimensions vector
 ! -------------------------------------------------------------------
-subroutine ValidateDimensions(&
-      n, &
-      s, &
-      nrcpp, &
+subroutine ValidateDimensions(n,s,nrcpp, &
       dimensionsX,dimensionsY,dimensionsZ)
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ,PRINTRANK
 implicit none
@@ -769,11 +766,7 @@ end subroutine
 ! -------------------------------------------------------------------
 ! Displays computed domain decomposition, for debugging.
 ! -------------------------------------------------------------------
-subroutine PrintDecompositionInfo(&
-      n, &
-      nrcpp, &
-      ibeg, &
-      iend)
+subroutine PrintDecompositionInfo(n,nrcpp,ibeg,iend)
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ,PRINTRANK, &
 MYRANKX,MYRANKY,MYRANKZ
 implicit none

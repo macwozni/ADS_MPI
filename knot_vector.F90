@@ -54,7 +54,7 @@ end subroutine
 ! Number of subintervals is N = n-p+1.
 ! 0 and 1 are repeated (p+1) times.
 ! -------------------------------------------------------------------
-subroutine FillOpenKnot(U, n, p)
+subroutine FillOpenKnot(U,n,p)
 implicit none
 integer(kind=4), intent(in) :: n, p
 real   (kind=8), intent(out):: U(1:n+p+2)
@@ -86,7 +86,7 @@ end subroutine
 ! nelem - number of elements
 !
 ! -------------------------------------------------------------------
-function CountSpans(n, p, U) result (nelem)
+function CountSpans(n,p,U) result (nelem)
 implicit none
 integer(kind=4), intent(in) :: n, p
 real   (kind=8), intent(in) :: U(0:n+p+1)

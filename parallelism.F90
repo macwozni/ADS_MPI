@@ -101,7 +101,7 @@ end subroutine
 ! returns: linear index based on (Z, Y, X) lexicographic order
 !          (Z changes slowest)
 ! -------------------------------------------------------------------
-function LinearIndex(rankx, ranky, rankz) result (rank)
+function LinearIndex(rankx,ranky,rankz) result (rank)
 implicit none
 integer(kind=4), intent(in) :: rankx, ranky, rankz
 integer(kind=4) :: rank
@@ -133,7 +133,7 @@ end function
 ! mine    - index of first element corresponding to the assigned slice
 ! maxe    - index of last element corresponding to the assigned slice
 ! -------------------------------------------------------------------
-subroutine ComputeEndpoints(rank, nrproc, n, p, nrcpp, ibeg, iend, mine, maxe)
+subroutine ComputeEndpoints(rank,nrproc,n,p,nrcpp,ibeg,iend,mine,maxe)
 implicit none
 integer(kind=4), intent(in) :: rank, nrproc, n, p
 integer(kind=4), intent(out):: nrcpp, ibeg, iend, mine, maxe
