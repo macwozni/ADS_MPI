@@ -450,18 +450,15 @@ integer(kind=4) :: i
 integer(kind=4) :: iret, ierr
 
   ! generate the RHS vectors
-    call Form3DRHS                                    &
-      (ads%Ux,ads%p(1),ads%n(1),ads%nelem(1),ads%nrcpp(1),  &
-       ads%Uy,ads%p(2),ads%n(2),ads%nelem(2),ads%nrcpp(2),  &
-       ads%Uz,ads%p(3),ads%n(3),ads%nelem(3),ads%nrcpp(3),  &
-       ads%ibeg(1),ads%iend(1),                             &
-       ads%ibeg(2),ads%iend(2),                             &
-       ads%ibeg(3),ads%iend(3),                             &
-       ads%ibegsx,ads%iendsx,ads%ibegsy,     &
-       ads%iendsy,ads%ibegsz,ads%iendsz,   &
-       ads%mine(1),ads%maxe(1),ads%mine(2),              &
-       ads%maxe(2),ads%mine(3),ads%maxe(3),              &
-       ads%R,ads%F,RHS_fun)
+    call Form3DRHS (                                   &
+            ads%p,ads%n,ads%nelem,ads%nrcpp,     &
+           ads%ibeg,ads%iend,                &
+           ads%mine,ads%maxe,                &
+           ads%Ux,ads%Uy,ads%Uz,     &
+           ads%ibegsx,ads%iendsx,              &
+           ads%ibegsy,ads%iendsy,              &
+           ads%ibegsz,ads%iendsz,              &
+           ads%R,ads%F,RHS_fun)
 
 #ifdef IPRINT
     write(*,*)PRINTRANK,'F'

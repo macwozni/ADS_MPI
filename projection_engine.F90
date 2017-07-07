@@ -99,18 +99,13 @@ end subroutine
 ! domain pieces.
 ! -------------------------------------------------------------------
 subroutine Form3DRHS(          &
-   Ux,px,nx,nelemx,nrcppx,     &
-   Uy,py,ny,nelemy,nrcppy,     &
-   Uz,pz,nz,nelemz,nrcppz,     &
-   ibegx,iendx,                &
-   ibegy,iendy,                &
-   ibegz,iendz,                &
+   p,n,nelem,nrcpp,     &
+   ibeg,iend,                &
+   mine,maxe,                &
+   Ux,Uy,Uz,     &
    ibegsx,iendsx,              &
    ibegsy,iendsy,              &
    ibegsz,iendsz,              &
-   minex,maxex,                &
-   miney,maxey,                &
-   minez,maxez,                &
    R,F,RHS_fun)
 use parallelism, ONLY : PRINTRANK
 USE ISO_FORTRAN_ENV, ONLY : ERROR_UNIT ! access computing environment
@@ -153,31 +148,28 @@ interface
       real   (kind=8), intent(out) :: F
   end subroutine
 end interface
-integer(kind=4), intent(in)  :: nx, px, nelemx, nrcppx
-integer(kind=4), intent(in)  :: ny, py, nelemy, nrcppy
-integer(kind=4), intent(in)  :: nz, pz, nelemz, nrcppz
-integer(kind=4), intent(in)  :: minex,maxex,miney,maxey,minez,maxez
-real   (kind=8), intent(in)  :: Ux(0:nx+px+1)
-real   (kind=8), intent(in)  :: Uy(0:ny+py+1)
-real   (kind=8), intent(in)  :: Uz(0:nz+pz+1)
-real   (kind=8), intent(in)  :: R(0:nrcppz*nrcppx*nrcppy-1,3,3,3)
-integer(kind=4), intent(in) :: ibegsx(3),iendsx(3),ibegsy(3),iendsy(3),ibegsz(3),iendsz(3)
-integer(kind=4), intent(in)  :: ibegx,ibegy,ibegz
-integer(kind=4), intent(in)  :: iendx,iendy,iendz
+integer(kind=4), intent(in), dimension(3)  :: n, p, nelem, nrcpp
+integer(kind=4), intent(in), dimension(3)  :: mine,maxe
+integer(kind=4), intent(in), dimension(3)  :: ibeg,iend
+real   (kind=8), intent(in)  :: Ux(0:n(1)+p(1)+1)
+real   (kind=8), intent(in)  :: Uy(0:n(2)+p(2)+1)
+real   (kind=8), intent(in)  :: Uz(0:n(3)+p(3)+1)
+real   (kind=8), intent(in)  :: R(0:nrcpp(3)*nrcpp(1)*nrcpp(2)-1,3,3,3)
+integer(kind=4), intent(in)  :: ibegsx(3),iendsx(3),ibegsy(3),iendsy(3),ibegsz(3),iendsz(3)
                                
-real   (kind=8), intent(out) :: F(0:(iendx-ibegx+1)-1, &
-  0:(iendy-ibegy+1)*(iendz-ibegz+1)-1)
+real   (kind=8), intent(out) :: F(0:(iend(1)-ibeg(1)+1)-1, &
+  0:(iend(2)-ibeg(2)+1)*(iend(3)-ibeg(3)+1)-1)
 integer(kind=4) :: mx,my,mz,ngx,ngy,ngz,ex,ey,ez
 integer(kind=4) :: kx,ky,kz,ax,ay,az,bx,by,bz,d
-integer(kind=4) :: Ox(nelemx),Oy(nelemy),Oz(nelemz)
-real   (kind=8) :: Jx(nelemx),Jy(nelemy),Jz(nelemz)
-real   (kind=8) :: Wx(px+1),Wy(py+1),Wz(pz+1)
-real   (kind=8) :: Xx(px+1,nelemx)
-real   (kind=8) :: Xy(py+1,nelemy)
-real   (kind=8) :: Xz(pz+1,nelemz)
-real   (kind=8) :: NNx(0:px-1,0:px,px+1,nelemx), &
-                   NNy(0:py-1,0:py,py+1,nelemy), &
-                   NNz(0:pz-1,0:pz,pz+1,nelemz)
+integer(kind=4) :: Ox(nelem(1)),Oy(nelem(2)),Oz(nelem(3))
+real   (kind=8) :: Jx(nelem(1)),Jy(nelem(2)),Jz(nelem(3))
+real   (kind=8) :: Wx(p(1)+1),Wy(p(2)+1),Wz(p(3)+1)
+real   (kind=8) :: Xx(p(1)+1,nelem(1))
+real   (kind=8) :: Xy(p(2)+1,nelem(2))
+real   (kind=8) :: Xz(p(3)+1,nelem(3))
+real   (kind=8) :: NNx(0:p(1)-1,0:p(1),p(1)+1,nelem(1)), &
+                   NNy(0:p(2)-1,0:p(2),p(2)+1,nelem(2)), &
+                   NNz(0:p(3)-1,0:p(3),p(3)+1,nelem(3))
 real   (kind=8) :: J,W,Uval,ucoeff
 real   (kind=8) :: v, rhs
 real   (kind=8) :: dux,duy,duz,dvx,dvy,dvz
@@ -188,68 +180,68 @@ integer(kind=4) :: rx,ry,rz, ix,iy,iz, sx,sy,sz
 real   (kind=8) :: resvalue
 
   d = 0
-  mx  = nx + px + 1
-  ngx = px + 1
-  my  = ny + py + 1
-  ngy = py + 1
-  mz  = nz + pz + 1
-  ngz = pz + 1
+  mx  = n(1) + p(1) + 1
+  ngx = p(1) + 1
+  my  = n(2) + p(2) + 1
+  ngy = p(2) + 1
+  mz  = n(3) + p(3) + 1
+  ngz = p(3) + 1
 
-  call BasisData(px,mx,Ux,px-1,ngx,nelemx,Ox,Jx,Wx,Xx,NNx)
-  call BasisData(py,my,Uy,py-1,ngy,nelemy,Oy,Jy,Wy,Xy,NNy)
-  call BasisData(pz,mz,Uz,pz-1,ngz,nelemz,Oz,Jz,Wz,Xz,NNz)
+  call BasisData(p(1),mx,Ux,p(1)-1,ngx,nelem(1),Ox,Jx,Wx,Xx,NNx)
+  call BasisData(p(2),my,Uy,p(2)-1,ngy,nelem(2),Oy,Jy,Wy,Xy,NNy)
+  call BasisData(p(3),mz,Uz,p(3)-1,ngz,nelem(3),Oz,Jz,Wz,Xz,NNz)
 
 #ifdef IPRINT
-    write(*,*)PRINTRANK,'ex:',minex,maxex
-    write(*,*)PRINTRANK,'ey:',miney,maxey
-    write(*,*)PRINTRANK,'ez:',minez,maxez
-    write(*,*)PRINTRANK,'ibegx,iendx',ibegx,iendx
-    write(*,*)PRINTRANK,'ibegy,iendy',ibegy,iendy
-    write(*,*)PRINTRANK,'ibegz,iendz',ibegz,iendz
+    write(*,*)PRINTRANK,'ex:',mine(1),maxe(1)
+    write(*,*)PRINTRANK,'ey:',mine(2),maxe(2)
+    write(*,*)PRINTRANK,'ez:',mine(3),maxe(3)
+    write(*,*)PRINTRANK,'ibegx,iendx',ibeg(1),iend(1)
+    write(*,*)PRINTRANK,'ibegy,iendy',ibeg(2),iend(2)
+    write(*,*)PRINTRANK,'ibegz,iendz',ibeg(3),iend(3)
 #endif
 
   F = 0
 
-  do ex = minex, maxex
-  do ey = miney, maxey
-  do ez = minez, maxez
+  do ex = mine(1), maxe(1)
+  do ey = mine(2), maxe(2)
+  do ez = mine(3), maxe(3)
     J = Jx(ex)*Jy(ey)*Jz(ez)
     do kx = 1,ngx
     do ky = 1,ngy
     do kz = 1,ngz
       W = Wx(kx)*Wy(ky)*Wz(kz)  
-      do ax = 0,px
-      do ay = 0,py
-      do az = 0,pz
-        ind = (Ox(ex)+ax) + (Oy(ey)+ay)*(nx+1) + (Oz(ez)+az)*(ny+1)*(nx+1)
-        call global2local(ind,nx,ny,nz,indx,indy,indz)
+      do ax = 0,p(1)
+      do ay = 0,p(2)
+      do az = 0,p(3)
+        ind = (Ox(ex)+ax) + (Oy(ey)+ay)*(n(1)+1) + (Oz(ez)+az)*(n(2)+1)*(n(1)+1)
+        call global2local(ind,n(1),n(2),n(3),indx,indy,indz)
 
-        if (indx < ibegx-1 .or. indx > iendx-1) cycle
-        if (indy < ibegy-1 .or. indy > iendy-1) cycle
-        if (indz < ibegz-1 .or. indz > iendz-1) cycle
+        if (indx < ibeg(1)-1 .or. indx > iend(1)-1) cycle
+        if (indy < ibeg(2)-1 .or. indy > iend(2)-1) cycle
+        if (indz < ibeg(3)-1 .or. indz > iend(3)-1) cycle
 
-        ind1 = indx-ibegx+1
-        ind23 = (indy-ibegy+1) + (indz-ibegz+1)*(iendy-ibegy+1)
+        ind1 = indx-ibeg(1)+1
+        ind23 = (indy-ibeg(2)+1) + (indz-ibeg(3)+1)*(iend(2)-ibeg(2)+1)
 
         Uval = 0
         dux = 0
         duy = 0
         duz = 0
-        do bx = 0,px
-        do by = 0,py
-        do bz = 0,pz
-          ind = (Ox(ex)+bx) + (Oy(ey)+by)*(nx+1) + (Oz(ez)+bz)*(ny+1)*(nx+1)
-          call global2local(ind,nx,ny,nz,indbx,indby,indbz)
+        do bx = 0,p(1)
+        do by = 0,p(2)
+        do bz = 0,p(3)
+          ind = (Ox(ex)+bx) + (Oy(ey)+by)*(n(1)+1) + (Oz(ez)+bz)*(n(2)+1)*(n(1)+1)
+          call global2local(ind,n(1),n(2),n(3),indbx,indby,indbz)
 
           rx = 2
           ry = 2
           rz = 2
-          if (indbx < ibegx-1) rx = 1
-          if (indbx > iendx-1) rx = 3
-          if (indby < ibegy-1) ry = 1
-          if (indby > iendy-1) ry = 3
-          if (indbz < ibegz-1) rz = 1
-          if (indbz > iendz-1) rz = 3
+          if (indbx < ibeg(1)-1) rx = 1
+          if (indbx > iend(1)-1) rx = 3
+          if (indby < ibeg(2)-1) ry = 1
+          if (indby > iend(2)-1) ry = 3
+          if (indbz < ibeg(3)-1) rz = 1
+          if (indbz > iend(3)-1) rz = 3
 
           ix = indbx - ibegsx(rx) + 1
           iy = indby - ibegsy(ry) + 1
@@ -263,9 +255,9 @@ real   (kind=8) :: resvalue
           if (ind < 0 .or. ind > nrcppz*nrcppx*nrcppy-1) then
             write(ERROR_UNIT,*)PRINTRANK,'Oh crap',ix,iy,iz
             write(ERROR_UNIT,*)PRINTRANK,'r',rx,ry,rz
-            write(ERROR_UNIT,*)PRINTRANK,'x',ibegx,iendx
-            write(ERROR_UNIT,*)PRINTRANK,'y',ibegy,iendy
-            write(ERROR_UNIT,*)PRINTRANK,'z',ibegz,iendz
+            write(ERROR_UNIT,*)PRINTRANK,'x',ibeg(1),iend(1)
+            write(ERROR_UNIT,*)PRINTRANK,'y',ibeg(2),iend(2)
+            write(ERROR_UNIT,*)PRINTRANK,'z',ibeg(3),iend(3)
             write(ERROR_UNIT,*)PRINTRANK,'idxs',indbx,indby,indbz
             write(ERROR_UNIT,*)PRINTRANK,'sizes=',sx,sy,sz
             write(ERROR_UNIT,*)PRINTRANK,'begsx=',ibegsx
@@ -294,15 +286,15 @@ real   (kind=8) :: resvalue
                [Xx(kx,ex),Xy(ky,ey),Xz(kz,ez)], &
                [kx,ky,kz], &
                [ex,ey,ez], &
-               [px,py,pz], &
-               [nelemx,nelemy,nelemz], &
+               p, &
+               nelem, &
                [ax,ay,az], &
                [bx,by,bz], &
                [dux,duy,duz], &
-               [ibegx,ibegy,ibegz], &
-               [iendx,iendy,iendz], &
-               [minex,miney,minez], &
-               [maxex,maxey,maxez], &
+               [ibeg(1),ibeg(2),ibeg(3)], &
+               [iend(1),iend(2),iend(3)], &
+               [mine(1),mine(2),mine(3)], &
+               [maxe(1),maxe(2),maxe(3)], &
                NNx,NNy,NNz, &
                Uval,J,W,resvalue)
    
@@ -328,19 +320,19 @@ end subroutine
 ! Checks whether the index is within range.
 !
 ! idnx,indy,indz   - 3D index
-! ibegx,iendx      - x range
-! ibegy,iendy      - y range
-! ibegz,iendz      - z range
+! ibeg(1),iend(1)      - x range
+! ibeg(2),iend(2)      - y range
+! ibeg(3),iend(3)      - z range
 ! -------------------------------------------------------------------
-logical function IndexInRange(indx,indy,indz,ibegx,iendx,ibegy,iendy,ibegz,iendz)
+logical function IndexInRange(ind,ibeg,iend)
 implicit none
-integer(kind=4) :: indx,indy,indz
-integer(kind=4) :: ibegx,iendx,ibegy,iendy,ibegz,iendz
+integer(kind=4), intent(in), dimension(3) :: ind
+integer(kind=4), intent(in), dimension(3) :: ibeg,iend
 
 IndexInRange = .true.
-if (indx < ibegx-1 .or. indx > iendx-1) IndexInRange = .false.
-if (indy < ibegy-1 .or. indy > iendy-1) IndexInRange = .false.
-if (indz < ibegz-1 .or. indz > iendz-1) IndexInRange = .false.
+if (ind(1) < ibeg(1)-1 .or. ind(1) > iend(1)-1) IndexInRange = .false.
+if (ind(2) < ibeg(2)-1 .or. ind(2) > iend(2)-1) IndexInRange = .false.
+if (ind(3) < ibeg(3)-1 .or. ind(3) > iend(3)-1) IndexInRange = .false.
 
 end function
 
