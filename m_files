@@ -8,6 +8,7 @@ SOURCES = \
           math.F90 \
           reorderRHS.F90 \
           utils.F90 \
+          my_mpi.F90 \
           projection_engine.F90 \
           analysis.F90 \
           int2str.F90 \
