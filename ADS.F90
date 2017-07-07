@@ -72,23 +72,19 @@ contains
 ! -------------------------------------------------------------------
 ! Initialization of clocks and MPI
 ! -------------------------------------------------------------------
-subroutine initialize (nx,ny,nz,px,py,pz,ads)
+subroutine initialize (n,p,ads)
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ
 use parallelism, ONLY : PRINTRANK
 use knot_vector, ONLY : PrepareKnot
 implicit none
 include "mpif.h"
-integer(kind=4), intent(in) :: nx,ny,nz
-integer(kind=4), intent(in) :: px,py,pz
+integer(kind=4), intent(in), dimension(3) :: n
+integer(kind=4), intent(in), dimension(3) :: p
 type(ADS_setup), intent(out) :: ads
 integer(kind=4) :: ierr
 
-  ads%p(1) = px ! order
-  ads%p(2) = py ! order
-  ads%p(3) = pz ! order
-  ads%n(1) = nx  ! intervals
-  ads%n(2) = ny  ! intervals
-  ads%n(3) = nz  ! intervals
+  ads%p = p ! order
+  ads%n = n  ! intervals
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
@@ -99,17 +95,13 @@ integer(kind=4) :: ierr
     'size of Ux',nx+px+2,'size of Uy',ny+py+2,'size of Uz',nz+pz+2
 #endif
 
-  if (nx<NRPROCX .or. ny<NRPROCY .or. nz<NRPROCZ) then
+  if (n(1)<NRPROCX .or. n(2)<NRPROCY .or. n(3)<NRPROCZ) then
     write(*,*)'Number of elements smaller than number of processors'
     stop
   endif
   
-  ads%KL(1) = px
-  ads%KU(1) = px
-  ads%KL(2) = py
-  ads%KU(2) = py
-  ads%KL(3) = pz
-  ads%KU(3) = pz
+  ads%KL = p
+  ads%KU = p
 
   call ComputeDecomposition( &
       ads%n, &
@@ -152,9 +144,9 @@ integer(kind=4) :: ierr
       ads%IPIVx,ads%IPIVy,ads%IPIVz, &
       ads%R)
   
-  call PrepareKnot(ads%Ux,nx,px,ads%nelem(1))
-  call PrepareKnot(ads%Uy,ny,py,ads%nelem(2))
-  call PrepareKnot(ads%Uz,nz,pz,ads%nelem(3))
+  call PrepareKnot(ads%Ux,n(1),p(1),ads%nelem(1))
+  call PrepareKnot(ads%Uy,n(2),p(2),ads%nelem(2))
+  call PrepareKnot(ads%Uz,n(3),p(3),ads%nelem(3))
   
 end subroutine
 
