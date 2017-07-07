@@ -189,8 +189,7 @@ subroutine ComputeDecomposition( &
    dimensionsX,dimensionsY,dimensionsZ, &
    shiftsX,shiftsY,shiftsZ)
 use parallelism, ONLY : MYRANKX,MYRANKY,MYRANKZ,PRINTRANK, &
-   NRPROCX,NRPROCY,NRPROCZ
-use utils, ONLY : ComputeEndpoints,FillDimVector
+   NRPROCX,NRPROCY,NRPROCZ,ComputeEndpoints,FillDimVector
 implicit none
 integer(kind=4), intent(in) :: nx,ny,nz
 integer(kind=4), intent(in) :: px,py,pz
@@ -327,8 +326,7 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine PrintDistributedData(ads)
 use parallelism, ONLY : MYRANKX,MYRANKY,MYRANKZ,PRINTRANK, &
-   NRPROCX,NRPROCY,NRPROCZ
-use utils, ONLY : ComputeEndpoints
+   NRPROCX,NRPROCY,NRPROCZ,ComputeEndpoints
 implicit none
 type   (ADS_setup) :: ads
 integer(kind=4) :: i, j, k

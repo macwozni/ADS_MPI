@@ -267,8 +267,7 @@ end subroutine
 ! x, y, z    - coordinates
 ! -------------------------------------------------------------------
 function SizeOfPiece(x,y,z,nx,ny,nz,px,py,pz) result (s)
-use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ
-use utils, ONLY : ComputeEndpoints
+use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ,ComputeEndpoints
 implicit none
 integer(kind=4), intent(in) :: x, y, z
 integer(kind=4), intent(in) :: nx, ny, nz
@@ -306,8 +305,7 @@ end function
 !   Inside pieces: (z, y, x), i.e. x changes fastest
 ! -------------------------------------------------------------------
 subroutine GatherFullSolution(at,part,full,nx,ny,nz,px,py,pz,sx,sy,sz)
-use parallelism, ONLY : MYRANK,LINEARINDEX,NRPROCX,NRPROCY,NRPROCZ
-use utils, ONLY : ComputeEndpoints
+use parallelism, ONLY : MYRANK,LINEARINDEX,NRPROCX,NRPROCY,NRPROCZ,ComputeEndpoints
 implicit none
 include "mpif.h"
 integer(kind=4), intent(in) :: at
