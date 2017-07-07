@@ -90,9 +90,9 @@ integer(kind=4) :: ierr
 
 #ifdef IINFO
   write(*,*)PRINTRANK,'INITIALIZATION'
-    write(*,*)'px',px,'py',py,'pz',pz, &
-    'nx',nx,'ny',ny,'nz',nz, &
-    'size of Ux',nx+px+2,'size of Uy',ny+py+2,'size of Uz',nz+pz+2
+    write(*,*)'px',p(1),'py',p(2),'pz',p(3), &
+    'nx',n(1),'ny',n(2),'nz',n(3), &
+    'size of Ux',n(1)+p(1)+2,'size of Uy',n(2)+p(2)+2,'size of Uz',n(3)+p(3)+2
 #endif
 
   if (n(1)<NRPROCX .or. n(2)<NRPROCY .or. n(3)<NRPROCZ) then

@@ -252,7 +252,7 @@ real   (kind=8) :: resvalue
           ind = ix + sx * (iy + sy * iz)
 
 #ifdef IDEBUG
-          if (ind < 0 .or. ind > nrcppz*nrcppx*nrcppy-1) then
+          if (ind < 0 .or. ind > nrcpp(3)*nrcpp(1)*nrcpp(2)-1) then
             write(ERROR_UNIT,*)PRINTRANK,'Oh crap',ix,iy,iz
             write(ERROR_UNIT,*)PRINTRANK,'r',rx,ry,rz
             write(ERROR_UNIT,*)PRINTRANK,'x',ibeg(1),iend(1)
