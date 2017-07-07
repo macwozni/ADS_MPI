@@ -290,7 +290,6 @@ integer(kind=4) :: mine, maxe
 end function
 
 
-!!!!! przeniesc do my_mpi
 ! -------------------------------------------------------------------
 ! Gathers full solution at the specified process. It is stored in
 ! 3D array.
@@ -396,6 +395,228 @@ integer(kind=4) :: ix, iy, iz, idx
   deallocate(buffer)
 
 end subroutine
+
+
+
+! -------------------------------------------------------------------
+! Delinearizes an array
+!
+! F_lin    - input rank-1 array
+! F        - output rank-2 array
+! elems    - first dimension of F
+! stride   - second dimension of F
+!
+! Input array like this (s = stride, N = elems):
+!
+!     x11 x12 x13 ... x1s x21 x22 ... x2s... xN1 xN2 ... xNs
+!
+! is reshaped to the following form:
+!
+!     x11 x12 x13 ... x1s
+!     x21 x22 x23 ... x2s
+!      .   .   .  .    .
+!      .   .   .    .  .
+!     xN1 xN2 xN3 ... xNs
+! -------------------------------------------------------------------
+subroutine Delinearize(F_lin, F, elems, stride)
+implicit none
+integer(kind=4), intent(in) :: elems, stride
+real   (kind=8), intent(in)  :: F_lin(elems * stride)
+real   (kind=8), intent(out) :: F(elems, stride)
+integer(kind=4) :: i, a, b
+
+do i = 1,elems
+  a = (i-1) * stride + 1
+  b = i * stride
+  F(i,:) = F_lin(a:b)
+enddo
+
+end subroutine
+
+
+
+! -------------------------------------------------------------------
+! Gathers data along one axis to the processes on the corresponding
+! face of the cube.
+!
+! F         - input array
+! F_out     - output array
+! n         - problem size (total length of the axis)
+! elems     - length of slice assigned to this process
+! stride    - total size of each slice layer
+! dims      - sizes of slices for all processors
+! shifts    - offsets (linearized) of slices for all processors
+! comm      - communicator of the axis
+! ierr      - error code output
+! -------------------------------------------------------------------
+subroutine Gather(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
+implicit none
+include "mpif.h"
+integer(kind=4), intent(in) :: n, elems, stride, comm
+real   (kind=8), intent(in) :: F(elems, stride)
+integer(kind=4), intent(in) :: dims(:), shifts(:)
+real   (kind=8), intent(out):: F_out(n+1, stride)
+integer(kind=4), intent(out):: ierr
+real   (kind=8) :: F_lin(elems * stride), F_out_lin((n+1) * stride)
+
+call Linearize(F,F_lin,elems,stride)
+
+call mpi_gatherv(F_lin, &
+  elems * stride,       &
+  MPI_DOUBLE_PRECISION, &
+  F_out_lin,            &
+  dims, shifts,         &
+  MPI_DOUBLE_PRECISION, &
+  0, comm, ierr)
+
+call Delinearize(F_out_lin,F_out,n+1,stride)
+
+end subroutine
+
+
+
+! -------------------------------------------------------------------
+! Scatters computed partial solution along one axis, but does not
+! delinearize the output (used at the very end of computation)
+!
+! F         - data to scatter
+! F_out     - buffer to receive data
+! n         - problem size
+! elems     - length of received slice
+! stride    - total size of each slice layer
+! dims      - sizes of slices for all processors
+! shifts    - offsets (linearized) of slices for all processors
+! comm      - communicator of the axis
+! ierr      - error code output
+! -------------------------------------------------------------------
+subroutine Scatter2(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
+implicit none
+include "mpif.h"
+integer(kind=4), intent(in) :: n, elems, stride, comm
+real   (kind=8), intent(in) :: F(n+1, stride)
+integer(kind=4), intent(in) :: dims(:), shifts(:)
+real   (kind=8), intent(out):: F_out(elems * stride)
+integer(kind=4), intent(out):: ierr
+real   (kind=8) :: F_lin((n+1) * stride)
+
+call Linearize(F, F_lin, n+1, stride)
+
+call mpi_scatterv(F_lin, &
+  dims, shifts,          &
+  MPI_DOUBLE_PRECISION,  &
+  F_out,                 &
+  elems * stride,        &
+  MPI_DOUBLE_PRECISION,  &
+  0, comm, ierr)
+
+end subroutine
+
+
+! -------------------------------------------------------------------
+! Scatters computed partial solution along one axis
+!
+! F         - data to scatter
+! F_out     - buffer to receive data
+! n         - problem size
+! elems     - length of received slice
+! stride    - total size of each slice layer
+! dims      - sizes of slices for all processors
+! shifts    - offsets (linearized) of slices for all processors
+! comm      - communicator of the axis
+! ierr      - error code output
+! -------------------------------------------------------------------
+subroutine Scatter(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
+implicit none
+integer(kind=4), intent(in) :: n, elems, stride, comm
+real   (kind=8), intent(in) :: F(n+1, stride)
+integer(kind=4), intent(in) :: dims(:), shifts(:)
+real   (kind=8), intent(out):: F_out(elems, stride)
+integer(kind=4), intent(out) :: ierr
+real   (kind=8) :: F_out_lin(elems * stride)
+
+call Scatter2(F,F_out_lin,n,elems,stride,dims,shifts,comm,ierr)
+call Delinearize(F_out_lin, F_out, elems, stride)
+
+end subroutine
+
+
+! -------------------------------------------------------------------
+! Broadcasts computed partial solution along one axis
+!
+! F        - data to distribute
+! F_out    - buffer to receive data
+! n        - problem size
+! elems    - length of received slice
+! stride   - total size of each slice layer
+! dims     - sizes of slices for all processors
+! shifts   - offsets (linearized) of slices for all processors
+! comm     - communicator of the axis
+! ierr     - error code output
+! -------------------------------------------------------------------
+subroutine AllGather(F, F_out, n, elems, stride, dims, shifts, comm)
+implicit none
+include "mpif.h"
+integer(kind=4), intent(in) :: n, elems, stride, comm
+real   (kind=8), intent(in) :: F(elems, stride)
+real   (kind=8), intent(out) :: F_out(n+1, stride)
+integer(kind=4) :: dims(:), shifts(:)
+real   (kind=8) :: F_lin(elems*stride), F_out_lin((n+1)*stride)
+integer(kind=4) :: ierr
+
+call Linearize(F,F_lin,elems,stride)
+
+call mpi_allgatherv(F_lin, &
+  elems * stride,          &
+  MPI_DOUBLE_PRECISION,    &
+  F_out_lin,               &
+  dims, shifts,            &
+  MPI_DOUBLE_PRECISION,    &
+  comm, ierr)
+
+call Delinearize(F_out_lin,F_out,n+1,stride)
+
+end subroutine
+
+
+
+! -------------------------------------------------------------------
+! Linearizes and transposes an array.
+!
+! F        - input rank-2 array
+! F_lin    - output rank-1 array
+! elems    - first dimension of F
+! stride   - second dimension of F
+!
+! For input array like this, where columns are consecutive in memory
+! (Fortran uses column-major layout), with s = stride, N = elems:
+!
+!     x11 x12 x13 ... x1s
+!     x21 x22 x23 ... x2s
+!      .   .   .  .    .
+!      .   .   .    .  .
+!     xN1 xN2 xN3 ... xNs
+!
+! output array has the form
+!
+!     x11 x12 x13 ... x1s x21 x22 ... x2s... xN1 xN2 ... xNs
+! -------------------------------------------------------------------
+subroutine Linearize(F, F_lin, elems, stride)
+implicit none
+integer(kind=4), intent(in) :: elems, stride
+real   (kind=8), intent(in) :: F(elems, stride)
+real   (kind=8), intent(out):: F_lin(elems * stride)
+integer(kind=4) :: i, a, b
+
+do i = 1,elems
+  a = (i-1) * stride + 1
+  b = i * stride
+  F_lin(a:b) = F(i,:)
+enddo
+
+end subroutine
+
+
+
 
 
 end module

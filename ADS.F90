@@ -430,10 +430,9 @@ end subroutine
 subroutine Step(iter,RHS_fun,ads)
 use parallelism, ONLY :PRINTRANK,MYRANKX,MYRANKY,MYRANKZ
 use communicators, ONLY : COMMX,COMMY,COMMZ
-use utils, ONLY : Gather,Scatter
 use reorderRHS, ONLY : ReorderRHSForX,ReorderRHSForY,ReorderRHSForZ
 use projection_engine, ONLY : Form3DRHS, ComputeMassMatrix
-use my_mpi, ONLY : DistributeSpline
+use my_mpi, ONLY : DistributeSpline,Gather,Scatter
 implicit none
 include "mpif.h"
 interface
