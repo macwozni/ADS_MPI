@@ -259,7 +259,7 @@ real   (kind=8) :: resvalue
           sz = iendsz(rz) - ibegsz(rz) + 1
           ind = ix + sx * (iy + sy * iz)
 
-!!!!! debug
+#ifdef IDEBUG
           if (ind < 0 .or. ind > nrcppz*nrcppx*nrcppy-1) then
             write(ERROR_UNIT,*)PRINTRANK,'Oh crap',ix,iy,iz
             write(ERROR_UNIT,*)PRINTRANK,'r',rx,ry,rz
@@ -275,6 +275,7 @@ real   (kind=8) :: resvalue
             write(ERROR_UNIT,*)PRINTRANK,'begsz=',ibegsz
             write(ERROR_UNIT,*)PRINTRANK,'endsz=',iendsz
           endif
+#endif
           
           Ucoeff = R(ind,rx,ry,rz)
           v   = NNx(0,bx,kx,ex) * NNy(0,by,ky,ey) * NNz(0,bz,kz,ez)
