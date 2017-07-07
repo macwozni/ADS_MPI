@@ -416,12 +416,12 @@ interface
          nelem, &
          a, &
          b, &
-         NNx,NNy,NNz, &
          du, &
          ibeg, &
          iend, &
          mine, &
          maxe, &
+         NNx,NNy,NNz, &
          Uval,J,W,F)
       implicit none
       integer(kind=4), intent(in), dimension(3)  :: p
@@ -429,7 +429,6 @@ interface
       integer(kind=4), intent(in), dimension(3)  :: k
       integer(kind=4), intent(in), dimension(3)  :: e
       integer(kind=4), intent(in), dimension(3)  :: nelem
-      real   (kind=8), intent(in)  :: Uval
       integer(kind=4), intent(in), dimension(3)  :: ibeg
       integer(kind=4), intent(in), dimension(3)  :: iend
       integer(kind=4), intent(in), dimension(3)  :: maxe
@@ -437,6 +436,7 @@ interface
       integer(kind=4), intent(in), dimension(3)  :: a
       integer(kind=4), intent(in), dimension(3)  :: b
       real   (kind=8), intent(in), dimension(3)  :: du
+      real   (kind=8), intent(in)  :: Uval
       real   (kind=8), intent(in)  :: J,W
       real   (kind=8), intent(in)  :: NNx(0:p(1)-1,0:p(1),p(1)+1,nelem(1)), &
                          NNy(0:p(2)-1,0:p(2),p(2)+1,nelem(2)), &

@@ -125,12 +125,12 @@ interface
          nelem, &
          a, &
          b, &
-         NNx,NNy,NNz, &
          du, &
          ibeg, &
          iend, &
          mine, &
          maxe, &
+         NNx,NNy,NNz, &
          Uval,J,W,F)
       implicit none
       integer(kind=4), intent(in), dimension(3)  :: p
@@ -138,7 +138,6 @@ interface
       integer(kind=4), intent(in), dimension(3)  :: k
       integer(kind=4), intent(in), dimension(3)  :: e
       integer(kind=4), intent(in), dimension(3)  :: nelem
-      real   (kind=8), intent(in)  :: Uval
       integer(kind=4), intent(in), dimension(3)  :: ibeg
       integer(kind=4), intent(in), dimension(3)  :: iend
       integer(kind=4), intent(in), dimension(3)  :: maxe
@@ -146,6 +145,7 @@ interface
       integer(kind=4), intent(in), dimension(3)  :: a
       integer(kind=4), intent(in), dimension(3)  :: b
       real   (kind=8), intent(in), dimension(3)  :: du
+      real   (kind=8), intent(in)  :: Uval
       real   (kind=8), intent(in)  :: J,W
       real   (kind=8), intent(in)  :: NNx(0:p(1)-1,0:p(1),p(1)+1,nelem(1)), &
                            NNy(0:p(2)-1,0:p(2),p(2)+1,nelem(2)), &
@@ -297,12 +297,12 @@ real   (kind=8) :: resvalue
                [nelemx,nelemy,nelemz], &
                [ax,ay,az], &
                [bx,by,bz], &
-               NNx,NNy,NNz, &
                [dux,duy,duz], &
                [ibegx,ibegy,ibegz], &
                [iendx,iendy,iendz], &
                [minex,miney,minez], &
                [maxex,maxey,maxez], &
+               NNx,NNy,NNz, &
                Uval,J,W,resvalue)
    
           F(ind1,ind23) = F(ind1,ind23) + resvalue
