@@ -717,15 +717,15 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine ValidateDimensions(&
       n, &
-      sx,sy,sz, &
-      nrcppx,nrcppy,nrcppz, &
+      s, &
+      nrcpp, &
       dimensionsX,dimensionsY,dimensionsZ)
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ,PRINTRANK
 implicit none
 include "mpif.h"
 integer(kind=4), intent(in), dimension(3) :: n
-integer(kind=4), intent(in) :: sx,sy,sz
-integer(kind=4), intent(in) :: nrcppx,nrcppy,nrcppz
+integer(kind=4), intent(in), dimension(3) :: s
+integer(kind=4), intent(in), dimension(3) :: nrcpp
 integer(kind=4), intent(in), allocatable, dimension(:) :: dimensionsX
 integer(kind=4), intent(in), allocatable, dimension(:) :: dimensionsY
 integer(kind=4), intent(in), allocatable, dimension(:) :: dimensionsZ
@@ -736,12 +736,12 @@ integer(kind=4) :: i, k
   do i = 1,NRPROCX
     k = k + dimensionsX(i)
   enddo
-  if (k /= (n(1)+1)*sy*sz) then
+  if (k /= (n(1)+1)*s(2)*s(3)) then
     write(*,*)PRINTRANK,'problem with dimensionsX',dimensionsX
     write(*,*)PRINTRANK,'nx+1',n(1)+1
-    write(*,*)PRINTRANK,'sy',sy
-    write(*,*)PRINTRANK,'sz',sz
-    write(*,*)PRINTRANK,'nrcppx',nrcppx
+    write(*,*)PRINTRANK,'sy',s(2)
+    write(*,*)PRINTRANK,'sz',s(3)
+    write(*,*)PRINTRANK,'nrcppx',nrcpp(1)
     stop
   endif
 
@@ -749,11 +749,11 @@ integer(kind=4) :: i, k
   do i = 1,NRPROCY
     k = k + dimensionsY(i)
   enddo
-  if (k /= (n(2)+1)*sx*sz) then
+  if (k /= (n(2)+1)*s(1)*s(3)) then
     write(*,*)PRINTRANK,'problem with dimensionsY',dimensionsY
     write(*,*)PRINTRANK,'n+1',n(2)+1
-    write(*,*)PRINTRANK,'sx',sx
-    write(*,*)PRINTRANK,'sz',sz
+    write(*,*)PRINTRANK,'sx',s(1)
+    write(*,*)PRINTRANK,'sz',s(3)
     stop
   endif
 
@@ -761,11 +761,11 @@ integer(kind=4) :: i, k
   do i = 1,NRPROCZ
     k = k + dimensionsZ(i)
   enddo
-  if (k /= (n(3)+1)*sx*sy) then
+  if (k /= (n(3)+1)*s(1)*s(2)) then
     write(*,*)PRINTRANK,'problem with dimensionsZ',dimensionsZ
     write(*,*)PRINTRANK,'n+1',n(3)+1
-    write(*,*)PRINTRANK,'sx',sx
-    write(*,*)PRINTRANK,'sy',sy
+    write(*,*)PRINTRANK,'sx',s(1)
+    write(*,*)PRINTRANK,'sy',s(2)
     stop
   endif
 
@@ -779,27 +779,26 @@ end subroutine
 ! -------------------------------------------------------------------
 subroutine PrintDecompositionInfo(&
       n, &
-      nrcppx,nrcppy,nrcppz, &
-      ibegx,ibegy,ibegz, &
-      iendx,iendy,iendz)
+      nrcpp, &
+      ibeg, &
+      iend)
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ,PRINTRANK, &
 MYRANKX,MYRANKY,MYRANKZ
 implicit none
 integer(kind=4), intent(in), dimension(3) :: n
-integer(kind=4), intent(in) :: nrcppx,nrcppy,nrcppz
-integer(kind=4), intent(in) :: ibegx,iendx
-integer(kind=4), intent(in) :: ibegy,iendy
-integer(kind=4), intent(in) :: ibegz,iendz
+integer(kind=4), intent(in), dimension(3) :: nrcpp
+integer(kind=4), intent(in), dimension(3) :: ibeg
+integer(kind=4), intent(in), dimension(3) :: iend
 
   write(*,*)PRINTRANK,'MYRANKX,MYRANKY,MYRANKZ',MYRANKX,MYRANKY,MYRANKZ
   write(*,*)PRINTRANK,'NRPROCX,NRPROCY,NRPROCZ',NRPROCX,NRPROCY,NRPROCZ
   write(*,*)PRINTRANK,'nx+1',n(1)+1
   write(*,*)PRINTRANK,'ny+1',n(2)+1
   write(*,*)PRINTRANK,'nz+1',n(3)+1
-  write(*,*)PRINTRANK,'nrcppx,nrcppy,nrcppz',nrcppx,nrcppy,nrcppz
-  write(*,*)PRINTRANK,'ibegx,iendx',ibegx,iendx
-  write(*,*)PRINTRANK,'ibegy,iendy',ibegy,iendy
-  write(*,*)PRINTRANK,'ibegz,iendz',ibegz,iendz
+  write(*,*)PRINTRANK,'nrcppx,nrcppy,nrcppz',nrcpp(1),nrcpp(2),nrcpp(3)
+  write(*,*)PRINTRANK,'ibegx,iendx',ibeg(1),iend(1)
+  write(*,*)PRINTRANK,'ibegy,iendy',ibeg(2),iend(2)
+  write(*,*)PRINTRANK,'ibegz,iendz',ibeg(3),iend(3)
 
 end subroutine
 
