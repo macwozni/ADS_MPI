@@ -38,7 +38,7 @@ t = 0
   call CreateCommunicators
   call Initialize(SIZE,SIZE,SIZE,ORDER,ORDER,ORDER,ads)
 
-  allocate(Kqvals(ads%px+1,ads%py+1,ads%pz+1,ads%maxex-ads%minex+1,ads%maxey-ads%miney+1,ads%maxez-ads%minez+1))
+  allocate(Kqvals(ads%p(1)+1,ads%p(2)+1,ads%p(3)+1,ads%maxex-ads%minex+1,ads%maxey-ads%miney+1,ads%maxez-ads%minez+1))
   call InitInputData
   call PrecomputeKq(ads)
 
