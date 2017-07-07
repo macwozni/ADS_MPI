@@ -384,15 +384,15 @@ integer(kind=4) :: ix, iy, iz
 end function
 
 
-subroutine send_piece(items, dst, req, ads)
+subroutine send_piece(items, dst, req, nrcppx,nrcppy,nrcppz)
 implicit none
 include "mpif.h"
-real (kind=8) :: items(:)
-type   (ADS_setup) :: ads
-integer :: dst, req
+real (kind=8), intent(in) :: items(:)
+integer, intent(in) :: dst, req
+integer(kind=4), intent(in) :: nrcppx,nrcppy,nrcppz
 integer :: ierr
 
-  call mpi_isend(items, ads%nrcppz*ads%nrcppx*ads%nrcppy, &
+  call mpi_isend(items, nrcppz*nrcppx*nrcppy, &
     MPI_DOUBLE_PRECISION, dst, 0, MPI_COMM_WORLD, req, ierr)
 
 end subroutine
@@ -435,7 +435,7 @@ integer(kind=4) :: dst, src
   ! Right
   if (MYRANKX < NRPROCX - 1) then
     dst = neighbour(1, 0, 0)
-    call send_piece(spline(:,2,2,2), dst, request(s),ads)
+    call send_piece(spline(:,2,2,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
   endif
   if (MYRANKX > 0) then
@@ -452,9 +452,9 @@ integer(kind=4) :: dst, src
   ! Up
   if (MYRANKY > 0) then
     dst = neighbour(0, -1, 0)
-    call send_piece(spline(:,2,2,2), dst, request(s),ads)
+    call send_piece(spline(:,2,2,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
-    call send_piece(spline(:,1,2,2), dst, request(s),ads)
+    call send_piece(spline(:,1,2,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
   endif
   if (MYRANKY < NRPROCY - 1) then
@@ -473,9 +473,9 @@ integer(kind=4) :: dst, src
   ! Left
   if (MYRANKX > 0) then
     dst = neighbour(-1, 0, 0)
-    call send_piece(ads%R(:,2,2,2), dst, request(s),ads)
+    call send_piece(ads%R(:,2,2,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
-    call send_piece(ads%R(:,2,3,2), dst, request(s),ads)
+    call send_piece(ads%R(:,2,3,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
   endif
   if (MYRANKX < NRPROCX - 1) then
@@ -494,17 +494,17 @@ integer(kind=4) :: dst, src
   ! Above
   if (MYRANKZ < NRPROCZ - 1) then
     dst = neighbour(0, 0, 1)
-    call send_piece(spline(:,2,2,2), dst, request(s),ads)
+    call send_piece(spline(:,2,2,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
-    call send_piece(spline(:,1,2,2), dst, request(s),ads)
+    call send_piece(spline(:,1,2,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
-    call send_piece(spline(:,1,3,2), dst, request(s),ads)
+    call send_piece(spline(:,1,3,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
-    call send_piece(spline(:,2,3,2), dst, request(s),ads)
+    call send_piece(spline(:,2,3,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
-    call send_piece(spline(:,3,3,2), dst, request(s),ads)
+    call send_piece(spline(:,3,3,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
-    call send_piece(spline(:,3,2,2), dst, request(s),ads)
+    call send_piece(spline(:,3,2,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
   endif
   if (MYRANKZ > 0) then
@@ -531,17 +531,17 @@ integer(kind=4) :: dst, src
   ! Down
   if (MYRANKY < NRPROCY - 1) then
     dst = neighbour(0, 1, 0)
-    call send_piece(spline(:,2,2,2), dst, request(s),ads)
+    call send_piece(spline(:,2,2,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
-    call send_piece(spline(:,1,2,2), dst, request(s),ads)
+    call send_piece(spline(:,1,2,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
-    call send_piece(spline(:,3,2,2), dst, request(s),ads)
+    call send_piece(spline(:,3,2,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
-    call send_piece(spline(:,1,2,1), dst, request(s),ads)
+    call send_piece(spline(:,1,2,1), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
-    call send_piece(spline(:,2,2,1), dst, request(s),ads)
+    call send_piece(spline(:,2,2,1), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
-    call send_piece(spline(:,3,2,1), dst, request(s),ads)
+    call send_piece(spline(:,3,2,1), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
   endif
   if (MYRANKY > 0) then
@@ -568,23 +568,23 @@ integer(kind=4) :: dst, src
   ! Below
   if (MYRANKZ > 0) then
     dst = neighbour(0, 0, -1)
-    call send_piece(spline(:,1,1,2), dst, request(s),ads)
+    call send_piece(spline(:,1,1,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
-    call send_piece(spline(:,1,2,2), dst, request(s),ads)
+    call send_piece(spline(:,1,2,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
-    call send_piece(spline(:,1,3,2), dst, request(s),ads)
+    call send_piece(spline(:,1,3,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
-    call send_piece(spline(:,2,1,2), dst, request(s),ads)
+    call send_piece(spline(:,2,1,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
-    call send_piece(spline(:,2,2,2), dst, request(s),ads)
+    call send_piece(spline(:,2,2,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
-    call send_piece(spline(:,2,3,2), dst, request(s),ads)
+    call send_piece(spline(:,2,3,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
-    call send_piece(spline(:,3,1,2), dst, request(s),ads)
+    call send_piece(spline(:,3,1,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
-    call send_piece(spline(:,3,2,2), dst, request(s),ads)
+    call send_piece(spline(:,3,2,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
-    call send_piece(spline(:,3,3,2), dst, request(s),ads)
+    call send_piece(spline(:,3,3,2), dst, request(s),ads%nrcppx,ads%nrcppy,ads%nrcppz)
     s = s + 1
   endif
   if (MYRANKZ < NRPROCZ - 1) then
