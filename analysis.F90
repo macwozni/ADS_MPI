@@ -21,11 +21,11 @@ subroutine NormL2(              &
 use basis, ONLY : BasisData
 use projection_engine, ONLY : global2local
 implicit none
-integer(kind=4), intent(in)  :: n(3), p(3), nelem(3)
-integer(kind=4), intent(in)  :: ibeg(3)
-integer(kind=4), intent(in)  :: iend(3)
-integer(kind=4), intent(in)  :: nrank(3)
-integer(kind=4), intent(in)  :: nrp(3)
+integer(kind=4), dimension(3), intent(in)  :: n, p, nelem
+integer(kind=4), dimension(3), intent(in)  :: ibeg
+integer(kind=4), dimension(3), intent(in)  :: iend
+integer(kind=4), dimension(3), intent(in)  :: nrank
+integer(kind=4), dimension(3), intent(in)  :: nrp
 real   (kind=8), intent(in)  :: Ux(0:n(1)+p(1)+1)
 real   (kind=8), intent(in)  :: Uy(0:n(2)+p(2)+1)
 real   (kind=8), intent(in)  :: Uz(0:n(3)+p(3)+1)
