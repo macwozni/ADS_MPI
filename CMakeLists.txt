@@ -39,7 +39,7 @@ endif (Fortran_COMPILER_NAME MATCHES "gfortran.*")
 
 include_directories("${PROJECT_SOURCE_DIR}/src")
 
-set(SRC .)
+set(SRC src)
 set(ads_SRC
   ${SRC}/knot_vector.F90
   ${SRC}/parallelism.F90
@@ -94,8 +94,8 @@ endfunction()
 if (NOT SKIP_PROBLEMS)
 
   define_problem(oil
-    ${SRC}/input_data.F90
-    ${SRC}/RHS_eq.F90
-    ${SRC}/main.F90)
+    problems/oil/input_data.F90
+    problems/oil/RHS_eq.F90
+    problems/oil/main.F90)
 
 endif()
