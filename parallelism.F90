@@ -27,12 +27,17 @@ contains
 ! -------------------------------------------------------------------
 ! Initializes MPI communicators and global variables of this module.
 ! -------------------------------------------------------------------
-subroutine InitializeParallelism
+subroutine InitializeParallelism(procx,procy,procz)
 USE ISO_FORTRAN_ENV, ONLY : ERROR_UNIT ! access computing environment
 implicit none
 include "mpif.h"
+integer(kind=4), intent(in) :: procx,procy,procz
 character(4)    :: buffer
 integer(kind=4) :: i1, i2, i3
+
+NRPROCX = procx
+NRPROCY = procy
+NRPROCZ = procz
 
 ! Initialize MPI
 call mpi_init(i1)

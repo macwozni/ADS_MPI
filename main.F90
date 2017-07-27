@@ -34,7 +34,7 @@ t = 0
 
   ! prepare the problem dimensions
 
-  call InitializeParallelism
+  call InitializeParallelism(procx,procy,procz)
   call CreateCommunicators
   call Initialize([SIZE,SIZE,SIZE],[ORDER,ORDER,ORDER],ads)
 
