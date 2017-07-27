@@ -27,11 +27,12 @@ contains
 ! -------------------------------------------------------------------
 ! Initializes MPI communicators and global variables of this module.
 ! -------------------------------------------------------------------
-subroutine InitializeParallelism(procx,procy,procz)
+subroutine InitializeParallelism(procx,procy,procz,ierr)
 USE ISO_FORTRAN_ENV, ONLY : ERROR_UNIT ! access computing environment
 implicit none
 include "mpif.h"
-integer(kind=4), intent(in) :: procx,procy,procz
+integer(kind=4), intent(in)  :: procx,procy,procz
+integer(kind=4), intent(out) :: ierr
 character(4)    :: buffer
 integer(kind=4) :: i1, i2, i3
 
@@ -64,6 +65,8 @@ else
   PRINTRANK = buffer
   stop
 endif
+
+ierr=0
 
 end subroutine 
 
@@ -197,6 +200,13 @@ integer(kind=4) :: i
      shifts(1) = 0
   endif
   
+end subroutine
+
+
+subroutine CleanParallelism(ierr)
+implicit none
+integer(kind=4), intent(out) :: ierr
+ierr=0
 end subroutine
 
 

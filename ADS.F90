@@ -72,7 +72,7 @@ contains
 ! -------------------------------------------------------------------
 ! Initialization of clocks and MPI
 ! -------------------------------------------------------------------
-subroutine initialize (n,p,ads)
+subroutine initialize (n,p,ads,mierr)
 use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ
 use parallelism, ONLY : PRINTRANK
 use knot_vector, ONLY : PrepareKnot
@@ -81,6 +81,7 @@ include "mpif.h"
 integer(kind=4), intent(in), dimension(3) :: n
 integer(kind=4), intent(in), dimension(3) :: p
 type(ADS_setup), intent(out) :: ads
+integer(kind=4), intent(out) :: mierr
 integer(kind=4) :: ierr
 
   ads%p = p ! order
@@ -148,6 +149,7 @@ integer(kind=4) :: ierr
   call PrepareKnot(ads%Uy,n(2),p(2),ads%nelem(2))
   call PrepareKnot(ads%Uz,n(3),p(3),ads%nelem(3))
   
+  mierr=0
 end subroutine
 
 
@@ -399,7 +401,7 @@ end subroutine
 ! iter - number of the iteration
 ! t    - time at the beginning of step
 ! -------------------------------------------------------------------
-subroutine Step(iter,RHS_fun,ads)
+subroutine Step(iter,RHS_fun,ads,mierr)
 use parallelism, ONLY :PRINTRANK,MYRANKX,MYRANKY,MYRANKZ
 use communicators, ONLY : COMMX,COMMY,COMMZ
 use reorderRHS, ONLY : ReorderRHSForX,ReorderRHSForY,ReorderRHSForZ
@@ -445,6 +447,7 @@ interface
   end subroutine
 end interface
 type   (ADS_setup) :: ads
+integer(kind=4), intent(out) :: mierr
 integer(kind=4) :: iter
 integer(kind=4) :: i
 integer(kind=4) :: iret, ierr
@@ -650,6 +653,7 @@ integer(kind=4) :: iret, ierr
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
 
+  mierr = 0
 end subroutine
 
 
@@ -658,10 +662,11 @@ end subroutine
 ! -------------------------------------------------------------------
 ! Deallocates all the resources and finalizes MPI.
 ! -------------------------------------------------------------------
-subroutine Cleanup(ads)
+subroutine Cleanup(ads,mierr)
 use parallelism, ONLY : PRINTRANK
 implicit none
 type   (ADS_setup) :: ads
+integer(kind=4), intent(out) :: mierr
 integer(kind=4) :: ierr
 
   if (allocated(ads%shiftsX)) deallocate(ads%shiftsX)
@@ -693,6 +698,8 @@ integer(kind=4) :: ierr
 #ifdef IINFO
   write(*,*)PRINTRANK,"Exiting..."
 #endif
+  
+  mierr = 0
 
 end subroutine
 

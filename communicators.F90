@@ -40,12 +40,13 @@ contains
 ! Creates process groups and communicators for each 'fibre' in each
 ! direction.
 ! -------------------------------------------------------------------
-subroutine CreateCommunicators
+subroutine CreateCommunicators(mierr)
 use parallelism, ONLY : MYRANK,NRPROC,MYRANKX,MYRANKY,MYRANKZ,PRINTRANK,&
   NRPROCX,NRPROCY,NRPROCZ
 USE ISO_FORTRAN_ENV, ONLY : ERROR_UNIT
 implicit none
 include "mpif.h"
+integer(kind=4), intent(out) :: mierr
 integer(kind=4) :: group_comm_world
 integer(kind=4) :: comm_myrank_local
 integer(kind=4) :: processors_X(NRPROCX)
@@ -161,6 +162,8 @@ COMMZ = COMMZALL(myrankx+1,myranky+1)
 #ifdef IPRINT
   write(*,*)PRINTRANK,'COMMX(Y,Z)',COMMX,COMMY,COMMZ
 #endif
+
+mierr=0
 
 end subroutine
 
