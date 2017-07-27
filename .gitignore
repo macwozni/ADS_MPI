@@ -8,4 +8,16 @@ output
 *.vti
 *.swp
 nohup.out
-l2
+*.swp
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+CTestTestfile.cmake
+.cproject
+.project
+.settings
+*.vti
+*.data
+*.gif
+build/
