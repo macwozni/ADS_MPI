@@ -1,0 +1,13 @@
+IGA-ADS
+=======
+
+IGA-ADS is a Fortran framework designed to facilitate creating parallel numerical simulations for time-dependent PDEs using isogeometric finite element method.
+
+
+Requirements
+------------
+
+1. Dependencies
+- BLAS
+- LAPACK
+- MPI
