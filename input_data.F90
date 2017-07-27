@@ -35,6 +35,8 @@ integer(kind=4) :: ORDER
 ! number of elements in one dimension
 integer(kind=4) :: SIZE
 
+integer(kind=4) :: procx,procy,procz
+
 real (kind=8) :: drained = 0
 real (kind=8) :: l2norm,fullnorm
 
@@ -46,7 +48,6 @@ contains
 ! Sets values of parameters (order and size)
 ! -------------------------------------------------------------------
 subroutine InitializeParameters
-use parallelism, ONLY : NRPROCX,NRPROCY,NRPROCZ
 implicit none
 character(100) :: input
 
@@ -56,11 +57,11 @@ character(100) :: input
   call getarg(1,input)
   read(input,*) SIZE
   call getarg(2,input)
-  read(input,*) NRPROCX
+  read(input,*) procx
   call getarg(3,input)
-  read(input,*) NRPROCY
+  read(input,*) procy
   call getarg(4,input)
-  read(input,*) NRPROCZ
+  read(input,*) procz
   call getarg(5,input)
   read(input,*) steps
   call getarg(6,input)
