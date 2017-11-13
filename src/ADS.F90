@@ -96,7 +96,7 @@ contains
       'size of Ux', n(1) + p(1) + 2, 'size of Uy', n(2) + p(2) + 2, 'size of Uz', n(3) + p(3) + 2
 #endif
       
-  if (n(1) < NRPROCX .or. n(2) < NRPROCY .or. n(3) < NRPROCZ) then
+      if (n(1) < NRPROCX .or. n(2) < NRPROCY .or. n(3) < NRPROCZ) then
       write(*, *) 'Number of elements smaller than number of processors'
       stop
    endif
@@ -209,7 +209,7 @@ subroutine ComputeDecomposition(&
    write(*, *) PRINTRANK, 'ibegz,iendz', ibeg(3), iend(3)
 #endif
    
-  ! prepare dimensions vectors
+      ! prepare dimensions vectors
    call FillDimVector(dimensionsX, shiftsX, nrcpp(1), s(2) * s(3), n(1), NRPROCX)
    call FillDimVector(dimensionsY, shiftsY, nrcpp(2), s(1) * s(3), n(2), NRPROCY)
    call FillDimVector(dimensionsZ, shiftsZ, nrcpp(3), s(1) * s(2), n(3), NRPROCZ)
@@ -372,7 +372,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
    write(*, *) 'LDB=', n + 1
 #endif
    
-  ! SUBROUTINE DGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
+      ! SUBROUTINE DGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
    ! .. Scalar Arguments ..
    ! INTEGER            INFO, KL, KU, LDAB, LDB, N, NRHS
    ! .. Array Arguments ..
@@ -389,7 +389,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
    enddo
 #endif
    
-end subroutine
+   end subroutine
 
 
 
@@ -470,7 +470,7 @@ end subroutine
       enddo
 #endif
       
-  !--------------------------------------------------------------------
+      !--------------------------------------------------------------------
       ! Solve the first problem
       !--------------------------------------------------------------------
       call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -479,9 +479,10 @@ end subroutine
       write(*, *) PRINTRANK, '1a) GATHER'
 #endif
       
-  allocate(ads % F_out((ads % n(1) + 1), ads % s(2) * ads % s(3)))
+      allocate(ads % F_out((ads % n(1) + 1), ads % s(2) * ads % s(3)))
 
-      call Gather(ads % F, ads % F_out, ads % n(1), ads % s(1), ads % s(2) * ads % s(3), ads % dimensionsX, ads % shiftsX, COMMX, ierr)
+      call Gather(ads % F, ads % F_out, ads % n(1), ads % s(1), ads % s(2) &
+      *ads % s(3), ads % dimensionsX, ads % shiftsX, COMMX, ierr)
 
 #ifdef IPRINT
       write(*, *) PRINTRANK, 'after call mpi_gather'
@@ -498,8 +499,10 @@ end subroutine
          write(*, *) PRINTRANK, '1b) SOLVE THE FIRST PROBLEM'
 #endif
          
-    call ComputeMassMatrix(ads % KL(1), ads % KU(1), ads % Ux, ads % p(1), ads % n(1), ads % nelem(1), ads % Mx)
-         call SolveOneDirection(ads % F_out, ads % s(2) * ads % s(3), ads % n(1), ads % KL(1), ads % KU(1), ads % p(1), ads % Mx, ads % IPIVx)
+         call ComputeMassMatrix(ads % KL(1), ads % KU(1), ads % Ux, ads % p(1), &
+         ads % n(1), ads % nelem(1), ads % Mx)
+         call SolveOneDirection(ads % F_out, ads % s(2) * ads % s(3), ads % n(1), &
+         ads % KL(1), ads % KU(1), ads % p(1), ads % Mx, ads % IPIVx)
       endif
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -508,7 +511,8 @@ end subroutine
       write(*, *) PRINTRANK, '1c) SCATTER'
 #endif
       allocate(ads % F2_out(ads % s(1), ads % s(2) * ads % s(3)))
-      call Scatter(ads % F_out, ads % F2_out, ads % n(1), ads % s(1), ads % s(2) * ads % s(3), ads % dimensionsX, ads % shiftsX, COMMX, ierr)
+      call Scatter(ads % F_out, ads % F2_out, ads % n(1), ads % s(1), ads % s(2) * &
+      ads % s(3), ads % dimensionsX, ads % shiftsX, COMMX, ierr)
       deallocate(ads % F_out)
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -527,7 +531,7 @@ end subroutine
       enddo
 #endif
       
-  !--------------------------------------------------------------------
+      !--------------------------------------------------------------------
       ! Solve the second problem
       !--------------------------------------------------------------------
       call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -536,8 +540,9 @@ end subroutine
       write(*, *) PRINTRANK, '2a) GATHER'
 #endif
       
-  allocate(ads % F2_out((ads % n(2) + 1), ads % s(1) * ads % s(3)))
-      call Gather(ads % F2, ads % F2_out, ads % n(2), ads % s(2), ads % s(1) * ads % s(3), ads % dimensionsY, ads % shiftsY, COMMY, ierr)
+      allocate(ads % F2_out((ads % n(2) + 1), ads % s(1) * ads % s(3)))
+      call Gather(ads % F2, ads % F2_out, ads % n(2), ads % s(2), ads % s(1) * ads % s(3), &
+      ads % dimensionsY, ads % shiftsY, COMMY, ierr)
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
 
@@ -546,8 +551,10 @@ end subroutine
          write(*, *) PRINTRANK, '2b) SOLVE THE SECOND PROBLEM'
 #endif
          
-    call ComputeMassMatrix(ads % KL(2), ads % KU(2), ads % Uy, ads % p(2), ads % n(2), ads % nelem(2), ads % My)
-         call SolveOneDirection(ads % F2_out, ads % s(1) * ads % s(3), ads % n(2), ads % KL(2), ads % KU(2), ads % p(2), ads % My, ads % IPIVy)
+         call ComputeMassMatrix(ads % KL(2), ads % KU(2), ads % Uy, ads % p(2), ads % n(2), &
+         ads % nelem(2), ads % My)
+         call SolveOneDirection(ads % F2_out, ads % s(1) * ads % s(3), ads % n(2), ads % KL(2), &
+         ads % KU(2), ads % p(2), ads % My, ads % IPIVy)
       endif
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -556,9 +563,10 @@ end subroutine
       write(*, *) PRINTRANK, '2c) SCATHER'
 #endif
       
-  ! CORRECTION
+      ! CORRECTION
       allocate(ads % F3_out(ads % s(3), ads % s(1) * ads % s(3)))
-      call Scatter(ads % F2_out, ads % F3_out, ads % n(2), ads % s(2), ads % s(1) * ads % s(3), ads % dimensionsY, ads % shiftsY, COMMY, ierr)
+      call Scatter(ads % F2_out, ads % F3_out, ads % n(2), ads % s(2), ads % s(1) * ads % s(3), &
+      ads % dimensionsY, ads % shiftsY, COMMY, ierr)
       deallocate(ads % F2_out)
 
 #ifdef IPRINT
@@ -570,7 +578,7 @@ end subroutine
       enddo
 #endif
       
-  call mpi_barrier(MPI_COMM_WORLD, ierr)
+      call mpi_barrier(MPI_COMM_WORLD, ierr)
 
 #ifdef IINFO
       write(*, *) PRINTRANK, '2d) REORDER'
@@ -587,16 +595,17 @@ end subroutine
       enddo
 #endif
       
-  !--------------------------------------------------------------------
+      !--------------------------------------------------------------------
       ! Solve the third problem
       !--------------------------------------------------------------------
 #ifdef IINFO
       write(*, *) PRINTRANK, '3a) GATHER'
 #endif
       
-  call mpi_barrier(MPI_COMM_WORLD, ierr)
+      call mpi_barrier(MPI_COMM_WORLD, ierr)
       allocate(ads % F3_out((ads % n(3) + 1), ads % s(1) * ads % s(2)))
-      call Gather(ads % F3, ads % F3_out, ads % n(3), ads % s(3), ads % s(1) * ads % s(2), ads % dimensionsZ, ads % shiftsZ, COMMZ, ierr)
+      call Gather(ads % F3, ads % F3_out, ads % n(3), ads % s(3), ads % s(1) * ads % s(2), &
+      ads % dimensionsZ, ads % shiftsZ, COMMZ, ierr)
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
 
@@ -605,8 +614,10 @@ end subroutine
          write(*, *) PRINTRANK, '3b) SOLVE THE THIRD PROBLEM'
 #endif
          
-    call ComputeMassMatrix(ads % KL(3), ads % KU(3), ads % Uz, ads % p(3), ads % n(3), ads % nelem(3), ads % Mz)
-         call SolveOneDirection(ads % F3_out, ads % s(1) * ads % s(2), ads % n(3), ads % KL(3), ads % KU(3), ads % p(3), ads % Mz, ads % IPIVz)
+         call ComputeMassMatrix(ads % KL(3), ads % KU(3), ads % Uz, ads % p(3), ads % n(3), &
+         ads % nelem(3), ads % Mz)
+         call SolveOneDirection(ads % F3_out, ads % s(1) * ads % s(2), ads % n(3), ads % KL(3), &
+         ads % KU(3), ads % p(3), ads % Mz, ads % IPIVz)
       endif
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -615,9 +626,10 @@ end subroutine
       write(*, *) PRINTRANK, '3c) SCATTER'
 #endif
       
-  ! CORRECTION
+      ! CORRECTION
       allocate(ads % F_out(ads % s(3), ads % s(1) * ads % s(2)))
-      call Scatter(ads % F3_out, ads % F_out, ads % n(3), ads % s(3), ads % s(1) * ads % s(2), ads % dimensionsZ, ads % shiftsZ, COMMZ, ierr)
+      call Scatter(ads % F3_out, ads % F_out, ads % n(3), ads % s(3), ads % s(1) * ads % s(2), &
+      ads % dimensionsZ, ads % shiftsZ, COMMZ, ierr)
       deallocate(ads % F3_out)
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -640,7 +652,8 @@ end subroutine
 #ifdef IINFO
       write(*, *) PRINTRANK, '3e) DISTRIBUTE SOLUTION'
 #endif
-      ads % R(1:ads % s(1) * ads % s(2) * ads % s(3), 2, 2, 2) = reshape(ads % F, [ads % s(1) * ads % s(2) * ads % s(3)])
+      ads % R(1:ads % s(1) * ads % s(2) * ads % s(3), 2, 2, 2) = reshape(ads % F, &
+      [ads % s(1) * ads % s(2) * ads % s(3)])
       call DistributeSpline(ads % R, [ads % nrcpp(3), ads % nrcpp(1), ads % nrcpp(2)], ads % R)
 
 #ifdef IPRINT
