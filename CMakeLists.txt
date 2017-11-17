@@ -29,7 +29,7 @@ elseif (Fortran_COMPILER_NAME MATCHES "ifort.*")
   # ifort (untested) 
   ######################3
   # NOT WORKING #
-  set (CMAKE_Fortran_FLAGS_RELEASE "-funroll-all-loops -O3 -module . -std95")
+  set (CMAKE_Fortran_FLAGS_RELEASE "-funroll-all-loops -O3 -module .")
   set (CMAKE_Fortran_FLAGS_DEBUG   "-fbounds-check -O0 -g")
 else (Fortran_COMPILER_NAME MATCHES "gfortran.*")
   message ("CMAKE_Fortran_COMPILER full path: " ${CMAKE_Fortran_COMPILER})
@@ -43,21 +43,21 @@ include_directories("${PROJECT_SOURCE_DIR}/src")
 
 set(SRC src)
 set(ads_SRC
-  ${SRC}/knot_vector.F95
-  ${SRC}/parallelism.F95
-  ${SRC}/communicators.F95
-  ${SRC}/gauss.F95
-  ${SRC}/basis.F95
-  ${SRC}/math.F95
-  ${SRC}/reorderRHS.F95
-  ${SRC}/my_mpi.F95
-  ${SRC}/projection_engine.F95
-  ${SRC}/analysis.F95
-  ${SRC}/int2str.F95
-  ${SRC}/plot.F95
-  ${SRC}/gnuplot.F95
-  ${SRC}/vtk.F95
-  ${SRC}/ADS.F95
+  ${SRC}/knot_vector.F90
+  ${SRC}/parallelism.F90
+  ${SRC}/communicators.F90
+  ${SRC}/gauss.F90
+  ${SRC}/basis.F90
+  ${SRC}/math.F90
+  ${SRC}/reorderRHS.F90
+  ${SRC}/my_mpi.F90
+  ${SRC}/projection_engine.F90
+  ${SRC}/analysis.F90
+  ${SRC}/int2str.F90
+  ${SRC}/plot.F90
+  ${SRC}/gnuplot.F90
+  ${SRC}/vtk.F90
+  ${SRC}/ADS.F90
   )
 
 # --------------------------------------------------------------------
@@ -96,8 +96,8 @@ endfunction()
 if (NOT SKIP_PROBLEMS)
 
   define_problem(oil
-    problems/oil/input_data.F95
-    problems/oil/RHS_eq.F95
-    problems/oil/main.F95)
+    problems/oil/input_data.F90
+    problems/oil/RHS_eq.F90
+    problems/oil/main.F90)
 
 endif()
