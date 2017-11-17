@@ -1,0 +1,31 @@
+require 'rubygems'
+require 'fruit_processor'
+require 'rake/clean'
+include Rake::DSL if defined?(Rake::DSL)
+load '../fruit/rake_base.rb'
+
+require 'misc' #just for os_install
+
+$build_dir = "."
+$goal = "knot_vector_test.exe"
+
+task :default => [:test]
+# this is comment
+
+task :test => [:clean] do
+  #following the procedure in "Add Fruit to Your Diet in 3 Minutes"
+  os_install("../fruit/src/fruit.F90", "fruit.F90")
+  os_install("../fruit/src/fruit_util.F90", "fruit_util.F90")
+  os_install("../src/knot_vector.F90", "knot_vector.F90")
+  sh "#{$compiler} #{$option} -c fruit_util.F90"
+  sh "#{$compiler} #{$option} -c fruit.F90"
+  sh "#{$compiler} #{$option} -c knot_vector.F90"
+  sh "#{$compiler} #{$option} -c knot_vector_test.F90"
+  sh "#{$compiler} #{$option} -c fruit_driver.F90"
+  sh "#{$linker} #{$linker_option} #{$option_exe}#{$goal} *.#{$ext_obj}"
+  sh "./#{$goal}"
+end
+
+CLEAN.include(FileList["fruit.F90", "fruit_util.F90", "knot_vector.F90", "*.mod", "*.#{$ext_obj}", "*.xml", $goal])
+
+
