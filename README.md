@@ -20,12 +20,12 @@ Requirements
 
 To compile the code, create a directory for the build and execute following commands:
 
-$ cmake <options> ${PROJECT_DIR}
-$ make
+\$ cmake <options> \${PROJECT_DIR}
+\$ make
 
-where ${PROJECT_DIR} is the root directory of the project source. Options allow customizing which parts of the project are compiled. By default example applications are compiled.
+where \${PROJECT_DIR} is the root directory of the project source. Options allow customizing which parts of the project are compiled. By default example applications are compiled.
 
 - SKIP_PROBLEMS - if ON, the example problems are not compiled (default: OFF)
 
 Options are specified as -Doption=value, e.g. 
-$ cmake -DSKIP_PROBLEMS=ON ..
+\$ cmake -DSKIP_PROBLEMS=ON ..
