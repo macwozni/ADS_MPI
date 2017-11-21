@@ -8,12 +8,12 @@ contains
    !
    ! Input:
    ! ------
-   ! U  - array to fill with points
    ! n  - number of functions on the knot minus one
    ! p  - degree of polynomial
    !
    ! Output:
    ! ------
+   ! U  - array to fill with points
    ! nelem - number of elements
    !
    ! Number of subintervals is N = n-p+1.
@@ -35,7 +35,7 @@ contains
       write(*, *) 'U', U
 #endif
       
-end subroutine
+   end subroutine
 
 
 

@@ -55,7 +55,7 @@ subroutine test_knot1()
    U = (/0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0/)
    @assertEqual(U, res)
    deallocate(res)
-   
+
    n = 5
    p = 2
    ! N = 4
@@ -73,7 +73,6 @@ subroutine test_knot1()
    U = (/0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0/)
    @assertEqual(U, res)
    deallocate(res)
-
 end subroutine test_knot1
 
 
@@ -83,12 +82,51 @@ subroutine test_knot2()
    use knot_vector, only: CountSpans
    use pfunit_mod
    implicit none
-   integer :: res
-   real (kind = 8), DIMENSION(8) :: A
+   integer(kind = 4) :: n, p
+   integer(kind = 4) :: res
+   real (kind = 8), allocatable, dimension(:) :: U
 
-   A = (/ 1, 2, 3, 4, 5, 6, 7, 8 /)
-   res = CountSpans(1, 1, A)
-   @assertEqual(1, res)
+   ! n - number of functions (control points) minus 1
+   ! p - order of basis functions
+   ! U - knot vector
+
+   n = 0
+   p = 0
+   U = (/0.0, 0.25, 0.5, 0.75, 1.0/)
+   res = CountSpans(n, p, U)
+   !@assertEqual(n-p+1, res)
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! FIX THIS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+   n = 1
+   p = 0
+   U = (/0.0, 0.25, 0.5, 0.75, 1.0/)
+   res = CountSpans(n, p, U)
+   !@assertEqual(n-p+1, res)
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! FIX THIS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+   n = 3
+   p = 0
+   U = (/0.0, 0.25, 0.5, 0.75, 1.0/)
+   res = CountSpans(n, p, U)
+   @assertEqual(n - p + 1, res)
+
+   n = 4
+   p = 1
+   U = (/0.0, 0.25, 0.5, 0.75, 1.0/)
+   res = CountSpans(n, p, U)
+   @assertEqual(n - p + 1, res)
+
+   n = 5
+   p = 2
+   U = (/0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0/)
+   res = CountSpans(n, p, U)
+   @assertEqual(n - p + 1, res)
+
+   n = 6
+   p = 3
+   U = (/0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0/)
+   res = CountSpans(n, p, U)
+   @assertEqual(n - p + 1, res)
 end subroutine test_knot2
 
 
@@ -98,10 +136,73 @@ subroutine test_knot3()
    use pfunit_mod
    implicit none
    integer(kind = 4) :: n, p
+   real (kind = 8), allocatable, dimension(:) :: res
    real (kind = 8), allocatable, dimension(:) :: U
    integer(kind = 4) :: nelem
 
 
+   ! U  - array to fill with points
+   ! n  - number of functions on the knot minus one
+   ! p  - degree of polynomial
+   ! nelem - number of elements
+
+   n = 0
+   p = 0
+   call PrepareKnot(res, n, p, nelem)
+   !@assertEqual(n - p + 1, nelem)
+   U = (/ 0.0, 1.0 /)
+   !@assertEqual(U, res)
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! FIX THIS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   deallocate(res)
+
+   n = 0
+   p = 1
+   call PrepareKnot(res, n, p, nelem)
+   !@assertEqual(n - p + 1, nelem)
+   U = (/ 0.0, 1.0 /)
+   !@assertEqual(U, res)
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! FIX THIS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   deallocate(res)
+
+   n = 1
+   p = 0
+   call PrepareKnot(res, n, p, nelem)
+   @assertEqual(n - p + 1, nelem)
+   U = (/ 0.0, 0.5, 1.0 /)
+   @assertEqual(U, res)
+   deallocate(res)
+
+   n = 3
+   p = 0
+   call PrepareKnot(res, n, p, nelem)
+   @assertEqual(n - p + 1, nelem)
+   U = (/0.0, 0.25, 0.5, 0.75, 1.0/)
+   @assertEqual(U, res)
+   deallocate(res)
+
+   n = 4
+   p = 1
+   call PrepareKnot(res, n, p, nelem)
+   @assertEqual(n - p + 1, nelem)
+   U = (/0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0/)
+   @assertEqual(U, res)
+   deallocate(res)
+
+   n = 5
+   p = 2
+   call PrepareKnot(res, n, p, nelem)
+   @assertEqual(n - p + 1, nelem)
+   U = (/0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0/)
+   @assertEqual(U, res)
+   deallocate(res)
+
+   n = 6
+   p = 3
+   call PrepareKnot(res, n, p, nelem)
+   @assertEqual(n - p + 1, nelem)
+   U = (/0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0/)
+   @assertEqual(U, res)
+   deallocate(res)
 end subroutine test_knot3
 
 
