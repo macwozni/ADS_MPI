@@ -1,4 +1,4 @@
-FORTRAN=ifort
+FORTRAN=gfortran
 FLAGS=-O0
 
 SRCDIR=../src
@@ -6,7 +6,7 @@ TESTDIR=.
 FRUITDIR=../fruit/src
 
 OBJS=knot_vector.o
-TESTS=knot_vector_test.o fruit_driver.o
+TESTS=test_utils.o knot_vector_test.o fruit_driver.o
 FRUITS=fruit_util.o fruit.o
 
 .PHONY : all

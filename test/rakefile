@@ -20,6 +20,7 @@ task :test => [:clean] do
   sh "#{$compiler} #{$option} -c fruit_util.F90"
   sh "#{$compiler} #{$option} -c fruit.F90"
   sh "#{$compiler} #{$option} -c knot_vector.F90"
+  sh "#{$compiler} #{$option} -c test_utils.F90"
   sh "#{$compiler} #{$option} -c knot_vector_test.F90"
   sh "#{$compiler} #{$option} -c fruit_driver.F90"
   sh "#{$linker} #{$linker_option} #{$option_exe}#{$goal} *.#{$ext_obj}"
