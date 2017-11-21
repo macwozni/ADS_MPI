@@ -12,7 +12,7 @@ testSuites.inc: $(SRCS)
 
 FFLAGS += -I$(SRC_DIR) -I$(PFUNIT)/mod
 
-FFLAGS += -fpp
+FFLAGS += 
 
 %.F90: %.pf
 	$(PFUNIT)/bin/pFUnitParser.py $<  $@

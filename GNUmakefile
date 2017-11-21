@@ -10,13 +10,6 @@ VPATH = . $(SRC_DIR) $(TEST_DIR)
 
 include $(PFUNIT)/include/base.mk
 
-
-# The following may be redundant since FC should already be
-# appropriately set in include/base.mk.
-ifeq ($(USEMPI),YES)
-   FC=mpif90
-endif
-
 EXE = tests$(EXE_EXT)
 ifneq ($(UNAME),Windows)
 	LIBS = -L$(PFUNIT)/lib -lpfunit 

@@ -8,15 +8,14 @@ subroutine test_knot1()
    real (kind = 8), allocatable, dimension(:) :: res
 
    ! Number of subintervals is N = n-p+1.
-
+   
    n = 0
    p = 0
    ! N = 1
    allocate(res(n + p + 2))
    call FillOpenKnot(res, n, p)
    U = (/ 0.0, 1.0 /)
-   !@assertEqual(U, res)
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! FIX THIS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   @assertEqual(U, res)
    deallocate(res)
 
    n = 0
@@ -24,9 +23,8 @@ subroutine test_knot1()
    ! N = 0
    allocate(res(n + p + 2))
    call FillOpenKnot(res, n, p)
-   U = (/ 0.0, 1.0, 1.0 /)
-   !@assertEqual(U, res)
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! FIX THIS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   U = (/ 0.0, 1.0, 1.0 /) ! this is arbitrary
+   @assertEqual(U, res)
    deallocate(res)
 
    n = 1
@@ -92,17 +90,21 @@ subroutine test_knot2()
 
    n = 0
    p = 0
-   U = (/0.0, 0.25, 0.5, 0.75, 1.0/)
+   U = (/0.0, 1.0/)
    res = CountSpans(n, p, U)
-   !@assertEqual(n-p+1, res)
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! FIX THIS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   @assertEqual(n-p+1, res)
 
+   n = 0
+   p = 1
+   U = (/0.0, 1.0, 1.0/) ! this is arbitrary
+   res = CountSpans(n, p, U)
+   @assertEqual(n-p+1, res)
+   
    n = 1
    p = 0
-   U = (/0.0, 0.25, 0.5, 0.75, 1.0/)
+   U = (/ 0.0, 0.5, 1.0 /)
    res = CountSpans(n, p, U)
-   !@assertEqual(n-p+1, res)
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! FIX THIS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   @assertEqual(n-p+1, res)
 
    n = 3
    p = 0
@@ -146,22 +148,29 @@ subroutine test_knot3()
    ! p  - degree of polynomial
    ! nelem - number of elements
 
+   n = -1
+   p = 0
+   call PrepareKnot(res, n, p, nelem)
+   @assertEqual(n - p + 1, nelem)
+   U = (/ 0.0, 0.0 /)
+   !@assertEqual(U, res)
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! FIX THIS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   deallocate(res)
+   
    n = 0
    p = 0
    call PrepareKnot(res, n, p, nelem)
-   !@assertEqual(n - p + 1, nelem)
+   @assertEqual(n - p + 1, nelem)
    U = (/ 0.0, 1.0 /)
-   !@assertEqual(U, res)
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! FIX THIS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   @assertEqual(U, res)
    deallocate(res)
 
    n = 0
    p = 1
    call PrepareKnot(res, n, p, nelem)
-   !@assertEqual(n - p + 1, nelem)
-   U = (/ 0.0, 1.0 /)
-   !@assertEqual(U, res)
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! FIX THIS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   @assertEqual(n - p + 1, nelem)
+   U = (/ 0.0, 1.0, 1.0 /) ! this is arbitrary
+   @assertEqual(U, res)
    deallocate(res)
 
    n = 1
