@@ -24,5 +24,7 @@ build/
 test/*.xml
 test/tests
 .directory
+*.x
+*.xml
 
 
