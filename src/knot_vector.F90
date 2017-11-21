@@ -1,24 +1,42 @@
+!------------------------------------------------------------------------------
+! AGH University of Science and Technology, Krakow, Poland
+!------------------------------------------------------------------------------
+!
+! MODULE: knot_vector
+!
+!> @author
+!> Maciej Wozniak
+!
+! DESCRIPTION: 
+!> This module contains all functionality associated to creating and filling knot vectors.
+!
+! REVISION HISTORY:
+! 21 11 2017 - Initial Version
+! 
+!------------------------------------------------------------------------------
+
 module knot_vector
+
 
 contains
 
-
-   ! -------------------------------------------------------------------
-   ! Allocates and fills the knot vector on [0, 1]
-   !
-   ! Input:
-   ! ------
-   ! n  - number of functions on the knot minus one
-   ! p  - degree of polynomial
-   !
-   ! Output:
-   ! ------
-   ! U  - array to fill with points
-   ! nelem - number of elements
-   !
-   ! Number of subintervals is N = n-p+1.
-   ! 0 and 1 are repeated (p+1) times.
-   ! -------------------------------------------------------------------
+!---------------------------------------------------------------------------  
+!> @author 
+!> Maciej Wozniak
+!
+! DESCRIPTION: 
+!> Allocates and fills the knot vector on \f$  [0, 1] \f$.
+!>Number of subintervals is \f$ N = n-p+1 \f$.
+!> \f$ 0 \f$ and \f$ 1 \f$ are repeated \f$ (p+1) \f$ times.
+!
+! REVISION HISTORY:
+! 21 11 2017 - Initial Version
+!
+!> @param[in] n  - number of functions on the knot minus one
+!> @param[in] p  - degree of polynomial
+!> @param[out] U  - array to fill with points
+!> @param[out] nelem - number of elements
+!---------------------------------------------------------------------------  
    subroutine PrepareKnot(U, n, p, nelem)
       implicit none
       integer(kind = 4), intent(in) :: n, p
@@ -38,7 +56,22 @@ contains
    end subroutine
 
 
-
+!---------------------------------------------------------------------------  
+!> @author 
+!> Maciej Wozniak
+!
+! DESCRIPTION: 
+   !> Fills knot vector on [0, 1].
+!> Number of subintervals is \f$ N = n-p+1 \f$.
+!> \f$ 0 \f$ and \f$ 1 \f$ are repeated \f$ (p+1) \f$ times.
+!
+! REVISION HISTORY:
+! 21 11 2017 - Initial Version
+!
+!> @param[in] n  - number of functions on the knot minus one
+!> @param[in] p  - degree of polynomial
+!> @param[out] U  - array to fill with points
+!--------------------------------------------------------------------------- 
       ! -------------------------------------------------------------------
       ! Fills knot vector on [0, 1]
       !
@@ -69,7 +102,21 @@ contains
 
       end subroutine
 
-
+!---------------------------------------------------------------------------  
+!> @author 
+!> Maciej Wozniak
+!
+! DESCRIPTION: 
+!> Calculates number of elements (nonempty subintervals) in the knot vector.
+!
+! REVISION HISTORY:
+! 21 11 2017 - Initial Version
+!
+!> @param[in] n - number of functions (control points) minus 1
+!> @param[in] p - order of basis functions
+!> @param[in] U - knot vector
+!> @return nelem - number of elements
+!---------------------------------------------------------------------------  
 
       ! -------------------------------------------------------------------
       ! Calculates number of elements (nonempty subintervals) in the knot 
