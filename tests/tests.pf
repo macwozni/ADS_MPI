@@ -7,11 +7,70 @@ subroutine test_knot1()
    real (kind = 8), allocatable, dimension(:) :: U
    real (kind = 8), allocatable, dimension(:) :: res
 
+   ! Number of subintervals is N = n-p+1.
+
    n = 0
    p = 0
+   ! N = 1
    allocate(res(n + p + 2))
    call FillOpenKnot(res, n, p)
-   U = (/ 0.d0, 1.d0 /)
+   U = (/ 0.0, 1.0 /)
+   !@assertEqual(U, res)
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! FIX THIS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   deallocate(res)
+
+   n = 0
+   p = 1
+   ! N = 0
+   allocate(res(n + p + 2))
+   call FillOpenKnot(res, n, p)
+   U = (/ 0.0, 1.0, 1.0 /)
+   !@assertEqual(U, res)
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! FIX THIS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   deallocate(res)
+
+   n = 1
+   p = 0
+   ! N = 2
+   allocate(res(n + p + 2))
+   call FillOpenKnot(res, n, p)
+   U = (/ 0.0, 0.5, 1.0 /)
+   @assertEqual(U, res)
+   deallocate(res)
+
+   n = 3
+   p = 0
+   ! N = 4
+   allocate(res(n + p + 2))
+   call FillOpenKnot(res, n, p)
+   U = (/0.0, 0.25, 0.5, 0.75, 1.0/)
+   @assertEqual(U, res)
+   deallocate(res)
+
+   n = 4
+   p = 1
+   ! N = 4
+   allocate(res(n + p + 2))
+   call FillOpenKnot(res, n, p)
+   U = (/0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0/)
+   @assertEqual(U, res)
+   deallocate(res)
+   
+   n = 5
+   p = 2
+   ! N = 4
+   allocate(res(n + p + 2))
+   call FillOpenKnot(res, n, p)
+   U = (/0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0/)
+   @assertEqual(U, res)
+   deallocate(res)
+
+   n = 6
+   p = 3
+   ! N = 4
+   allocate(res(n + p + 2))
+   call FillOpenKnot(res, n, p)
+   U = (/0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0/)
    @assertEqual(U, res)
    deallocate(res)
 
