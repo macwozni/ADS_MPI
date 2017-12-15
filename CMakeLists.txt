@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.5)
 project (ADS)
 enable_language (Fortran)
 
@@ -21,23 +21,23 @@ endif()
 # FFLAGS depend on the compiler
 get_filename_component (Fortran_COMPILER_NAME ${CMAKE_Fortran_COMPILER} NAME)
 
-if (Fortran_COMPILER_NAME MATCHES "gfortran.*")
-  # gfortran
-  set (CMAKE_Fortran_FLAGS_RELEASE "-pthread -funroll-all-loops -fno-f2c  -std=f2008 -O3")
-  set (CMAKE_Fortran_FLAGS_DEBUG   "-fno-f2c -O0 -g")
-elseif (Fortran_COMPILER_NAME MATCHES "ifort.*")
-  # ifort (untested) 
-  ######################3
-  # NOT WORKING #
-  set (CMAKE_Fortran_FLAGS_RELEASE "-funroll-all-loops -O3 -std08 -module .")
-  set (CMAKE_Fortran_FLAGS_DEBUG   "-fbounds-check -O0 -g")
-else (Fortran_COMPILER_NAME MATCHES "gfortran.*")
-  message ("CMAKE_Fortran_COMPILER full path: " ${CMAKE_Fortran_COMPILER})
-  message ("Fortran compiler: " ${Fortran_COMPILER_NAME})
-  message ("No optimized Fortran compiler flags are known, we just try -O2...")
-  set (CMAKE_Fortran_FLAGS_RELEASE "-O2  -std03")
-  set (CMAKE_Fortran_FLAGS_DEBUG   "-O0 -g -std03")
-endif (Fortran_COMPILER_NAME MATCHES "gfortran.*")
+if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+    set(dialect "-ffree-form -std=f2008 -fimplicit-none  -fno-f2c")
+    set(bounds "-fbounds-check")
+    set(realeaseopts "-O3  -pthread -funroll-all-loops")
+    set(debugopts "-O0 -g3")
+elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+    set(dialect "-std08  -module . -implicitnone")
+    set(bounds " -check bounds")
+    set(realeaseopts "-funroll-all-loops -O3")
+    set(debugopts "-O0 -g -traceback")
+endif()
+
+set(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG} ${bounds}")
+set(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG} ${debugopts}")
+set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${dialect}")
+set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_RELEASE_FLAGS} ${realeaseopts}")
+
 
 include_directories("${PROJECT_SOURCE_DIR}/src")
 

@@ -13,7 +13,7 @@ Requirements
 - MPI
 
 2. Tools
-- compiler: reasonable Fortran90 support is required (framework has been tested with ifort 14.0.2 and gfortran 4.8.5)
+- compiler: reasonable Fortran2008 support is required (framework has been tested with ifort 14.0.2 and gfortran 4.8.5)
 - build system: CMake 3.1 or higher
 
 3. Compilation
