@@ -44,8 +44,8 @@ contains
       use parallelism, ONLY: MYRANK, NRPROC, MYRANKX, MYRANKY, MYRANKZ, PRINTRANK, &
       NRPROCX, NRPROCY, NRPROCZ
       USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT
+      use mpi
       implicit none
-      include "mpif.h"
       integer(kind = 4), intent(out) :: mierr
       integer(kind = 4) :: group_comm_world
       integer(kind = 4) :: comm_myrank_local

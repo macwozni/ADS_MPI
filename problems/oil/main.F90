@@ -8,10 +8,10 @@ use communicators, ONLY : CreateCommunicators
 use RHS_eq
 use ADSS
 use input_data
+use mpi
 
 implicit none
 
-include "mpif.h"
 
 ! Iteration counter
 integer :: iter = 0

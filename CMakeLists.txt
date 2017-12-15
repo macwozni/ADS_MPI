@@ -29,7 +29,7 @@ elseif (Fortran_COMPILER_NAME MATCHES "ifort.*")
   # ifort (untested) 
   ######################3
   # NOT WORKING #
-  set (CMAKE_Fortran_FLAGS_RELEASE "-funroll-all-loops -O3 -module .")
+  set (CMAKE_Fortran_FLAGS_RELEASE "-funroll-all-loops -O3 -std08 -module .")
   set (CMAKE_Fortran_FLAGS_DEBUG   "-fbounds-check -O0 -g")
 else (Fortran_COMPILER_NAME MATCHES "gfortran.*")
   message ("CMAKE_Fortran_COMPILER full path: " ${CMAKE_Fortran_COMPILER})

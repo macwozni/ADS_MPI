@@ -50,21 +50,23 @@ contains
 subroutine InitializeParameters
 implicit none
 character(100) :: input
+integer(kind=4) :: length
+integer(kind=4) :: status
 
   ! ./l2 <size> <procx> <procy> <procz> <nsteps> <dt>
   ORDER = 2
 
-  call getarg(1,input)
+  call GET_COMMAND_ARGUMENT(1,input,length,status)
   read(input,*) SIZE
-  call getarg(2,input)
+  call GET_COMMAND_ARGUMENT(2,input,length,status)
   read(input,*) procx
-  call getarg(3,input)
+  call GET_COMMAND_ARGUMENT(3,input,length,status)
   read(input,*) procy
-  call getarg(4,input)
+  call GET_COMMAND_ARGUMENT(4,input,length,status)
   read(input,*) procz
-  call getarg(5,input)
+  call GET_COMMAND_ARGUMENT(5,input,length,status)
   read(input,*) steps
-  call getarg(6,input)
+  call GET_COMMAND_ARGUMENT(6,input,length,status)
   read(input,*) Dt
 
 end subroutine
@@ -76,8 +78,8 @@ end subroutine
 
 subroutine ComputeResults()
 use parallelism, ONLY : MYRANK
+use mpi
 implicit none
-include "mpif.h"
 real   (kind=8) :: fulldrained
 integer(kind=4) :: ierr
 
@@ -97,33 +99,35 @@ subroutine InitPumps()
 implicit none
 character(100)  :: input
 integer(kind=4) :: i, arg = 7 ! First argument after "technical" ones
+integer(kind=4) :: length
+integer(kind=4) :: status
 
-call getarg(arg,input)
+call GET_COMMAND_ARGUMENT(arg,input,length,status)
 read(input,*) npumps
 arg = arg + 1
 allocate(pumps(3,npumps))
 
 do i = 1,npumps
-  call getarg(arg, input)
+  call GET_COMMAND_ARGUMENT(arg,input,length,status)
   read(input,*) pumps(1,i)
-  call getarg(arg + 1, input)
+  call GET_COMMAND_ARGUMENT(arg+1,input,length,status)
   read(input,*) pumps(2,i)
-  call getarg(arg + 2, input)
+  call GET_COMMAND_ARGUMENT(arg+2,input,length,status)
   read(input,*) pumps(3,i)
   arg = arg + 3
 enddo
 
-call getarg(arg,input)
+  call GET_COMMAND_ARGUMENT(arg,input,length,status)
 read(input,*) ndrains
 arg = arg + 1
 allocate(drains(3,ndrains))
 
 do i = 1,ndrains
-  call getarg(arg, input)
+  call GET_COMMAND_ARGUMENT(arg,input,length,status)
   read(input,*) drains(1,i)
-  call getarg(arg + 1, input)
+  call GET_COMMAND_ARGUMENT(arg+1,input,length,status)
   read(input,*) drains(2,i)
-  call getarg(arg + 2, input)
+  call GET_COMMAND_ARGUMENT(arg+2,input,length,status)
   read(input,*) drains(3,i)
   arg = arg + 3
 enddo

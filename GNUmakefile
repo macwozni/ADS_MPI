@@ -32,7 +32,7 @@ SUT:
 
 tests: all
 
-$(EXE): testSuites.inc tests.pf knot_vector.F90 SUT
+$(EXE): testSuites.inc test_knot.pf knot_vector.F90 SUT
 	$(FC) -o $@ -I$(PFUNIT)/mod -I$(PFUNIT)/include -Itests $(PFUNIT)/include/driver.F90 $(TEST_DIR)/*$(OBJ_EXT) $(SRC_DIR)/*$(OBJ_EXT) $(LIBS) $(FFLAGS) $(FPPFLAGS)
 
 distclean: clean

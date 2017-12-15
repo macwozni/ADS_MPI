@@ -2,7 +2,7 @@ module parallelism
 
    implicit none
 
-   save
+!   save
 
    ! Rank of this processor
    integer(kind = 4) :: MYRANK
@@ -29,8 +29,8 @@ contains
    ! -------------------------------------------------------------------
    subroutine InitializeParallelism(procx, procy, procz, ierr)
       USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
+      use mpi
       implicit none
-      include "mpif.h"
       integer(kind = 4), intent(in) :: procx, procy, procz
       integer(kind = 4), intent(out) :: ierr
       character(4) :: buffer

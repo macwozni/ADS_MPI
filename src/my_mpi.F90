@@ -22,8 +22,8 @@ contains
 
    !!! przesyla cala kostke
    subroutine send_piece(items, dst, req, nrcpp)
+      use mpi
       implicit none
-      include "mpif.h"
       real (kind = 8), intent(in) :: items(:)
       integer, intent(in) :: dst, req
       integer(kind = 4), intent(in), dimension(3) :: nrcpp
@@ -37,8 +37,8 @@ contains
 
    !! odbiera cala kostke
    subroutine recv_piece(items, src, req, nrcpp)
+      use mpi
       implicit none
-      include "mpif.h"
       real (kind = 8) :: items(:)
       integer(kind = 4) :: src, req
       integer(kind = 4), dimension(3) :: nrcpp
@@ -60,14 +60,15 @@ contains
    ! -------------------------------------------------------------------
    subroutine DistributeSpline(spline, nrcpp, R)
       use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ, NRPROCX, NRPROCY, NRPROCZ
+      use mpi
       implicit none
-      include "mpif.h"
       integer(kind = 4), intent(in), dimension(3) :: nrcpp
       real (kind = 8) :: spline(:,:,:,:)
       real (kind = 8), allocatable :: R(:,:,:,:)
       integer(kind = 4) :: i, j, k, s
       integer(kind = 4) :: request(3 * 3 * 3 * 2), stat(MPI_STATUS_SIZE)
       integer(kind = 4) :: ierr(3 * 3 * 3 * 2)
+      integer(kind = 4) :: fierr
       integer(kind = 4) :: dst, src
 
       s = 1
@@ -85,7 +86,7 @@ contains
       endif
 
       do i = 1, s - 1
-         call mpi_wait(request(i), stat, ierr)
+         call mpi_wait(request(i), stat, fierr)
       enddo
       s = 1
 
@@ -106,7 +107,7 @@ contains
       endif
 
       do i = 1, s - 1
-         call mpi_wait(request(i), stat, ierr)
+         call mpi_wait(request(i), stat, fierr)
       enddo
       s = 1
 
@@ -127,7 +128,7 @@ contains
       endif
 
       do i = 1, s - 1
-         call mpi_wait(request(i), stat, ierr)
+         call mpi_wait(request(i), stat, fierr)
       enddo
       s = 1
 
@@ -164,7 +165,7 @@ contains
       endif
 
       do i = 1, s - 1
-         call mpi_wait(request(i), stat, ierr)
+         call mpi_wait(request(i), stat, fierr)
       enddo
       s = 1
 
@@ -201,7 +202,7 @@ contains
       endif
 
       do i = 1, s - 1
-         call mpi_wait(request(i), stat, ierr)
+         call mpi_wait(request(i), stat, fierr)
       enddo
       s = 1
 
@@ -250,12 +251,12 @@ contains
       endif
 
       do i = 1, s - 1
-         call mpi_wait(request(i), stat, ierr)
+         call mpi_wait(request(i), stat, fierr)
       enddo
       s = 1
 
 
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
+      call mpi_barrier(MPI_COMM_WORLD, fierr)
 
    end subroutine
 
@@ -306,8 +307,8 @@ contains
    ! -------------------------------------------------------------------
    subroutine GatherFullSolution(at, part, full, n, p, s)
       use parallelism, ONLY: MYRANK, LINEARINDEX, NRPROCX, NRPROCY, NRPROCZ, ComputeEndpoints
+      use mpi
       implicit none
-      include "mpif.h"
       integer(kind = 4), intent(in) :: at
       integer(kind = 4), intent(in), dimension(3) :: n
       integer(kind = 4), intent(in), dimension(3) :: p
@@ -449,8 +450,8 @@ contains
    ! ierr      - error code output
    ! -------------------------------------------------------------------
    subroutine Gather(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
+      use mpi
       implicit none
-      include "mpif.h"
       integer(kind = 4), intent(in) :: n, elems, stride, comm
       real (kind = 8), intent(in) :: F(elems, stride)
       integer(kind = 4), intent(in) :: dims(:), shifts(:)
@@ -489,8 +490,8 @@ contains
    ! ierr      - error code output
    ! -------------------------------------------------------------------
    subroutine Scatter2(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
+      use mpi
       implicit none
-      include "mpif.h"
       integer(kind = 4), intent(in) :: n, elems, stride, comm
       real (kind = 8), intent(in) :: F(n + 1, stride)
       integer(kind = 4), intent(in) :: dims(:), shifts(:)
@@ -558,8 +559,8 @@ contains
    !
    ! -------------------------------------------------------------------
    subroutine AllGather(F, F_out, n, elems, stride, dims, shifts, comm)
+      use mpi
       implicit none
-      include "mpif.h"
       integer(kind = 4), intent(in) :: n, elems, stride, comm
       real (kind = 8), intent(in) :: F(elems, stride)
       real (kind = 8), intent(out) :: F_out(n + 1, stride)

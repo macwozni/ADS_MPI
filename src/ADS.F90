@@ -76,8 +76,8 @@ contains
       use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ
       use parallelism, ONLY: PRINTRANK
       use knot_vector, ONLY: PrepareKnot
+      use mpi
       implicit none
-      include "mpif.h"
       integer(kind = 4), intent(in), dimension(3) :: n
       integer(kind = 4), intent(in), dimension(3) :: p
       type(ADS_setup), intent(out) :: ads
@@ -252,8 +252,8 @@ subroutine AllocateArrays(&
    IPIVx, IPIVy, IPIVz, &
    R)
    use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ
+   use mpi
    implicit none
-   include "mpif.h"
    integer(kind = 4), intent(in), dimension(3) :: n
    integer(kind = 4), intent(in), dimension(3) :: s
    integer(kind = 4), intent(in), dimension(3) :: nrcpp
@@ -407,8 +407,8 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
       use reorderRHS, ONLY: ReorderRHSForX, ReorderRHSForY, ReorderRHSForZ
       use projection_engine, ONLY: Form3DRHS, ComputeMassMatrix
       use my_mpi, ONLY: DistributeSpline, Gather, Scatter
+      use mpi
       implicit none
-      include "mpif.h"
       interface
          subroutine RHS_fun(&
             X, &
@@ -725,8 +725,8 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
    subroutine ValidateDimensions(n, s, nrcpp, &
       dimensionsX, dimensionsY, dimensionsZ)
       use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ, PRINTRANK
+      use mpi
       implicit none
-      include "mpif.h"
       integer(kind = 4), intent(in), dimension(3) :: n
       integer(kind = 4), intent(in), dimension(3) :: s
       integer(kind = 4), intent(in), dimension(3) :: nrcpp
