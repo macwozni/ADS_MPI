@@ -178,6 +178,8 @@ contains
       integer(kind = 4) :: indbx, indby, indbz
       integer(kind = 4) :: rx, ry, rz, ix, iy, iz, sx, sy, sz
       real (kind = 8) :: resvalue
+      real (kind = 8), dimension(3) :: X,du
+      integer(kind = 4), dimension(3) :: k,e,a,b
 
       d = 0
       mx = n(1) + p(1) + 1
@@ -282,19 +284,25 @@ contains
                                        enddo
                                     enddo
                                  enddo
+                                 X = (/ Xx(kx, ex), Xy(ky, ey), Xz(kz, ez) /)
+                                 k = (/ kx, ky, kz /)
+                                 e = (/ ex, ey, ez /)
+                                 a = (/ ax, ay, az /)
+                                 b = (/ bx, by, bz/)
+                                 du = (/ dux, duy, duz /)
                                  call RHS_fun(&
-                                 [Xx(kx, ex), Xy(ky, ey), Xz(kz, ez)], &
-                                 [kx, ky, kz], &
-                                 [ex, ey, ez], &
+                                 X, &
+                                 k, &
+                                 e, &
                                  p, &
                                  nelem, &
-                                 [ax, ay, az], &
-                                 [bx, by, bz], &
-                                 [dux, duy, duz], &
-                                 [ibeg(1), ibeg(2), ibeg(3)], &
-                                 [iend(1), iend(2), iend(3)], &
-                                 [mine(1), mine(2), mine(3)], &
-                                 [maxe(1), maxe(2), maxe(3)], &
+                                 a, &
+                                 b, &
+                                 du, &
+                                 ibeg, &
+                                 iend, &
+                                 mine, &
+                                 maxe, &
                                  NNx, NNy, NNz, &
                                  Uval, J, W, resvalue)
 

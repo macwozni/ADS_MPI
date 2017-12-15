@@ -17,6 +17,7 @@ implicit none
 integer :: iter = 0
 
 integer(kind=4) :: ierr
+integer(kind=4), dimension(3) :: p1, p2
 
 type   (ADS_setup) :: ads
 
@@ -36,8 +37,9 @@ t = 0
 
   call InitializeParallelism(procx,procy,procz,ierr)
   call CreateCommunicators(ierr)
-  call Initialize([SIZE,SIZE,SIZE],[ORDER,ORDER,ORDER],ads,ierr)
-
+  p1 = (/ SIZE,SIZE,SIZE /)
+  p2 = (/ ORDER,ORDER,ORDER /)
+  call Initialize(p1,p2,ads,ierr)
   allocate(Kqvals(ads%p(1)+1,ads%p(2)+1,ads%p(3)+1,ads%maxe(1)-ads%mine(1)+1,ads%maxe(2)-ads%mine(2)+1,ads%maxe(3)-ads%mine(3)+1))
   call InitInputData
   call PrecomputeKq(ads)

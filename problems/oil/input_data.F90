@@ -214,6 +214,7 @@ real   (kind=8), intent(in), dimension(3) :: point
 integer(kind=4), intent(in) :: cN, cL
 real   (kind=8), intent(in) :: cx(cN*cL), cy(cN*cL), cz(cN*cL)
 real   (kind=8) :: ax,ay,az,bx,by,bz,fval
+real   (kind=8), dimension(3) :: p1,p2
 integer(kind=4) :: i, j
 
 fval = 1e3
@@ -226,7 +227,10 @@ do i = 0,cN-1
     az = cz(i*cL + j - 1)
     bz = cz(i*cL + j)
 
-    fval = min(fval, dist_from_segment(point,[ax,ay,az],[bx,by,bz]))
+    p1 = (/ ax,ay,az/)
+    p2 = (/ bx,by,bz/)
+    
+    fval = min(fval, dist_from_segment(point,p1,p2))
   end do
 end do
 
@@ -242,10 +246,13 @@ implicit none
 real   (kind=8) :: x, y, z
 real   (kind=8) :: fval
 integer(kind=4) :: i
+real   (kind=8), dimension(3) :: p1
+
 
 fval = 0.d0
 do i = 1,npumps
-  fval = fval + pumping_strength * falloff(0.d0, radius, norm2(pumps(:,i) - [x, y, z]))
+  p1 = (/ x,y,z/)
+  fval = fval + pumping_strength * falloff(0.d0, radius, norm2(pumps(:,i) - p1))
 enddo
 
 end function
@@ -261,10 +268,12 @@ implicit none
 real   (kind=8) :: u, x, y, z
 real   (kind=8) :: fval
 integer :: i
+real   (kind=8), dimension(3) :: p1
 
 fval = 0.d0
 do i = 1,ndrains
-  fval = fval + draining_strength * falloff(0.d0, radius, norm2(drains(:,i) - [x, y, z]))
+  p1 = (/ x,y,z/)
+  fval = fval + draining_strength * falloff(0.d0, radius, norm2(drains(:,i) - p1))
 enddo
 fval = fval * u
 
@@ -276,8 +285,12 @@ use math, ONLY : falloff,lerp
 implicit none
 real   (kind=8),intent(in) :: x, y, z
 real   (kind=8) :: val, dist
+real   (kind=8), dimension(3) :: p1
 
-dist = sqrt(dist_from_curves([x,y,z],cx,cy,cz,cN,cL))
+
+p1 = (/ x,y,z/)
+
+dist = sqrt(dist_from_curves(p1,cx,cy,cz,cN,cL))
 val = lerp(falloff(0.d0, 0.06d0, dist), Kqmin, Kqmax)
 
 end function
@@ -299,8 +312,11 @@ use math, ONLY : falloff,bump3d,lerp
 implicit none
 real   (kind=8), intent(in) :: x, y, z
 real   (kind=8) :: dist, val
+real   (kind=8), dimension(3) :: p1
 
-dist = sqrt(dist_from_curves([x,y,z],cx,cy,cz,cN,cL))
+
+p1 = (/ x,y,z/)
+dist = sqrt(dist_from_curves(p1,cx,cy,cz,cN,cL))
 val = 0.1d0 * lerp(falloff(0.d0, 0.1d0, dist), 0.d0, 1.d0) * bump3d(0.2d0, 0.6d0, x, y, z)
 
 end function

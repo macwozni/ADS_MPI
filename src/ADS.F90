@@ -451,6 +451,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
       integer(kind = 4) :: iter
       integer(kind = 4) :: i
       integer(kind = 4) :: iret, ierr
+      integer(kind = 4), dimension(3) :: nrcpp
 
       ! generate the RHS vectors
       call Form3DRHS(&
@@ -653,8 +654,9 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
       write(*, *) PRINTRANK, '3e) DISTRIBUTE SOLUTION'
 #endif
       ads % R(1:ads % s(1) * ads % s(2) * ads % s(3), 2, 2, 2) = reshape(ads % F, &
-      [ads % s(1) * ads % s(2) * ads % s(3)])
-      call DistributeSpline(ads % R, [ads % nrcpp(3), ads % nrcpp(1), ads % nrcpp(2)], ads % R)
+      (/ ads % s(1) * ads % s(2) * ads % s(3) /) )
+      nrcpp = (/ ads % nrcpp(3), ads % nrcpp(1), ads % nrcpp(2) /)
+      call DistributeSpline(ads % R, nrcpp, ads % R)
 
 #ifdef IPRINT
       write(*, *) PRINTRANK, 'Result:'
