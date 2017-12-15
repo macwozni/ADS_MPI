@@ -21,6 +21,7 @@ CTestTestfile.cmake
 *.data
 *.gif
 build/
+build_gnu/
 test/*.xml
 test/tests
 .directory

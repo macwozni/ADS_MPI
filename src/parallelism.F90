@@ -47,7 +47,7 @@ contains
 
       if ((i1 + i2 + i3) /= 0) then
          write(ERROR_UNIT, *) MYRANK, ': main: error initializing MPI!'
-         call abort
+         ERROR STOP
       endif
 
       call Decompose(MYRANK, MYRANKX, MYRANKY, MYRANKZ)

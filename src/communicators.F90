@@ -64,7 +64,7 @@ call mpi_comm_group(MPI_COMM_WORLD, group_comm_world, ierr)
 
       if (ierr /= 0) then
          write(*, *) MYRANK, ': main: error calling mpi_comm_group!'
-         call abort
+         ERROR STOP
       endif
 #ifdef IPRINT
       write(*, *) MYRANK, 'got group', group_comm_world
@@ -86,7 +86,7 @@ call mpi_barrier(MPI_COMM_WORLD, ierr)
             call mpi_group_incl(group_comm_world, NRPROCZ, processors_Z, GROUPZ(i, j), ierr)
             if (ierr /= 0) then
                write(ERROR_UNIT, *) MYRANK, ': main: error calling mpi_group_incl for Z', i, j
-               call abort
+               ERROR STOP
             endif
          enddo
       enddo
@@ -96,7 +96,7 @@ call mpi_barrier(MPI_COMM_WORLD, ierr)
             call mpi_group_incl(group_comm_world, NRPROCY, processors_Y, GROUPY(i, k), ierr)
             if (ierr /= 0) then
                write(ERROR_UNIT, *) MYRANK, ': main: error calling mpi_group_incl for Y', i, k
-               call abort
+               ERROR STOP
             endif
          enddo
       enddo
@@ -106,7 +106,7 @@ call mpi_barrier(MPI_COMM_WORLD, ierr)
             call mpi_group_incl(group_comm_world, NRPROCX, processors_X, GROUPX(j, k), ierr)
             if (ierr /= 0) then
                write(ERROR_UNIT, *) MYRANK, ': main: error calling mpi_group_incl for X', j, k
-               call abort
+               ERROR STOP
             endif
          enddo
       enddo
@@ -124,7 +124,7 @@ call mpi_barrier(MPI_COMM_WORLD, ierr)
             COMMZALL(i, j) = comm_myrank_local
             if (ierr /= 0) then
                write(ERROR_UNIT, *) MYRANK, ': main: error calling mpi_com_create for Z', i, j
-               call abort
+               ERROR STOP
             endif
          enddo
       enddo
@@ -134,7 +134,7 @@ call mpi_barrier(MPI_COMM_WORLD, ierr)
             COMMYALL(i, k) = comm_myrank_local
             if (ierr /= 0) then
                write(ERROR_UNIT, *) MYRANK, ': main: error calling mpi_com_create for Y', i, k
-               call abort
+               ERROR STOP
             endif
          enddo
       enddo
@@ -144,7 +144,7 @@ call mpi_barrier(MPI_COMM_WORLD, ierr)
             COMMXALL(j, k) = comm_myrank_local
             if (ierr /= 0) then
                write(ERROR_UNIT, *) MYRANK, ': main: error calling mpi_com_create for X', j, k
-               call abort
+               ERROR STOP
             endif
          enddo
       enddo
