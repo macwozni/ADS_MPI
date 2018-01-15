@@ -15,10 +15,10 @@ contains
       use knot_vector, ONLY: PrepareKnot
       use mpi
       implicit none
-      type (ADS_compute_data), intent(inout) :: ads_data
       integer(kind = 4), intent(in), dimension(3) :: n
       integer(kind = 4), intent(in), dimension(3) :: p
       type(ADS_setup), intent(out) :: ads
+      type (ADS_compute_data), intent(out) :: ads_data
       integer(kind = 4), intent(out) :: mierr
       integer(kind = 4) :: ierr
 
@@ -184,8 +184,8 @@ contains
       use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ, PRINTRANK, &
       NRPROCX, NRPROCY, NRPROCZ, ComputeEndpoints
       implicit none
-      type (ADS_setup) :: ads
-      type (ADS_compute_data), intent(inout) :: ads_data
+      type (ADS_setup), intent(inout) :: ads
+      type (ADS_compute_data), intent(in) :: ads_data
       integer(kind = 4) :: i, j, k
       integer(kind = 4) :: obegx, oendx, obegy, oendy, obegz, oendz
       integer(kind = 4) :: mine, maxe
@@ -222,9 +222,7 @@ contains
    ! eqnum - number of right-hand sides (equations)
    ! -------------------------------------------------------------------
    subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
-      use Setup, ONLY: ADS_Setup
       implicit none
-      type (ADS_setup) :: ads
       real (kind = 8) :: RHS(:,:)
       integer :: KL, KU
       integer, dimension(:) :: IPIV
@@ -320,7 +318,7 @@ contains
             real (kind = 8), intent(out) :: ret
          end subroutine
       end interface
-      type (ADS_setup), intent(inout) :: ads
+      type (ADS_setup), intent(in) :: ads
       type (ADS_compute_data), intent(inout) :: ads_data
       integer(kind = 4), intent(out) :: mierr
       integer(kind = 4) :: iter
@@ -548,8 +546,8 @@ contains
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use parallelism, ONLY: PRINTRANK
       implicit none
+      type (ADS_setup), intent(inout) :: ads
       type (ADS_compute_data), intent(inout) :: ads_data
-      type (ADS_setup) :: ads
       integer(kind = 4), intent(out) :: mierr
       integer(kind = 4) :: ierr
 
@@ -684,7 +682,7 @@ contains
       use vtk, ONLY: VtkOutput
       use my_mpi, ONLY: GatherFullSolution
       implicit none
-      type (ADS_compute_data), intent(inout) :: ads_data
+      type (ADS_compute_data), intent(in) :: ads_data
       type (ADS_setup), intent(in) :: ads
       integer(kind = 4), intent(in) :: iter
       real (kind = 8), intent(in) :: t
