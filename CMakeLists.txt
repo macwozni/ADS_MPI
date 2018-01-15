@@ -27,11 +27,13 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
     set(bounds "-fbounds-check")
     set(realeaseopts "-O3  -pthread -funroll-all-loops")
     set(debugopts "-O0 -g3 -fbacktrace -fcheck=all")
+#    -DIINFO -DIDEBUG -DIPRINT")
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
     set(dialect "-std08  -module . -implicitnone -fpp -Wall -pedantic")
     set(bounds " -check bounds")
     set(realeaseopts "-funroll-all-loops -O3")
     set(debugopts "-O0 -g -traceback -check all -debug extended -debug-parameters all")
+#    -DIINFO -DIDEBUG -DIPRINT")
 endif()
 
 set(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG} ${bounds}")
@@ -44,6 +46,7 @@ include_directories("${PROJECT_SOURCE_DIR}/src")
 
 set(SRC src)
 set(ads_SRC
+  ${SRC}/Setup.F90
   ${SRC}/knot_vector.F90
   ${SRC}/parallelism.F90
   ${SRC}/communicators.F90
