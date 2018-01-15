@@ -1,7 +1,7 @@
 module Setup
 
    implicit none
-   
+
    type ADS_setup
       ! Number of functions in each dimension minus one
       integer(kind = 4), dimension(3) :: n
@@ -13,19 +13,6 @@ module Setup
       real (kind = 8), allocatable, dimension(:) :: Ux
       real (kind = 8), allocatable, dimension(:) :: Uy
       real (kind = 8), allocatable, dimension(:) :: Uz
-
-      ! Mass matrix
-      real (kind = 8), allocatable, dimension(:,:) :: Mx
-      real (kind = 8), allocatable, dimension(:,:) :: My
-      real (kind = 8), allocatable, dimension(:,:) :: Mz
-
-      real (kind = 8), allocatable, dimension(:,:) :: F, F2, F3
-      real (kind = 8), allocatable, dimension(:,:) :: F_out, F2_out, F3_out
-
-      ! Buffer for coefficients of solution corresponding to neighbouring
-      ! parts of the domain. It is (Nx*Ny*Nz) x 3 x 3 x 3 array, where
-      ! Nx*Ny*Nz is the size of part of solution for one fragment of domain.
-      real (kind = 8), allocatable :: R(:,:,:,:)
 
       ! Number of subintervals (currently n - p + 1)
       integer(kind = 4), dimension(3) :: nelem
@@ -65,9 +52,22 @@ module Setup
       ! Range of elements associated with basis functions assigned to this process
       integer(kind = 4), dimension(3) :: mine, maxe
    end type
-   
-   
+
+
    type ADS_compute_data
+
+      ! Mass matrix
+      real (kind = 8), allocatable, dimension(:,:) :: Mx
+      real (kind = 8), allocatable, dimension(:,:) :: My
+      real (kind = 8), allocatable, dimension(:,:) :: Mz
+
+      real (kind = 8), allocatable, dimension(:,:) :: F, F2, F3
+      real (kind = 8), allocatable, dimension(:,:) :: F_out, F2_out, F3_out
+
+      ! Buffer for coefficients of solution corresponding to neighbouring
+      ! parts of the domain. It is (Nx*Ny*Nz) x 3 x 3 x 3 array, where
+      ! Nx*Ny*Nz is the size of part of solution for one fragment of domain.
+      real (kind = 8), allocatable :: R(:,:,:,:)
    end type
 
 contains

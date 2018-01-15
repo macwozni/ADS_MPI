@@ -98,23 +98,23 @@ contains
    ! R has two 'kinds' of dimensions - it's orgainzed as 3x3x3 array of
    ! domain pieces.
    ! -------------------------------------------------------------------
-   subroutine Form3DRHS(ads, RHS_fun)
-      use Setup, ONLY: ADS_Setup
+   subroutine Form3DRHS(ads, ads_data, RHS_fun)
+      use Setup, ONLY: ADS_Setup, ADS_compute_data
       use parallelism, ONLY: PRINTRANK
       USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
       use basis, ONLY: BasisData
       implicit none
       interface
          subroutine RHS_fun(&
-                              ads, &
-                              X, &
-                              k, &
-                              e, &
-                              a, &
-                              b, &
-                              du, &
-                              NNx, NNy, NNz, &
-                              Uval, J, W, ret)
+            ads, &
+            X, &
+            k, &
+            e, &
+            a, &
+            b, &
+            du, &
+            NNx, NNy, NNz, &
+            Uval, J, W, ret)
             use Setup, ONLY: ADS_Setup
             implicit none
             type (ADS_setup), intent(in) :: ads
@@ -126,13 +126,14 @@ contains
             real (kind = 8), intent(in), dimension(3) :: du
             real (kind = 8), intent(in) :: Uval
             real (kind = 8), intent(in) :: J, W
-            real (kind = 8), intent(in) :: NNx(0:ads%p(1) - 1, 0:ads%p(1), ads%p(1) + 1, ads%nelem(1)), &
-            NNy(0:ads%p(2) - 1, 0:ads%p(2), ads%p(2) + 1, ads%nelem(2)), &
-            NNz(0:ads%p(3) - 1, 0:ads%p(3), ads%p(3) + 1, ads%nelem(3))
+            real (kind = 8), intent(in) :: NNx(0:ads % p(1) - 1, 0:ads % p(1), ads % p(1) + 1, ads % nelem(1)), &
+            NNy(0:ads % p(2) - 1, 0:ads % p(2), ads % p(2) + 1, ads % nelem(2)), &
+            NNz(0:ads % p(3) - 1, 0:ads % p(3), ads % p(3) + 1, ads % nelem(3))
             real (kind = 8), intent(out) :: ret
          end subroutine
       end interface
-      type (ADS_setup), intent(inout) :: ads
+      type (ADS_setup), intent(in) :: ads
+      type (ADS_compute_data), intent(inout) :: ads_data
       integer(kind = 4) :: mx, my, mz, ngx, ngy, ngz, ex, ey, ez
       integer(kind = 4) :: kx, ky, kz, ax, ay, az, bx, by, bz, d
       integer(kind = 4) :: Ox(ads % nelem(1)), Oy(ads % nelem(2)), Oz(ads % nelem(3))
@@ -176,7 +177,7 @@ contains
       write(*, *) PRINTRANK, 'ibegz,iendz', ads % ibeg(3), ads % iend(3)
 #endif
       
-      ads % F = 0
+      ads_data % F = 0
 
       do ex = ads % mine(1), ads % maxe(1)
          do ey = ads % mine(2), ads % maxe(2)
@@ -248,7 +249,7 @@ contains
                                        endif
 #endif
 
-                                       Ucoeff = ads % R(ind + 1, rx, ry, rz)
+                                       Ucoeff = ads_data % R(ind + 1, rx, ry, rz)
                                        v = NNx(0, bx, kx, ex) * NNy(0, by, ky, ey) * NNz(0, bz, kz, ez)
                                        dvx = NNx(1, bx, kx, ex) * NNy(0, by, ky, ey) * NNz(0, bz, kz, ez)
                                        dvy = NNx(0, bx, kx, ex) * NNy(1, by, ky, ey) * NNz(0, bz, kz, ez)
@@ -278,7 +279,7 @@ contains
                               NNx, NNy, NNz, &
                               Uval, J, W, resvalue)
 
-                              ads % F(ind1 + 1, ind23 + 1) = ads % F(ind1 + 1, ind23 + 1) + resvalue
+                              ads_data % F(ind1 + 1, ind23 + 1) = ads_data % F(ind1 + 1, ind23 + 1) + resvalue
 
                            enddo
                         enddo
@@ -366,7 +367,7 @@ subroutine ComputeMassMatrix(KL, KU, U, p, n, nelem, M)
    enddo
 #endif
    
-   end subroutine
+end subroutine
 
 
 end module

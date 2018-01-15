@@ -8,13 +8,14 @@ contains
    ! -------------------------------------------------------------------
    ! Initialization of clocks and MPI
    ! -------------------------------------------------------------------
-   subroutine initialize(n, p, ads, mierr)
-      use Setup, ONLY: ADS_Setup
+   subroutine initialize(n, p, ads, ads_data, mierr)
+      use Setup, ONLY: ADS_Setup, ADS_compute_data
       use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ
       use parallelism, ONLY: PRINTRANK
       use knot_vector, ONLY: PrepareKnot
       use mpi
       implicit none
+      type (ADS_compute_data), intent(inout) :: ads_data
       integer(kind = 4), intent(in), dimension(3) :: n
       integer(kind = 4), intent(in), dimension(3) :: p
       type(ADS_setup), intent(out) :: ads
@@ -59,7 +60,7 @@ contains
       ads % iend)
 #endif
       
-   call AllocateArrays(ads)
+   call AllocateArrays(ads, ads_data)
 
       call PrepareKnot(ads % Ux, n(1), p(1), ads % nelem(1))
       call PrepareKnot(ads % Uy, n(2), p(2), ads % nelem(2))
@@ -137,23 +138,24 @@ contains
    ! -------------------------------------------------------------------
    ! Allocates most of the 'static' arrays
    ! -------------------------------------------------------------------
-   subroutine AllocateArrays(ads)
-      use Setup, ONLY: ADS_Setup
+   subroutine AllocateArrays(ads, ads_data)
+      use Setup, ONLY: ADS_Setup, ADS_compute_data
       use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ
       use mpi
       implicit none
       type(ADS_setup), intent(inout) :: ads
+      type (ADS_compute_data), intent(inout) :: ads_data
       integer :: ierr
 
-      allocate(ads % Mx(2 * ads % KL(1) + ads % KU(1) + 1, ads % n(1) + 1))
-      allocate(ads % My(2 * ads % KL(2) + ads % KU(2) + 1, ads % n(2) + 1))
-      allocate(ads % Mz(2 * ads % KL(3) + ads % KU(3) + 1, ads % n(3) + 1))
+      allocate(ads_data % Mx(2 * ads % KL(1) + ads % KU(1) + 1, ads % n(1) + 1))
+      allocate(ads_data % My(2 * ads % KL(2) + ads % KU(2) + 1, ads % n(2) + 1))
+      allocate(ads_data % Mz(2 * ads % KL(3) + ads % KU(3) + 1, ads % n(3) + 1))
 
       ! OLD: MP start with system fully generated along X
       ! allocate( F((n+1),(sy)*(sz))) !x,y,z
-      allocate( ads % F(ads % s(1), ads % s(2) * ads % s(3))) !x,y,z
-      allocate(ads % F2(ads % s(2), ads % s(1) * ads % s(3))) !y,x,z
-      allocate(ads % F3(ads % s(3), ads % s(1) * ads % s(2))) !z,x,y
+      allocate( ads_data % F(ads % s(1), ads % s(2) * ads % s(3))) !x,y,z
+      allocate(ads_data % F2(ads % s(2), ads % s(1) * ads % s(3))) !y,x,z
+      allocate(ads_data % F3(ads % s(3), ads % s(1) * ads % s(2))) !z,x,y
 
 
       ! Processes on the border need pivot vector for LAPACK call
@@ -163,8 +165,8 @@ contains
          allocate(ads % IPIVz(ads % n(3) + 1))
       endif
 
-      allocate(ads % R(ads % nrcpp(3) * ads % nrcpp(1) * ads % nrcpp(2), 3, 3, 3))
-      ads % R = 0.d0
+      allocate(ads_data % R(ads % nrcpp(3) * ads % nrcpp(1) * ads % nrcpp(2), 3, 3, 3))
+      ads_data % R = 0.d0
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
 
@@ -177,12 +179,13 @@ contains
    ! Prints debugging information about results of distributing
    ! data to neighbouring processes.
    ! -------------------------------------------------------------------
-   subroutine PrintDistributedData(ads)
-      use Setup, ONLY: ADS_Setup
+   subroutine PrintDistributedData(ads, ads_data)
+      use Setup, ONLY: ADS_Setup, ADS_compute_data
       use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ, PRINTRANK, &
       NRPROCX, NRPROCY, NRPROCZ, ComputeEndpoints
       implicit none
       type (ADS_setup) :: ads
+      type (ADS_compute_data), intent(inout) :: ads_data
       integer(kind = 4) :: i, j, k
       integer(kind = 4) :: obegx, oendx, obegy, oendy, obegz, oendz
       integer(kind = 4) :: mine, maxe
@@ -199,7 +202,7 @@ contains
                call ComputeEndpoints(k - 1, NRPROCZ, ads % n(3), ads % p(3), ads % nrcpp(3), obegz, oendz, mine, maxe)
 
                write(*, *) reshape(&
-               ads % R(:, i - MYRANKX + 1, j - MYRANKY + 1, k - MYRANKZ + 1), &
+               ads_data % R(:, i - MYRANKX + 1, j - MYRANKY + 1, k - MYRANKZ + 1), &
                (/ oendz - obegz + 1, oendx - obegx + 1, oendy - obegy + 1 /))
             enddo
          enddo
@@ -280,8 +283,8 @@ contains
    ! iter - number of the iteration
    ! t    - time at the beginning of step
    ! -------------------------------------------------------------------
-   subroutine Step(iter, RHS_fun, ads, mierr)
-      use Setup, ONLY: ADS_Setup
+   subroutine Step(iter, RHS_fun, ads, ads_data, mierr)
+      use Setup, ONLY: ADS_Setup, ADS_compute_data
       use parallelism, ONLY:PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
       use communicators, ONLY: COMMX, COMMY, COMMZ
       use reorderRHS, ONLY: ReorderRHSForX, ReorderRHSForY, ReorderRHSForZ
@@ -318,6 +321,7 @@ contains
          end subroutine
       end interface
       type (ADS_setup), intent(inout) :: ads
+      type (ADS_compute_data), intent(inout) :: ads_data
       integer(kind = 4), intent(out) :: mierr
       integer(kind = 4) :: iter
       integer(kind = 4) :: i
@@ -325,7 +329,7 @@ contains
       integer(kind = 4), dimension(3) :: nrcpp
 
       ! generate the RHS vectors
-      call Form3DRHS(ads, RHS_fun)
+      call Form3DRHS(ads, ads_data, RHS_fun)
 
 #ifdef IPRINT
       write(*, *) PRINTRANK, 'F'
@@ -343,9 +347,9 @@ contains
       write(*, *) PRINTRANK, '1a) GATHER'
 #endif
 
-      allocate(ads % F_out((ads % n(1) + 1), ads % s(2) * ads % s(3)))
+      allocate(ads_data % F_out((ads % n(1) + 1), ads % s(2) * ads % s(3)))
 
-      call Gather(ads % F, ads % F_out, ads % n(1), ads % s(1), ads % s(2) &
+      call Gather(ads_data % F, ads_data % F_out, ads % n(1), ads % s(1), ads % s(2) &
       *ads % s(3), ads % dimensionsX, ads % shiftsX, COMMX, ierr)
 
 #ifdef IPRINT
@@ -364,9 +368,9 @@ contains
 #endif
 
          call ComputeMassMatrix(ads % KL(1), ads % KU(1), ads % Ux, ads % p(1), &
-         ads % n(1), ads % nelem(1), ads % Mx)
-         call SolveOneDirection(ads % F_out, ads % s(2) * ads % s(3), ads % n(1), &
-         ads % KL(1), ads % KU(1), ads % p(1), ads % Mx, ads % IPIVx)
+         ads % n(1), ads % nelem(1), ads_data % Mx)
+         call SolveOneDirection(ads_data % F_out, ads % s(2) * ads % s(3), ads % n(1), &
+         ads % KL(1), ads % KU(1), ads % p(1), ads_data % Mx, ads % IPIVx)
       endif
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -374,24 +378,24 @@ contains
 #ifdef IINFO
       write(*, *) PRINTRANK, '1c) SCATTER'
 #endif
-      allocate(ads % F2_out(ads % s(1), ads % s(2) * ads % s(3)))
-      call Scatter(ads % F_out, ads % F2_out, ads % n(1), ads % s(1), ads % s(2) * &
+      allocate(ads_data % F2_out(ads % s(1), ads % s(2) * ads % s(3)))
+      call Scatter(ads_data % F_out, ads_data % F2_out, ads % n(1), ads % s(1), ads % s(2) * &
       ads % s(3), ads % dimensionsX, ads % shiftsX, COMMX, ierr)
-      deallocate(ads % F_out)
+      deallocate(ads_data % F_out)
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
 
 #ifdef IINFO
       write(*, *) PRINTRANK, '1d) REORDER'
 #endif
-      call ReorderRHSForY(ads % ibeg, ads % iend, ads % F2_out, ads % F2)
-      deallocate(ads % F2_out)
+      call ReorderRHSForY(ads % ibeg, ads % iend, ads_data % F2_out, ads_data % F2)
+      deallocate(ads_data % F2_out)
 
 #ifdef IPRINT
       write(*, *) PRINTRANK, 'after ReorderRHSForY'
       write(*, *) PRINTRANK, 'F2:'
       do i = 1, ads % s(2)
-         write(*, *) PRINTRANK, i, 'row=', ads % F2(i, 1:ads % s(1) * ads % s(3))
+         write(*, *) PRINTRANK, i, 'row=', ads_data % F2(i, 1:ads % s(1) * ads % s(3))
       enddo
 #endif
 
@@ -404,8 +408,8 @@ contains
       write(*, *) PRINTRANK, '2a) GATHER'
 #endif
 
-      allocate(ads % F2_out((ads % n(2) + 1), ads % s(1) * ads % s(3)))
-      call Gather(ads % F2, ads % F2_out, ads % n(2), ads % s(2), ads % s(1) * ads % s(3), &
+      allocate(ads_data % F2_out((ads % n(2) + 1), ads % s(1) * ads % s(3)))
+      call Gather(ads_data % F2, ads_data % F2_out, ads % n(2), ads % s(2), ads % s(1) * ads % s(3), &
       ads % dimensionsY, ads % shiftsY, COMMY, ierr)
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -416,9 +420,9 @@ contains
 #endif
 
          call ComputeMassMatrix(ads % KL(2), ads % KU(2), ads % Uy, ads % p(2), ads % n(2), &
-         ads % nelem(2), ads % My)
-         call SolveOneDirection(ads % F2_out, ads % s(1) * ads % s(3), ads % n(2), ads % KL(2), &
-         ads % KU(2), ads % p(2), ads % My, ads % IPIVy)
+         ads % nelem(2), ads_data % My)
+         call SolveOneDirection(ads_data % F2_out, ads % s(1) * ads % s(3), ads % n(2), ads % KL(2), &
+         ads % KU(2), ads % p(2), ads_data % My, ads % IPIVy)
       endif
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -428,10 +432,10 @@ contains
 #endif
 
       ! CORRECTION
-      allocate(ads % F3_out(ads % s(3), ads % s(1) * ads % s(3)))
-      call Scatter(ads % F2_out, ads % F3_out, ads % n(2), ads % s(2), ads % s(1) * ads % s(3), &
+      allocate(ads_data % F3_out(ads % s(3), ads % s(1) * ads % s(3)))
+      call Scatter(ads_data % F2_out, ads_data % F3_out, ads % n(2), ads % s(2), ads % s(1) * ads % s(3), &
       ads % dimensionsY, ads % shiftsY, COMMY, ierr)
-      deallocate(ads % F2_out)
+      deallocate(ads_data % F2_out)
 
 #ifdef IPRINT
       write(*, *) PRINTRANK, 'after call mpi_scatterv'
@@ -448,14 +452,14 @@ contains
       write(*, *) PRINTRANK, '2d) REORDER'
 #endif
       ! Reorder right hand sides
-      call ReorderRHSForZ(ads % ibeg, ads % iend, ads % F3_out, ads % F3)
-      deallocate(ads % F3_out)
+      call ReorderRHSForZ(ads % ibeg, ads % iend, ads_data % F3_out, ads_data % F3)
+      deallocate(ads_data % F3_out)
 
 #ifdef IPRINT
       write(*, *) PRINTRANK, 'after ReorderRHSForZ'
       write(*, *) PRINTRANK, 'F3:'
       do i = 1, ads % s(3)
-         write(*, *) PRINTRANK, i, 'row=', ads % F3(i, 1:ads % s(1) * ads % s(2))
+         write(*, *) PRINTRANK, i, 'row=', ads_data % F3(i, 1:ads % s(1) * ads % s(2))
       enddo
 #endif
 
@@ -467,8 +471,8 @@ contains
 #endif
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
-      allocate(ads % F3_out((ads % n(3) + 1), ads % s(1) * ads % s(2)))
-      call Gather(ads % F3, ads % F3_out, ads % n(3), ads % s(3), ads % s(1) * ads % s(2), &
+      allocate(ads_data % F3_out((ads % n(3) + 1), ads % s(1) * ads % s(2)))
+      call Gather(ads_data % F3, ads_data % F3_out, ads % n(3), ads % s(3), ads % s(1) * ads % s(2), &
       ads % dimensionsZ, ads % shiftsZ, COMMZ, ierr)
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -479,9 +483,9 @@ contains
 #endif
 
          call ComputeMassMatrix(ads % KL(3), ads % KU(3), ads % Uz, ads % p(3), ads % n(3), &
-         ads % nelem(3), ads % Mz)
-         call SolveOneDirection(ads % F3_out, ads % s(1) * ads % s(2), ads % n(3), ads % KL(3), &
-         ads % KU(3), ads % p(3), ads % Mz, ads % IPIVz)
+         ads % nelem(3), ads_data % Mz)
+         call SolveOneDirection(ads_data % F3_out, ads % s(1) * ads % s(2), ads % n(3), ads % KL(3), &
+         ads % KU(3), ads % p(3), ads_data % Mz, ads % IPIVz)
       endif
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -491,10 +495,10 @@ contains
 #endif
 
       ! CORRECTION
-      allocate(ads % F_out(ads % s(3), ads % s(1) * ads % s(2)))
-      call Scatter(ads % F3_out, ads % F_out, ads % n(3), ads % s(3), ads % s(1) * ads % s(2), &
+      allocate(ads_data % F_out(ads % s(3), ads % s(1) * ads % s(2)))
+      call Scatter(ads_data % F3_out, ads_data % F_out, ads % n(3), ads % s(3), ads % s(1) * ads % s(2), &
       ads % dimensionsZ, ads % shiftsZ, COMMZ, ierr)
-      deallocate(ads % F3_out)
+      deallocate(ads_data % F3_out)
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
 
@@ -502,8 +506,8 @@ contains
       write(*, *) PRINTRANK, '3d) REORDER'
 #endif
       ! Reorder right hand sides
-      call ReorderRHSForX(ads % ibeg, ads % iend, ads % F_out, ads % F)
-      deallocate(ads % F_out)
+      call ReorderRHSForX(ads % ibeg, ads % iend, ads_data % F_out, ads_data % F)
+      deallocate(ads_data % F_out)
 
 #ifdef IPRINT
       write(*, *) PRINTRANK, 'after ReorderRHSForX'
@@ -516,10 +520,10 @@ contains
 #ifdef IINFO
       write(*, *) PRINTRANK, '3e) DISTRIBUTE SOLUTION'
 #endif
-      ads % R(1:ads % s(1) * ads % s(2) * ads % s(3), 2, 2, 2) = reshape(ads % F, &
+      ads_data % R(1:ads % s(1) * ads % s(2) * ads % s(3), 2, 2, 2) = reshape(ads_data % F, &
       (/ ads % s(1) * ads % s(2) * ads % s(3) /))
       nrcpp = (/ ads % nrcpp(3), ads % nrcpp(1), ads % nrcpp(2) /)
-      call DistributeSpline(ads % R, nrcpp, ads % R)
+      call DistributeSpline(ads_data % R, nrcpp, ads_data % R)
 
 #ifdef IPRINT
       write(*, *) PRINTRANK, 'Result:'
@@ -540,10 +544,11 @@ contains
    ! -------------------------------------------------------------------
    ! Deallocates all the resources and finalizes MPI.
    ! -------------------------------------------------------------------
-   subroutine Cleanup(ads, mierr)
-      use Setup, ONLY: ADS_Setup
+   subroutine Cleanup(ads, ads_data, mierr)
+      use Setup, ONLY: ADS_Setup, ADS_compute_data
       use parallelism, ONLY: PRINTRANK
       implicit none
+      type (ADS_compute_data), intent(inout) :: ads_data
       type (ADS_setup) :: ads
       integer(kind = 4), intent(out) :: mierr
       integer(kind = 4) :: ierr
@@ -564,13 +569,13 @@ contains
       if (allocated(ads % Uy)) deallocate(ads % Uy)
       if (allocated(ads % Uz)) deallocate(ads % Uz)
 
-      if (allocated(ads % Mx)) deallocate(ads % Mx)
-      if (allocated(ads % My)) deallocate(ads % My)
-      if (allocated(ads % Mz)) deallocate(ads % Mz)
+      if (allocated(ads_data % Mx)) deallocate(ads_data % Mx)
+      if (allocated(ads_data % My)) deallocate(ads_data % My)
+      if (allocated(ads_data % Mz)) deallocate(ads_data % Mz)
 
-      if (allocated(ads % F)) deallocate(ads % F)
-      if (allocated(ads % F2)) deallocate(ads % F2)
-      if (allocated(ads % F3)) deallocate(ads % F3)
+      if (allocated(ads_data % F)) deallocate(ads_data % F)
+      if (allocated(ads_data % F2)) deallocate(ads_data % F2)
+      if (allocated(ads_data % F3)) deallocate(ads_data % F3)
 
       !!!!!! wyciac
       call mpi_finalize(ierr)
@@ -672,13 +677,14 @@ contains
    ! -------------------------------------------------------------------
    ! Gathers full solution and plots it
    ! -------------------------------------------------------------------
-   subroutine PrintSolution(iter, t, ads)
-      use Setup, ONLY: ADS_Setup
+   subroutine PrintSolution(iter, t, ads, ads_data)
+      use Setup, ONLY: ADS_Setup, ADS_compute_data
       use parallelism, ONLY: MYRANK
       use plot, ONLY: SaveSplinePlot, PlotParams
       use vtk, ONLY: VtkOutput
       use my_mpi, ONLY: GatherFullSolution
       implicit none
+      type (ADS_compute_data), intent(inout) :: ads_data
       type (ADS_setup), intent(in) :: ads
       integer(kind = 4), intent(in) :: iter
       real (kind = 8), intent(in) :: t
@@ -686,7 +692,7 @@ contains
       type (PlotParams) :: params
       character(len = 20) :: filename
 
-      call GatherFullSolution(0, ads % F, solution, &
+      call GatherFullSolution(0, ads_data % F, solution, &
       [ads % n(1), ads % n(2), ads % n(3)], [ads % p(1), ads % p(2), ads % p(3)], [ads % s(1), ads % s(2), ads % s(3)])
 
       if (MYRANK == 0) then
