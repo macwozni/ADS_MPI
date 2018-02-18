@@ -59,14 +59,16 @@ contains
       call GET_COMMAND_ARGUMENT(1, input, length, status)
       read(input, *) SIZE
       call GET_COMMAND_ARGUMENT(2, input, length, status)
-      read(input, *) procx
+      read(input, *) ORDER
       call GET_COMMAND_ARGUMENT(3, input, length, status)
-      read(input, *) procy
+      read(input, *) procx
       call GET_COMMAND_ARGUMENT(4, input, length, status)
-      read(input, *) procz
+      read(input, *) procy
       call GET_COMMAND_ARGUMENT(5, input, length, status)
-      read(input, *) steps
+      read(input, *) procz
       call GET_COMMAND_ARGUMENT(6, input, length, status)
+      read(input, *) steps
+      call GET_COMMAND_ARGUMENT(7, input, length, status)
       read(input, *) Dt
 
    end subroutine
@@ -98,7 +100,7 @@ contains
    subroutine InitPumps()
       implicit none
       character(100) :: input
-      integer(kind = 4) :: i, arg = 7 ! First argument after "technical" ones
+      integer(kind = 4) :: i, arg = 8 ! First argument after "technical" ones
       integer(kind = 4) :: length
       integer(kind = 4) :: status
 
