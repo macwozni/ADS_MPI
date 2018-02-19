@@ -66,8 +66,8 @@ program main
             enddo
          enddo
       endif
-      do i = 1, ads % s(3)
-         do j = 1, ads % s(1) * ads % s(2)
+      do i = 1, ads % s(1)
+         do j = 1, ads % s(2) * ads % s(3)
             if (abs(ads_data % F(i,j) - 1.d0) > epsilon) then
                ok = .FALSE.
             endif

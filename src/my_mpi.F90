@@ -533,7 +533,7 @@ contains
       real (kind = 8), intent(out) :: F_out(elems, stride)
       integer(kind = 4), intent(out) :: ierr
       real (kind = 8) :: F_out_lin(elems * stride)
-
+      
       call Scatter2(F, F_out_lin, n, elems, stride, dims, shifts, comm, ierr)
       call Delinearize(F_out_lin, F_out, elems, stride)
 

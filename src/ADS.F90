@@ -433,7 +433,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
 #endif
       
       ! CORRECTION
-      allocate(ads_data % F3_out(ads % s(3), ads % s(1) * ads % s(3)))
+      allocate(ads_data % F3_out(ads % s(2), ads % s(1) * ads % s(3)))
       call Scatter(ads_data % F2_out, ads_data % F3_out, ads % n(2), ads % s(2), ads % s(1) * ads % s(3), &
       ads % dimensionsY, ads % shiftsY, COMMY, ierr)
       deallocate(ads_data % F2_out)
