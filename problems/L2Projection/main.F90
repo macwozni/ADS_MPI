@@ -25,7 +25,7 @@ program main
    logical :: ok = .TRUE.
 
    type (ADS_setup) :: ads
-   type (ADS_compute_data) ads_data
+   type (ADS_compute_data) :: ads_data
    
    real (kind = 8) :: epsilon = 1.E-10
 

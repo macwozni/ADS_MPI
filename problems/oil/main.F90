@@ -21,12 +21,25 @@ program main
    integer(kind = 4), dimension(3) :: p1, p2
 
    type (ADS_setup) :: ads
-   type (ADS_compute_data) ads_data
+   type (ADS_compute_data) :: ads_data
+
+
+   integer :: values(1:8), k
+   integer, dimension(:), allocatable :: seed
+   real(8) :: r
+
+   call date_and_time(values = values)
+   values = (/ 0.d8, 0.d7, 0.d6, 0.d5, 0.d4, 0.d3, 0.d2, 0.d1 /)
+   call random_seed(size = k)
+   allocate(seed(1:k))
+   seed(:) = values(3)
+   call random_seed(put = seed)
+
 
 #ifdef DEBUG
    write (*, *) 'debug'
 #endif
-
+   
    t = 0
 
    ! -------------------------------------------------------------------

@@ -25,8 +25,7 @@ contains
       integer(kind = 4) :: length
       integer(kind = 4) :: status
 
-      ! ./l2 <size> <procx> <procy> <procz>
-      ORDER = 2
+      ! ./l2 <size> <order> <procx> <procy> <procz>
 
       call GET_COMMAND_ARGUMENT(1, input, length, status)
       read(input, *) SIZE
