@@ -70,17 +70,20 @@ contains
       integer(kind = 4) :: ierr(3 * 3 * 3 * 2)
       integer(kind = 4) :: fierr
       integer(kind = 4) :: dst, src
+      integer(kind = 4) :: temp(3)
 
       s = 1
 
       ! Right
       if (MYRANKX < NRPROCX - 1) then
-         dst = neighbour([1, 0, 0])
+         temp = (/1, 0, 0/)
+         dst = neighbour(temp)
          call send_piece(spline(:, 2, 2, 2), dst, request(s), nrcpp)
          s = s + 1
       endif
       if (MYRANKX > 0) then
-         src = neighbour([ - 1, 0, 0])
+         temp = (/-1, 0, 0/)
+         src = neighbour(temp)
          call recv_piece(spline(:, 1, 2, 2), src, request(s), nrcpp)
          s = s + 1
       endif
@@ -92,14 +95,16 @@ contains
 
       ! Up
       if (MYRANKY > 0) then
-         dst = neighbour([0, -1, 0])
+         temp = (/0, -1, 0/)
+         dst = neighbour(temp)
          call send_piece(spline(:, 2, 2, 2), dst, request(s), nrcpp)
          s = s + 1
          call send_piece(spline(:, 1, 2, 2), dst, request(s), nrcpp)
          s = s + 1
       endif
       if (MYRANKY < NRPROCY - 1) then
-         src = neighbour([0, 1, 0])
+         temp = (/0, 1, 0/)
+         src = neighbour(temp)
          call recv_piece(spline(:, 2, 3, 2), src, request(s), nrcpp)
          s = s + 1
          call recv_piece(spline(:, 1, 3, 2), src, request(s), nrcpp)
@@ -113,14 +118,16 @@ contains
 
       ! Left
       if (MYRANKX > 0) then
-         dst = neighbour([ - 1, 0, 0])
+         temp = (/-1, 0, 0/)
+         dst = neighbour(temp)
          call send_piece(R(:, 2, 2, 2), dst, request(s), nrcpp)
          s = s + 1
          call send_piece(R(:, 2, 3, 2), dst, request(s), nrcpp)
          s = s + 1
       endif
       if (MYRANKX < NRPROCX - 1) then
-         src = neighbour([1, 0, 0])
+         temp = (/1, 0, 0/)
+         src = neighbour(temp)
          call recv_piece(R(:, 3, 2, 2), src, request(s), nrcpp)
          s = s + 1
          call recv_piece(R(:, 3, 3, 2), src, request(s), nrcpp)
@@ -134,7 +141,8 @@ contains
 
       ! Above
       if (MYRANKZ < NRPROCZ - 1) then
-         dst = neighbour([0, 0, 1])
+         temp = (/0, 0, 1/)
+         dst = neighbour(temp)
          call send_piece(spline(:, 2, 2, 2), dst, request(s), nrcpp)
          s = s + 1
          call send_piece(spline(:, 1, 2, 2), dst, request(s), nrcpp)
@@ -149,7 +157,8 @@ contains
          s = s + 1
       endif
       if (MYRANKZ > 0) then
-         src = neighbour([0, 0, -1])
+         temp = (/0, 0, -1/)
+         src = neighbour(temp)
          call recv_piece(spline(:, 2, 2, 1), src, request(s), nrcpp)
          s = s + 1
          call recv_piece(spline(:, 1, 2, 1), src, request(s), nrcpp)
@@ -171,7 +180,8 @@ contains
 
       ! Down
       if (MYRANKY < NRPROCY - 1) then
-         dst = neighbour([0, 1, 0])
+         temp = (/0, 1, 0/)
+         dst = neighbour(temp)
          call send_piece(spline(:, 2, 2, 2), dst, request(s), nrcpp)
          s = s + 1
          call send_piece(spline(:, 1, 2, 2), dst, request(s), nrcpp)
@@ -186,7 +196,8 @@ contains
          s = s + 1
       endif
       if (MYRANKY > 0) then
-         src = neighbour([0, -1, 0])
+         temp = (/0, -1, 0/)
+         src = neighbour(temp)
          call recv_piece(spline(:, 2, 1, 2), src, request(s), nrcpp)
          s = s + 1
          call recv_piece(spline(:, 1, 1, 2), src, request(s), nrcpp)
@@ -208,7 +219,8 @@ contains
 
       ! Below
       if (MYRANKZ > 0) then
-         dst = neighbour([0, 0, -1])
+         temp = (/0, 0, -1/)
+         dst = neighbour(temp)
          call send_piece(spline(:, 1, 1, 2), dst, request(s), nrcpp)
          s = s + 1
          call send_piece(spline(:, 1, 2, 2), dst, request(s), nrcpp)
@@ -229,7 +241,8 @@ contains
          s = s + 1
       endif
       if (MYRANKZ < NRPROCZ - 1) then
-         src = neighbour([0, 0, 1])
+         temp = (/0, 0, 1/)
+         src = neighbour(temp)
          call recv_piece(spline(:, 1, 1, 3), src, request(s), nrcpp)
          s = s + 1
          call recv_piece(spline(:, 1, 2, 3), src, request(s), nrcpp)
