@@ -314,9 +314,10 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
             real (kind = 8), intent(in), dimension(3) :: du
             real (kind = 8), intent(in) :: Uval
             real (kind = 8), intent(in) :: J, W
-            real (kind = 8), intent(in) :: NNx(0:ads % p(1) - 1, 0:ads % p(1), ads % p(1) + 1, ads % nelem(1)), &
-            NNy(0:ads % p(2) - 1, 0:ads % p(2), ads % p(2) + 1, ads % nelem(2)), &
-            NNz(0:ads % p(3) - 1, 0:ads % p(3), ads % p(3) + 1, ads % nelem(3))
+            real (kind = 8), intent(in) :: &
+            NNx(0:1, 0:ads % p(1), ads % p(1) + 1, ads % nelem(1)), &
+            NNy(0:1, 0:ads % p(2), ads % p(2) + 1, ads % nelem(2)), &
+            NNz(0:1, 0:ads % p(3), ads % p(3) + 1, ads % nelem(3))
             real (kind = 8), intent(out) :: ret
          end subroutine
       end interface

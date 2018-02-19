@@ -126,9 +126,10 @@ contains
             real (kind = 8), intent(in), dimension(3) :: du
             real (kind = 8), intent(in) :: Uval
             real (kind = 8), intent(in) :: J, W
-            real (kind = 8), intent(in) :: NNx(0:ads % p(1) - 1, 0:ads % p(1), ads % p(1) + 1, ads % nelem(1)), &
-            NNy(0:ads % p(2) - 1, 0:ads % p(2), ads % p(2) + 1, ads % nelem(2)), &
-            NNz(0:ads % p(3) - 1, 0:ads % p(3), ads % p(3) + 1, ads % nelem(3))
+            real (kind = 8), intent(in) :: &
+            NNx(0:1, 0:ads % p(1), ads % p(1) + 1, ads % nelem(1)), &
+            NNy(0:1, 0:ads % p(2), ads % p(2) + 1, ads % nelem(2)), &
+            NNz(0:1, 0:ads % p(3), ads % p(3) + 1, ads % nelem(3))
             real (kind = 8), intent(out) :: ret
          end subroutine
       end interface
@@ -142,9 +143,10 @@ contains
       real (kind = 8) :: Xx(ads % p(1) + 1, ads % nelem(1))
       real (kind = 8) :: Xy(ads % p(2) + 1, ads % nelem(2))
       real (kind = 8) :: Xz(ads % p(3) + 1, ads % nelem(3))
-      real (kind = 8) :: NNx(0:ads % p(1) - 1, 0:ads % p(1), ads % p(1) + 1, ads % nelem(1)), &
-      NNy(0:ads % p(2) - 1, 0:ads % p(2), ads % p(2) + 1, ads % nelem(2)), &
-      NNz(0:ads % p(3) - 1, 0:ads % p(3), ads % p(3) + 1, ads % nelem(3))
+      real (kind = 8) :: &
+      NNx(0:1, 0:ads % p(1), ads % p(1) + 1, ads % nelem(1)), &
+      NNy(0:1, 0:ads % p(2), ads % p(2) + 1, ads % nelem(2)), &
+      NNz(0:1, 0:ads % p(3), ads % p(3) + 1, ads % nelem(3))
       real (kind = 8) :: J, W, Uval, ucoeff
       real (kind = 8) :: v, rhs
       real (kind = 8) :: dux, duy, duz, dvx, dvy, dvz
@@ -164,9 +166,9 @@ contains
       mz = ads % n(3) + ads % p(3) + 1
       ngz = ads % p(3) + 1
 
-      call BasisData(ads % p(1), mx, ads % Ux, ads % p(1) - 1, ngx, ads % nelem(1), Ox, Jx, Wx, Xx, NNx)
-      call BasisData(ads % p(2), my, ads % Uy, ads % p(2) - 1, ngy, ads % nelem(2), Oy, Jy, Wy, Xy, NNy)
-      call BasisData(ads % p(3), mz, ads % Uz, ads % p(3) - 1, ngz, ads % nelem(3), Oz, Jz, Wz, Xz, NNz)
+      call BasisData(ads % p(1), mx, ads % Ux, 1, ngx, ads % nelem(1), Ox, Jx, Wx, Xx, NNx)
+      call BasisData(ads % p(2), my, ads % Uy, 1, ngy, ads % nelem(2), Oy, Jy, Wy, Xy, NNy)
+      call BasisData(ads % p(3), mz, ads % Uz, 1, ngz, ads % nelem(3), Oz, Jz, Wz, Xz, NNz)
 
 #ifdef IPRINT
       write(*, *) PRINTRANK, 'ex:', ads % mine(1), ads % maxe(1)
