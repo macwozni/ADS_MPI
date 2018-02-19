@@ -33,248 +33,250 @@ contains
       'nx', n(1), 'ny', n(2), 'nz', n(3), &
       'size of Ux', n(1) + p(1) + 2, 'size of Uy', n(2) + p(2) + 2, 'size of Uz', n(3) + p(3) + 2
 #endif
-
+      
       if (n(1) < NRPROCX .or. n(2) < NRPROCY .or. n(3) < NRPROCZ) then
-         write(*, *) 'Number of elements smaller than number of processors'
-         stop
-      endif
+      write(*, *) 'Number of elements smaller than number of processors'
+      stop
+   endif
 
-      ads % KL = p
-      ads % KU = p
+   ads % KL = p
+   ads % KU = p
 
-      call ComputeDecomposition(ads)
+   call ComputeDecomposition(ads)
 
 #ifdef IDEBUG
-      call ValidateDimensions(&
-      ads % n, &
-      ads % s, &
-      ads % nrcpp, &
-      ads % dimensionsX, ads % dimensionsY, ads % dimensionsZ)
+   call ValidateDimensions(&
+   ads % n, &
+   ads % s, &
+   ads % nrcpp, &
+   ads % dimensionsX, ads % dimensionsY, ads % dimensionsZ)
+#endif
+   
+#ifdef IPRINT
+   call PrintDecompositionInfo(&
+   ads % n, &
+   ads % nrcpp, &
+   ads % ibeg, &
+   ads % iend)
 #endif
 
-#ifdef IPRINT
-      call PrintDecompositionInfo(&
-      ads % n, &
-      ads % nrcpp, &
-      ads % ibeg, &
-      ads % iend)
-#endif
-      
    call AllocateArrays(ads, ads_data)
 
-      call PrepareKnot(ads % Ux, n(1), p(1), ads % nelem(1))
-      call PrepareKnot(ads % Uy, n(2), p(2), ads % nelem(2))
-      call PrepareKnot(ads % Uz, n(3), p(3), ads % nelem(3))
+   call PrepareKnot(ads % Ux, n(1), p(1), ads % nelem(1))
+   call PrepareKnot(ads % Uy, n(2), p(2), ads % nelem(2))
+   call PrepareKnot(ads % Uz, n(3), p(3), ads % nelem(3))
 
-      mierr = 0
-   end subroutine
+   mierr = 0
+end subroutine
 
 
-   ! -------------------------------------------------------------------
-   ! Establishes decomposition of the domain. Calculates size and location
-   ! of the piece for current process.
-   ! -------------------------------------------------------------------
-   subroutine ComputeDecomposition(ads)
-      use Setup, ONLY: ADS_Setup
-      use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ, PRINTRANK, &
-      NRPROCX, NRPROCY, NRPROCZ, ComputeEndpoints, FillDimVector
-      implicit none
-      type(ADS_setup), intent(inout) :: ads
-      integer(kind = 4) :: i
-      integer(kind = 4) :: ix, iy, iz
-      integer(kind = 4) :: imine, imaxe
+! -------------------------------------------------------------------
+! Establishes decomposition of the domain. Calculates size and location
+! of the piece for current process.
+! -------------------------------------------------------------------
+subroutine ComputeDecomposition(ads)
+   use Setup, ONLY: ADS_Setup
+   use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ, PRINTRANK, &
+   NRPROCX, NRPROCY, NRPROCZ, ComputeEndpoints, FillDimVector
+   implicit none
+   type(ADS_setup), intent(inout) :: ads
+   integer(kind = 4) :: i
+   integer(kind = 4) :: ix, iy, iz
+   integer(kind = 4) :: imine, imaxe
 
-      ! number of columns per processors
-      call ComputeEndpoints(MYRANKX, NRPROCX, ads % n(1), ads % p(1), ads % nrcpp(1), ads % ibeg(1), &
-      ads % iend(1), ads % mine(1), ads % maxe(1))
-      call ComputeEndpoints(MYRANKY, NRPROCY, ads % n(2), ads % p(2), ads % nrcpp(2), ads % ibeg(2), &
-      ads % iend(2), ads % mine(2), ads % maxe(2))
-      call ComputeEndpoints(MYRANKZ, NRPROCZ, ads % n(3), ads % p(3), ads % nrcpp(3), ads % ibeg(3), &
-      ads % iend(3), ads % mine(3), ads % maxe(3))
+   ! number of columns per processors
+   call ComputeEndpoints(MYRANKX, NRPROCX, ads % n(1), ads % p(1), ads % nrcpp(1), ads % ibeg(1), &
+   ads % iend(1), ads % mine(1), ads % maxe(1))
+   call ComputeEndpoints(MYRANKY, NRPROCY, ads % n(2), ads % p(2), ads % nrcpp(2), ads % ibeg(2), &
+   ads % iend(2), ads % mine(2), ads % maxe(2))
+   call ComputeEndpoints(MYRANKZ, NRPROCZ, ads % n(3), ads % p(3), ads % nrcpp(3), ads % ibeg(3), &
+   ads % iend(3), ads % mine(3), ads % maxe(3))
 
-      ads % s(1) = ads % iend(1) - ads % ibeg(1) + 1
-      ads % s(2) = ads % iend(2) - ads % ibeg(2) + 1
-      ads % s(3) = ads % iend(3) - ads % ibeg(3) + 1
+   ads % s(1) = ads % iend(1) - ads % ibeg(1) + 1
+   ads % s(2) = ads % iend(2) - ads % ibeg(2) + 1
+   ads % s(3) = ads % iend(3) - ads % ibeg(3) + 1
 
 #ifdef IINFO
-      write(*, *) PRINTRANK, 'Number of cols per processor:', ads % nrcpp(1), ads % nrcpp(2), ads % nrcpp(3)
-      write(*, *) PRINTRANK, 'ibegx,iendx', ads % ibeg(1), ads % iend(1)
-      write(*, *) PRINTRANK, 'ibegy,iendy', ads % ibeg(2), ads % iend(2)
-      write(*, *) PRINTRANK, 'ibegz,iendz', ads % ibeg(3), ads % iend(3)
+   write(*, *) PRINTRANK, 'Number of cols per processor:', ads % nrcpp(1), ads % nrcpp(2), ads % nrcpp(3)
+   write(*, *) PRINTRANK, 'ibegx,iendx', ads % ibeg(1), ads % iend(1)
+   write(*, *) PRINTRANK, 'ibegy,iendy', ads % ibeg(2), ads % iend(2)
+   write(*, *) PRINTRANK, 'ibegz,iendz', ads % ibeg(3), ads % iend(3)
 #endif
-
+   
       ! prepare dimensions vectors
-      call FillDimVector(ads % dimensionsX, ads % shiftsX, ads % nrcpp(1), ads % s(2) * ads % s(3), ads % n(1), NRPROCX)
-      call FillDimVector(ads % dimensionsY, ads % shiftsY, ads % nrcpp(2), ads % s(1) * ads % s(3), ads % n(2), NRPROCY)
-      call FillDimVector(ads % dimensionsZ, ads % shiftsZ, ads % nrcpp(3), ads % s(1) * ads % s(2), ads % n(3), NRPROCZ)
+   call FillDimVector(ads % dimensionsX, ads % shiftsX, ads % nrcpp(1), ads % s(2) * ads % s(3), ads % n(1), NRPROCX)
+   call FillDimVector(ads % dimensionsY, ads % shiftsY, ads % nrcpp(2), ads % s(1) * ads % s(3), ads % n(2), NRPROCY)
+   call FillDimVector(ads % dimensionsZ, ads % shiftsZ, ads % nrcpp(3), ads % s(1) * ads % s(2), ads % n(3), NRPROCZ)
 
-      ! Compute indices for neighbours
-      ads % ibegsx = -1
-      ads % iendsx = -1
-      ads % ibegsy = -1
-      ads % iendsy = -1
-      ads % ibegsz = -1
-      ads % iendsz = -1
+   ! Compute indices for neighbours
+   ads % ibegsx = -1
+   ads % iendsx = -1
+   ads % ibegsy = -1
+   ads % iendsy = -1
+   ads % ibegsz = -1
+   ads % iendsz = -1
 
-      do i = max(MYRANKX - 1, 0) + 1, min(MYRANKX + 1, NRPROCX - 1) + 1
-         ix = i - MYRANKX + 1
-         call ComputeEndpoints(i - 1, NRPROCX, ads % n(1), ads % p(1), ads % nrcpp(1), ads % ibegsx(ix), &
-         ads % iendsx(ix), imine, imaxe)
-      enddo
-      do i = max(MYRANKY - 1, 0) + 1, min(MYRANKY + 1, NRPROCY - 1) + 1
-         iy = i - MYRANKY + 1
-         call ComputeEndpoints(i - 1, NRPROCY, ads % n(2), ads % p(2), ads % nrcpp(2), ads % ibegsy(iy), &
-         ads % iendsy(iy), imine, imaxe)
-      enddo
-      do i = max(MYRANKZ - 1, 0) + 1, min(MYRANKZ + 1, NRPROCZ - 1) + 1
-         iz = i - MYRANKZ + 1
-         call ComputeEndpoints(i - 1, NRPROCZ, ads % n(3), ads % p(3), ads % nrcpp(3), ads % ibegsz(iz), &
-         ads % iendsz(iz), imine, imaxe)
-      enddo
+   do i = max(MYRANKX - 1, 0) + 1, min(MYRANKX + 1, NRPROCX - 1) + 1
+      ix = i - MYRANKX + 1
+      call ComputeEndpoints(i - 1, NRPROCX, ads % n(1), ads % p(1), ads % nrcpp(1), ads % ibegsx(ix), &
+      ads % iendsx(ix), imine, imaxe)
+   enddo
+   do i = max(MYRANKY - 1, 0) + 1, min(MYRANKY + 1, NRPROCY - 1) + 1
+      iy = i - MYRANKY + 1
+      call ComputeEndpoints(i - 1, NRPROCY, ads % n(2), ads % p(2), ads % nrcpp(2), ads % ibegsy(iy), &
+      ads % iendsy(iy), imine, imaxe)
+   enddo
+   do i = max(MYRANKZ - 1, 0) + 1, min(MYRANKZ + 1, NRPROCZ - 1) + 1
+      iz = i - MYRANKZ + 1
+      call ComputeEndpoints(i - 1, NRPROCZ, ads % n(3), ads % p(3), ads % nrcpp(3), ads % ibegsz(iz), &
+      ads % iendsz(iz), imine, imaxe)
+   enddo
 
-   end subroutine
-
-
-   ! -------------------------------------------------------------------
-   ! Allocates most of the 'static' arrays
-   ! -------------------------------------------------------------------
-   subroutine AllocateArrays(ads, ads_data)
-      use Setup, ONLY: ADS_Setup, ADS_compute_data
-      use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ
-      use mpi
-      implicit none
-      type(ADS_setup), intent(inout) :: ads
-      type (ADS_compute_data), intent(inout) :: ads_data
-      integer :: ierr
-
-      allocate(ads_data % Mx(2 * ads % KL(1) + ads % KU(1) + 1, ads % n(1) + 1))
-      allocate(ads_data % My(2 * ads % KL(2) + ads % KU(2) + 1, ads % n(2) + 1))
-      allocate(ads_data % Mz(2 * ads % KL(3) + ads % KU(3) + 1, ads % n(3) + 1))
-
-      ! OLD: MP start with system fully generated along X
-      ! allocate( F((n+1),(sy)*(sz))) !x,y,z
-      allocate( ads_data % F(ads % s(1), ads % s(2) * ads % s(3))) !x,y,z
-      allocate(ads_data % F2(ads % s(2), ads % s(1) * ads % s(3))) !y,x,z
-      allocate(ads_data % F3(ads % s(3), ads % s(1) * ads % s(2))) !z,x,y
+end subroutine
 
 
-      ! Processes on the border need pivot vector for LAPACK call
-      if (MYRANKX == 0 .or. MYRANKY == 0 .or. MYRANKZ == 0) then
-         allocate(ads % IPIVx(ads % n(1) + 1))
-         allocate(ads % IPIVy(ads % n(2) + 1))
-         allocate(ads % IPIVz(ads % n(3) + 1))
-      endif
+! -------------------------------------------------------------------
+! Allocates most of the 'static' arrays
+! -------------------------------------------------------------------
+subroutine AllocateArrays(ads, ads_data)
+   use Setup, ONLY: ADS_Setup, ADS_compute_data
+   use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ
+   use mpi
+   implicit none
+   type(ADS_setup), intent(inout) :: ads
+   type (ADS_compute_data), intent(inout) :: ads_data
+   integer :: ierr
 
-      allocate(ads_data % R(ads % nrcpp(3) * ads % nrcpp(1) * ads % nrcpp(2), 3, 3, 3))
-      ads_data % R = 0.d0
+   allocate(ads_data % Mx(2 * ads % KL(1) + ads % KU(1) + 1, ads % n(1) + 1))
+   allocate(ads_data % My(2 * ads % KL(2) + ads % KU(2) + 1, ads % n(2) + 1))
+   allocate(ads_data % Mz(2 * ads % KL(3) + ads % KU(3) + 1, ads % n(3) + 1))
 
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
+   ! OLD: MP start with system fully generated along X
+   ! allocate( F((n+1),(sy)*(sz))) !x,y,z
+   allocate( ads_data % F(ads % s(1), ads % s(2) * ads % s(3))) !x,y,z
+   allocate(ads_data % F2(ads % s(2), ads % s(1) * ads % s(3))) !y,x,z
+   allocate(ads_data % F3(ads % s(3), ads % s(1) * ads % s(2))) !z,x,y
 
-   end subroutine
+
+   ! Processes on the border need pivot vector for LAPACK call
+   if (MYRANKX == 0 .or. MYRANKY == 0 .or. MYRANKZ == 0) then
+      allocate(ads % IPIVx(ads % n(1) + 1))
+      allocate(ads % IPIVy(ads % n(2) + 1))
+      allocate(ads % IPIVz(ads % n(3) + 1))
+   endif
+
+   allocate(ads_data % R(ads % nrcpp(3) * ads % nrcpp(1) * ads % nrcpp(2), 3, 3, 3))
+   ads_data % R = 0.d0
+
+   call mpi_barrier(MPI_COMM_WORLD, ierr)
+
+end subroutine
 
 
 
-   !!!!! przeniesc do debug
-   ! -------------------------------------------------------------------
-   ! Prints debugging information about results of distributing
-   ! data to neighbouring processes.
-   ! -------------------------------------------------------------------
-   subroutine PrintDistributedData(ads, ads_data)
-      use Setup, ONLY: ADS_Setup, ADS_compute_data
-      use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ, PRINTRANK, &
-      NRPROCX, NRPROCY, NRPROCZ, ComputeEndpoints
-      implicit none
-      type (ADS_setup), intent(inout) :: ads
-      type (ADS_compute_data), intent(in) :: ads_data
-      integer(kind = 4) :: i, j, k
-      integer(kind = 4) :: obegx, oendx, obegy, oendy, obegz, oendz
-      integer(kind = 4) :: mine, maxe
+!!!!! przeniesc do debug
+! -------------------------------------------------------------------
+! Prints debugging information about results of distributing
+! data to neighbouring processes.
+! -------------------------------------------------------------------
+subroutine PrintDistributedData(ads, ads_data)
+   use Setup, ONLY: ADS_Setup, ADS_compute_data
+   use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ, PRINTRANK, &
+   NRPROCX, NRPROCY, NRPROCZ, ComputeEndpoints
+   implicit none
+   type (ADS_setup), intent(inout) :: ads
+   type (ADS_compute_data), intent(in) :: ads_data
+   integer(kind = 4) :: i, j, k
+   integer(kind = 4) :: obegx, oendx, obegy, oendy, obegz, oendz
+   integer(kind = 4) :: mine, maxe
 
-      write(*, *) PRINTRANK, 'R:'
+   write(*, *) PRINTRANK, 'R:'
 
-      do i = max(MYRANKX - 1, 0) + 1, min(MYRANKX + 1, NRPROCX - 1) + 1
-         do j = max(MYRANKY - 1, 0) + 1, min(MYRANKY + 1, NRPROCY - 1) + 1
-            do k = max(MYRANKZ - 1, 0) + 1, min(MYRANKZ + 1, NRPROCZ - 1) + 1
-               write(*, *) '(i,j,k)=', i + 1, j + 1, k + 1
+   do i = max(MYRANKX - 1, 0) + 1, min(MYRANKX + 1, NRPROCX - 1) + 1
+      do j = max(MYRANKY - 1, 0) + 1, min(MYRANKY + 1, NRPROCY - 1) + 1
+         do k = max(MYRANKZ - 1, 0) + 1, min(MYRANKZ + 1, NRPROCZ - 1) + 1
+            write(*, *) '(i,j,k)=', i + 1, j + 1, k + 1
 
-               call ComputeEndpoints(i - 1, NRPROCX, ads % n(1), ads % p(1), ads % nrcpp(1), obegx, oendx, mine, maxe)
-               call ComputeEndpoints(j - 1, NRPROCY, ads % n(2), ads % p(2), ads % nrcpp(2), obegy, oendy, mine, maxe)
-               call ComputeEndpoints(k - 1, NRPROCZ, ads % n(3), ads % p(3), ads % nrcpp(3), obegz, oendz, mine, maxe)
+            call ComputeEndpoints(i - 1, NRPROCX, ads % n(1), ads % p(1), ads % nrcpp(1), obegx, oendx, mine, maxe)
+            call ComputeEndpoints(j - 1, NRPROCY, ads % n(2), ads % p(2), ads % nrcpp(2), obegy, oendy, mine, maxe)
+            call ComputeEndpoints(k - 1, NRPROCZ, ads % n(3), ads % p(3), ads % nrcpp(3), obegz, oendz, mine, maxe)
 
-               write(*, *) reshape(&
-               ads_data % R(:, i - MYRANKX + 1, j - MYRANKY + 1, k - MYRANKZ + 1), &
-               (/ oendz - obegz + 1, oendx - obegx + 1, oendy - obegy + 1 /))
-            enddo
+            write(*, *) reshape(&
+            ads_data % R(:, i - MYRANKX + 1, j - MYRANKY + 1, k - MYRANKZ + 1), &
+            (/ oendz - obegz + 1, oendx - obegx + 1, oendy - obegy + 1 /))
          enddo
       enddo
+   enddo
 
-      write(*, *) '----'
+   write(*, *) '----'
 
-   end subroutine
+end subroutine
 
 
-   !!!! przeniesc do solver
-   ! -------------------------------------------------------------------
-   ! Solves 1D linear system (one of 3 steps of solving the whole),
-   ! using DGBSV.
-   !
-   ! RHS   - vector of right-hand sides, of dimension (n+1) x eqnum
-   ! eqnum - number of right-hand sides (equations)
-   ! -------------------------------------------------------------------
-   subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
-      implicit none
-      real (kind = 8) :: RHS(:,:)
-      integer :: KL, KU
-      integer, dimension(:) :: IPIV
-      real (kind = 8), dimension(:,:) :: M
-      integer :: n, p
-      integer(kind = 4) :: eqnum
-      integer(kind = 4) :: i, iret
+!!!! przeniesc do solver
+! -------------------------------------------------------------------
+! Solves 1D linear system (one of 3 steps of solving the whole),
+! using DGBSV.
+!
+! RHS   - vector of right-hand sides, of dimension (n+1) x eqnum
+! eqnum - number of right-hand sides (equations)
+! -------------------------------------------------------------------
+subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
+   implicit none
+   real (kind = 8) :: RHS(:,:)
+   integer :: KL, KU
+   integer, dimension(:) :: IPIV
+   real (kind = 8), dimension(:,:) :: M
+   integer :: n, p
+   integer(kind = 4) :: eqnum
+   integer(kind = 4) :: i, iret
 
-      IPIV = 0
+   IPIV = 0
 
 #ifdef IPRINT
-      write(*, *) 'CALL DGBSV'
-      write(*, *) 'N=', n + 1
-      write(*, *) 'KL=', KL
-      write(*, *) 'KU=', KU
-      write(*, *) 'NRHS=', eqnum
-      write(*, *) 'AB='
-      do i = 1, 2 * KL + KU + 1
-         write(*, *) i, 'row=', M(i, 1:n + 1)
-      enddo
-      write(*, *) 'LDAB=', 2 * KL + KU + 1
-      write(*, *) 'IPIV=', IPIV
-      write(*, *) 'B='
-      do i = 1, n + 1
-         write(*, *) i, 'row=', RHS(i, 1:eqnum)
-      enddo
-      write(*, *) 'LDB=', n + 1
+   write(*, *) 'CALL DGBSV'
+   write(*, *) 'N=', n + 1
+   write(*, *) 'KL=', KL
+   write(*, *) 'KU=', KU
+   write(*, *) 'NRHS=', eqnum
+   write(*, *) 'AB='
+   do i = 1, 2 * KL + KU + 1
+      write(*, *) i, 'row=', M(i, 1:n + 1)
+   enddo
+   write(*, *) 'LDAB=', 2 * KL + KU + 1
+   write(*, *) 'IPIV=', IPIV
+   write(*, *) 'B='
+   do i = 1, n + 1
+      write(*, *) i, 'row=', RHS(i, 1:eqnum)
+   enddo
+   write(*, *) 'LDB=', n + 1
 #endif
-
+   
       ! SUBROUTINE DGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
-      ! .. Scalar Arguments ..
-      ! INTEGER            INFO, KL, KU, LDAB, LDB, N, NRHS
-      ! .. Array Arguments ..
-      ! INTEGER            IPIV( * )
-      ! DOUBLE PRECISION   AB( LDAB, * ), B( LDB, * )
+   ! .. Scalar Arguments ..
+   ! INTEGER            INFO, KL, KU, LDAB, LDB, N, NRHS
+   ! .. Array Arguments ..
+   ! INTEGER            IPIV( * )
+   ! DOUBLE PRECISION   AB( LDAB, * ), B( LDB, * )
 
-      call DGBSV(n + 1, KL, KU, eqnum, M, 2 * KL + KU + 1, IPIV, RHS, n + 1, iret)
+   call DGBSV(n + 1, KL, KU, eqnum, M, 2 * KL + KU + 1, IPIV, RHS, n + 1, iret)
 
 #ifdef IPRINT
-      write(*, *) 'iret=', iret
-      write(*, *) 'Solution='
-      do i = 1, n + 1
-         write(*, *) i, 'row=', RHS(i, 1:eqnum)
-      enddo
+   write(*, *) 'iret=', iret
+   write(*, *) 'Solution='
+   do i = 1, n + 1
+      write(*, *) i, 'row=', RHS(i, 1:eqnum)
+   enddo
 #endif
-
+   
    end subroutine
 
 
 
    !!!! podzielic na wraper i czesc wlasciwa
    ! przeniesc czesc do solver
+   
+   
    ! -------------------------------------------------------------------
    ! Performs one step of the simulation
    !
@@ -292,15 +294,15 @@ contains
       implicit none
       interface
          subroutine RHS_fun(&
-                              ads, &
-                              X, &
-                              k, &
-                              e, &
-                              a, &
-                              b, &
-                              du, &
-                              NNx, NNy, NNz, &
-                              Uval, J, W, ret)
+            ads, &
+            X, &
+            k, &
+            e, &
+            a, &
+            b, &
+            du, &
+            NNx, NNy, NNz, &
+            Uval, J, W, ret)
             use Setup, ONLY: ADS_Setup
             implicit none
             type (ADS_setup), intent(in) :: ads
@@ -312,9 +314,9 @@ contains
             real (kind = 8), intent(in), dimension(3) :: du
             real (kind = 8), intent(in) :: Uval
             real (kind = 8), intent(in) :: J, W
-            real (kind = 8), intent(in) :: NNx(0:ads%p(1) - 1, 0:ads%p(1), ads%p(1) + 1, ads%nelem(1)), &
-            NNy(0:ads%p(2) - 1, 0:ads%p(2), ads%p(2) + 1, ads%nelem(2)), &
-            NNz(0:ads%p(3) - 1, 0:ads%p(3), ads%p(3) + 1, ads%nelem(3))
+            real (kind = 8), intent(in) :: NNx(0:ads % p(1) - 1, 0:ads % p(1), ads % p(1) + 1, ads % nelem(1)), &
+            NNy(0:ads % p(2) - 1, 0:ads % p(2), ads % p(2) + 1, ads % nelem(2)), &
+            NNz(0:ads % p(3) - 1, 0:ads % p(3), ads % p(3) + 1, ads % nelem(3))
             real (kind = 8), intent(out) :: ret
          end subroutine
       end interface
@@ -335,7 +337,7 @@ contains
          write(*, *) PRINTRANK, ads % F(i, 1:ads % s(2) * ads % s(3))
       enddo
 #endif
-
+      
       !--------------------------------------------------------------------
       ! Solve the first problem
       !--------------------------------------------------------------------
@@ -344,7 +346,7 @@ contains
 #ifdef IINFO
       write(*, *) PRINTRANK, '1a) GATHER'
 #endif
-
+      
       allocate(ads_data % F_out((ads % n(1) + 1), ads % s(2) * ads % s(3)))
 
       call Gather(ads_data % F, ads_data % F_out, ads % n(1), ads % s(1), ads % s(2) &
@@ -364,7 +366,7 @@ contains
 #ifdef IINFO
          write(*, *) PRINTRANK, '1b) SOLVE THE FIRST PROBLEM'
 #endif
-
+         
          call ComputeMassMatrix(ads % KL(1), ads % KU(1), ads % Ux, ads % p(1), &
          ads % n(1), ads % nelem(1), ads_data % Mx)
          call SolveOneDirection(ads_data % F_out, ads % s(2) * ads % s(3), ads % n(1), &
@@ -396,7 +398,7 @@ contains
          write(*, *) PRINTRANK, i, 'row=', ads_data % F2(i, 1:ads % s(1) * ads % s(3))
       enddo
 #endif
-
+      
       !--------------------------------------------------------------------
       ! Solve the second problem
       !--------------------------------------------------------------------
@@ -405,7 +407,7 @@ contains
 #ifdef IINFO
       write(*, *) PRINTRANK, '2a) GATHER'
 #endif
-
+      
       allocate(ads_data % F2_out((ads % n(2) + 1), ads % s(1) * ads % s(3)))
       call Gather(ads_data % F2, ads_data % F2_out, ads % n(2), ads % s(2), ads % s(1) * ads % s(3), &
       ads % dimensionsY, ads % shiftsY, COMMY, ierr)
@@ -416,7 +418,7 @@ contains
 #ifdef IINFO
          write(*, *) PRINTRANK, '2b) SOLVE THE SECOND PROBLEM'
 #endif
-
+         
          call ComputeMassMatrix(ads % KL(2), ads % KU(2), ads % Uy, ads % p(2), ads % n(2), &
          ads % nelem(2), ads_data % My)
          call SolveOneDirection(ads_data % F2_out, ads % s(1) * ads % s(3), ads % n(2), ads % KL(2), &
@@ -428,7 +430,7 @@ contains
 #ifdef IINFO
       write(*, *) PRINTRANK, '2c) SCATHER'
 #endif
-
+      
       ! CORRECTION
       allocate(ads_data % F3_out(ads % s(3), ads % s(1) * ads % s(3)))
       call Scatter(ads_data % F2_out, ads_data % F3_out, ads % n(2), ads % s(2), ads % s(1) * ads % s(3), &
@@ -443,7 +445,7 @@ contains
          write(*, *) PRINTRANK, i, 'row=', ads % F3_out(i, 1:ads % s(1) * ads % s(3))
       enddo
 #endif
-
+      
       call mpi_barrier(MPI_COMM_WORLD, ierr)
 
 #ifdef IINFO
@@ -460,14 +462,14 @@ contains
          write(*, *) PRINTRANK, i, 'row=', ads_data % F3(i, 1:ads % s(1) * ads % s(2))
       enddo
 #endif
-
+      
       !--------------------------------------------------------------------
       ! Solve the third problem
       !--------------------------------------------------------------------
 #ifdef IINFO
       write(*, *) PRINTRANK, '3a) GATHER'
 #endif
-
+      
       call mpi_barrier(MPI_COMM_WORLD, ierr)
       allocate(ads_data % F3_out((ads % n(3) + 1), ads % s(1) * ads % s(2)))
       call Gather(ads_data % F3, ads_data % F3_out, ads % n(3), ads % s(3), ads % s(1) * ads % s(2), &
@@ -479,7 +481,7 @@ contains
 #ifdef IINFO
          write(*, *) PRINTRANK, '3b) SOLVE THE THIRD PROBLEM'
 #endif
-
+         
          call ComputeMassMatrix(ads % KL(3), ads % KU(3), ads % Uz, ads % p(3), ads % n(3), &
          ads % nelem(3), ads_data % Mz)
          call SolveOneDirection(ads_data % F3_out, ads % s(1) * ads % s(2), ads % n(3), ads % KL(3), &
@@ -491,7 +493,7 @@ contains
 #ifdef IINFO
       write(*, *) PRINTRANK, '3c) SCATTER'
 #endif
-
+      
       ! CORRECTION
       allocate(ads_data % F_out(ads % s(3), ads % s(1) * ads % s(2)))
       call Scatter(ads_data % F3_out, ads_data % F_out, ads % n(3), ads % s(3), ads % s(1) * ads % s(2), &
@@ -514,7 +516,7 @@ contains
          write(*, *) PRINTRANK, i, 'row=', ads % F(i, 1:ads % s(2) * ads % s(3))
       enddo
 #endif
-
+      
 #ifdef IINFO
       write(*, *) PRINTRANK, '3e) DISTRIBUTE SOLUTION'
 #endif
@@ -529,7 +531,7 @@ contains
          write(*, *) PRINTRANK, i, 'row=', ads % F(i,:)
       enddo
 #endif
-
+      
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
 
@@ -580,7 +582,7 @@ contains
 #ifdef IINFO
       write(*, *) PRINTRANK, "Exiting..."
 #endif
-      
+
       mierr = 0
 
    end subroutine

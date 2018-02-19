@@ -55,7 +55,6 @@ module Setup
 
 
    type ADS_compute_data
-
       ! Mass matrix
       real (kind = 8), allocatable, dimension(:,:) :: Mx
       real (kind = 8), allocatable, dimension(:,:) :: My
