@@ -692,9 +692,14 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
       real (kind = 8), allocatable :: solution(:,:,:)
       type (PlotParams) :: params
       character(len = 20) :: filename
+      integer (kind = 4), dimension(3) :: tmp1, tmp2, tmp3
+      
+      tmp1 = (/ads % n(1), ads % n(2), ads % n(3)/)
+      tmp2 = (/ads % p(1), ads % p(2), ads % p(3)/)
+      tmp3 = (/ads % s(1), ads % s(2), ads % s(3)/)
 
       call GatherFullSolution(0, ads_data % F, solution, &
-      [ads % n(1), ads % n(2), ads % n(3)], [ads % p(1), ads % p(2), ads % p(3)], [ads % s(1), ads % s(2), ads % s(3)])
+      tmp1, tmp2, tmp3)
 
       if (MYRANK == 0) then
          write(filename, '(I10)') iter

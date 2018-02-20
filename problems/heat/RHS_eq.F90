@@ -57,13 +57,8 @@ NNx(0:1, 0:ads%p(1), ads%p(1) + 1, ads%nelem(1)), &
 NNy(0:1, 0:ads%p(2), ads%p(2) + 1, ads%nelem(2)), &
 NNz(0:1, 0:ads%p(3), ads%p(3) + 1, ads%nelem(3))
 real (kind = 8), intent(out) :: ret
-real   (kind=8) :: fval,vpump,vdrain,kqval
-real   (kind=8) :: Umax = -1d10, Umin = 1d10
+real   (kind=8) :: fval,kqval
 real   (kind=8) :: dvx,dvy,dvz,rhs,v
-
-
-Umax = max(Umax, Uval)
-Umin = min(Umin, Uval)
 
 v   = NNx(0,a(1),k(1),e(1)) * NNy(0,a(2),k(2),e(2)) * NNz(0,a(3),k(3),e(3))
 dvx = NNx(1,a(1),k(1),e(1)) * NNy(0,a(2),k(2),e(2)) * NNz(0,a(3),k(3),e(3)) 

@@ -342,6 +342,7 @@ contains
       integer(kind = 4) :: x, y, z
       integer(kind = 4), dimension(3) :: i
       integer(kind = 4) :: idx
+      integer(kind = 4), dimension(3) :: tmp
 
       ! Only the root process needs buffer, but passing unallocated array
       ! is illegal in Fortran, hence we allocate it as array of size 0
@@ -362,7 +363,8 @@ contains
          do y = 0, NRPROCY - 1
             do z = 0, NRPROCZ - 1
                idx = LinearIndex(x, y, z)
-               size = SizeOfPiece([x, y, z], n, p)
+               tmp = (/x, y, z/)
+               size = SizeOfPiece(tmp, n, p)
                recvcounts(idx) = size
                displs(idx) = offset
                offset = offset + size
@@ -399,7 +401,8 @@ contains
                      enddo
                   enddo
 
-                  offset = offset + SizeOfPiece([x, y, z], n, p)
+                  tmp = (/x, y, z/)
+                  offset = offset + SizeOfPiece(tmp, n, p)
                enddo
             enddo
          enddo

@@ -10,9 +10,9 @@ program main
    use ADSS
    use input_data
    use mpi
+   use plot
 
    implicit none
-
 
    ! Iteration counter
    integer :: iter = 0
@@ -21,7 +21,7 @@ program main
    integer(kind = 4), dimension(3) :: p1, p2
 
    type (ADS_setup) :: ads
-   type (ADS_compute_data) ads_data
+   type (ADS_compute_data) :: ads_data
 
 #ifdef DEBUG
    write (*, *) 'debug'
@@ -42,11 +42,9 @@ program main
    p1 = (/ SIZE, SIZE, SIZE /)
    p2 = (/ ORDER, ORDER, ORDER /)
    call Initialize(p1, p2, ads, ads_data, ierr)
-   allocate(Kqvals(ads % p(1) + 1, ads % p(2) + 1, ads % p(3) + 1, ads % maxe(1) - ads % mine(1) + 1, &
-   ads % maxe(2) - ads % mine(2) + 1, ads % maxe(3) - ads % mine(3) + 1))
-   call InitInputData
-   call PrecomputeKq(ads)
 
+   steps = 1
+   
    ! Iterations
    do iter = 0, steps
 
@@ -57,10 +55,10 @@ program main
          write(*, *) iter, 'L2 norm:', fullnorm
       endif
       t = t + Dt
+      call PrintSolution(iter, t, ads, ads_data)
 
    enddo
 
-   call ComputeResults
    call Cleanup(ads, ads_data, ierr)
    call CleanParallelism(ierr)
 
