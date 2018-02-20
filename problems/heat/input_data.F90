@@ -41,10 +41,14 @@ contains
       call GET_COMMAND_ARGUMENT(2, input, length, status)
       read(input, *) ORDER
       call GET_COMMAND_ARGUMENT(3, input, length, status)
-      read(input, *) procx
+      read(input, *) steps
       call GET_COMMAND_ARGUMENT(4, input, length, status)
-      read(input, *) procy
+      read(input, *) Dt
       call GET_COMMAND_ARGUMENT(5, input, length, status)
+      read(input, *) procx
+      call GET_COMMAND_ARGUMENT(6, input, length, status)
+      read(input, *) procy
+      call GET_COMMAND_ARGUMENT(7, input, length, status)
       read(input, *) procz
 
    end subroutine
@@ -61,7 +65,8 @@ contains
       p1 = (/ x, y, z/)
       !dist = sqrt(dist_from_curves(p1, cx, cy, cz, cN, cL))
       dist = 0 !!!!!!
-      val = 0.1d0 * lerp(falloff(0.d0, 0.2d0, dist), 0.d0, 1.d0) * bump3d(0.2d0, 0.6d0, x, y, z)
+      !val = 1.d0 * lerp(falloff(0.d0, 0.2d0, dist), 0.d0, 1.d0) * bump3d(0.2d0, 0.6d0, x, y, z)
+      val = 2.d0  * bump3d(0.05d0, 0.4d0, x, y, z)
 
    end function
 

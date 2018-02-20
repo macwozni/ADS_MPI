@@ -42,8 +42,6 @@ program main
    p1 = (/ SIZE, SIZE, SIZE /)
    p2 = (/ ORDER, ORDER, ORDER /)
    call Initialize(p1, p2, ads, ads_data, ierr)
-
-   steps = 400
    
    ! Iterations
    do iter = 0, steps

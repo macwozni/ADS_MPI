@@ -82,7 +82,7 @@ contains
       real (kind = 8), intent(in) :: x
       real (kind = 8) :: val
 
-      val = bump(4 * (x - 0.d5))
+      val = bump(4 * (x - 0.5d0))
 
    end function
 
@@ -92,7 +92,7 @@ contains
       real (kind = 8), intent(in) :: r, Rr, x, y, z
       real (kind = 8) :: val, t
 
-      t = norm2((/x, y, z/) - 0.d50)
+      t = norm2((/x, y, z/) - 0.5d0)
       val = falloff(r/2.d0, Rr/2.d0, t)
 
    end function
