@@ -60,7 +60,8 @@ contains
 
       p1 = (/ x, y, z/)
       !dist = sqrt(dist_from_curves(p1, cx, cy, cz, cN, cL))
-      val = 0.1d0 * lerp(falloff(0.d0, 0.1d0, dist), 0.d0, 1.d0) * bump3d(0.2d0, 0.6d0, x, y, z)
+      dist = 0 !!!!!!
+      val = 0.1d0 * lerp(falloff(0.d0, 0.2d0, dist), 0.d0, 1.d0) * bump3d(0.2d0, 0.6d0, x, y, z)
 
    end function
 

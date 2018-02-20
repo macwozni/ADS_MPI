@@ -21,7 +21,7 @@ contains
       real (kind = 8), intent(in) :: t, x, y
       real (kind = 8) :: val
 
-      val = (1 - t) * x + t * y
+      val = (1.d0 - t) * x + t * y
 
    end function
 
@@ -42,7 +42,7 @@ contains
          fval = 0.d0
       else
          h = (t - r) / (Rr - r)
-         fval = ((h - 1) * (h + 1)) ** 2
+         fval = ((h - 1.d0) * (h + 1.d0)) ** 2.d0
       endif
 
    end function
@@ -61,10 +61,10 @@ contains
       real (kind = 8), intent(in) :: x
       real (kind = 8) :: val
 
-      if (x > -1 .and. x < 1) then
-         val = (x + 1)**2 * (x - 1)**2
+      if (x > -1.d0 .and. x < 1.d0) then
+         val = (x + 1.d0)**2.d0 * (x - 1.d0)**2.d0
       else
-         val = 0
+         val = 0.d0
       endif
 
    end function
@@ -82,7 +82,7 @@ contains
       real (kind = 8), intent(in) :: x
       real (kind = 8) :: val
 
-      val = bump(4 * (x - 0.5))
+      val = bump(4 * (x - 0.d5))
 
    end function
 
@@ -92,8 +92,8 @@ contains
       real (kind = 8), intent(in) :: r, Rr, x, y, z
       real (kind = 8) :: val, t
 
-      t = norm2([x, y, z] - 0.5d0)
-      val = falloff(r/2, Rr/2, t)
+      t = norm2((/x, y, z/) - 0.d50)
+      val = falloff(r/2.d0, Rr/2.d0, t)
 
    end function
 

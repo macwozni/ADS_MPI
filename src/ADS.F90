@@ -706,7 +706,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
          filename = 'step' // adjustl(filename)
          ! filename = trim(filename) // '_'
 
-         params = PlotParams(0, 1, 0, 1, 0, 1, 31, 31, 31)
+         params = PlotParams(0.d0, 1.d0, 0.d0, 1.d0, 0.d0, 1.d0, 31, 31, 31)
          call SaveSplinePlot(trim(filename), &
          ads % Ux, ads % p(1), ads % n(1), ads % nelem(1), &
          ads % Uy, ads % p(2), ads % n(2), ads % nelem(2), &
