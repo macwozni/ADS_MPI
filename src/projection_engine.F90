@@ -29,6 +29,7 @@ contains
    ! -------------------------------------------------------------------
    subroutine Form1DMassMatrix(KL, KU, U, p, n, nelem, M)
       use basis, ONLY: BasisData
+      use omp_lib     
       implicit none
       integer(kind = 4), intent(in) :: KL, KU
       integer(kind = 4), intent(in) :: n, p, nelem
@@ -42,6 +43,7 @@ contains
       integer(kind = 4) :: ia, ib
       integer(kind = 4) :: mm, ng, e, k, a, b
       integer(kind = 4) :: O(nelem)
+      integer(kind = 4) :: all, tmp
 
       mm = n + p + 1
       ng = p + 1
@@ -50,14 +52,26 @@ contains
 
       call BasisData(p, mm, U, d, ng, nelem, O, J, W, X, NN)
 
+      ! new parallel loop
+!$OMP PARALLEL DO &
+!$OMP DEFAULT(SHARED) &
+!$OMP PRIVATE(b,a,k,e,ia,ib) &
+!$OMP REDUCTION(+:M)
+      do all = 1, nelem*ng*(p+1)*(p+1)
+         b = modulo(all - 1, p + 1)
+         tmp = (all - b) / (p + 1)
+         a = modulo(tmp, p + 1)
+         tmp = (tmp - a) / (p + 1)
+         k = modulo(tmp, ng) + 1
+         e = (tmp - k+1) / ng + 1
       ! loop over elements
-      do e = 1, nelem
+!      do e = 1, nelem
          ! loop over Gauss points
-         do k = 1, ng
+!         do k = 1, ng
             ! loop over shape functions over elements (p+1 functions)
-            do a = 0, p
+!            do a = 0, p
                ! loop over shape functions over elements (p+1 functions)
-               do b = 0, p
+!               do b = 0, p
                   ! O(e) + a = first dof of element + 1st local shape function index
                   ! O(e) + b = first dof of element + 2nd local shape function index
                   ! NN(0,a,k,e) = value of shape function a at Gauss point k over element e
@@ -68,9 +82,11 @@ contains
                   ib = O(e) + b
                   M(KL + KU + ia - ib, ib) = M(KL + KU + ia - ib, ib) + NN(0, a, k, e) * NN(0, b, k, e) * J(e) * W(k)
 
-               enddo
-            enddo
-         enddo
+!               enddo
+!            enddo
+!         enddo
+!      enddo
+      
       enddo
 
    end subroutine
