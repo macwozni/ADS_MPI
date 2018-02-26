@@ -328,9 +328,13 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
       integer(kind = 4) :: i
       integer(kind = 4) :: iret, ierr
       integer(kind = 4), dimension(3) :: nrcpp
+      real(kind = 8) :: time1, time2
 
+      time1 = MPI_Wtime()
       ! generate the RHS vectors
       call Form3DRHS(ads, ads_data, RHS_fun)
+      time2 = MPI_Wtime()
+      write(*,*) "Form 3D RHS: ", time2 - time1
 
 #ifdef IPRINT
       write(*, *) PRINTRANK, 'F'
@@ -350,8 +354,11 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
       
       allocate(ads_data % F_out((ads % n(1) + 1), ads % s(2) * ads % s(3)))
 
+      time1 = MPI_Wtime()
       call Gather(ads_data % F, ads_data % F_out, ads % n(1), ads % s(1), ads % s(2) &
       *ads % s(3), ads % dimensionsX, ads % shiftsX, COMMX, ierr)
+      time2 = MPI_Wtime()
+      write(*,*) "Gather 1: ", time2 - time1
 
 #ifdef IPRINT
       write(*, *) PRINTRANK, 'after call mpi_gather'
@@ -368,10 +375,17 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
          write(*, *) PRINTRANK, '1b) SOLVE THE FIRST PROBLEM'
 #endif
          
+         time1 = MPI_Wtime()
          call ComputeMassMatrix(ads % KL(1), ads % KU(1), ads % Ux, ads % p(1), &
          ads % n(1), ads % nelem(1), ads_data % Mx)
+         time2 = MPI_Wtime()
+         write(*,*) "Mass matrix 1: ", time2 - time1
+         
+         time1 = MPI_Wtime()
          call SolveOneDirection(ads_data % F_out, ads % s(2) * ads % s(3), ads % n(1), &
          ads % KL(1), ads % KU(1), ads % p(1), ads_data % Mx, ads % IPIVx)
+         time2 = MPI_Wtime()
+         write(*,*) "Solve 1: ", time2 - time1
       endif
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -380,8 +394,11 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
       write(*, *) PRINTRANK, '1c) SCATTER'
 #endif
       allocate(ads_data % F2_out(ads % s(1), ads % s(2) * ads % s(3)))
+      time1 = MPI_Wtime()
       call Scatter(ads_data % F_out, ads_data % F2_out, ads % n(1), ads % s(1), ads % s(2) * &
       ads % s(3), ads % dimensionsX, ads % shiftsX, COMMX, ierr)
+      time2 = MPI_Wtime()
+      write(*,*) "Scatter 1: ", time2 - time1
       deallocate(ads_data % F_out)
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -410,8 +427,11 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
 #endif
       
       allocate(ads_data % F2_out((ads % n(2) + 1), ads % s(1) * ads % s(3)))
+      time1 = MPI_Wtime()
       call Gather(ads_data % F2, ads_data % F2_out, ads % n(2), ads % s(2), ads % s(1) * ads % s(3), &
       ads % dimensionsY, ads % shiftsY, COMMY, ierr)
+      time2 = MPI_Wtime()
+      write(*,*) "Gather 2: ", time2 - time1
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
 
@@ -420,10 +440,18 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
          write(*, *) PRINTRANK, '2b) SOLVE THE SECOND PROBLEM'
 #endif
          
+         time1 = MPI_Wtime()
          call ComputeMassMatrix(ads % KL(2), ads % KU(2), ads % Uy, ads % p(2), ads % n(2), &
          ads % nelem(2), ads_data % My)
+         time2 = MPI_Wtime()
+         write(*,*) "Mass matrix 2: ", time2 - time1
+
+         time1 = MPI_Wtime()
          call SolveOneDirection(ads_data % F2_out, ads % s(1) * ads % s(3), ads % n(2), ads % KL(2), &
          ads % KU(2), ads % p(2), ads_data % My, ads % IPIVy)
+         time2 = MPI_Wtime()
+         write(*,*) "Solve 2: ", time2 - time1
+
       endif
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -434,8 +462,11 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
       
       ! CORRECTION
       allocate(ads_data % F3_out(ads % s(2), ads % s(1) * ads % s(3)))
+      time1 = MPI_Wtime()
       call Scatter(ads_data % F2_out, ads_data % F3_out, ads % n(2), ads % s(2), ads % s(1) * ads % s(3), &
       ads % dimensionsY, ads % shiftsY, COMMY, ierr)
+      time2 = MPI_Wtime()
+      write(*,*) "Scatter 2: ", time2 - time1
       deallocate(ads_data % F2_out)
 
 #ifdef IPRINT
@@ -473,8 +504,11 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
       
       call mpi_barrier(MPI_COMM_WORLD, ierr)
       allocate(ads_data % F3_out((ads % n(3) + 1), ads % s(1) * ads % s(2)))
+      time1 = MPI_Wtime()
       call Gather(ads_data % F3, ads_data % F3_out, ads % n(3), ads % s(3), ads % s(1) * ads % s(2), &
       ads % dimensionsZ, ads % shiftsZ, COMMZ, ierr)
+      time2 = MPI_Wtime()
+      write(*,*) "Gather 3: ", time2 - time1
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
 
@@ -483,10 +517,17 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
          write(*, *) PRINTRANK, '3b) SOLVE THE THIRD PROBLEM'
 #endif
          
+      time1 = MPI_Wtime()
          call ComputeMassMatrix(ads % KL(3), ads % KU(3), ads % Uz, ads % p(3), ads % n(3), &
          ads % nelem(3), ads_data % Mz)
+         time2 = MPI_Wtime()
+         write(*,*) "Mass matrix 3: ", time2 - time1
+      
+         time1 = MPI_Wtime()
          call SolveOneDirection(ads_data % F3_out, ads % s(1) * ads % s(2), ads % n(3), ads % KL(3), &
          ads % KU(3), ads % p(3), ads_data % Mz, ads % IPIVz)
+         time2 = MPI_Wtime()
+         write(*,*) "Solve 3: ", time2 - time1
       endif
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -497,8 +538,11 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
       
       ! CORRECTION
       allocate(ads_data % F_out(ads % s(3), ads % s(1) * ads % s(2)))
+      time1 = MPI_Wtime()
       call Scatter(ads_data % F3_out, ads_data % F_out, ads % n(3), ads % s(3), ads % s(1) * ads % s(2), &
       ads % dimensionsZ, ads % shiftsZ, COMMZ, ierr)
+      time2 = MPI_Wtime()
+      write(*,*) "Scatter 3: ", time2 - time1
       deallocate(ads_data % F3_out)
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
