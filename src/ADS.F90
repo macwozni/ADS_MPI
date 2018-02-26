@@ -252,7 +252,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
    write(*, *) 'LDB=', n + 1
 #endif
    
-      ! SUBROUTINE DGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
+   ! SUBROUTINE DGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
    ! .. Scalar Arguments ..
    ! INTEGER            INFO, KL, KU, LDAB, LDB, N, NRHS
    ! .. Array Arguments ..

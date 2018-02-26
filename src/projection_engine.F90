@@ -176,6 +176,7 @@ contains
       integer(kind = 4), dimension(3) :: k, e, a, b
       integer (kind = 4) :: tmp, all
       integer (kind = 4) :: nelemx,nelemy,nelemz
+      real (kind = 8) :: F(ads % s(1), ads % s(2) * ads % s(3))
 
       d = 0
       mx = ads % n(1) + ads % p(1) + 1
@@ -197,16 +198,22 @@ contains
       write(*, *) PRINTRANK, 'ibegy,iendy', ads % ibeg(2), ads % iend(2)
       write(*, *) PRINTRANK, 'ibegz,iendz', ads % ibeg(3), ads % iend(3)
 #endif
-      
-      ads_data % F = 0 
+
+      F = 0.d0
 
       nelemx = ads % maxe(1) - ads % mine(1) + 1
       nelemy = ads % maxe(2) - ads % mine(2) + 1
       nelemz = ads % maxe(3) - ads % mine(3) + 1
-! !$ OMP PARALLEL DO &
-! !$ OMP DEFAULT(SHARED) &
-! !$ OMP FIRSTPRIVATE(ix,iy,ex,ey,ez,J,kx,ky,kz,W,value,ax,ay,az,ind) &
-! !$ OMP REDUCTION(+:F)      
+
+      
+      
+      
+!$OMP PARALLEL DO &
+!$OMP DEFAULT(SHARED) &
+!$OMP SHARED(ads,Jx,Jy,Jz,Wx,Wy,Wz,Ox,Oy,Oz,NNx,NNy,NNz,Xx,Xy,Xz,nelemx,nelemy,nelemz,ngx,ngy,ngz,ads_data) &
+!$OMP PRIVATE(tmp,ex,ey,ez,kx,ky,kz,W,ax,ay,az,ind,indx,indy,indz,ind1,ind23,Uval,dux,duy,duz,v,J) &
+!$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz,X,k,e,a,b,du,resvalue,indbx,indby,indbz) &
+!$OMP REDUCTION(+:F)      
       do all=1,nelemx*nelemy*nelemz
          ez=modulo(all-1,nelemz)
          tmp=(all-ez)/nelemz+1
@@ -317,7 +324,7 @@ contains
                               NNx, NNy, NNz, &
                               Uval, J, W, resvalue)
 
-                              ads_data % F(ind1 + 1, ind23 + 1) = ads_data % F(ind1 + 1, ind23 + 1) + resvalue
+                              F(ind1 + 1, ind23 + 1) = F(ind1 + 1, ind23 + 1) + resvalue
 
                            enddo
                         enddo
@@ -328,8 +335,10 @@ contains
 !         enddo
 !      enddo
    enddo
-! !$ OMP END PARALLEL DO
+!$OMP END PARALLEL DO
 
+   ads_data % F = F
+   
 end subroutine
 
 
