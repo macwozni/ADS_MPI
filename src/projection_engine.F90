@@ -53,10 +53,11 @@ contains
       call BasisData(p, mm, U, d, ng, nelem, O, J, W, X, NN)
 
       ! new parallel loop
-! !$OMP PARALLEL DO &
-! !$OMP DEFAULT(SHARED) &
-! !$OMP PRIVATE(b,a,k,e,ia,ib) &
-! !$OMP REDUCTION(+:M)
+!$OMP PARALLEL DO &
+!$OMP DEFAULT(PRIVATE) &
+!$OMP PRIVATE(b,a,k,e,ia,ib,tmp) &
+!$OMP SHARED(nelem,ng,p,O,KL,KU,NN,W,J) &
+!$OMP REDUCTION(+:M)
       do all = 1, nelem*ng*(p+1)*(p+1)
          b = modulo(all - 1, p + 1)
          tmp = (all - b) / (p + 1)
@@ -88,7 +89,7 @@ contains
 !      enddo
       
       enddo
-! !$OMP END PARALLEL DO
+!$OMP END PARALLEL DO
 
    end subroutine
 
