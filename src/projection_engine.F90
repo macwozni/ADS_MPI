@@ -336,7 +336,9 @@ contains
             enddo
 !         enddo
 !      enddo
-   enddo
+!   enddo
+            
+      enddo
 !$OMP END PARALLEL DO
 
    ads_data % F = F
