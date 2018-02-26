@@ -53,10 +53,10 @@ contains
       call BasisData(p, mm, U, d, ng, nelem, O, J, W, X, NN)
 
       ! new parallel loop
-!$OMP PARALLEL DO &
-!$OMP DEFAULT(SHARED) &
-!$OMP PRIVATE(b,a,k,e,ia,ib) &
-!$OMP REDUCTION(+:M)
+! !$OMP PARALLEL DO &
+! !$OMP DEFAULT(SHARED) &
+! !$OMP PRIVATE(b,a,k,e,ia,ib) &
+! !$OMP REDUCTION(+:M)
       do all = 1, nelem*ng*(p+1)*(p+1)
          b = modulo(all - 1, p + 1)
          tmp = (all - b) / (p + 1)
@@ -88,6 +88,7 @@ contains
 !      enddo
       
       enddo
+! !$OMP END PARALLEL DO
 
    end subroutine
 
@@ -173,6 +174,8 @@ contains
       real (kind = 8) :: resvalue
       real (kind = 8), dimension(3) :: X, du
       integer(kind = 4), dimension(3) :: k, e, a, b
+      integer (kind = 4) :: tmp, all
+      integer (kind = 4) :: nelemx,nelemy,nelemz
 
       d = 0
       mx = ads % n(1) + ads % p(1) + 1
@@ -195,11 +198,28 @@ contains
       write(*, *) PRINTRANK, 'ibegz,iendz', ads % ibeg(3), ads % iend(3)
 #endif
       
-      ads_data % F = 0
+      ads_data % F = 0 
 
-      do ex = ads % mine(1), ads % maxe(1)
-         do ey = ads % mine(2), ads % maxe(2)
-            do ez = ads % mine(3), ads % maxe(3)
+      nelemx = ads % maxe(1) - ads % mine(1) + 1
+      nelemy = ads % maxe(2) - ads % mine(2) + 1
+      nelemz = ads % maxe(3) - ads % mine(3) + 1
+! !$ OMP PARALLEL DO &
+! !$ OMP DEFAULT(SHARED) &
+! !$ OMP FIRSTPRIVATE(ix,iy,ex,ey,ez,J,kx,ky,kz,W,value,ax,ay,az,ind) &
+! !$ OMP REDUCTION(+:F)      
+      do all=1,nelemx*nelemy*nelemz
+         ez=modulo(all-1,nelemz)
+         tmp=(all-ez)/nelemz+1
+         ey=modulo(tmp-1,nelemy)
+         ex=(tmp-ey)/nelemy
+     
+         ex = ex + ads % mine(1)
+         ey = ey + ads % mine(2)
+         ez = ez + ads % mine(3)
+        
+!      do ex = ads % mine(1), ads % maxe(1)
+!         do ey = ads % mine(2), ads % maxe(2)
+!            do ez = ads % mine(3), ads % maxe(3)
                J = Jx(ex) * Jy(ey) * Jz(ez)
                do kx = 1, ngx
                   do ky = 1, ngy
@@ -305,9 +325,10 @@ contains
                   enddo
                enddo
             enddo
-         enddo
-      enddo
+!         enddo
+!      enddo
    enddo
+! !$ OMP END PARALLEL DO
 
 end subroutine
 
