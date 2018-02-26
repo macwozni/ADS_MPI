@@ -6,7 +6,7 @@ module input_data
    integer(kind = 4) :: ORDER
 
    ! number of elements in one dimension
-   integer(kind = 4) :: SIZE
+   integer(kind = 4) :: SIZEX, SIZEY, SIZEZ
 
    integer(kind = 4) :: procx, procy, procz
 
@@ -28,14 +28,18 @@ contains
       ! ./l2 <size> <order> <procx> <procy> <procz>
 
       call GET_COMMAND_ARGUMENT(1, input, length, status)
-      read(input, *) SIZE
+      read(input, *) SIZEX
       call GET_COMMAND_ARGUMENT(2, input, length, status)
-      read(input, *) ORDER
+      read(input, *) SIZEY
       call GET_COMMAND_ARGUMENT(3, input, length, status)
-      read(input, *) procx
+      read(input, *) SIZEZ
       call GET_COMMAND_ARGUMENT(4, input, length, status)
-      read(input, *) procy
+      read(input, *) ORDER
       call GET_COMMAND_ARGUMENT(5, input, length, status)
+      read(input, *) procx
+      call GET_COMMAND_ARGUMENT(6, input, length, status)
+      read(input, *) procy
+      call GET_COMMAND_ARGUMENT(7, input, length, status)
       read(input, *) procz
 
    end subroutine

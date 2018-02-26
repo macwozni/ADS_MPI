@@ -43,7 +43,7 @@ contains
       integer(kind = 4) :: ia, ib
       integer(kind = 4) :: mm, ng, e, k, a, b
       integer(kind = 4) :: O(nelem)
-      integer(kind = 4) :: all, tmp
+      integer(kind = 4) :: all, tmp, total_size
 
       mm = n + p + 1
       ng = p + 1
@@ -52,13 +52,15 @@ contains
 
       call BasisData(p, mm, U, d, ng, nelem, O, J, W, X, NN)
 
+      total_size = nelem*ng*(p+1)*(p+1)
+      
       ! new parallel loop
 !$OMP PARALLEL DO &
 !$OMP DEFAULT(PRIVATE) &
 !$OMP PRIVATE(b,a,k,e,ia,ib,tmp) &
-!$OMP SHARED(nelem,ng,p,O,KL,KU,NN,W,J) &
+!$OMP SHARED(nelem,ng,p,O,KL,KU,NN,W,J,total_size) &
 !$OMP REDUCTION(+:M)
-      do all = 1, nelem*ng*(p+1)*(p+1)
+      do all = 1, total_size
          b = modulo(all - 1, p + 1)
          tmp = (all - b) / (p + 1)
          a = modulo(tmp, p + 1)
@@ -177,7 +179,7 @@ contains
       real (kind = 8), dimension(3) :: X, du
       integer(kind = 4), dimension(3) :: k, e, a, b
       integer (kind = 4) :: tmp, all
-      integer (kind = 4) :: nelemx,nelemy,nelemz
+      integer (kind = 4) :: nelemx,nelemy,nelemz,total_size
       real (kind = 8) :: F(ads % s(1), ads % s(2) * ads % s(3))
 
       d = 0
@@ -208,15 +210,15 @@ contains
       nelemz = ads % maxe(3) - ads % mine(3) + 1
 
       
-      
+      total_size=nelemx*nelemy*nelemz
       
 !$OMP PARALLEL DO &
 !$OMP DEFAULT(SHARED) &
-!$OMP SHARED(ads,Jx,Jy,Jz,Wx,Wy,Wz,Ox,Oy,Oz,NNx,NNy,NNz,Xx,Xy,Xz,nelemx,nelemy,nelemz,ngx,ngy,ngz,ads_data) &
+!$OMP SHARED(ads,Jx,Jy,Jz,Wx,Wy,Wz,Ox,Oy,Oz,NNx,NNy,NNz,Xx,Xy,Xz,nelemx,nelemy,nelemz,ngx,ngy,ngz,ads_data,total_size) &
 !$OMP PRIVATE(tmp,ex,ey,ez,kx,ky,kz,W,ax,ay,az,ind,indx,indy,indz,ind1,ind23,Uval,dux,duy,duz,v,J) &
 !$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz,X,k,e,a,b,du,resvalue,indbx,indby,indbz) &
 !$OMP REDUCTION(+:F)      
-      do all=1,nelemx*nelemy*nelemz
+      do all=1,total_size
          ez=modulo(all-1,nelemz)
          tmp=(all-ez)/nelemz+1
          ey=modulo(tmp-1,nelemy)

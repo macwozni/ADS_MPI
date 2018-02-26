@@ -44,12 +44,13 @@ program main
 
    call InitializeParallelism(procx, procy, procz, ierr)
    call CreateCommunicators(ierr)
-   p1 = (/ SIZE, SIZE, SIZE /)
+   p1 = (/ SIZEX, SIZEY, SIZEZ /)
    p2 = (/ ORDER, ORDER, ORDER /)
    call Initialize(p1, p2, ads, ads_data, ierr)
 
    fullnorm = 0
    iter = 0
+   l2norm = 0
    
    call Step(iter, ComputePointForRHS, ads, ads_data, ierr)
    call MPI_Reduce(l2norm, fullnorm, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
