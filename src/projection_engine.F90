@@ -121,6 +121,7 @@ contains
       use parallelism, ONLY: PRINTRANK
       USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
       use basis, ONLY: BasisData
+      use omp_lib     
       implicit none
       interface
          subroutine RHS_fun(&
