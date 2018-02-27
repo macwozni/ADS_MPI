@@ -180,10 +180,10 @@ contains
       integer(kind = 4), dimension(3) :: k, e, a, b
       integer (kind = 4) :: tmp, all
       integer (kind = 4) :: nelemx,nelemy,nelemz,total_size
-      !real (kind = 8) :: F(ads % s(1), ads % s(2) * ads % s(3))
-      real (kind = 8),allocatable,dimension(:,:) :: F
+      real (kind = 8) :: F(ads % s(1), ads % s(2) * ads % s(3))
+!      real (kind = 8),allocatable,dimension(:,:) :: F
 
-      allocate(F(ads % s(1), ads % s(2) * ads % s(3)))
+!      allocate(F(ads % s(1), ads % s(2) * ads % s(3)))
       
       d = 0
       mx = ads % n(1) + ads % p(1) + 1
@@ -217,10 +217,10 @@ contains
       
 !$OMP PARALLEL DO &
 !$OMP DEFAULT(SHARED) &
-!$OMP SHARED(F,ads,Jx,Jy,Jz,Wx,Wy,Wz,Ox,Oy,Oz,NNx,NNy,NNz,Xx,Xy,Xz,nelemx,nelemy,nelemz,ngx,ngy,ngz,ads_data,total_size) &
+!$OMP SHARED(ads,Jx,Jy,Jz,Wx,Wy,Wz,Ox,Oy,Oz,NNx,NNy,NNz,Xx,Xy,Xz,nelemx,nelemy,nelemz,ngx,ngy,ngz,ads_data,total_size) &
 !$OMP PRIVATE(tmp,ex,ey,ez,kx,ky,kz,W,ax,ay,az,ind,indx,indy,indz,ind1,ind23,Uval,dux,duy,duz,v,J) &
-!$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz,X,k,e,a,b,du,resvalue,indbx,indby,indbz) 
-!!$OMP REDUCTION(+:F)      
+!$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz,X,k,e,a,b,du,resvalue,indbx,indby,indbz) &
+!$OMP REDUCTION(+:F)      
       do all=1,total_size
          ez=modulo(all-1,nelemz)
          tmp=(all-ez)/nelemz+1
@@ -330,7 +330,7 @@ contains
                               du, &
                               NNx, NNy, NNz, &
                               Uval, J, W, resvalue)
-!$OMP FLUSH(F)
+!!$OMP FLUSH(F)
                               F(ind1 + 1, ind23 + 1) = F(ind1 + 1, ind23 + 1) + resvalue
 
                            enddo
@@ -348,7 +348,7 @@ contains
 
    ads_data % F = F
    
-   if (allocated(F)) deallocate (F)
+   !if (allocated(F)) deallocate (F)
    
 end subroutine
 
