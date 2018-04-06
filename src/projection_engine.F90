@@ -55,11 +55,11 @@ contains
       total_size = nelem*ng*(p+1)*(p+1)
       
       ! new parallel loop
-!$OMP PARALLEL DO &
-!$OMP DEFAULT(PRIVATE) &
-!$OMP PRIVATE(b,a,k,e,ia,ib,tmp) &
-!$OMP SHARED(nelem,ng,p,O,KL,KU,NN,W,J,total_size) &
-!$OMP REDUCTION(+:M)
+! !$OMP PARALLEL DO &
+! !$OMP DEFAULT(PRIVATE) &
+! !$OMP PRIVATE(b,a,k,e,ia,ib,tmp) &
+! !$OMP SHARED(nelem,ng,p,O,KL,KU,NN,W,J,total_size) &
+! !$OMP REDUCTION(+:M)
       do all = 1, total_size
          b = modulo(all - 1, p + 1)
          tmp = (all - b) / (p + 1)
@@ -91,7 +91,7 @@ contains
 !      enddo
       
       enddo
-!$OMP END PARALLEL DO
+! !$OMP END PARALLEL DO
 
    end subroutine
 
@@ -206,7 +206,7 @@ contains
       write(*, *) PRINTRANK, 'ibegz,iendz', ads % ibeg(3), ads % iend(3)
 #endif
 
-      ads_data % F = 0.d0
+      F = 0.d0
 
       nelemx = ads % maxe(1) - ads % mine(1) + 1
       nelemy = ads % maxe(2) - ads % mine(2) + 1
@@ -215,12 +215,12 @@ contains
       
       total_size=nelemx*nelemy*nelemz
       
-!$OMP PARALLEL DO &
-!$OMP DEFAULT(SHARED) &
-!$OMP SHARED(ads,Jx,Jy,Jz,Wx,Wy,Wz,Ox,Oy,Oz,NNx,NNy,NNz,Xx,Xy,Xz,nelemx,nelemy,nelemz,ngx,ngy,ngz,ads_data,total_size) &
-!$OMP PRIVATE(tmp,ex,ey,ez,kx,ky,kz,W,ax,ay,az,ind,indx,indy,indz,ind1,ind23,Uval,dux,duy,duz,v,J) &
-!$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz,X,k,e,a,b,du,resvalue,indbx,indby,indbz) &
-!$OMP REDUCTION(+:F)      
+! !$OMP PARALLEL DO &
+! !$OMP DEFAULT(SHARED) &
+! !$OMP SHARED(ads,Jx,Jy,Jz,Wx,Wy,Wz,Ox,Oy,Oz,NNx,NNy,NNz,Xx,Xy,Xz,nelemx,nelemy,nelemz,ngx,ngy,ngz,ads_data,total_size) &
+! !$OMP PRIVATE(tmp,ex,ey,ez,kx,ky,kz,W,ax,ay,az,ind,indx,indy,indz,ind1,ind23,Uval,dux,duy,duz,v,J) &
+! !$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz,X,k,e,a,b,du,resvalue,indbx,indby,indbz) &
+! !$OMP REDUCTION(+:F)      
       do all=1,total_size
          ez=modulo(all-1,nelemz)
          tmp=(all-ez)/nelemz+1
@@ -230,20 +230,26 @@ contains
          ex = ex + ads % mine(1)
          ey = ey + ads % mine(2)
          ez = ez + ads % mine(3)
-        
+
+!      loop over points
 !      do ex = ads % mine(1), ads % maxe(1)
 !         do ey = ads % mine(2), ads % maxe(2)
 !            do ez = ads % mine(3), ads % maxe(3)
+!              Jacobian
                J = Jx(ex) * Jy(ey) * Jz(ez)
+!              loop over quadrature points
                do kx = 1, ngx
                   do ky = 1, ngy
                      do kz = 1, ngz
+!                       weigths
                         W = Wx(kx) * Wy(ky) * Wz(kz)
+!                       loop over degrees of freedom
                         do ax = 0, ads % p(1)
                            do ay = 0, ads % p(2)
                               do az = 0, ads % p(3)
-                                 ind = (Ox(ex) + ax) + (Oy(ey) + ay)*(ads % n(1) + 1) + (Oz(ez) + az)* &
-                                 (ads % n(2) + 1)*(ads % n(1) + 1)
+                                 ind = (Ox(ex) + ax) + &
+                                 (Oy(ey) + ay)*(ads % n(1) + 1) + &
+                                 (Oz(ez) + az)*(ads % n(2) + 1)*(ads % n(1) + 1)
                                  call global2local(ind, ads % n, indx, indy, indz)
 
                                  if (indx < ads % ibeg(1) - 1 .or. indx > ads % iend(1) - 1) cycle
@@ -251,7 +257,8 @@ contains
                                  if (indz < ads % ibeg(3) - 1 .or. indz > ads % iend(3) - 1) cycle
 
                                  ind1 = indx - ads % ibeg(1) + 1
-                                 ind23 = (indy - ads % ibeg(2) + 1) + (indz - ads % ibeg(3) + 1)*(ads % iend(2)- &
+                                 ind23 = (indy - ads % ibeg(2) + 1) + &
+                                 (indz - ads % ibeg(3) + 1)*(ads % iend(2) - &
                                  ads % ibeg(2) + 1)
 
                                  Uval = 0
@@ -332,19 +339,20 @@ contains
                               Uval, J, W, resvalue)
 !!$OMP FLUSH(F)
                               F(ind1 + 1, ind23 + 1) = F(ind1 + 1, ind23 + 1) + resvalue
+                              !ads_data % F(ind1 + 1, ind23 + 1) = ads_data % F(ind1 + 1, ind23 + 1) + resvalue
 
                            enddo
                         enddo
                      enddo
                   enddo
                enddo
-            enddo
+            enddo         
 !         enddo
 !      enddo
 !   enddo
             
       enddo
-!$OMP END PARALLEL DO
+! !$OMP END PARALLEL DO
 
    ads_data % F = F
    
