@@ -299,23 +299,24 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
             k, &
             e, &
             a, &
-            du, &
             NNx, NNy, NNz, &
-            Uval, J, W, ret)
-            use Setup, ONLY: ADS_Setup
+            Ox,Oy,Oz, &
+            ads_data, J, W, ret)
+            use Setup, ONLY: ADS_Setup,ADS_compute_data
             implicit none
             type (ADS_setup), intent(in) :: ads
             real (kind = 8), intent(in), dimension(3) :: X
             integer(kind = 4), intent(in), dimension(3) :: k
             integer(kind = 4), intent(in), dimension(3) :: e
             integer(kind = 4), intent(in), dimension(3) :: a
-            real (kind = 8), intent(in), dimension(3) :: du
-            real (kind = 8), intent(in) :: Uval
+            type (ADS_compute_data), intent(in) :: ads_data
             real (kind = 8), intent(in) :: J, W
             real (kind = 8), intent(in) :: &
             NNx(0:1, 0:ads % p(1), ads % p(1) + 1, ads % nelem(1)), &
             NNy(0:1, 0:ads % p(2), ads % p(2) + 1, ads % nelem(2)), &
             NNz(0:1, 0:ads % p(3), ads % p(3) + 1, ads % nelem(3))
+            integer(kind = 4), intent(in)  :: &
+            Ox(ads % nelem(1)), Oy(ads % nelem(2)), Oz(ads % nelem(3))
             real (kind = 8), intent(out) :: ret
          end subroutine
       end interface
