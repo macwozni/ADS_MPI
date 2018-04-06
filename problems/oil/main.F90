@@ -39,7 +39,7 @@ program main
 #ifdef DEBUG
    write (*, *) 'debug'
 #endif
-   
+
    t = 0
 
    ! -------------------------------------------------------------------
@@ -78,4 +78,3 @@ program main
    call CleanParallelism(ierr)
 
 end
-

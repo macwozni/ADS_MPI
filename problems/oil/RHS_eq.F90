@@ -10,16 +10,16 @@ contains
 ! Input:
 ! ------
 ! X_              - quadrature points
-! k_              - inde(1)es for quadrature points
-! e_              - inde(1)es for elements
+! k_              - indexes for quadrature points
+! e_              - indexes for elements
 ! p_              - degrees of approximation
 ! nelem_          - number of subintervals
-! a_, b_          - inde(1)es of basis functions
+! a_, b_          - indexes of basis functions
 ! NN_             - values of basis functions in quadrature points
 ! du_             - value of derivative from previous time step
 ! ibeg_, iend_    - piece of domain associated with this process
 ! ibegs_, iends_  - pieces of domain surrounding this process' piece
-! mine_, ma(1)e_    - indices of first and last elements in each direction
+! mine_, maxe_    - indices of first and last elements in each direction
 ! Uval            - previous solution coefficient at given point
 ! J               - jacobian
 ! W               - weight for quadratures

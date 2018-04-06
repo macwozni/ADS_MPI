@@ -157,7 +157,8 @@ contains
       type (ADS_setup), intent(in) :: ads
       type (ADS_compute_data), intent(inout) :: ads_data
       integer(kind = 4) :: mx, my, mz, ngx, ngy, ngz, ex, ey, ez
-      integer(kind = 4) :: kx, ky, kz, ax, ay, az, bx, by, bz, d
+      integer(kind = 4) :: kx, ky, kz, ax, ay, az, d
+      integer(kind = 4) :: bx, by, bz
       integer(kind = 4) :: Ox(ads % nelem(1)), Oy(ads % nelem(2)), Oz(ads % nelem(3))
       real (kind = 8) :: Jx(ads % nelem(1)), Jy(ads % nelem(2)), Jz(ads % nelem(3))
       real (kind = 8) :: Wx(ads % p(1) + 1), Wy(ads % p(2) + 1), Wz(ads % p(3) + 1)
@@ -243,6 +244,13 @@ contains
                      do kz = 1, ngz
 !                       weigths
                         W = Wx(kx) * Wy(ky) * Wz(kz)
+                        
+                        
+!                        Uval = 0
+!                        dux = 0
+!                        duy = 0
+!                        duz = 0
+                        
 !                       loop over degrees of freedom
                         do ax = 0, ads % p(1)
                            do ay = 0, ads % p(2)
@@ -260,7 +268,7 @@ contains
                                  ind23 = (indy - ads % ibeg(2) + 1) + &
                                  (indz - ads % ibeg(3) + 1)*(ads % iend(2) - &
                                  ads % ibeg(2) + 1)
-
+!
                                  Uval = 0
                                  dux = 0
                                  duy = 0
@@ -297,7 +305,7 @@ contains
                                           write(ERROR_UNIT, *) PRINTRANK, 'x', ads % ibeg(1), ads % iend(1)
                                           write(ERROR_UNIT, *) PRINTRANK, 'y', ads % ibeg(2), ads % iend(2)
                                           write(ERROR_UNIT, *) PRINTRANK, 'z', ads % ibeg(3), ads % iend(3)
-                                          write(ERROR_UNIT, *) PRINTRANK, 'idxs', indbx, indby, indbz
+                                          write(ERROR_UNIT, *) PRINTRANK, 'idxs', indx, indy, indz
                                           write(ERROR_UNIT, *) PRINTRANK, 'sizes=', sx, sy, sz
                                           write(ERROR_UNIT, *) PRINTRANK, 'begsx=', ads % ibegsx
                                           write(ERROR_UNIT, *) PRINTRANK, 'endsx=', ads % iendsx
@@ -325,7 +333,8 @@ contains
                               k = (/ kx, ky, kz /)
                               e = (/ ex, ey, ez /)
                               a = (/ ax, ay, az /)
-                              b = (/ bx, by, bz/)
+!                              b = (/ bx, by, bz/)
+                              b = (/ ads % p(1), ads % p(2), ads % p(3) /)
                               du = (/ dux, duy, duz /)
                               call RHS_fun(&
                               ads, &
@@ -339,7 +348,6 @@ contains
                               Uval, J, W, resvalue)
 !!$OMP FLUSH(F)
                               F(ind1 + 1, ind23 + 1) = F(ind1 + 1, ind23 + 1) + resvalue
-                              !ads_data % F(ind1 + 1, ind23 + 1) = ads_data % F(ind1 + 1, ind23 + 1) + resvalue
 
                            enddo
                         enddo
