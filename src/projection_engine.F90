@@ -151,15 +151,6 @@ contains
 
 !      allocate(F(ads % s(1), ads % s(2) * ads % s(3)))
 
-#ifdef IPRINT
-      write(*, *) PRINTRANK, 'ex:', ads % mine(1), ads % maxe(1)
-      write(*, *) PRINTRANK, 'ey:', ads % mine(2), ads % maxe(2)
-      write(*, *) PRINTRANK, 'ez:', ads % mine(3), ads % maxe(3)
-      write(*, *) PRINTRANK, 'ibegx,iendx', ads % ibeg(1), ads % iend(1)
-      write(*, *) PRINTRANK, 'ibegy,iendy', ads % ibeg(2), ads % iend(2)
-      write(*, *) PRINTRANK, 'ibegz,iendz', ads % ibeg(3), ads % iend(3)
-#endif
-      
       F = 0.d0
 
       total_size = ads % lnelem(1) * ads % lnelem(2) * ads % lnelem(3)
@@ -168,7 +159,8 @@ contains
 ! !$OMP PARALLEL DO &
 ! !$OMP DEFAULT(SHARED) &
 ! !$OMP SHARED(ads,ads_data,total_size) &
-! !$OMP PRIVATE(tmp,ex,ey,ez,e,kx,ky,kz,k,W,ax,ay,az,a,ind,indx,indy,indz,ind1,ind23,J,X,resvalue) &
+! !$OMP PRIVATE(tmp,ex,ey,ez,e,kx,ky,kz,k,W,ax,ay,az,a,ind,indx,indy,indz,ind1,ind23,J) &
+! !$OMP PRIVATE(X,resvalue) &
 ! !$OMP REDUCTION(+:F)      
       do all = 1, total_size
 !        translate coefficients to local
@@ -192,11 +184,11 @@ contains
                   do ax = 0, ads % p(1)
                      do ay = 0, ads % p(2)
                         do az = 0, ads % p(3)
-                           ind = (ads % Ox(ex) + ax) + &
-                           (ads % Oy(ey) + ay)*(ads % n(1) + 1) + &
-                           (ads % Oz(ez) + az)*(ads % n(2) + 1)*(ads % n(1) + 1)
-                           call global2local(ind, ads % n, indx, indy, indz)
-
+                           indx = (ads % Ox(ex) + ax)
+                           indy = (ads % Oy(ey) + ay)
+                           indz = (ads % Oz(ez) + az)
+                           ind = indx + (indy + indz*(ads % n(2) + 1))*(ads % n(1) + 1)
+                           
                            if (indx < ads % ibeg(1) - 1 .or. indx > ads % iend(1) - 1) cycle
                            if (indy < ads % ibeg(2) - 1 .or. indy > ads % iend(2) - 1) cycle
                            if (indz < ads % ibeg(3) - 1 .or. indz > ads % iend(3) - 1) cycle

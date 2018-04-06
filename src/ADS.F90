@@ -84,11 +84,20 @@ contains
    ads % nelem(2), ads % Oy, ads % Jy, ads % Wy, ads % Xy, ads % NNy)
    call BasisData(ads % p(3), ads % m(3), ads % Uz, 1, ads % ng(3), &
    ads % nelem(3), ads % Oz, ads % Jz, ads % Wz, ads % Xz, ads % NNz)
-   
-   
+
    ads % lnelem(1) = ads % maxe(1) - ads % mine(1) + 1
    ads % lnelem(2) = ads % maxe(2) - ads % mine(2) + 1
    ads % lnelem(3) = ads % maxe(3) - ads % mine(3) + 1
+   
+#ifdef IPRINT
+      write(*, *) PRINTRANK, 'ex:', ads % mine(1), ads % maxe(1)
+      write(*, *) PRINTRANK, 'ey:', ads % mine(2), ads % maxe(2)
+      write(*, *) PRINTRANK, 'ez:', ads % mine(3), ads % maxe(3)
+      write(*, *) PRINTRANK, 'ibegx,iendx', ads % ibeg(1), ads % iend(1)
+      write(*, *) PRINTRANK, 'ibegy,iendy', ads % ibeg(2), ads % iend(2)
+      write(*, *) PRINTRANK, 'ibegz,iendz', ads % ibeg(3), ads % iend(3)
+#endif
+      
 end subroutine
 
 
