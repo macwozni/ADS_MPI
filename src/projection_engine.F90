@@ -29,7 +29,7 @@ contains
    ! -------------------------------------------------------------------
    subroutine Form1DMassMatrix(KL, KU, U, p, n, nelem, M)
       use basis, ONLY: BasisData
-      use omp_lib     
+      use omp_lib
       implicit none
       integer(kind = 4), intent(in) :: KL, KU
       integer(kind = 4), intent(in) :: n, p, nelem
@@ -52,44 +52,36 @@ contains
 
       call BasisData(p, mm, U, d, ng, nelem, O, J, W, X, NN)
 
-      total_size = nelem*ng*(p+1)*(p+1)
-      
-      ! new parallel loop
+      total_size = nelem * ng * (p + 1)*(p + 1)
+
+! new parallel loop
 ! !$OMP PARALLEL DO &
 ! !$OMP DEFAULT(PRIVATE) &
 ! !$OMP PRIVATE(b,a,k,e,ia,ib,tmp) &
 ! !$OMP SHARED(nelem,ng,p,O,KL,KU,NN,W,J,total_size) &
 ! !$OMP REDUCTION(+:M)
       do all = 1, total_size
+! loop over shape functions over elements (p+1 functions)
          b = modulo(all - 1, p + 1)
          tmp = (all - b) / (p + 1)
+! loop over shape functions over elements (p+1 functions)
          a = modulo(tmp, p + 1)
          tmp = (tmp - a) / (p + 1)
+! loop over Gauss points
          k = modulo(tmp, ng) + 1
-         e = (tmp - k+1) / ng + 1
-      ! loop over elements
-!      do e = 1, nelem
-         ! loop over Gauss points
-!         do k = 1, ng
-            ! loop over shape functions over elements (p+1 functions)
-!            do a = 0, p
-               ! loop over shape functions over elements (p+1 functions)
-!               do b = 0, p
-                  ! O(e) + a = first dof of element + 1st local shape function index
-                  ! O(e) + b = first dof of element + 2nd local shape function index
-                  ! NN(0,a,k,e) = value of shape function a at Gauss point k over element e
-                  ! NN(0,b,k,e) = value of shape function b at Gauss point k over element e
-                  ! W(k) weight for Gauss point k
-                  ! J(e) jacobian for element e
-                  ia = O(e) + a
-                  ib = O(e) + b
-                  M(KL + KU + ia - ib, ib) = M(KL + KU + ia - ib, ib) + NN(0, a, k, e) * NN(0, b, k, e) * J(e) * W(k)
+! loop over elements
+         e = (tmp - k + 1) / ng + 1
+         ! O(e) + a = first dof of element + 1st local shape function index
+         ! O(e) + b = first dof of element + 2nd local shape function index
+         ! NN(0,a,k,e) = value of shape function a at Gauss point k over element e
+         ! NN(0,b,k,e) = value of shape function b at Gauss point k over element e
+         ! W(k) weight for Gauss point k
+         ! J(e) jacobian for element e
+         ia = O(e) + a
+         ib = O(e) + b
+         M(KL + KU + ia - ib, ib) = M(KL + KU + ia - ib, ib) + NN(0, a, k, e) * NN(0, b, k, e) * J(e) * W(k)
 
-!               enddo
-!            enddo
-!         enddo
-!      enddo
-      
+
       enddo
 ! !$OMP END PARALLEL DO
 
@@ -123,7 +115,7 @@ contains
       use parallelism, ONLY: PRINTRANK
       USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
       use basis, ONLY: BasisData
-      use omp_lib     
+      use omp_lib
       implicit none
       interface
          subroutine RHS_fun(&
@@ -172,7 +164,7 @@ contains
       real (kind = 8) :: J, W, Uval, ucoeff
       real (kind = 8) :: v, rhs
       real (kind = 8) :: dux, duy, duz, dvx, dvy, dvz
-      integer(kind = 4) :: nreppx, nreppy, nreppz !# elements per proc along x,y,z
+      integer(kind = 4) :: nreppx, nreppy, nreppz ! elements per proc along x,y,z
       integer(kind = 4) :: ind, ind1, ind23, indx, indy, indz
       integer(kind = 4) :: indbx, indby, indbz
       integer(kind = 4) :: rx, ry, rz, ix, iy, iz, sx, sy, sz
@@ -180,12 +172,12 @@ contains
       real (kind = 8), dimension(3) :: X, du
       integer(kind = 4), dimension(3) :: k, e, a, b
       integer (kind = 4) :: tmp, all
-      integer (kind = 4) :: nelemx,nelemy,nelemz,total_size
+      integer (kind = 4) :: nelemx, nelemy, nelemz, total_size
       real (kind = 8) :: F(ads % s(1), ads % s(2) * ads % s(3))
 !      real (kind = 8),allocatable,dimension(:,:) :: F
 
 !      allocate(F(ads % s(1), ads % s(2) * ads % s(3)))
-      
+
       d = 0
       mx = ads % n(1) + ads % p(1) + 1
       ngx = ads % p(1) + 1
@@ -206,166 +198,151 @@ contains
       write(*, *) PRINTRANK, 'ibegy,iendy', ads % ibeg(2), ads % iend(2)
       write(*, *) PRINTRANK, 'ibegz,iendz', ads % ibeg(3), ads % iend(3)
 #endif
-
+      
       F = 0.d0
 
       nelemx = ads % maxe(1) - ads % mine(1) + 1
       nelemy = ads % maxe(2) - ads % mine(2) + 1
       nelemz = ads % maxe(3) - ads % mine(3) + 1
 
-      
-      total_size=nelemx*nelemy*nelemz
-      
+
+      total_size = nelemx * nelemy * nelemz
+
+!      loop over points
 ! !$OMP PARALLEL DO &
 ! !$OMP DEFAULT(SHARED) &
 ! !$OMP SHARED(ads,Jx,Jy,Jz,Wx,Wy,Wz,Ox,Oy,Oz,NNx,NNy,NNz,Xx,Xy,Xz,nelemx,nelemy,nelemz,ngx,ngy,ngz,ads_data,total_size) &
 ! !$OMP PRIVATE(tmp,ex,ey,ez,kx,ky,kz,W,ax,ay,az,ind,indx,indy,indz,ind1,ind23,Uval,dux,duy,duz,v,J) &
 ! !$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz,X,k,e,a,b,du,resvalue,indbx,indby,indbz) &
 ! !$OMP REDUCTION(+:F)      
-      do all=1,total_size
-         ez=modulo(all-1,nelemz)
-         tmp=(all-ez)/nelemz+1
-         ey=modulo(tmp-1,nelemy)
-         ex=(tmp-ey)/nelemy
-     
+      do all = 1, total_size
+!        translate coefficients to local
+         ez = modulo(all - 1, nelemz)
+         tmp = (all - ez)/nelemz + 1
+         ey = modulo(tmp - 1, nelemy)
+         ex = (tmp - ey)/nelemy
+         !        fix distributed part
          ex = ex + ads % mine(1)
          ey = ey + ads % mine(2)
          ez = ez + ads % mine(3)
-
-!      loop over points
-!      do ex = ads % mine(1), ads % maxe(1)
-!         do ey = ads % mine(2), ads % maxe(2)
-!            do ez = ads % mine(3), ads % maxe(3)
 !              Jacobian
-               J = Jx(ex) * Jy(ey) * Jz(ez)
+         J = Jx(ex) * Jy(ey) * Jz(ez)
 !              loop over quadrature points
-               do kx = 1, ngx
-                  do ky = 1, ngy
-                     do kz = 1, ngz
+         do kx = 1, ngx
+            do ky = 1, ngy
+               do kz = 1, ngz
 !                       weigths
-                        W = Wx(kx) * Wy(ky) * Wz(kz)
-                        
-                        
-!                        Uval = 0
-!                        dux = 0
-!                        duy = 0
-!                        duz = 0
-                        
-!                       loop over degrees of freedom
-                        do ax = 0, ads % p(1)
-                           do ay = 0, ads % p(2)
-                              do az = 0, ads % p(3)
-                                 ind = (Ox(ex) + ax) + &
-                                 (Oy(ey) + ay)*(ads % n(1) + 1) + &
-                                 (Oz(ez) + az)*(ads % n(2) + 1)*(ads % n(1) + 1)
-                                 call global2local(ind, ads % n, indx, indy, indz)
+                  W = Wx(kx) * Wy(ky) * Wz(kz)
+ !                       loop over degrees of freedom
+                  do ax = 0, ads % p(1)
+                     do ay = 0, ads % p(2)
+                        do az = 0, ads % p(3)
+                           ind = (Ox(ex) + ax) + &
+                           (Oy(ey) + ay)*(ads % n(1) + 1) + &
+                           (Oz(ez) + az)*(ads % n(2) + 1)*(ads % n(1) + 1)
+                           call global2local(ind, ads % n, indx, indy, indz)
 
-                                 if (indx < ads % ibeg(1) - 1 .or. indx > ads % iend(1) - 1) cycle
-                                 if (indy < ads % ibeg(2) - 1 .or. indy > ads % iend(2) - 1) cycle
-                                 if (indz < ads % ibeg(3) - 1 .or. indz > ads % iend(3) - 1) cycle
+                           if (indx < ads % ibeg(1) - 1 .or. indx > ads % iend(1) - 1) cycle
+                           if (indy < ads % ibeg(2) - 1 .or. indy > ads % iend(2) - 1) cycle
+                           if (indz < ads % ibeg(3) - 1 .or. indz > ads % iend(3) - 1) cycle
 
-                                 ind1 = indx - ads % ibeg(1) + 1
-                                 ind23 = (indy - ads % ibeg(2) + 1) + &
-                                 (indz - ads % ibeg(3) + 1)*(ads % iend(2) - &
-                                 ads % ibeg(2) + 1)
-!
-                                 Uval = 0
-                                 dux = 0
-                                 duy = 0
-                                 duz = 0
-                                 do bx = 0, ads % p(1)
-                                    do by = 0, ads % p(2)
-                                       do bz = 0, ads % p(3)
-                                          ind = (Ox(ex) + bx) + (Oy(ey) + by)*(ads % n(1) + 1) + (Oz(ez) + bz)* &
-                                          (ads % n(2) + 1)*(ads % n(1) + 1)
-                                          call global2local(ind, ads % n, indbx, indby, indbz)
+                           ind1 = indx - ads % ibeg(1) + 1
+                           ind23 = (indy - ads % ibeg(2) + 1) + &
+                           (indz - ads % ibeg(3) + 1)*(ads % iend(2) - &
+                           ads % ibeg(2) + 1)
+                           !
+                           Uval = 0
+                           dux = 0
+                           duy = 0
+                           duz = 0
+                           do bx = 0, ads % p(1)
+                              do by = 0, ads % p(2)
+                                 do bz = 0, ads % p(3)
+                                    ind = (Ox(ex) + bx) + (Oy(ey) + by)*(ads % n(1) + 1) + (Oz(ez) + bz)* &
+                                    (ads % n(2) + 1)*(ads % n(1) + 1)
+                                    call global2local(ind, ads % n, indbx, indby, indbz)
 
-                                          rx = 2
-                                          ry = 2
-                                          rz = 2
-                                          if (indbx < ads % ibeg(1) - 1) rx = 1
-                                          if (indbx > ads % iend(1) - 1) rx = 3
-                                          if (indby < ads % ibeg(2) - 1) ry = 1
-                                          if (indby > ads % iend(2) - 1) ry = 3
-                                          if (indbz < ads % ibeg(3) - 1) rz = 1
-                                          if (indbz > ads % iend(3) - 1) rz = 3
+                                    rx = 2
+                                    ry = 2
+                                    rz = 2
+                                    if (indbx < ads % ibeg(1) - 1) rx = 1
+                                    if (indbx > ads % iend(1) - 1) rx = 3
+                                    if (indby < ads % ibeg(2) - 1) ry = 1
+                                    if (indby > ads % iend(2) - 1) ry = 3
+                                    if (indbz < ads % ibeg(3) - 1) rz = 1
+                                    if (indbz > ads % iend(3) - 1) rz = 3
 
-                                          ix = indbx - ads % ibegsx(rx) + 1
-                                          iy = indby - ads % ibegsy(ry) + 1
-                                          iz = indbz - ads % ibegsz(rz) + 1
-                                          sx = ads % iendsx(rx) - ads % ibegsx(rx) + 1
-                                          sy = ads % iendsy(ry) - ads % ibegsy(ry) + 1
-                                          sz = ads % iendsz(rz) - ads % ibegsz(rz) + 1
-                                          ind = ix + sx * (iy + sy * iz)
+                                    ix = indbx - ads % ibegsx(rx) + 1
+                                    iy = indby - ads % ibegsy(ry) + 1
+                                    iz = indbz - ads % ibegsz(rz) + 1
+                                    sx = ads % iendsx(rx) - ads % ibegsx(rx) + 1
+                                    sy = ads % iendsy(ry) - ads % ibegsy(ry) + 1
+                                    sz = ads % iendsz(rz) - ads % ibegsz(rz) + 1
+                                    ind = ix + sx * (iy + sy * iz)
 
 #ifdef IDEBUG
-                                          if (ind < 0 .or. ind > ads % nrcpp(3) * ads % nrcpp(1) * ads % nrcpp(2) - 1) then
-                                          write(ERROR_UNIT, *) PRINTRANK, 'Oh crap', ix, iy, iz
-                                          write(ERROR_UNIT, *) PRINTRANK, 'r', rx, ry, rz
-                                          write(ERROR_UNIT, *) PRINTRANK, 'x', ads % ibeg(1), ads % iend(1)
-                                          write(ERROR_UNIT, *) PRINTRANK, 'y', ads % ibeg(2), ads % iend(2)
-                                          write(ERROR_UNIT, *) PRINTRANK, 'z', ads % ibeg(3), ads % iend(3)
-                                          write(ERROR_UNIT, *) PRINTRANK, 'idxs', indx, indy, indz
-                                          write(ERROR_UNIT, *) PRINTRANK, 'sizes=', sx, sy, sz
-                                          write(ERROR_UNIT, *) PRINTRANK, 'begsx=', ads % ibegsx
-                                          write(ERROR_UNIT, *) PRINTRANK, 'endsx=', ads % iendsx
-                                          write(ERROR_UNIT, *) PRINTRANK, 'begsy=', ads % ibegsy
-                                          write(ERROR_UNIT, *) PRINTRANK, 'endsy=', ads % iendsy
-                                          write(ERROR_UNIT, *) PRINTRANK, 'begsz=', ads % ibegsz
-                                          write(ERROR_UNIT, *) PRINTRANK, 'endsz=', ads % iendsz
-                                       endif
+                                    if (ind < 0 .or. ind > ads % nrcpp(3) * ads % nrcpp(1) * ads % nrcpp(2) - 1) then
+                                    write(ERROR_UNIT, *) PRINTRANK, 'Oh crap', ix, iy, iz
+                                    write(ERROR_UNIT, *) PRINTRANK, 'r', rx, ry, rz
+                                    write(ERROR_UNIT, *) PRINTRANK, 'x', ads % ibeg(1), ads % iend(1)
+                                    write(ERROR_UNIT, *) PRINTRANK, 'y', ads % ibeg(2), ads % iend(2)
+                                    write(ERROR_UNIT, *) PRINTRANK, 'z', ads % ibeg(3), ads % iend(3)
+                                    write(ERROR_UNIT, *) PRINTRANK, 'idxs', indx, indy, indz
+                                    write(ERROR_UNIT, *) PRINTRANK, 'sizes=', sx, sy, sz
+                                    write(ERROR_UNIT, *) PRINTRANK, 'begsx=', ads % ibegsx
+                                    write(ERROR_UNIT, *) PRINTRANK, 'endsx=', ads % iendsx
+                                    write(ERROR_UNIT, *) PRINTRANK, 'begsy=', ads % ibegsy
+                                    write(ERROR_UNIT, *) PRINTRANK, 'endsy=', ads % iendsy
+                                    write(ERROR_UNIT, *) PRINTRANK, 'begsz=', ads % ibegsz
+                                    write(ERROR_UNIT, *) PRINTRANK, 'endsz=', ads % iendsz
+                                 endif
 #endif
-
+                                 
                                        Ucoeff = ads_data % R(ind + 1, rx, ry, rz)
-                                       v = NNx(0, bx, kx, ex) * NNy(0, by, ky, ey) * NNz(0, bz, kz, ez)
-                                       dvx = NNx(1, bx, kx, ex) * NNy(0, by, ky, ey) * NNz(0, bz, kz, ez)
-                                       dvy = NNx(0, bx, kx, ex) * NNy(1, by, ky, ey) * NNz(0, bz, kz, ez)
-                                       dvz = NNx(0, bx, kx, ex) * NNy(0, by, ky, ey) * NNz(1, bz, kz, ez)
+                                 v = NNx(0, bx, kx, ex) * NNy(0, by, ky, ey) * NNz(0, bz, kz, ez)
+                                 dvx = NNx(1, bx, kx, ex) * NNy(0, by, ky, ey) * NNz(0, bz, kz, ez)
+                                 dvy = NNx(0, bx, kx, ex) * NNy(1, by, ky, ey) * NNz(0, bz, kz, ez)
+                                 dvz = NNx(0, bx, kx, ex) * NNy(0, by, ky, ey) * NNz(1, bz, kz, ez)
 
-                                       Uval = Uval + Ucoeff * v
-                                       dux = dux + Ucoeff * dvx
-                                       duy = duy + Ucoeff * dvy
-                                       duz = duz + Ucoeff * dvz
-                                    enddo
-                                 enddo
+                                 Uval = Uval + Ucoeff * v
+                                 dux = dux + Ucoeff * dvx
+                                 duy = duy + Ucoeff * dvy
+                                 duz = duz + Ucoeff * dvz
                               enddo
-                              X = (/ Xx(kx, ex), Xy(ky, ey), Xz(kz, ez) /)
-                              k = (/ kx, ky, kz /)
-                              e = (/ ex, ey, ez /)
-                              a = (/ ax, ay, az /)
-!                              b = (/ bx, by, bz/)
-                              b = (/ ads % p(1), ads % p(2), ads % p(3) /)
-                              du = (/ dux, duy, duz /)
-                              call RHS_fun(&
-                              ads, &
-                              X, &
-                              k, &
-                              e, &
-                              a, &
-                              b, &
-                              du, &
-                              NNx, NNy, NNz, &
-                              Uval, J, W, resvalue)
-!!$OMP FLUSH(F)
-                              F(ind1 + 1, ind23 + 1) = F(ind1 + 1, ind23 + 1) + resvalue
-
                            enddo
                         enddo
+                        X = (/ Xx(kx, ex), Xy(ky, ey), Xz(kz, ez) /)
+                        k = (/ kx, ky, kz /)
+                        e = (/ ex, ey, ez /)
+                        a = (/ ax, ay, az /)
+                        b = (/ ads % p(1), ads % p(2), ads % p(3) /)
+                        du = (/ dux, duy, duz /)
+                        call RHS_fun(&
+                        ads, &
+                        X, &
+                        k, &
+                        e, &
+                        a, &
+                        b, &
+                        du, &
+                        NNx, NNy, NNz, &
+                        Uval, J, W, resvalue)
+!!$OMP FLUSH(F)
+                        F(ind1 + 1, ind23 + 1) = F(ind1 + 1, ind23 + 1) + resvalue
+
                      enddo
                   enddo
                enddo
-            enddo         
-!         enddo
-!      enddo
-!   enddo
-            
+            enddo
+         enddo
       enddo
-! !$OMP END PARALLEL DO
+   enddo
+   ! !$OMP END PARALLEL DO
 
    ads_data % F = F
-   
+
    !if (allocated(F)) deallocate (F)
-   
+
 end subroutine
 
 
@@ -441,7 +418,7 @@ subroutine ComputeMassMatrix(KL, KU, U, p, n, nelem, M)
       write(*, *) PRINTRANK, M(i, 1:n)
    enddo
 #endif
-   
+
 end subroutine
 
 
