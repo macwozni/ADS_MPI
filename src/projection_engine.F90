@@ -114,7 +114,6 @@ contains
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use parallelism, ONLY: PRINTRANK
       USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
-      use basis, ONLY: BasisData
       use omp_lib
       implicit none
       interface
@@ -124,8 +123,6 @@ contains
             k, &
             e, &
             a, & 
-            NNx, NNy, NNz, &
-            Ox,Oy,Oz, &
             ads_data, J, W, ret)
             use Setup, ONLY: ADS_Setup,ADS_compute_data
             implicit none
@@ -136,52 +133,24 @@ contains
             integer(kind = 4), intent(in), dimension(3) :: a
             type (ADS_compute_data), intent(in) :: ads_data
             real (kind = 8), intent(in) :: J, W
-            real (kind = 8), intent(in) :: &
-            NNx(0:1, 0:ads % p(1), ads % p(1) + 1, ads % nelem(1)), &
-            NNy(0:1, 0:ads % p(2), ads % p(2) + 1, ads % nelem(2)), &
-            NNz(0:1, 0:ads % p(3), ads % p(3) + 1, ads % nelem(3))
-            integer(kind = 4), intent(in)  :: &
-            Ox(ads % nelem(1)), Oy(ads % nelem(2)), Oz(ads % nelem(3))
             real (kind = 8), intent(out) :: ret
          end subroutine
       end interface
       type (ADS_setup), intent(in) :: ads
       type (ADS_compute_data), intent(inout) :: ads_data
-      integer(kind = 4) :: mx, my, mz, ngx, ngy, ngz, ex, ey, ez
-      integer(kind = 4) :: kx, ky, kz, ax, ay, az, d
-      integer(kind = 4) :: Ox(ads % nelem(1)), Oy(ads % nelem(2)), Oz(ads % nelem(3))
-      real (kind = 8) :: Jx(ads % nelem(1)), Jy(ads % nelem(2)), Jz(ads % nelem(3))
-      real (kind = 8) :: Wx(ads % p(1) + 1), Wy(ads % p(2) + 1), Wz(ads % p(3) + 1)
-      real (kind = 8) :: Xx(ads % p(1) + 1, ads % nelem(1))
-      real (kind = 8) :: Xy(ads % p(2) + 1, ads % nelem(2))
-      real (kind = 8) :: Xz(ads % p(3) + 1, ads % nelem(3))
-      real (kind = 8) :: &
-      NNx(0:1, 0:ads % p(1), ads % p(1) + 1, ads % nelem(1)), &
-      NNy(0:1, 0:ads % p(2), ads % p(2) + 1, ads % nelem(2)), &
-      NNz(0:1, 0:ads % p(3), ads % p(3) + 1, ads % nelem(3))
+      integer(kind = 4) :: kx, ky, kz, ax, ay, az, ex, ey, ez
       real (kind = 8) :: J, W
       integer(kind = 4) :: ind, ind1, ind23, indx, indy, indz
       real (kind = 8) :: resvalue
       real (kind = 8), dimension(3) :: X
       integer(kind = 4), dimension(3) :: k, e, a
       integer (kind = 4) :: tmp, all
-      integer (kind = 4) :: nelemx, nelemy, nelemz, total_size
+      integer (kind = 4) :: lnelem(3)
+      integer (kind = 4) :: total_size
       real (kind = 8) :: F(ads % s(1), ads % s(2) * ads % s(3))
 !      real (kind = 8),allocatable,dimension(:,:) :: F
 
 !      allocate(F(ads % s(1), ads % s(2) * ads % s(3)))
-
-      d = 0
-      mx = ads % n(1) + ads % p(1) + 1
-      ngx = ads % p(1) + 1
-      my = ads % n(2) + ads % p(2) + 1
-      ngy = ads % p(2) + 1
-      mz = ads % n(3) + ads % p(3) + 1
-      ngz = ads % p(3) + 1
-
-      call BasisData(ads % p(1), mx, ads % Ux, 1, ngx, ads % nelem(1), Ox, Jx, Wx, Xx, NNx)
-      call BasisData(ads % p(2), my, ads % Uy, 1, ngy, ads % nelem(2), Oy, Jy, Wy, Xy, NNy)
-      call BasisData(ads % p(3), mz, ads % Uz, 1, ngz, ads % nelem(3), Oz, Jz, Wz, Xz, NNz)
 
 #ifdef IPRINT
       write(*, *) PRINTRANK, 'ex:', ads % mine(1), ads % maxe(1)
@@ -194,45 +163,44 @@ contains
       
       F = 0.d0
 
-      nelemx = ads % maxe(1) - ads % mine(1) + 1
-      nelemy = ads % maxe(2) - ads % mine(2) + 1
-      nelemz = ads % maxe(3) - ads % mine(3) + 1
+      lnelem(1) = ads % maxe(1) - ads % mine(1) + 1
+      lnelem(2) = ads % maxe(2) - ads % mine(2) + 1
+      lnelem(3) = ads % maxe(3) - ads % mine(3) + 1
 
-
-      total_size = nelemx * nelemy * nelemz
+      total_size = lnelem(1) * lnelem(2) * lnelem(3)
 
 !      loop over points
 ! !$OMP PARALLEL DO &
 ! !$OMP DEFAULT(SHARED) &
-! !$OMP SHARED(ads,Jx,Jy,Jz,Wx,Wy,Wz,Ox,Oy,Oz,NNx,NNy,NNz,Xx,Xy,Xz,nelemx,nelemy,nelemz,ngx,ngy,ngz,ads_data,total_size) &
+! !$OMP SHARED(ads,lnelem,ads_data,total_size) &
 ! !$OMP PRIVATE(tmp,ex,ey,ez,kx,ky,kz,W,ax,ay,az,ind,indx,indy,indz,ind1,ind23,J) &
 ! !$OMP PRIVATE(X,k,e,a,resvalue) &
 ! !$OMP REDUCTION(+:F)      
       do all = 1, total_size
 !        translate coefficients to local
-         ez = modulo(all - 1, nelemz)
-         tmp = (all - ez)/nelemz + 1
-         ey = modulo(tmp - 1, nelemy)
-         ex = (tmp - ey)/nelemy
+         ez = modulo(all - 1, lnelem(3))
+         tmp = (all - ez)/lnelem(3) + 1
+         ey = modulo(tmp - 1, lnelem(2))
+         ex = (tmp - ey)/lnelem(2)
 !        fix distributed part
          ex = ex + ads % mine(1)
          ey = ey + ads % mine(2)
          ez = ez + ads % mine(3)
 !        Jacobian
-         J = Jx(ex) * Jy(ey) * Jz(ez)
+         J = ads % Jx(ex) * ads % Jy(ey) * ads % Jz(ez)
 !        loop over quadrature points
-         do kx = 1, ngx
-            do ky = 1, ngy
-               do kz = 1, ngz
+         do kx = 1, ads % ng(1)
+            do ky = 1, ads % ng(2)
+               do kz = 1, ads % ng(3)
 !                 weigths
-                  W = Wx(kx) * Wy(ky) * Wz(kz)
+                  W = ads % Wx(kx) * ads % Wy(ky) * ads % Wz(kz)
 !                 loop over degrees of freedom
                   do ax = 0, ads % p(1)
                      do ay = 0, ads % p(2)
                         do az = 0, ads % p(3)
-                           ind = (Ox(ex) + ax) + &
-                           (Oy(ey) + ay)*(ads % n(1) + 1) + &
-                           (Oz(ez) + az)*(ads % n(2) + 1)*(ads % n(1) + 1)
+                           ind = (ads % Ox(ex) + ax) + &
+                           (ads % Oy(ey) + ay)*(ads % n(1) + 1) + &
+                           (ads % Oz(ez) + az)*(ads % n(2) + 1)*(ads % n(1) + 1)
                            call global2local(ind, ads % n, indx, indy, indz)
 
                            if (indx < ads % ibeg(1) - 1 .or. indx > ads % iend(1) - 1) cycle
@@ -243,7 +211,7 @@ contains
                            ind23 = (indy - ads % ibeg(2) + 1) + &
                            (indz - ads % ibeg(3) + 1)*(ads % iend(2) - &
                            ads % ibeg(2) + 1)
-                           X = (/ Xx(kx, ex), Xy(ky, ey), Xz(kz, ez) /)
+                           X = (/ ads % Xx(kx, ex), ads % Xy(ky, ey), ads % Xz(kz, ez) /)
                            k = (/ kx, ky, kz /)
                            e = (/ ex, ey, ez /)
                            a = (/ ax, ay, az /)
@@ -253,8 +221,6 @@ contains
                            k, &
                            e, &
                            a, &
-                           NNx, NNy, NNz, &
-                           Ox,Oy,Oz, &
                            ads_data, J, W, resvalue)
 !!$OMP FLUSH(F)
                            F(ind1 + 1, ind23 + 1) = F(ind1 + 1, ind23 + 1) + resvalue

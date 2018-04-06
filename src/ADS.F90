@@ -13,6 +13,7 @@ contains
       use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ
       use parallelism, ONLY: PRINTRANK
       use knot_vector, ONLY: PrepareKnot
+      use basis, ONLY: BasisData
       use mpi
       implicit none
       integer(kind = 4), intent(in), dimension(3) :: n
@@ -67,6 +68,22 @@ contains
    call PrepareKnot(ads % Uz, n(3), p(3), ads % nelem(3))
 
    mierr = 0
+   
+   ads % m(1) = ads % n(1) + ads % p(1) + 1
+   ads % ng(1) = ads % p(1) + 1
+   ads % m(2) = ads % n(2) + ads % p(2) + 1
+   ads % ng(2) = ads % p(2) + 1
+   ads % m(3) = ads % n(3) + ads % p(3) + 1
+   ads % ng(3) = ads % p(3) + 1
+   
+   call AllocateStatic(ads, ads_data)
+   
+   call BasisData(ads % p(1), ads % m(1), ads % Ux, 1, ads % ng(1), &
+   ads % nelem(1), ads % Ox, ads % Jx, ads % Wx, ads % Xx, ads % NNx)
+   call BasisData(ads % p(2), ads % m(2), ads % Uy, 1, ads % ng(2), &
+   ads % nelem(2), ads % Oy, ads % Jy, ads % Wy, ads % Xy, ads % NNy)
+   call BasisData(ads % p(3), ads % m(3), ads % Uz, 1, ads % ng(3), &
+   ads % nelem(3), ads % Oz, ads % Jz, ads % Wz, ads % Xz, ads % NNz)
 end subroutine
 
 
@@ -157,7 +174,6 @@ subroutine AllocateArrays(ads, ads_data)
    allocate(ads_data % F2(ads % s(2), ads % s(1) * ads % s(3))) !y,x,z
    allocate(ads_data % F3(ads % s(3), ads % s(1) * ads % s(2))) !z,x,y
 
-
    ! Processes on the border need pivot vector for LAPACK call
    if (MYRANKX == 0 .or. MYRANKY == 0 .or. MYRANKZ == 0) then
       allocate(ads % IPIVx(ads % n(1) + 1))
@@ -172,6 +188,40 @@ subroutine AllocateArrays(ads, ads_data)
 
 end subroutine
 
+
+! -------------------------------------------------------------------
+! Allocates most of the 'static' arrays
+! -------------------------------------------------------------------
+subroutine AllocateStatic(ads, ads_data)
+   use Setup, ONLY: ADS_Setup, ADS_compute_data
+   use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ
+   use mpi
+   implicit none
+   type(ADS_setup), intent(inout) :: ads
+   type (ADS_compute_data), intent(inout) :: ads_data
+   integer :: ierr
+
+   allocate(ads % Ox(ads % nelem(1)))
+   allocate(ads % Oy(ads % nelem(2)))
+   allocate(ads % Oz(ads % nelem(3)))
+      
+   allocate(ads % Jx(ads % nelem(1)))
+   allocate(ads % Jy(ads % nelem(2)))
+   allocate(ads % Jz(ads % nelem(3)))
+
+   allocate(ads % Xx(ads % p(1) + 1, ads % nelem(1)))
+   allocate(ads % Xy(ads % p(2) + 1, ads % nelem(2)))
+   allocate(ads % Xz(ads % p(3) + 1, ads % nelem(3)))
+
+   allocate(ads % NNx(0:1, 0:ads % p(1), ads % p(1) + 1, ads % nelem(1)))
+   allocate(ads % NNy(0:1, 0:ads % p(2), ads % p(2) + 1, ads % nelem(2)))
+   allocate(ads % NNz(0:1, 0:ads % p(3), ads % p(3) + 1, ads % nelem(3)))
+
+   allocate(ads % Wx(ads % p(1) + 1))
+   allocate(ads % Wy(ads % p(2) + 1))
+   allocate(ads % Wz(ads % p(3) + 1))
+
+end subroutine
 
 
 !!!!! przeniesc do debug
@@ -299,8 +349,6 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
             k, &
             e, &
             a, &
-            NNx, NNy, NNz, &
-            Ox,Oy,Oz, &
             ads_data, J, W, ret)
             use Setup, ONLY: ADS_Setup,ADS_compute_data
             implicit none
@@ -311,12 +359,6 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
             integer(kind = 4), intent(in), dimension(3) :: a
             type (ADS_compute_data), intent(in) :: ads_data
             real (kind = 8), intent(in) :: J, W
-            real (kind = 8), intent(in) :: &
-            NNx(0:1, 0:ads % p(1), ads % p(1) + 1, ads % nelem(1)), &
-            NNy(0:1, 0:ads % p(2), ads % p(2) + 1, ads % nelem(2)), &
-            NNz(0:1, 0:ads % p(3), ads % p(3) + 1, ads % nelem(3))
-            integer(kind = 4), intent(in)  :: &
-            Ox(ads % nelem(1)), Oy(ads % nelem(2)), Oz(ads % nelem(3))
             real (kind = 8), intent(out) :: ret
          end subroutine
       end interface
@@ -663,6 +705,26 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
       if (allocated(ads_data % F2)) deallocate(ads_data % F2)
       if (allocated(ads_data % F3)) deallocate(ads_data % F3)
 
+      if (allocated(ads % Ox)) deallocate(ads % Ox)
+      if (allocated(ads % Oy)) deallocate(ads % Oy)
+      if (allocated(ads % Oz)) deallocate(ads % Oz)
+
+      if (allocated(ads % Jx)) deallocate(ads % Jx)
+      if (allocated(ads % Jy)) deallocate(ads % Jy)
+      if (allocated(ads % Jz)) deallocate(ads % Jz)
+
+      if (allocated(ads % Xx)) deallocate(ads % Xx)
+      if (allocated(ads % Xy)) deallocate(ads % Xy)
+      if (allocated(ads % Xz)) deallocate(ads % Xz)
+
+      if (allocated(ads % NNx)) deallocate(ads % NNx)
+      if (allocated(ads % NNy)) deallocate(ads % NNy)
+      if (allocated(ads % NNz)) deallocate(ads % NNz)
+
+      if (allocated(ads % Wx)) deallocate(ads % Wx)
+      if (allocated(ads % Wy)) deallocate(ads % Wy)
+      if (allocated(ads % Wz)) deallocate(ads % Wz)
+      
       !!!!!! wyciac
       call mpi_finalize(ierr)
 #ifdef IINFO

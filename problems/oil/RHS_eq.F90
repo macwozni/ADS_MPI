@@ -14,8 +14,6 @@ contains
 ! k_              - indexes for quadrature points
 ! e_              - indexes for elements
 ! a_              - indexes of basis functions
-! NN_             - values of basis functions in quadrature points
-! O_              - indexes of first nonzero functions on each element
 ! ads_data        - data structures for ADS
 ! J               - jacobian
 ! W               - weight for quadratures
@@ -32,8 +30,6 @@ X, &
 k, &
 e, &
 a, &
-NNx, NNy, NNz, &
-Ox,Oy,Oz, &
 ads_data, J, W, ret)
 use Setup, ONLY: ADS_Setup,ADS_compute_data
 use projection_engine, ONLY: global2local
@@ -46,11 +42,6 @@ integer(kind=4), intent(in), dimension(3)  :: e
 integer(kind=4), intent(in), dimension(3)  :: a
 type (ADS_compute_data), intent(in) :: ads_data
 real   (kind=8), intent(in)  :: J,W
-real (kind = 8), intent(in) :: &
-NNx(0:1, 0:ads%p(1), ads%p(1) + 1, ads%nelem(1)), &
-NNy(0:1, 0:ads%p(2), ads%p(2) + 1, ads%nelem(2)), &
-NNz(0:1, 0:ads%p(3), ads%p(3) + 1, ads%nelem(3))
-integer(kind = 4), intent(in)  :: Ox(ads % nelem(1)), Oy(ads % nelem(2)), Oz(ads % nelem(3))
 real (kind = 8), intent(out) :: ret
 real   (kind=8) :: fval,vpump,vdrain,kqval
 real   (kind=8) :: Umax = -1d10, Umin = 1d10
@@ -71,7 +62,7 @@ duz = 0
 do bx = 0, ads % p(1)
    do by = 0, ads % p(2)
       do bz = 0, ads % p(3)
-         ind = (Ox(e(1)) + bx) + (Oy(e(2)) + by)*(ads % n(1) + 1) + (Oz(e(3)) + bz)* &
+         ind = (ads % Ox(e(1)) + bx) + (ads % Oy(e(2)) + by)*(ads % n(1) + 1) + (ads % Oz(e(3)) + bz)* &
          (ads % n(2) + 1)*(ads % n(1) + 1)
          call global2local(ind, ads % n, indbx, indby, indbz)
 
@@ -112,10 +103,10 @@ do bx = 0, ads % p(1)
 #endif
                                  
          Ucoeff = ads_data % R(ind + 1, rx, ry, rz)
-         v = NNx(0, bx, k(1), e(1)) * NNy(0, by, k(2), e(2)) * NNz(0, bz, k(3), e(3))
-         dvx = NNx(1, bx, k(1), e(1)) * NNy(0, by, k(2), e(2)) * NNz(0, bz, k(3), e(3))
-         dvy = NNx(0, bx, k(1), e(1)) * NNy(1, by, k(2), e(2)) * NNz(0, bz, k(3), e(3))
-         dvz = NNx(0, bx, k(1), e(1)) * NNy(0, by, k(2), e(2)) * NNz(1, bz, k(3), e(3))
+         v = ads % NNx(0, bx, k(1), e(1)) * ads % NNy(0, by, k(2), e(2)) * ads % NNz(0, bz, k(3), e(3))
+         dvx = ads % NNx(1, bx, k(1), e(1)) * ads % NNy(0, by, k(2), e(2)) * ads % NNz(0, bz, k(3), e(3))
+         dvy = ads % NNx(0, bx, k(1), e(1)) * ads % NNy(1, by, k(2), e(2)) * ads % NNz(0, bz, k(3), e(3))
+         dvz = ads % NNx(0, bx, k(1), e(1)) * ads % NNy(0, by, k(2), e(2)) * ads % NNz(1, bz, k(3), e(3))
 
          Uval = Uval + Ucoeff * v
          dux = dux + Ucoeff * dvx
@@ -133,10 +124,10 @@ vpump = pumping(X(1),X(2),X(3))
 Umax = max(Umax, Uval)
 Umin = min(Umin, Uval)
 
-v   = NNx(0,a(1),k(1),e(1)) * NNy(0,a(2),k(2),e(2)) * NNz(0,a(3),k(3),e(3))
-dvx = NNx(1,a(1),k(1),e(1)) * NNy(0,a(2),k(2),e(2)) * NNz(0,a(3),k(3),e(3)) 
-dvy = NNx(0,a(1),k(1),e(1)) * NNy(1,a(2),k(2),e(2)) * NNz(0,a(3),k(3),e(3)) 
-dvz = NNx(0,a(1),k(1),e(1)) * NNy(0,a(2),k(2),e(2)) * NNz(1,a(3),k(3),e(3)) 
+v   = ads % NNx(0,a(1),k(1),e(1)) * ads % NNy(0,a(2),k(2),e(2)) * ads % NNz(0,a(3),k(3),e(3))
+dvx = ads % NNx(1,a(1),k(1),e(1)) * ads % NNy(0,a(2),k(2),e(2)) * ads % NNz(0,a(3),k(3),e(3)) 
+dvy = ads % NNx(0,a(1),k(1),e(1)) * ads % NNy(1,a(2),k(2),e(2)) * ads % NNz(0,a(3),k(3),e(3)) 
+dvz = ads % NNx(0,a(1),k(1),e(1)) * ads % NNy(0,a(2),k(2),e(2)) * ads % NNz(1,a(3),k(3),e(3)) 
 
 kqval = Kqvals(k(1),k(2),k(3),e(1)-ads%mine(1)+1,e(2)-ads%mine(2)+1,e(3)-ads%mine(3)+1)
 vdrain = max(0.d0, draining(Uval, X(1),X(2),X(3)))

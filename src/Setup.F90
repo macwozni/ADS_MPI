@@ -51,6 +51,22 @@ module Setup
 
       ! Range of elements associated with basis functions assigned to this process
       integer(kind = 4), dimension(3) :: mine, maxe
+      
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      
+      integer(kind = 4), dimension(3) :: m
+      
+      integer(kind = 4), dimension(3) :: ng
+      
+      integer(kind = 4), allocatable, dimension(:) :: Ox, Oy, Oz
+      
+      real (kind = 8), allocatable, dimension(:) :: Jx, Jy, Jz
+      
+      real (kind = 8), allocatable, dimension(:,:) :: Xx, Xy, Xz
+      
+      real (kind = 8), allocatable, dimension(:,:,:,:) :: NNx, NNy, NNz
+      
+      real (kind = 8), allocatable, dimension(:) :: Wx, Wy, Wz
    end type
 
 
