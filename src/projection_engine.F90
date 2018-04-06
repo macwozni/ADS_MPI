@@ -205,8 +205,8 @@ contains
 ! !$OMP PARALLEL DO &
 ! !$OMP DEFAULT(SHARED) &
 ! !$OMP SHARED(ads,Jx,Jy,Jz,Wx,Wy,Wz,Ox,Oy,Oz,NNx,NNy,NNz,Xx,Xy,Xz,nelemx,nelemy,nelemz,ngx,ngy,ngz,ads_data,total_size) &
-! !$OMP PRIVATE(tmp,ex,ey,ez,kx,ky,kz,W,ax,ay,az,ind,indx,indy,indz,ind1,ind23,Uval,dux,duy,duz,v,J) &
-! !$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz,X,k,e,a,b,du,resvalue,indbx,indby,indbz) &
+! !$OMP PRIVATE(tmp,ex,ey,ez,kx,ky,kz,W,ax,ay,az,ind,indx,indy,indz,ind1,ind23,J) &
+! !$OMP PRIVATE(X,k,e,a,resvalue) &
 ! !$OMP REDUCTION(+:F)      
       do all = 1, total_size
 !        translate coefficients to local
