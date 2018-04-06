@@ -149,7 +149,6 @@ contains
       type (ADS_compute_data), intent(inout) :: ads_data
       integer(kind = 4) :: mx, my, mz, ngx, ngy, ngz, ex, ey, ez
       integer(kind = 4) :: kx, ky, kz, ax, ay, az, d
-      integer(kind = 4) :: bx, by, bz
       integer(kind = 4) :: Ox(ads % nelem(1)), Oy(ads % nelem(2)), Oz(ads % nelem(3))
       real (kind = 8) :: Jx(ads % nelem(1)), Jy(ads % nelem(2)), Jz(ads % nelem(3))
       real (kind = 8) :: Wx(ads % p(1) + 1), Wy(ads % p(2) + 1), Wz(ads % p(3) + 1)
@@ -160,15 +159,10 @@ contains
       NNx(0:1, 0:ads % p(1), ads % p(1) + 1, ads % nelem(1)), &
       NNy(0:1, 0:ads % p(2), ads % p(2) + 1, ads % nelem(2)), &
       NNz(0:1, 0:ads % p(3), ads % p(3) + 1, ads % nelem(3))
-      real (kind = 8) :: J, W, Uval, ucoeff
-      real (kind = 8) :: v, rhs
-      real (kind = 8) :: dux, duy, duz, dvx, dvy, dvz
-      integer(kind = 4) :: nreppx, nreppy, nreppz ! elements per proc along x,y,z
+      real (kind = 8) :: J, W
       integer(kind = 4) :: ind, ind1, ind23, indx, indy, indz
-      integer(kind = 4) :: indbx, indby, indbz
-      integer(kind = 4) :: rx, ry, rz, ix, iy, iz, sx, sy, sz
       real (kind = 8) :: resvalue
-      real (kind = 8), dimension(3) :: X, du
+      real (kind = 8), dimension(3) :: X
       integer(kind = 4), dimension(3) :: k, e, a
       integer (kind = 4) :: tmp, all
       integer (kind = 4) :: nelemx, nelemy, nelemz, total_size
