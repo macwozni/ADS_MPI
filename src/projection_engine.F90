@@ -145,7 +145,6 @@ contains
       real (kind = 8), dimension(3) :: X
       integer(kind = 4), dimension(3) :: k, e, a
       integer (kind = 4) :: tmp, all
-      integer (kind = 4) :: lnelem(3)
       integer (kind = 4) :: total_size
       real (kind = 8) :: F(ads % s(1), ads % s(2) * ads % s(3))
 !      real (kind = 8),allocatable,dimension(:,:) :: F
@@ -163,25 +162,20 @@ contains
       
       F = 0.d0
 
-      lnelem(1) = ads % maxe(1) - ads % mine(1) + 1
-      lnelem(2) = ads % maxe(2) - ads % mine(2) + 1
-      lnelem(3) = ads % maxe(3) - ads % mine(3) + 1
-
-      total_size = lnelem(1) * lnelem(2) * lnelem(3)
+      total_size = ads % lnelem(1) * ads % lnelem(2) * ads % lnelem(3)
 
 !      loop over points
 ! !$OMP PARALLEL DO &
 ! !$OMP DEFAULT(SHARED) &
-! !$OMP SHARED(ads,lnelem,ads_data,total_size) &
-! !$OMP PRIVATE(tmp,ex,ey,ez,kx,ky,kz,W,ax,ay,az,ind,indx,indy,indz,ind1,ind23,J) &
-! !$OMP PRIVATE(X,k,e,a,resvalue) &
+! !$OMP SHARED(ads,ads_data,total_size) &
+! !$OMP PRIVATE(tmp,ex,ey,ez,e,kx,ky,kz,k,W,ax,ay,az,a,ind,indx,indy,indz,ind1,ind23,J,X,resvalue) &
 ! !$OMP REDUCTION(+:F)      
       do all = 1, total_size
 !        translate coefficients to local
-         ez = modulo(all - 1, lnelem(3))
-         tmp = (all - ez)/lnelem(3) + 1
-         ey = modulo(tmp - 1, lnelem(2))
-         ex = (tmp - ey)/lnelem(2)
+         ez = modulo(all - 1, ads % lnelem(3))
+         tmp = (all - ez)/ads % lnelem(3) + 1
+         ey = modulo(tmp - 1, ads % lnelem(2))
+         ex = (tmp - ey)/ads % lnelem(2)
 !        fix distributed part
          ex = ex + ads % mine(1)
          ey = ey + ads % mine(2)

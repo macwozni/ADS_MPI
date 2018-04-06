@@ -84,6 +84,11 @@ contains
    ads % nelem(2), ads % Oy, ads % Jy, ads % Wy, ads % Xy, ads % NNy)
    call BasisData(ads % p(3), ads % m(3), ads % Uz, 1, ads % ng(3), &
    ads % nelem(3), ads % Oz, ads % Jz, ads % Wz, ads % Xz, ads % NNz)
+   
+   
+   ads % lnelem(1) = ads % maxe(1) - ads % mine(1) + 1
+   ads % lnelem(2) = ads % maxe(2) - ads % mine(2) + 1
+   ads % lnelem(3) = ads % maxe(3) - ads % mine(3) + 1
 end subroutine
 
 

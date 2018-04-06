@@ -67,6 +67,8 @@ module Setup
       real (kind = 8), allocatable, dimension(:,:,:,:) :: NNx, NNy, NNz
       
       real (kind = 8), allocatable, dimension(:) :: Wx, Wy, Wz
+      
+      integer (kind = 4), dimension(3) :: lnelem
    end type
 
 
