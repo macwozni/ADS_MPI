@@ -9,24 +9,20 @@ contains
 !
 ! Input:
 ! ------
+! ads             - ADS setup structure
 ! X_              - quadrature points
-! k_              - inde(1)es for quadrature points
-! e_              - inde(1)es for elements
-! p_              - degrees of approximation
-! nelem_          - number of subintervals
-! a_              - inde(1)es of basis functions
+! k_              - indexes for quadrature points
+! e_              - indexes for elements
+! a_              - indexes of basis functions
 ! NN_             - values of basis functions in quadrature points
-! du_             - value of derivative from previous time step
-! ibeg_, iend_    - piece of domain associated with this process
-! ibegs_, iends_  - pieces of domain surrounding this process' piece
-! mine_, ma(1)e_    - indices of first and last elements in each direction
-! Uval            - previous solution coefficient at given point
+! O_              - indexes of first nonzero functions on each element
+! ads_data        - data structures for ADS
 ! J               - jacobian
 ! W               - weight for quadratures
 !
 ! Output:
 ! -------
-! F               - value of RHS function at given point
+! ret             - value of RHS function at given point
 !
 ! -------------------------------------------------------------------
 subroutine ComputePointForRHS( &
@@ -46,7 +42,6 @@ real   (kind=8), intent(in), dimension(3)  :: X
 integer(kind=4), intent(in), dimension(3)  :: k
 integer(kind=4), intent(in), dimension(3)  :: e
 integer(kind=4), intent(in), dimension(3)  :: a
-real   (kind=8), dimension(3)  :: du
 type (ADS_compute_data), intent(in) :: ads_data
 real   (kind=8), intent(in)  :: J,W
 real (kind = 8), intent(in) :: &
