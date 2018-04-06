@@ -124,7 +124,6 @@ contains
             k, &
             e, &
             a, &
-            b, &
             du, &
             NNx, NNy, NNz, &
             Uval, J, W, ret)
@@ -135,7 +134,6 @@ contains
             integer(kind = 4), intent(in), dimension(3) :: k
             integer(kind = 4), intent(in), dimension(3) :: e
             integer(kind = 4), intent(in), dimension(3) :: a
-            integer(kind = 4), intent(in), dimension(3) :: b
             real (kind = 8), intent(in), dimension(3) :: du
             real (kind = 8), intent(in) :: Uval
             real (kind = 8), intent(in) :: J, W
@@ -170,7 +168,7 @@ contains
       integer(kind = 4) :: rx, ry, rz, ix, iy, iz, sx, sy, sz
       real (kind = 8) :: resvalue
       real (kind = 8), dimension(3) :: X, du
-      integer(kind = 4), dimension(3) :: k, e, a, b
+      integer(kind = 4), dimension(3) :: k, e, a
       integer (kind = 4) :: tmp, all
       integer (kind = 4) :: nelemx, nelemy, nelemz, total_size
       real (kind = 8) :: F(ads % s(1), ads % s(2) * ads % s(3))
@@ -233,7 +231,7 @@ contains
                do kz = 1, ngz
 !                       weigths
                   W = Wx(kx) * Wy(ky) * Wz(kz)
- !                       loop over degrees of freedom
+!                       loop over degrees of freedom
                   do ax = 0, ads % p(1)
                      do ay = 0, ads % p(2)
                         do az = 0, ads % p(3)
@@ -315,7 +313,6 @@ contains
                         k = (/ kx, ky, kz /)
                         e = (/ ex, ey, ez /)
                         a = (/ ax, ay, az /)
-                        b = (/ ads % p(1), ads % p(2), ads % p(3) /)
                         du = (/ dux, duy, duz /)
                         call RHS_fun(&
                         ads, &
@@ -323,7 +320,6 @@ contains
                         k, &
                         e, &
                         a, &
-                        b, &
                         du, &
                         NNx, NNy, NNz, &
                         Uval, J, W, resvalue)
@@ -337,11 +333,11 @@ contains
          enddo
       enddo
    enddo
-   ! !$OMP END PARALLEL DO
+! !$OMP END PARALLEL DO
 
    ads_data % F = F
 
-   !if (allocated(F)) deallocate (F)
+!if (allocated(F)) deallocate (F)
 
 end subroutine
 

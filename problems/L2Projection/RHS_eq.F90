@@ -14,7 +14,7 @@ contains
 ! e_              - inde(1)es for elements
 ! p_              - degrees of approximation
 ! nelem_          - number of subintervals
-! a_, b_          - inde(1)es of basis functions
+! a_              - inde(1)es of basis functions
 ! NN_             - values of basis functions in quadrature points
 ! du_             - value of derivative from previous time step
 ! ibeg_, iend_    - piece of domain associated with this process
@@ -36,7 +36,6 @@ X, &
 k, &
 e, &
 a, &
-b, &
 du, &
 NNx, NNy, NNz, &
 Uval, J, W, ret)
@@ -48,7 +47,6 @@ real   (kind=8), intent(in), dimension(3)  :: X
 integer(kind=4), intent(in), dimension(3)  :: k
 integer(kind=4), intent(in), dimension(3)  :: e
 integer(kind=4), intent(in), dimension(3)  :: a
-integer(kind=4), intent(in), dimension(3)  :: b
 real   (kind=8), intent(in), dimension(3)  :: du
 real   (kind=8), intent(in)  :: Uval
 real   (kind=8), intent(in)  :: J,W

@@ -299,7 +299,6 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
             k, &
             e, &
             a, &
-            b, &
             du, &
             NNx, NNy, NNz, &
             Uval, J, W, ret)
@@ -310,7 +309,6 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
             integer(kind = 4), intent(in), dimension(3) :: k
             integer(kind = 4), intent(in), dimension(3) :: e
             integer(kind = 4), intent(in), dimension(3) :: a
-            integer(kind = 4), intent(in), dimension(3) :: b
             real (kind = 8), intent(in), dimension(3) :: du
             real (kind = 8), intent(in) :: Uval
             real (kind = 8), intent(in) :: J, W
