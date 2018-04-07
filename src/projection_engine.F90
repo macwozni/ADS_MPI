@@ -150,7 +150,7 @@ contains
       integer(kind = 4), dimension(3) :: k, e, a
       integer (kind = 4) :: tmp, all
       integer (kind = 4) :: total_size
-      real (kind = 8) :: F(ads % s(1), ads % s(2) * ads % s(3))
+!      real (kind = 8) :: F(ads % s(1), ads % s(2) * ads % s(3))
       integer(kind = 4) :: rx, ry, rz, ix, iy, iz, sx, sy, sz
       integer(kind = 4) :: bx, by, bz
       real   (kind=8), dimension(3)  :: du
@@ -159,9 +159,11 @@ contains
       integer(kind = 4) :: indbx, indby, indbz
       real (kind = 8) :: Uval, ucoeff
       real   (kind=8) :: dvx,dvy,dvz,v
-!      real (kind = 8),allocatable,dimension(:,:) :: F
+      real (kind = 8),allocatable,dimension(:,:,:) :: F
+      integer(kind = 4) :: threadcnt,threadid
 
-!      allocate(F(ads % s(1), ads % s(2) * ads % s(3)))
+      threadcnt = 1
+      allocate(F(ads % s(1), ads % s(2) * ads % s(3),threadcnt))
 
       F = 0.d0
 
@@ -172,8 +174,9 @@ contains
 ! !$OMP DEFAULT(SHARED) &
 ! !$OMP SHARED(ads,ads_data,total_size) &
 ! !$OMP PRIVATE(tmp,ex,ey,ez,e,kx,ky,kz,k,W,ax,ay,az,a,ind,indx,indy,indz,ind1,ind23,J) &
-! !$OMP PRIVATE(X,resvalue) &
-! !$OMP REDUCTION(+:F)      
+! !$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz,X,b,du,resvalue) &
+! !$OMP PRIVATE(indbx,indby,indbz,Uval,dux,duy,duz,v,threadid) &
+! !$OMP REDUCTION(+:F)    
       do all = 1, total_size
 !        translate coefficients to local
          ez = modulo(all - 1, ads % lnelem(3))
@@ -184,6 +187,7 @@ contains
          ex = ex + ads % mine(1)
          ey = ey + ads % mine(2)
          ez = ez + ads % mine(3)
+         threadid = 1
 !        Jacobian
          J = ads % Jx(ex) * ads % Jy(ey) * ads % Jz(ez)
          e = (/ ex, ey, ez /)
@@ -288,7 +292,7 @@ contains
                            Uval, &
                            ads_data, J, W, resvalue)
 !!$OMP FLUSH(F)
-                           F(ind1 + 1, ind23 + 1) = F(ind1 + 1, ind23 + 1) + resvalue
+                           F(ind1 + 1, ind23 + 1,threadid) = F(ind1 + 1, ind23 + 1,threadid) + resvalue
 
                         enddo
                      enddo
@@ -299,9 +303,13 @@ contains
       enddo
 ! !$OMP END PARALLEL DO
 
-      ads_data % F = F
+      do ax=1,ads % s(1)
+         do ay=1,ads % s(2) * ads % s(3)
+            ads_data % F(ax,ay) = sum(F(ax,ay,:))
+         enddo
+      enddo
 
-!if (allocated(F)) deallocate (F)
+if (allocated(F)) deallocate (F)
 
    end subroutine
 
