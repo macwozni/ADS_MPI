@@ -123,6 +123,8 @@ contains
             k, &
             e, &
             a, & 
+            du, &
+            Uval, &
             ads_data, J, W, ret)
             use Setup, ONLY: ADS_Setup,ADS_compute_data
             implicit none
@@ -131,6 +133,8 @@ contains
             integer(kind = 4), intent(in), dimension(3) :: k
             integer(kind = 4), intent(in), dimension(3) :: e
             integer(kind = 4), intent(in), dimension(3) :: a
+            real   (kind=8), intent(in), dimension(3)  :: du
+            real (kind = 8), intent(in) :: Uval
             type (ADS_compute_data), intent(in) :: ads_data
             real (kind = 8), intent(in) :: J, W
             real (kind = 8), intent(out) :: ret
@@ -147,6 +151,14 @@ contains
       integer (kind = 4) :: tmp, all
       integer (kind = 4) :: total_size
       real (kind = 8) :: F(ads % s(1), ads % s(2) * ads % s(3))
+      integer(kind = 4) :: rx, ry, rz, ix, iy, iz, sx, sy, sz
+      integer(kind = 4) :: bx, by, bz
+      real   (kind=8), dimension(3)  :: du
+      real (kind = 8) :: dux, duy, duz
+      integer(kind = 4) :: mx, my, mz, ngx, ngy, ngz
+      integer(kind = 4) :: indbx, indby, indbz
+      real (kind = 8) :: Uval, ucoeff
+      real   (kind=8) :: dvx,dvy,dvz,v
 !      real (kind = 8),allocatable,dimension(:,:) :: F
 
 !      allocate(F(ads % s(1), ads % s(2) * ads % s(3)))
@@ -174,12 +186,81 @@ contains
          ez = ez + ads % mine(3)
 !        Jacobian
          J = ads % Jx(ex) * ads % Jy(ey) * ads % Jz(ez)
+         e = (/ ex, ey, ez /)
 !        loop over quadrature points
          do kx = 1, ads % ng(1)
             do ky = 1, ads % ng(2)
                do kz = 1, ads % ng(3)
 !                 weigths
+                  k = (/ kx, ky, kz /)
                   W = ads % Wx(kx) * ads % Wy(ky) * ads % Wz(kz)
+                  Uval = 0
+                  dux = 0
+                  duy = 0
+                  duz = 0
+                  do bx = 0, ads % p(1)
+                     do by = 0, ads % p(2)
+                        do bz = 0, ads % p(3)
+!                           ind = (ads % Ox(e(1)) + bx) + (ads % Oy(e(2)) + by)*(ads % n(1) + 1) + (ads % Oz(e(3)) + bz)* &
+!                           (ads % n(2) + 1)*(ads % n(1) + 1)
+!                           call global2local(ind, ads % n, indbx, indby, indbz)
+                           indbx = (ads % Ox(ex) + bx)
+                           indby = (ads % Oy(ey) + by)
+                           indbz = (ads % Oz(ez) + bz)
+                           ind = indbx + (indby + indbz*(ads % n(2) + 1))*(ads % n(1) + 1)
+
+                           rx = 2
+                           ry = 2
+                           rz = 2
+                           if (indbx < ads % ibeg(1) - 1) rx = 1
+                           if (indbx > ads % iend(1) - 1) rx = 3
+                           if (indby < ads % ibeg(2) - 1) ry = 1
+                           if (indby > ads % iend(2) - 1) ry = 3
+                           if (indbz < ads % ibeg(3) - 1) rz = 1
+                           if (indbz > ads % iend(3) - 1) rz = 3
+
+                           ix = indbx - ads % ibegsx(rx) + 1
+                           iy = indby - ads % ibegsy(ry) + 1
+                           iz = indbz - ads % ibegsz(rz) + 1
+                           sx = ads % iendsx(rx) - ads % ibegsx(rx) + 1
+                           sy = ads % iendsy(ry) - ads % ibegsy(ry) + 1
+                           sz = ads % iendsz(rz) - ads % ibegsz(rz) + 1
+                           ind = ix + sx * (iy + sy * iz)
+
+#ifdef IDEBUG
+                           if (ind < 0 .or. ind > ads % nrcpp(3) * ads % nrcpp(1) * ads % nrcpp(2) - 1) then
+                              write(ERROR_UNIT, *) PRINTRANK, 'Oh crap', ix, iy, iz
+                              write(ERROR_UNIT, *) PRINTRANK, 'r', rx, ry, rz
+                              write(ERROR_UNIT, *) PRINTRANK, 'x', ads % ibeg(1), ads % iend(1)
+                              write(ERROR_UNIT, *) PRINTRANK, 'y', ads % ibeg(2), ads % iend(2)
+                              write(ERROR_UNIT, *) PRINTRANK, 'z', ads % ibeg(3), ads % iend(3)
+                              write(ERROR_UNIT, *) PRINTRANK, 'idxs', indx, indy, indz
+                              write(ERROR_UNIT, *) PRINTRANK, 'sizes=', sx, sy, sz
+                              write(ERROR_UNIT, *) PRINTRANK, 'begsx=', ads % ibegsx
+                              write(ERROR_UNIT, *) PRINTRANK, 'endsx=', ads % iendsx
+                              write(ERROR_UNIT, *) PRINTRANK, 'begsy=', ads % ibegsy
+                              write(ERROR_UNIT, *) PRINTRANK, 'endsy=', ads % iendsy
+                              write(ERROR_UNIT, *) PRINTRANK, 'begsz=', ads % ibegsz
+                              write(ERROR_UNIT, *) PRINTRANK, 'endsz=', ads % iendsz
+                           endif
+#endif
+
+                           Ucoeff = ads_data % R(ind + 1, rx, ry, rz)
+                           v = ads % NNx(0, bx, k(1), e(1)) * ads % NNy(0, by, k(2), e(2)) * ads % NNz(0, bz, k(3), e(3))
+                           dvx = ads % NNx(1, bx, k(1), e(1)) * ads % NNy(0, by, k(2), e(2)) * ads % NNz(0, bz, k(3), e(3))
+                           dvy = ads % NNx(0, bx, k(1), e(1)) * ads % NNy(1, by, k(2), e(2)) * ads % NNz(0, bz, k(3), e(3))
+                           dvz = ads % NNx(0, bx, k(1), e(1)) * ads % NNy(0, by, k(2), e(2)) * ads % NNz(1, bz, k(3), e(3))
+
+                           Uval = Uval + Ucoeff * v
+                           dux = dux + Ucoeff * dvx
+                           duy = duy + Ucoeff * dvy
+                           duz = duz + Ucoeff * dvz
+                        enddo
+                     enddo
+                  enddo
+
+                  du = (/ dux, duy, duz /)
+
 !                 loop over degrees of freedom
                   do ax = 0, ads % p(1)
                      do ay = 0, ads % p(2)
@@ -198,8 +279,6 @@ contains
                            (indz - ads % ibeg(3) + 1)*(ads % iend(2) - &
                            ads % ibeg(2) + 1)
                            X = (/ ads % Xx(kx, ex), ads % Xy(ky, ey), ads % Xz(kz, ez) /)
-                           k = (/ kx, ky, kz /)
-                           e = (/ ex, ey, ez /)
                            a = (/ ax, ay, az /)
                            call RHS_fun(&
                            ads, &
@@ -207,6 +286,8 @@ contains
                            k, &
                            e, &
                            a, &
+                           du, &
+                           Uval, &
                            ads_data, J, W, resvalue)
 !!$OMP FLUSH(F)
                            F(ind1 + 1, ind23 + 1) = F(ind1 + 1, ind23 + 1) + resvalue

@@ -363,6 +363,8 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
             k, &
             e, &
             a, &
+            du, &
+            Uval, &
             ads_data, J, W, ret)
             use Setup, ONLY: ADS_Setup,ADS_compute_data
             implicit none
@@ -371,6 +373,8 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
             integer(kind = 4), intent(in), dimension(3) :: k
             integer(kind = 4), intent(in), dimension(3) :: e
             integer(kind = 4), intent(in), dimension(3) :: a
+            real   (kind=8), intent(in), dimension(3)  :: du
+            real (kind = 8), intent(in) :: Uval
             type (ADS_compute_data), intent(in) :: ads_data
             real (kind = 8), intent(in) :: J, W
             real (kind = 8), intent(out) :: ret

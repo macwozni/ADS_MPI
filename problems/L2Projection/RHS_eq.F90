@@ -14,6 +14,8 @@ contains
 ! k_              - indexes for quadrature points
 ! e_              - indexes for elements
 ! a_              - indexes of basis functions
+! du_             - value of derivative from previous time step
+! Uval            - previous solution coefficient at given point
 ! ads_data        - data structures for ADS
 ! J               - jacobian
 ! W               - weight for quadratures
@@ -29,6 +31,8 @@ X, &
 k, &
 e, &
 a, &
+du, &
+Uval, &
 ads_data, J, W, ret)
 use Setup, ONLY: ADS_Setup,ADS_compute_data
 use input_data
@@ -38,6 +42,8 @@ real   (kind=8), intent(in), dimension(3)  :: X
 integer(kind=4), intent(in), dimension(3)  :: k
 integer(kind=4), intent(in), dimension(3)  :: e
 integer(kind=4), intent(in), dimension(3)  :: a
+real   (kind=8), intent(in), dimension(3)  :: du
+real (kind = 8), intent(in) :: Uval
 type (ADS_compute_data), intent(in) :: ads_data
 real   (kind=8), intent(in)  :: J,W
 real (kind = 8), intent(out) :: ret
