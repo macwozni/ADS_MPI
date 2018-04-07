@@ -150,7 +150,6 @@ contains
       integer(kind = 4), dimension(3) :: k, e, a
       integer (kind = 4) :: tmp, all
       integer (kind = 4) :: total_size
-!      real (kind = 8) :: F(ads % s(1), ads % s(2) * ads % s(3))
       integer(kind = 4) :: rx, ry, rz, ix, iy, iz, sx, sy, sz
       integer(kind = 4) :: bx, by, bz
       real   (kind=8), dimension(3)  :: du
@@ -162,7 +161,7 @@ contains
       real (kind = 8),allocatable,dimension(:,:,:) :: F
       integer(kind = 4) :: threadcnt,threadid
 
-      threadcnt = 1
+      threadcnt = OMP_GET_MAX_THREADS()
       allocate(F(ads % s(1), ads % s(2) * ads % s(3),threadcnt))
 
       F = 0.d0
@@ -170,13 +169,12 @@ contains
       total_size = ads % lnelem(1) * ads % lnelem(2) * ads % lnelem(3)
 
 !      loop over points
-! !$OMP PARALLEL DO &
-! !$OMP DEFAULT(SHARED) &
-! !$OMP SHARED(ads,ads_data,total_size) &
-! !$OMP PRIVATE(tmp,ex,ey,ez,e,kx,ky,kz,k,W,ax,ay,az,a,ind,indx,indy,indz,ind1,ind23,J) &
-! !$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz,X,b,du,resvalue) &
-! !$OMP PRIVATE(indbx,indby,indbz,Uval,dux,duy,duz,v,threadid) &
-! !$OMP REDUCTION(+:F)    
+!$OMP PARALLEL DO &
+!$OMP DEFAULT(SHARED) &
+!$OMP SHARED(ads,ads_data,total_size) &
+!$OMP PRIVATE(tmp,ex,ey,ez,e,kx,ky,kz,k,W,ax,ay,az,a,ind,indx,indy,indz,ind1,ind23,J) &
+!$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz,X,du,resvalue) &
+!$OMP PRIVATE(indbx,indby,indbz,Uval,dux,duy,duz,v,threadid) 
       do all = 1, total_size
 !        translate coefficients to local
          ez = modulo(all - 1, ads % lnelem(3))
@@ -187,7 +185,7 @@ contains
          ex = ex + ads % mine(1)
          ey = ey + ads % mine(2)
          ez = ez + ads % mine(3)
-         threadid = 1
+         threadid = OMP_GET_THREAD_NUM() + 1
 !        Jacobian
          J = ads % Jx(ex) * ads % Jy(ey) * ads % Jz(ez)
          e = (/ ex, ey, ez /)
@@ -291,7 +289,6 @@ contains
                            du, &
                            Uval, &
                            ads_data, J, W, resvalue)
-!!$OMP FLUSH(F)
                            F(ind1 + 1, ind23 + 1,threadid) = F(ind1 + 1, ind23 + 1,threadid) + resvalue
 
                         enddo
@@ -301,13 +298,17 @@ contains
             enddo
          enddo
       enddo
-! !$OMP END PARALLEL DO
+!$OMP END PARALLEL DO
 
+!$OMP PARALLEL DO &
+!$OMP PRIVATE(ay) &
+!$OMP SHARED(F,ads_data)
       do ax=1,ads % s(1)
          do ay=1,ads % s(2) * ads % s(3)
             ads_data % F(ax,ay) = sum(F(ax,ay,:))
          enddo
       enddo
+!$OMP END PARALLEL DO
 
 if (allocated(F)) deallocate (F)
 
