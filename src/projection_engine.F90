@@ -191,19 +191,18 @@ contains
          do kx = 1, ads % ng(1)
             do ky = 1, ads % ng(2)
                do kz = 1, ads % ng(3)
-!                 weigths
                   k = (/ kx, ky, kz /)
+!                 weigths
                   W = ads % Wx(kx) * ads % Wy(ky) * ads % Wz(kz)
                   Uval = 0
                   dux = 0
                   duy = 0
                   duz = 0
+!                 compute value of derivative from previous time step - du
+!                 compute previous solution coefficient at given point - Uval
                   do bx = 0, ads % p(1)
                      do by = 0, ads % p(2)
                         do bz = 0, ads % p(3)
-!                           ind = (ads % Ox(e(1)) + bx) + (ads % Oy(e(2)) + by)*(ads % n(1) + 1) + (ads % Oz(e(3)) + bz)* &
-!                           (ads % n(2) + 1)*(ads % n(1) + 1)
-!                           call global2local(ind, ads % n, indbx, indby, indbz)
                            indbx = (ads % Ox(ex) + bx)
                            indby = (ads % Oy(ey) + by)
                            indbz = (ads % Oz(ez) + bz)
@@ -258,7 +257,6 @@ contains
                         enddo
                      enddo
                   enddo
-
                   du = (/ dux, duy, duz /)
 
 !                 loop over degrees of freedom
