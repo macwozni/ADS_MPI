@@ -158,23 +158,18 @@ contains
       integer(kind = 4) :: indbx, indby, indbz
       real (kind = 8) :: Uval, ucoeff
       real   (kind=8) :: dvx,dvy,dvz,v
-      real (kind = 8),allocatable,dimension(:,:,:) :: F
       integer(kind = 4) :: threadcnt,threadid
-
-      threadcnt = 1!OMP_GET_MAX_THREADS()
-      allocate(F(ads % s(1), ads % s(2) * ads % s(3),threadcnt))
-
-      F = 0.d0
+      real (kind = 8) :: elarr(0:ads % p(1),0:ads % p(2),0:ads % p(3))
 
       total_size = ads % lnelem(1) * ads % lnelem(2) * ads % lnelem(3)
 
 !      loop over points
-!!$OMP PARALLEL DO &
-!!$OMP DEFAULT(SHARED) &
-!!$OMP SHARED(ads,ads_data,total_size) &
-!!$OMP PRIVATE(tmp,ex,ey,ez,e,kx,ky,kz,k,W,ax,ay,az,a,ind,indx,indy,indz,ind1,ind23,J) &
-!!$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz,X,du,resvalue) &
-!!$OMP PRIVATE(indbx,indby,indbz,Uval,dux,duy,duz,v,threadid) 
+!$OMP PARALLEL DO &
+!$OMP DEFAULT(SHARED) &
+!$OMP SHARED(ads,ads_data,total_size) &
+!$OMP PRIVATE(tmp,ex,ey,ez,e,kx,ky,kz,k,W,ax,ay,az,a,ind,indx,indy,indz,ind1,ind23,J) &
+!$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz,X,du,resvalue) &
+!$OMP PRIVATE(indbx,indby,indbz,Uval,dux,duy,duz,v,threadid,elarr) 
       do all = 1, total_size
 !        translate coefficients to local
          ez = modulo(all - 1, ads % lnelem(3))
@@ -185,10 +180,10 @@ contains
          ex = ex + ads % mine(1)
          ey = ey + ads % mine(2)
          ez = ez + ads % mine(3)
-         threadid = OMP_GET_THREAD_NUM() + 1
 !        Jacobian
          J = ads % Jx(ex) * ads % Jy(ey) * ads % Jz(ez)
          e = (/ ex, ey, ez /)
+         elarr = 0.d0
 !        loop over quadrature points
          do kx = 1, ads % ng(1)
             do ky = 1, ads % ng(2)
@@ -276,8 +271,7 @@ contains
 
                            ind1 = indx - ads % ibeg(1) + 1
                            ind23 = (indy - ads % ibeg(2) + 1) + &
-                           (indz - ads % ibeg(3) + 1)*(ads % iend(2) - &
-                           ads % ibeg(2) + 1)
+                           (indz - ads % ibeg(3) + 1)*(ads % iend(2) - ads % ibeg(2) + 1)
                            X = (/ ads % Xx(kx, ex), ads % Xy(ky, ey), ads % Xz(kz, ez) /)
                            a = (/ ax, ay, az /)
                            call RHS_fun(&
@@ -289,28 +283,31 @@ contains
                            du, &
                            Uval, &
                            ads_data, J, W, resvalue)
-                           F(ind1 + 1, ind23 + 1,threadid) = F(ind1 + 1, ind23 + 1,threadid) + resvalue
-
+                           elarr(ax,ay,az) = elarr(ax,ay,az) + resvalue
                         enddo
                      enddo
                   enddo
                enddo
             enddo
          enddo
-      enddo
-!!$OMP END PARALLEL DO
-
-!!$OMP PARALLEL DO &
-!!$OMP PRIVATE(ay) &
-!!$OMP SHARED(F,ads_data)
-      do ax=1,ads % s(1)
-         do ay=1,ads % s(2) * ads % s(3)
-            ads_data % F(ax,ay) = sum(F(ax,ay,:))
+!        moving results from temporary array to main one
+!$OMP CRITICAL
+         do ax = 0, ads % p(1)
+            do ay = 0, ads % p(2)
+               do az = 0, ads % p(3)
+                  indx = (ads % Ox(ex) + ax)
+                  indy = (ads % Oy(ey) + ay)
+                  indz = (ads % Oz(ez) + az)
+                  ind1 = indx - ads % ibeg(1) + 1
+                  ind23 = (indy - ads % ibeg(2) + 1) + &
+                  (indz - ads % ibeg(3) + 1)*(ads % iend(2) - ads % ibeg(2) + 1)
+                  ads_data % F(ind1 + 1, ind23 + 1) = ads_data % F(ind1 + 1, ind23 + 1) + elarr(ax,ay,az)
+               enddo
+            enddo
          enddo
+!$OMP END CRITICAL
       enddo
-!!$OMP END PARALLEL DO
-
-if (allocated(F)) deallocate (F)
+!$OMP END PARALLEL DO
 
    end subroutine
 
