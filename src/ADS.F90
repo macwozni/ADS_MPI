@@ -666,8 +666,9 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
 #ifdef IINFO
       write(*, *) PRINTRANK, '3e) DISTRIBUTE SOLUTION'
 #endif
-      ads_data % R(1:ads % s(1) * ads % s(2) * ads % s(3), 2, 2, 2) = reshape(ads_data % F, &
-      (/ ads % s(1) * ads % s(2) * ads % s(3) /))
+      do i=1,ads % s(2) * ads % s(3)
+         ads_data % R((i-1)*ads % s(1)+1:i*ads % s(1), 2, 2, 2) = ads_data % F(:,i)
+      enddo
       nrcpp = (/ ads % nrcpp(3), ads % nrcpp(1), ads % nrcpp(2) /)
       call DistributeSpline(ads_data % R, nrcpp, ads_data % R)
 

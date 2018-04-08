@@ -84,7 +84,7 @@ module Setup
       ! Buffer for coefficients of solution corresponding to neighbouring
       ! parts of the domain. It is (Nx*Ny*Nz) x 3 x 3 x 3 array, where
       ! Nx*Ny*Nz is the size of part of solution for one fragment of domain.
-      real (kind = 8), allocatable :: R(:,:,:,:)
+      real (kind = 8), allocatable, dimension(:,:,:,:) :: R
    end type
 
 contains

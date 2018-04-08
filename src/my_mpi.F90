@@ -473,8 +473,10 @@ contains
       integer(kind = 4), intent(in) :: dims(:), shifts(:)
       real (kind = 8), intent(out) :: F_out(n + 1, stride)
       integer(kind = 4), intent(out) :: ierr
-      real (kind = 8) :: F_lin(elems * stride), F_out_lin((n + 1) * stride)
+      real (kind = 8), allocatable, dimension(:) :: F_lin, F_out_lin
 
+      allocate (F_lin(elems * stride))
+      allocate (F_out_lin((n + 1) * stride))
       call Linearize(F, F_lin, elems, stride)
 
       call mpi_gatherv(F_lin, &
@@ -486,6 +488,9 @@ contains
       0, comm, ierr)
 
       call Delinearize(F_out_lin, F_out, n + 1, stride)
+
+      if (allocated(F_lin)) deallocate(F_lin)
+      if (allocated(F_out_lin)) deallocate(F_out_lin)
 
    end subroutine
 
@@ -513,7 +518,9 @@ contains
       integer(kind = 4), intent(in) :: dims(:), shifts(:)
       real (kind = 8), intent(out) :: F_out(elems * stride)
       integer(kind = 4), intent(out) :: ierr
-      real (kind = 8) :: F_lin((n + 1) * stride)
+      real (kind = 8), allocatable, dimension(:) :: F_lin
+      
+      allocate(F_lin((n + 1) * stride))
 
       call Linearize(F, F_lin, n + 1, stride)
 
@@ -524,6 +531,8 @@ contains
       elems * stride, &
       MPI_DOUBLE_PRECISION, &
       0, comm, ierr)
+      
+      if (allocated(F_lin)) deallocate(F_lin)
 
    end subroutine
 
@@ -548,11 +557,15 @@ contains
       integer(kind = 4), intent(in) :: dims(:), shifts(:)
       real (kind = 8), intent(out) :: F_out(elems, stride)
       integer(kind = 4), intent(out) :: ierr
-      real (kind = 8) :: F_out_lin(elems * stride)
+      real (kind = 8), allocatable, dimension(:) :: F_out_lin
+      
+      allocate (F_out_lin(elems * stride))
       
       call Scatter2(F, F_out_lin, n, elems, stride, dims, shifts, comm, ierr)
       call Delinearize(F_out_lin, F_out, elems, stride)
 
+      if (allocated(F_out_lin)) deallocate(F_out_lin)
+      
    end subroutine
 
 
