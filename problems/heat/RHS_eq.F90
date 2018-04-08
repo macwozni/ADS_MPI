@@ -66,11 +66,11 @@ if (t > 0.0) then
   rhs = Dt * ( - kqval  * (du(1)*dvx + du(2)*dvy + du(3)*dvz) + v * fval)
   ret = J*W*(v * Uval + rhs)
 
-  l2norm = l2norm + J*W*v*Uval*Uval
+  l2norm = J*W*v*Uval*Uval
 else
   fval = initial_state(X(1),X(2),X(3))
   ret= J*W*v*fval
-  l2norm = l2norm + J*W*v*fval*fval
+  l2norm = J*W*v*fval*fval
 endif
 
 end subroutine

@@ -167,6 +167,7 @@ contains
       total_size = ads % lnelem(1) * ads % lnelem(2) * ads % lnelem(3)
 
       l2norm=0.d0
+      ads_data % F = 0.d0
       
 !      loop over points
 !$OMP PARALLEL DO &
