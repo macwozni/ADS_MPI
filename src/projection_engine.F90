@@ -110,7 +110,7 @@ contains
    ! R has two 'kinds' of dimensions - it's orgainzed as 3x3x3 array of
    ! domain pieces.
    ! -------------------------------------------------------------------
-   subroutine Form3DRHS(ads, ads_data, RHS_fun)
+   subroutine Form3DRHS(ads, ads_data, RHS_fun,l2norm)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use parallelism, ONLY: PRINTRANK
       USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
@@ -125,7 +125,7 @@ contains
             a, & 
             du, &
             Uval, &
-            ads_data, J, W, ret)
+            ads_data, J, W, l2norm, ret)
             use Setup, ONLY: ADS_Setup,ADS_compute_data
             implicit none
             type (ADS_setup), intent(in) :: ads
@@ -137,11 +137,13 @@ contains
             real (kind = 8), intent(in) :: Uval
             type (ADS_compute_data), intent(in) :: ads_data
             real (kind = 8), intent(in) :: J, W
+            real (kind = 8), intent(out) :: l2norm
             real (kind = 8), intent(out) :: ret
          end subroutine
       end interface
       type (ADS_setup), intent(in) :: ads
       type (ADS_compute_data), intent(inout) :: ads_data
+      real (kind = 8), intent(out) :: l2norm
       integer(kind = 4) :: kx, ky, kz, ax, ay, az, ex, ey, ez
       real (kind = 8) :: J, W
       integer(kind = 4) :: ind, ind1, ind23, indx, indy, indz
@@ -160,16 +162,20 @@ contains
       real   (kind=8) :: dvx,dvy,dvz,v
       integer(kind = 4) :: threadcnt,threadid
       real (kind = 8) :: elarr(0:ads % p(1),0:ads % p(2),0:ads % p(3))
+      real (kind = 8) :: l2normtmp
 
       total_size = ads % lnelem(1) * ads % lnelem(2) * ads % lnelem(3)
 
+      l2norm=0.d0
+      
 !      loop over points
 !$OMP PARALLEL DO &
 !$OMP DEFAULT(SHARED) &
 !$OMP SHARED(ads,ads_data,total_size) &
 !$OMP PRIVATE(tmp,ex,ey,ez,e,kx,ky,kz,k,W,ax,ay,az,a,ind,indx,indy,indz,ind1,ind23,J) &
 !$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz,X,du,resvalue) &
-!$OMP PRIVATE(indbx,indby,indbz,Uval,dux,duy,duz,v,threadid,elarr) 
+!$OMP PRIVATE(indbx,indby,indbz,Uval,dux,duy,duz,v,threadid,elarr,l2normtmp) &
+!$OMP REDUCTION(+:l2norm)
       do all = 1, total_size
 !        translate coefficients to local
          ez = modulo(all - 1, ads % lnelem(3))
@@ -265,25 +271,27 @@ contains
                            indz = (ads % Oz(ez) + az)
                            ind = indx + (indy + indz*(ads % n(2) + 1))*(ads % n(1) + 1)
                            
-                           if (indx < ads % ibeg(1) - 1 .or. indx > ads % iend(1) - 1) cycle
-                           if (indy < ads % ibeg(2) - 1 .or. indy > ads % iend(2) - 1) cycle
-                           if (indz < ads % ibeg(3) - 1 .or. indz > ads % iend(3) - 1) cycle
-
-                           ind1 = indx - ads % ibeg(1) + 1
-                           ind23 = (indy - ads % ibeg(2) + 1) + &
-                           (indz - ads % ibeg(3) + 1)*(ads % iend(2) - ads % ibeg(2) + 1)
-                           X = (/ ads % Xx(kx, ex), ads % Xy(ky, ey), ads % Xz(kz, ez) /)
-                           a = (/ ax, ay, az /)
-                           call RHS_fun(&
-                           ads, &
-                           X, &
-                           k, &
-                           e, &
-                           a, &
-                           du, &
-                           Uval, &
-                           ads_data, J, W, resvalue)
-                           elarr(ax,ay,az) = elarr(ax,ay,az) + resvalue
+                           if ((indx < ads % ibeg(1) - 1) .or. (indx > ads % iend(1) - 1) .or. &
+                           (indy < ads % ibeg(2) - 1) .or. (indy > ads % iend(2) - 1) .or. &
+                           (indz < ads % ibeg(3) - 1) .or. (indz > ads % iend(3) - 1)) then
+                           else 
+                              ind1 = indx - ads % ibeg(1) + 1
+                              ind23 = (indy - ads % ibeg(2) + 1) + &
+                              (indz - ads % ibeg(3) + 1)*(ads % iend(2) - ads % ibeg(2) + 1)
+                              X = (/ ads % Xx(kx, ex), ads % Xy(ky, ey), ads % Xz(kz, ez) /)
+                              a = (/ ax, ay, az /)
+                              call RHS_fun(&
+                              ads, &
+                              X, &
+                              k, &
+                              e, &
+                              a, &
+                              du, &
+                              Uval, &
+                              ads_data, J, W, l2normtmp, resvalue)
+                              elarr(ax,ay,az) = elarr(ax,ay,az) + resvalue
+                              l2norm = l2norm + l2normtmp
+                           endif
                         enddo
                      enddo
                   enddo

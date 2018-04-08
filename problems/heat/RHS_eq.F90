@@ -34,7 +34,7 @@ e, &
 a, &
 du, &
 Uval, &
-ads_data, J, W, ret)
+ads_data, J, W, l2norm, ret)
 use Setup, ONLY: ADS_Setup,ADS_compute_data
 use input_data
 use projection_engine, ONLY: global2local
@@ -48,6 +48,7 @@ real   (kind=8), intent(in), dimension(3)  :: du
 real (kind = 8), intent(in) :: Uval
 type (ADS_compute_data), intent(in) :: ads_data
 real   (kind=8), intent(in)  :: J,W
+real (kind = 8), intent(out) :: l2norm
 real (kind = 8), intent(out) :: ret
 real   (kind=8) :: fval,kqval
 real   (kind=8) :: dvx,dvy,dvz,rhs,v

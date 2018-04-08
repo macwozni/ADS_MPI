@@ -27,6 +27,7 @@ program main
    integer :: values(1:8), k
    integer, dimension(:), allocatable :: seed
    real(8) :: r
+   real (kind = 8) :: l2norm, fullnorm
 
    call date_and_time(values = values)
    values = (/ 0.d8, 0.d7, 0.d6, 0.d5, 0.d4, 0.d3, 0.d2, 0.d1 /)
@@ -64,7 +65,7 @@ program main
    do iter = 0, steps
 
       l2norm = 0
-      call Step(iter, ComputePointForRHS, ads, ads_data, ierr)
+      call Step(iter, ComputePointForRHS, ads, ads_data, l2norm, ierr)
       call MPI_Reduce(l2norm, fullnorm, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
       if (MYRANK == 0) then
          write(*, *) iter, 'L2 norm:', fullnorm

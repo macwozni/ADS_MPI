@@ -33,7 +33,7 @@ e, &
 a, &
 du, &
 Uval, &
-ads_data, J, W, ret)
+ads_data, J, W, l2norm, ret)
 use Setup, ONLY: ADS_Setup,ADS_compute_data
 use input_data
 implicit none
@@ -46,6 +46,7 @@ real   (kind=8), intent(in), dimension(3)  :: du
 real (kind = 8), intent(in) :: Uval
 type (ADS_compute_data), intent(in) :: ads_data
 real   (kind=8), intent(in)  :: J,W
+real (kind = 8), intent(out) :: l2norm
 real (kind = 8), intent(out) :: ret
 real   (kind=8) :: fval
 real   (kind=8) :: v
@@ -54,8 +55,7 @@ v   = ads % NNx(0,a(1),k(1),e(1)) * ads % NNy(0,a(2),k(2),e(2)) * ads % NNz(0,a(
 
 fval = 1.d0 !initial_state(X(1),X(2),X(3))
 ret= J*W*v*fval
-l2norm = l2norm + J*W*v*fval*fval
-
+l2norm = J*W*v*fval*fval
 end subroutine
 
 

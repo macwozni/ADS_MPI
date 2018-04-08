@@ -22,6 +22,8 @@ program main
 
    type (ADS_setup) :: ads
    type (ADS_compute_data) :: ads_data
+   
+   real (kind = 8) :: l2norm, fullnorm
 
 #ifdef DEBUG
    write (*, *) 'debug'
@@ -47,7 +49,7 @@ program main
    do iter = 0, steps
 
       l2norm = 0
-      call Step(iter, ComputePointForRHS, ads, ads_data, ierr)
+      call Step(iter, ComputePointForRHS, ads, ads_data, l2norm, ierr)
       call MPI_Reduce(l2norm, fullnorm, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
       if (MYRANK == 0) then
          write(*, *) iter, 'L2 norm:', fullnorm

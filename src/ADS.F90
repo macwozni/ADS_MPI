@@ -347,7 +347,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
    ! iter - number of the iteration
    ! t    - time at the beginning of step
    ! -------------------------------------------------------------------
-   subroutine Step(iter, RHS_fun, ads, ads_data, mierr)
+   subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use parallelism, ONLY:PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
       use communicators, ONLY: COMMX, COMMY, COMMZ
@@ -365,7 +365,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
             a, &
             du, &
             Uval, &
-            ads_data, J, W, ret)
+            ads_data, J, W, l2norm, ret)
             use Setup, ONLY: ADS_Setup,ADS_compute_data
             implicit none
             type (ADS_setup), intent(in) :: ads
@@ -376,12 +376,14 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
             real   (kind=8), intent(in), dimension(3)  :: du
             real (kind = 8), intent(in) :: Uval
             type (ADS_compute_data), intent(in) :: ads_data
+            real (kind = 8), intent(out) :: l2norm
             real (kind = 8), intent(in) :: J, W
             real (kind = 8), intent(out) :: ret
          end subroutine
       end interface
       type (ADS_setup), intent(in) :: ads
       type (ADS_compute_data), intent(inout) :: ads_data
+      real (kind = 8), intent(out) :: l2norm
       integer(kind = 4), intent(out) :: mierr
       integer(kind = 4) :: iter
       integer(kind = 4) :: i
@@ -393,7 +395,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
       time1 = MPI_Wtime()
 #endif
       ! generate the RHS vectors
-      call Form3DRHS(ads, ads_data, RHS_fun)
+      call Form3DRHS(ads, ads_data, RHS_fun,l2norm)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write(*,*) "Form 3D RHS: ", time2 - time1

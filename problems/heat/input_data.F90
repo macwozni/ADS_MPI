@@ -19,7 +19,6 @@ module input_data
 
    integer(kind = 4) :: procx, procy, procz
 
-   real (kind = 8) :: l2norm, fullnorm
 
 
 contains
