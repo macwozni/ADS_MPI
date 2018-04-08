@@ -72,11 +72,11 @@ if (t > 0.0) then
   ret = J*W*(v * Uval + rhs)
 
   drained = drained + J*W*v*Dt*vdrain
-  l2norm = l2norm + J*W*v*Uval*Uval
+  l2norm = J*W*v*Uval*Uval
 else
   fval = initial_state(X(1),X(2),X(3))
   ret= J*W*v*fval
-  l2norm = l2norm + J*W*v*fval*fval
+  l2norm = J*W*v*fval*fval
 endif
 
 end subroutine

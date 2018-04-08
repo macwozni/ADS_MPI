@@ -64,10 +64,12 @@ program main
    ! Iterations
    do iter = 0, steps
 
-      l2norm = 0
+      l2norm = 0.d0
       call Step(iter, ComputePointForRHS, ads, ads_data, l2norm, ierr)
       call MPI_Reduce(l2norm, fullnorm, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
       if (MYRANK == 0) then
+         write(*, *) iter
+         write(*, *) fullnorm
          write(*, *) iter, 'L2 norm:', fullnorm
       endif
       t = t + Dt
