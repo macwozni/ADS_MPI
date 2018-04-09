@@ -310,7 +310,12 @@ contains
                   ind1 = indx - ads % ibeg(1) + 1
                   ind23 = (indy - ads % ibeg(2) + 1) + &
                   (indz - ads % ibeg(3) + 1)*(ads % iend(2) - ads % ibeg(2) + 1)
-                  ads_data % F(ind1 + 1, ind23 + 1) = ads_data % F(ind1 + 1, ind23 + 1) + elarr(ax,ay,az)
+                  if ((indx < ads % ibeg(1) - 1) .or. (indx > ads % iend(1) - 1) .or. &
+                  (indy < ads % ibeg(2) - 1) .or. (indy > ads % iend(2) - 1) .or. &
+                  (indz < ads % ibeg(3) - 1) .or. (indz > ads % iend(3) - 1)) then
+                  else 
+                     ads_data % F(ind1 + 1, ind23 + 1) = ads_data % F(ind1 + 1, ind23 + 1) + elarr(ax,ay,az)
+                  endif
                enddo
             enddo
          enddo
