@@ -55,11 +55,11 @@ contains
       total_size = nelem * ng * (p + 1)*(p + 1)
 
 ! new parallel loop
-! !$OMP PARALLEL DO &
-! !$OMP DEFAULT(PRIVATE) &
-! !$OMP PRIVATE(b,a,k,e,ia,ib,tmp) &
-! !$OMP SHARED(nelem,ng,p,O,KL,KU,NN,W,J,total_size) &
-! !$OMP REDUCTION(+:M)
+!$OMP PARALLEL DO &
+!$OMP DEFAULT(PRIVATE) &
+!$OMP PRIVATE(b,a,k,e,ia,ib,tmp) &
+!$OMP SHARED(nelem,ng,p,O,KL,KU,NN,W,J,total_size) &
+!$OMP REDUCTION(+:M)
       do all = 1, total_size
 ! loop over shape functions over elements (p+1 functions)
          b = modulo(all - 1, p + 1)
@@ -83,7 +83,7 @@ contains
 
 
       enddo
-! !$OMP END PARALLEL DO
+!$OMP END PARALLEL DO
 
    end subroutine
 
