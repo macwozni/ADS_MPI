@@ -43,6 +43,8 @@ set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_RELEASE_FLAGS} ${realeaseopts}")
 
 #set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DPERFORMANCE=1")
 #set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -DPERFORMANCE=1")
+set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}")
+set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
 
 include_directories("${PROJECT_SOURCE_DIR}/src")
 
