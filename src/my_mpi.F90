@@ -25,7 +25,8 @@ contains
       use mpi
       implicit none
       real (kind = 8), intent(in) :: items(:)
-      integer, intent(in) :: dst, req
+      integer, intent(in) :: dst
+      integer, intent(out) :: req
       integer(kind = 4), intent(in), dimension(3) :: nrcpp
       integer :: ierr
 

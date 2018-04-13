@@ -46,7 +46,7 @@ program main
 
    call InitializeParallelism(procx, procy, procz, ierr)
    call CreateCommunicators(ierr)
-   p1 = (/ sizex, sizey, sizez /)
+   p1 = (/ isizex, isizey, isizez /)
    p2 = (/ order, order, order /)
    call Initialize(p1, p2, ads, ads_data, ierr)
 
