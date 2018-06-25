@@ -243,6 +243,9 @@ contains
    ! x, y, z - point in space
    function pumping(x, y, z) result (fval)
       use math, ONLY: falloff
+#ifdef PGI
+      use math, ONLY: norm2
+#endif
       implicit none
       real (kind = 8) :: x, y, z
       real (kind = 8) :: fval
@@ -265,6 +268,9 @@ contains
    ! x, y, z - point in space
    function draining(u, x, y, z) result (fval)
       use math, ONLY: falloff
+#ifdef PGI
+      use math, ONLY: norm2
+#endif
       implicit none
       real (kind = 8) :: u, x, y, z
       real (kind = 8) :: fval

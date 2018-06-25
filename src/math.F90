@@ -91,7 +91,7 @@ contains
    function bump3d(r, Rr, x, y, z) result (val)
       real (kind = 8), intent(in) :: r, Rr, x, y, z
       real (kind = 8) :: val, t
-
+      
       t = norm2((/x, y, z/) - 0.5d0)
       val = falloff(r/2.d0, Rr/2.d0, t)
 
@@ -99,6 +99,15 @@ contains
 
 
    !!!!!! przerobic
-
+#ifdef PGI
+   function norm2(x)
+      implicit none
+      intrinsic :: dot_product, sqrt
+      double precision, intent(in) :: x(:)
+      double precision :: norm2
+      norm2 = sqrt(dot_product(x,x))
+   end function
+#endif
+   
 end module
 
