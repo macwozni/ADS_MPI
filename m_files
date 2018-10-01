@@ -1,0 +1,37 @@
+
+SOURCES = \
+    src/Setup.F90 \
+    src/knot_vector.F90 \
+    src/parallelism.F90 \
+    src/communicators.F90 \
+    src/gauss.F90 \
+    src/basis.F90 \
+    src/math.F90 \
+    src/reorderRHS.F90 \
+    src/my_mpi.F90 \
+    src/projection_engine.F90 \
+    src/analysis.F90 \
+    src/int2str.F90 \
+    src/plot.F90 \
+    src/gnuplot.F90 \
+    src/vtk.F90 \
+    src/ADS.F90
+
+OIL = \
+    problems/oil/input_data.F90 \
+    problems/oil/RHS_eq.F90 \
+    problems/oil/main.F90
+
+L2 = \
+    problems/L2Projection/input_data.F90 \
+    problems/L2Projection/RHS_eq.F90 \
+    problems/L2Projection/main.F90
+
+HEAT = \
+    problems/heat/input_data.F90 \
+    problems/heat/RHS_eq.F90 \
+    problems/heat/main.F90
+  
+FFLAGS = 
+
+SOURCE_ALL = $(SOURCES)

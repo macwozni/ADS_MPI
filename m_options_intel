@@ -1,0 +1,57 @@
+
+# this file is included in the makefile
+
+#  These may/should be modified to fit available compiler
+#  and computer configuration
+
+PAPI = /opt/papi
+PAPI_LIB	  = $(PAPI)/lib64/libpfm.a $(PAPI)/lib64/libpapi.a
+PAPI_INC	  = $(PAPI)/include
+
+
+###########################################################
+#select directories
+
+
+
+###########################################################
+#     options for compiler IFORT
+###########################################################
+
+MPI_INCLUDE = /opt/mpich/include
+
+DIALECT = -ffree-form -std=f2008 -fimplicit-none -cpp -Wall -pedantic
+BOUNDS = -fbounds-check
+RELEASE_OPTS = -O3  -pthread -funroll-all-loops
+DEBUG_OPTS = -O0 -g3 -fbacktrace -fcheck=all -fdump-fortran-optimized
+
+FF		=  ifort \
+-fpp -I$(MPI_INCLUDE) -I$(DIR_MUMPS)/include -I/opt/mpich/include -I$(PAPI_INC) -L/opt/mpich/lib64 -Wl,-rpath -Wl,/opt/mpich/lib64 -lmpich -lopa -lmpl -lrt -lpthread \
+-O3
+
+
+
+
+BLAS_LIB      = -L/opt/intel/mkl/lib/intel64/  -L/opt/intel/composerxe/lib/intel64/ -lmkl_lapack95_lp64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -I/opt/intel/mkl/include/ 
+
+
+
+MPI_LIB = /opt/mpich/lib64
+MPI_LIB_PAR = $(MPI_LIB)/libfmpich.a $(MPI_LIB)/libmpich.a $(MPI_LIB)/libmpichf90.a
+
+
+
+USER_LIB      = $(X_LIB_PAR) $(LAPACK_LIB) \
+                  $(MUMPS_LIB) $(METIS_LIB) $(PAPI_LIB)\
+                  $(SCALAP_LIB_PAR) $(MPI_LIB_PAR) $(BLAS_LIB) $(LIBIRC)
+
+
+FPP		=  fpp -O3
+
+FFLAGS        += -I/opt/mpich2/include
+
+
+
+
+
+
