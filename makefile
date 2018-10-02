@@ -16,7 +16,7 @@
 #======================================================================
 
 
-include m_options_parallel
+include m_options_intel
   
 .SUFFIXES:
 .PHONY: build_error banner tar tgz clean realclean link done

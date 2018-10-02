@@ -32,6 +32,5 @@ HEAT = \
     problems/heat/RHS_eq.F90 \
     problems/heat/main.F90
   
-FFLAGS = 
 
-SOURCE_ALL = $(SOURCES)
+SOURCE_ALL = $(SOURCES) $(OIL)
