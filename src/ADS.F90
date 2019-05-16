@@ -354,33 +354,10 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
       use reorderRHS, ONLY: ReorderRHSForX, ReorderRHSForY, ReorderRHSForZ
       use projection_engine, ONLY: Form3DRHS, ComputeMassMatrix
       use my_mpi, ONLY: DistributeSpline, Gather, Scatter
+      use RHS_interface, ONLY: RHS_fun_int
       use mpi
       implicit none
-      interface
-         subroutine RHS_fun(&
-            ads, &
-            X, &
-            k, &
-            e, &
-            a, &
-            du, &
-            Uval, &
-            ads_data, J, W, l2norm, ret)
-            use Setup, ONLY: ADS_Setup,ADS_compute_data
-            implicit none
-            type (ADS_setup), intent(in) :: ads
-            real (kind = 8), intent(in), dimension(3) :: X
-            integer(kind = 4), intent(in), dimension(3) :: k
-            integer(kind = 4), intent(in), dimension(3) :: e
-            integer(kind = 4), intent(in), dimension(3) :: a
-            real   (kind=8), intent(in), dimension(3)  :: du
-            real (kind = 8), intent(in) :: Uval
-            type (ADS_compute_data), intent(in) :: ads_data
-            real (kind = 8), intent(out) :: l2norm
-            real (kind = 8), intent(in) :: J, W
-            real (kind = 8), intent(out) :: ret
-         end subroutine
-      end interface
+      procedure(RHS_fun_int) :: RHS_fun
       type (ADS_setup), intent(in) :: ads
       type (ADS_compute_data), intent(inout) :: ads_data
       real (kind = 8), intent(out) :: l2norm
