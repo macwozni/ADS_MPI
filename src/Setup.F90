@@ -69,6 +69,9 @@ module Setup
       real (kind = 8), allocatable, dimension(:) :: Wx, Wy, Wz
       
       integer (kind = 4), dimension(3) :: lnelem
+      
+      ! time step length
+      real (kind = 8) :: tau
    end type
 
 
@@ -85,6 +88,9 @@ module Setup
       ! parts of the domain. It is (Nx*Ny*Nz) x 3 x 3 x 3 array, where
       ! Nx*Ny*Nz is the size of part of solution for one fragment of domain.
       real (kind = 8), allocatable, dimension(:,:,:,:) :: R
+      
+      ! current time step
+      real (kind = 8) :: t
    end type
 
 contains
