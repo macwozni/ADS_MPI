@@ -25,6 +25,13 @@ contains
 
       ! ./l2 <size> <order> <procx> <procy> <procz>
 
+      if (COMMAND_ARGUMENT_COUNT() .NE. 7) then
+         write(*,*) "proper usage with arguments: ", &
+         "<isizex> <isizey> <isizez> <order> <procx> <procy> <procz>"
+         ERROR STOP -1
+      end if
+      
+      
       call GET_COMMAND_ARGUMENT(1, input, length, status)
       read(input, *) isizex
       call GET_COMMAND_ARGUMENT(2, input, length, status)
