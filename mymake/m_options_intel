@@ -18,30 +18,30 @@ PAPI_INC	  = $(PAPI)/include
 #     options for compiler IFORT
 ###########################################################
 
-MPI_INCLUDE = /opt/mpich3.2/include
+MPI_INCLUDE = /opt/mpich3.3_intel19/include
 
-DIALECT = -std08  -module . -implicitnone -fpp -openmp
+DIALECT = -std08  -module . -implicitnone -fpp -qopenmp
 BOUNDS = -check bounds
 RELEASE_OPTS = -funroll-all-loops -O3 -DPERFORMANCE=1
 DEBUG_OPTS = -O0 -g -traceback -check all -debug extended -debug-parameters all
 
-#-L/opt/mpich3.2/lib64/libmpifort.so  -L/opt/mpich3.2/lib64/libmpi.so -Wl,-rpath,/opt/mpich3.2/lib64/libmpifort.so:/opt/mpich3.2/lib64/libmpi.so:/opt/mpich3.2/lib64  /opt/mpich3.2/lib64/libmpifort.so /opt/mpich3.2/lib64/libmpi.so 
+#-L/opt/mpich3.3_intel19/lib64/libmpifort.so  -L/opt/mpich3.3_intel19/lib64/libmpi.so -Wl,-rpath,/opt/mpich3.3_intel19/lib64/libmpifort.so:/opt/mpich3.3_intel19/lib64/libmpi.so:/opt/mpich3.3_intel19/lib64  /opt/mpich3.3_intel19/lib64/libmpifort.so /opt/mpich3.3_intel19/lib64/libmpi.so 
 
 
 FF		=  ifort \
 $(DIALECT) $(RELEASE_OPTS) \
--L/opt/mpich3.2/lib64/libmpifort.so  -L/opt/mpich3.2/lib64/libmpi.so -Wl,-rpath,/opt/mpich3.2/lib64/libmpifort.so:/opt/mpich3.2/lib64/libmpi.so:/opt/mpich3.2/lib64  /opt/mpich3.2/lib64/libmpifort.so /opt/mpich3.2/lib64/libmpi.so 
+-L/opt/mpich3.3_intel19/lib64/libmpifort.so  -L/opt/mpich3.3_intel19/lib64/libmpi.so -Wl,-rpath,/opt/mpich3.3_intel19/lib64/libmpifort.so:/opt/mpich3.3_intel19/lib64/libmpi.so:/opt/mpich3.3_intel19/lib64  /opt/mpich3.3_intel19/lib64/libmpifort.so /opt/mpich3.3_intel19/lib64/libmpi.so 
 # -I$(MPI_INCLUDE) -I$(DIR_MUMPS)/include -I/opt/mpich/include -I$(PAPI_INC) -L/opt/mpich/lib64 -Wl,-rpath -Wl,/opt/mpich/lib64 -lmpich -lopa -lmpl -lrt -lpthread -O3
 
 
 
 
-BLAS_LIB      = -L/opt/intel/mkl/lib/intel64/  -L/opt/intel/composerxe/lib/intel64/ -lmkl_lapack95_lp64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -I/opt/intel/mkl/include/ 
+BLAS_LIB      = -L/opt/intel2/mkl/lib/intel64/  -L/opt/intel2/composerxe/lib/intel64/ -lmkl_lapack95_lp64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -I/opt/intel2/mkl/include/ 
 
 
 
-MPI_LIB = /opt/mpich/lib64
-MPI_LIB_PAR = $(MPI_LIB)/libfmpich.a $(MPI_LIB)/libmpich.a $(MPI_LIB)/libmpichf90.a
+MPI_LIB = /opt/mpich3.3_intel19/lib64/
+MPI_LIB_PAR = $(MPI_LIB)/libmpi.a $(MPI_LIB)/libmpicxx.a $(MPI_LIB)/libmpifort.a
 
 
 
