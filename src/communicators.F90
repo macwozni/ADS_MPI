@@ -32,6 +32,7 @@ module communicators
    PRIVATE :: COMMXALL, COMMYALL, COMMZALL
    PRIVATE :: CONTEXTX, CONTEXTY, CONTEXTZ
    PRIVATE :: PrintGroups, PrintCommunicators
+   PROTECTED :: processors, COMMX, COMMY, COMMZ
 
 contains
 

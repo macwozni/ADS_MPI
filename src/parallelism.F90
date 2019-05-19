@@ -20,6 +20,8 @@ module parallelism
 
    ! Rank of this processor converted to a string
    character(len = 7) :: PRINTRANK
+   
+   PROTECTED :: MYRANK, NRPROC, NRPROCX, NRPROCY, NRPROCZ, PRINTRANK
 
 contains
 
