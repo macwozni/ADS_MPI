@@ -582,9 +582,24 @@ subroutine ComputeMatrix(KL, KU, U, p, n, nelem, MKA, mix, O)
    do i = 1, 2 * KL + KU !+ 1
       write(*, *) PRINTRANK, M(i, 1:n)
    enddo
+   write(*, *) PRINTRANK, 'K'
+   do i = 1, 2 * KL + KU !+ 1
+      write(*, *) PRINTRANK, K(i, 1:n)
+   enddo
+   write(*, *) PRINTRANK, 'A'
+   do i = 1, 2 * KL + KU !+ 1
+      write(*, *) PRINTRANK, A(i, 1:n)
+   enddo
 #endif
    
    call mix(KL,KU,n,M,K,A, O)
+   
+#ifdef IPRINT
+   write(*, *) PRINTRANK, 'O'
+   do i = 1, 2 * KL + KU !+ 1
+      write(*, *) PRINTRANK, O(i, 1:n)
+   enddo
+#endif
 
 end subroutine ComputeMatrix
 
