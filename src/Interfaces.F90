@@ -46,6 +46,16 @@ module Interfaces
          real (kind = 8), intent(out) :: ret
       end subroutine
 
+      
+      subroutine Form1DMatrix (KL,KU,n,M,K,A, O)
+         implicit none
+         integer(kind = 4), intent(in) :: KL, KU
+         integer(kind = 4), intent(in) :: n
+         real (kind = 8), intent(in) :: M(0:(2 * KL + KU), 0:n)
+         real (kind = 8), intent(in) :: K(0:(2 * KL + KU), 0:n)
+         real (kind = 8), intent(in) :: A(0:(2 * KL + KU), 0:n)
+         real (kind = 8), intent(out) :: O(0:(2 * KL + KU), 0:n)
+      end subroutine Form1DMatrix
    end interface 
 
 end module Interfaces
