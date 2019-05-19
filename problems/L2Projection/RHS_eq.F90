@@ -19,10 +19,13 @@ contains
 ! ads_data        - data structures for ADS
 ! J               - jacobian
 ! W               - weight for quadratures
+! directon        -
+! substep         - 
 !
 ! Output:
 ! -------
 ! ret             - value of RHS function at given point
+! l2norm          -
 !
 ! -------------------------------------------------------------------
 subroutine ComputePointForRHS( &
@@ -33,7 +36,7 @@ e, &
 a, &
 du, &
 Uval, &
-ads_data, J, W, l2norm, ret)
+ads_data, J, W, direction, substep, l2norm, ret)
 use Setup, ONLY: ADS_Setup,ADS_compute_data
 use input_data
 implicit none
@@ -46,6 +49,7 @@ real   (kind=8), intent(in), dimension(3)  :: du
 real (kind = 8), intent(in) :: Uval
 type (ADS_compute_data), intent(in) :: ads_data
 real   (kind=8), intent(in)  :: J,W
+integer (kind=4), intent(in) :: direction,substep
 real (kind = 8), intent(out) :: l2norm
 real (kind = 8), intent(out) :: ret
 real   (kind=8) :: fval

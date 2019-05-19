@@ -446,7 +446,7 @@ contains
                               a, &
                               du, &
                               Uval, &
-                              ads_data, J, W, l2normtmp, resvalue)
+                              ads_data, J, W, 1, 1, l2normtmp, resvalue)
                               elarr(ax,ay,az) = elarr(ax,ay,az) + resvalue
                               l2norm = l2norm + l2normtmp
                            endif
