@@ -5,37 +5,37 @@ contains
 
 
 
-   ! -------------------------------------------------------------------
-   ! Initialization of clocks and MPI
-   ! -------------------------------------------------------------------
-   subroutine initialize(n, p, ads, ads_data, mierr)
-      use Setup, ONLY: ADS_Setup, ADS_compute_data
-      use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ
-      use parallelism, ONLY: PRINTRANK
-      use knot_vector, ONLY: PrepareKnot
-      use basis, ONLY: BasisData
-      use mpi
-      implicit none
-      integer(kind = 4), intent(in), dimension(3) :: n
-      integer(kind = 4), intent(in), dimension(3) :: p
-      type(ADS_setup), intent(out) :: ads
-      type (ADS_compute_data), intent(out) :: ads_data
-      integer(kind = 4), intent(out) :: mierr
-      integer(kind = 4) :: ierr
+! -------------------------------------------------------------------
+! Initialization of clocks and MPI
+! -------------------------------------------------------------------
+subroutine initialize(n, p, ads, ads_data, mierr)
+   use Setup, ONLY: ADS_Setup, ADS_compute_data
+   use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ
+   use parallelism, ONLY: PRINTRANK
+   use knot_vector, ONLY: PrepareKnot
+   use basis, ONLY: BasisData
+   use mpi
+   implicit none
+   integer(kind = 4), intent(in), dimension(3) :: n
+   integer(kind = 4), intent(in), dimension(3) :: p
+   type(ADS_setup), intent(out) :: ads
+   type (ADS_compute_data), intent(out) :: ads_data
+   integer(kind = 4), intent(out) :: mierr
+   integer(kind = 4) :: ierr
 
-      ads % p = p ! order
-      ads % n = n ! intervals
+   ads % p = p ! order
+   ads % n = n ! intervals
 
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
+   call mpi_barrier(MPI_COMM_WORLD, ierr)
 
 #ifdef IINFO
-      write(*, *) PRINTRANK, 'INITIALIZATION'
-      write(*, *) 'px', p(1), 'py', p(2), 'pz', p(3), &
-      'nx', n(1), 'ny', n(2), 'nz', n(3), &
-      'size of Ux', n(1) + p(1) + 2, 'size of Uy', n(2) + p(2) + 2, 'size of Uz', n(3) + p(3) + 2
+   write(*, *) PRINTRANK, 'INITIALIZATION'
+   write(*, *) 'px', p(1), 'py', p(2), 'pz', p(3), &
+   'nx', n(1), 'ny', n(2), 'nz', n(3), &
+   'size of Ux', n(1) + p(1) + 2, 'size of Uy', n(2) + p(2) + 2, 'size of Uz', n(3) + p(3) + 2
 #endif
-      
-      if (n(1) < NRPROCX .or. n(2) < NRPROCY .or. n(3) < NRPROCZ) then
+
+   if (n(1) < NRPROCX .or. n(2) < NRPROCY .or. n(3) < NRPROCZ) then
       write(*, *) 'Number of elements smaller than number of processors'
       stop
    endif
