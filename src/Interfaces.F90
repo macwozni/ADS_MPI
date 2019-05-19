@@ -47,6 +47,23 @@ module Interfaces
       end subroutine
 
       
+! -------------------------------------------------------------------
+! Create 1D Matrix from Mass-Matrix, Stifness-Matrix and Advection-Matrix
+!
+! Input:
+! ------
+! KL     - number of lower diagonals of the resulting matrix
+! KU     - number of upper diagonals of the resulting matrix
+! n      - number of control points minus one
+! M      - mass matrix
+! K      - stifness matrix
+! A      - advection matrix
+!
+! Output:
+! -------
+! O      - combination of M, K, A
+!
+! -------------------------------------------------------------------
       subroutine Form1DMatrix (KL,KU,n,M,K,A, O)
          implicit none
          integer(kind = 4), intent(in) :: KL, KU

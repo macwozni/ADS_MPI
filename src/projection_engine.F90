@@ -538,6 +538,20 @@ end subroutine global2local
 
 ! -------------------------------------------------------------------
 ! Calculates mass matrix M
+!
+! Input:
+! ------
+! KL     - number of lower diagonals of the resulting matrix
+! KU     - number of upper diagonals of the resulting matrix
+! U      - knot vector
+! p      - degree of approximation
+! n      - number of control points minus one
+! nelem  - number of subintervals in knot
+!
+! Output:
+! -------
+! O      - matrix, logically (n+1) x (n+1)
+!
 ! -------------------------------------------------------------------
 subroutine ComputeMatrix(KL, KU, U, p, n, nelem, O)
    use parallelism, ONLY: PRINTRANK
