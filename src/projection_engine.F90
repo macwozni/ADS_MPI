@@ -547,25 +547,33 @@ end subroutine global2local
 ! p      - degree of approximation
 ! n      - number of control points minus one
 ! nelem  - number of subintervals in knot
+! MKA    - logical values determining if M-mass, K-stifness, A-advection matrices should be computed
+! mix    - subroutine combining M, K, A matrices to O-matrix
 !
 ! Output:
 ! -------
 ! O      - matrix, logically (n+1) x (n+1)
 !
 ! -------------------------------------------------------------------
-subroutine ComputeMatrix(KL, KU, U, p, n, nelem, MKA, O)
+subroutine ComputeMatrix(KL, KU, U, p, n, nelem, MKA, mix, O)
    use parallelism, ONLY: PRINTRANK
+   use Interfaces, ONLY: Form1DMatrix
    implicit none
    integer(kind = 4), intent(in) :: KL, KU
    integer(kind = 4), intent(in) :: n, p, nelem
    real (kind = 8), intent(in) :: U(0:n + p + 1)
    logical, intent(in) :: MKA(3)
+   procedure(Form1DMatrix) :: mix
    real (kind = 8), intent(out) :: O(0:(2 * KL + KU), 0:n)
    real (kind = 8) :: M(0:(2 * KL + KU), 0:n)
    real (kind = 8) :: K(0:(2 * KL + KU), 0:n)
    real (kind = 8) :: A(0:(2 * KL + KU), 0:n)
    integer :: i
 
+   M = 0.0d0
+   K = 0.0d0
+   A = 0.0d0
+   
    if (MKA(1)) call Form1DMassMatrix(KL, KU, U, p, n, nelem, M)
    if (MKA(2)) call Form1DStifnessMatrix(KL, KU, U, p, n, nelem, K)
    if (MKA(3)) call Form1DAdvectionMatrix(KL, KU, U, p, n, nelem, A)
@@ -576,7 +584,7 @@ subroutine ComputeMatrix(KL, KU, U, p, n, nelem, MKA, O)
    enddo
 #endif
    
-   O = M
+   call mix(KL,KU,n,M,K,A, O)
 
 end subroutine ComputeMatrix
 

@@ -354,7 +354,7 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
    use reorderRHS, ONLY: ReorderRHSForX, ReorderRHSForY, ReorderRHSForZ
    use projection_engine, ONLY: Form3DRHS, ComputeMatrix
    use my_mpi, ONLY: DistributeSpline, Gather, Scatter
-   use Interfaces, ONLY: RHS_fun_int
+   use Interfaces, ONLY: RHS_fun_int, Form1DMatrix
    use mpi
    implicit none
    procedure(RHS_fun_int) :: RHS_fun
@@ -427,7 +427,7 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
 #endif
       MKA = (/.TRUE., .FALSE., .FALSE./)
       call ComputeMatrix(ads % KL(1), ads % KU(1), ads % Ux, ads % p(1), &
-      ads % n(1), ads % nelem(1), MKA, ads_data % Mx)
+      ads % n(1), ads % nelem(1), MKA, mix, ads_data % Mx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write(*,*) "Mass matrix 1: ", time2 - time1
@@ -506,7 +506,7 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
 #endif
       MKA = (/.TRUE., .FALSE., .FALSE./)
       call ComputeMatrix(ads % KL(2), ads % KU(2), ads % Uy, ads % p(2), ads % n(2), &
-      ads % nelem(2), MKA, ads_data % My)
+      ads % nelem(2), MKA, mix, ads_data % My)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write(*,*) "Mass matrix 2: ", time2 - time1
@@ -596,7 +596,7 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
 #endif
       MKA = (/.TRUE., .FALSE., .FALSE./)
       call ComputeMatrix(ads % KL(3), ads % KU(3), ads % Uz, ads % p(3), ads % n(3), &
-      ads % nelem(3), MKA, ads_data % Mz)
+      ads % nelem(3), MKA, mix, ads_data % Mz)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write(*,*) "Mass matrix 3: ", time2 - time1
@@ -869,5 +869,17 @@ subroutine PrintSolution(iter, t, ads, ads_data)
 end subroutine PrintSolution
 
 
+subroutine mix(KL,KU,n,M,K,A, O)
+   implicit none
+   integer(kind = 4), intent(in) :: KL, KU
+   integer(kind = 4), intent(in) :: n
+   real (kind = 8), intent(in) :: M(0:(2 * KL + KU), 0:n)
+   real (kind = 8), intent(in) :: K(0:(2 * KL + KU), 0:n)
+   real (kind = 8), intent(in) :: A(0:(2 * KL + KU), 0:n)
+   real (kind = 8), intent(out) :: O(0:(2 * KL + KU), 0:n)
+   
+   O = M
+   
+end subroutine mix
 
 end module ADSS
