@@ -539,22 +539,29 @@ end subroutine global2local
 ! -------------------------------------------------------------------
 ! Calculates mass matrix M
 ! -------------------------------------------------------------------
-subroutine ComputeMatrix(KL, KU, U, p, n, nelem, M)
+subroutine ComputeMatrix(KL, KU, U, p, n, nelem, O)
    use parallelism, ONLY: PRINTRANK
    implicit none
    integer(kind = 4), intent(in) :: KL, KU
    integer(kind = 4), intent(in) :: n, p, nelem
    real (kind = 8), intent(in) :: U(0:n + p + 1)
-   real (kind = 8), intent(out) :: M(0:(2 * KL + KU), 0:n)
+   real (kind = 8), intent(out) :: O(0:(2 * KL + KU), 0:n)
+   real (kind = 8) :: M(0:(2 * KL + KU), 0:n)
+   real (kind = 8) :: K(0:(2 * KL + KU), 0:n)
+   real (kind = 8) :: A(0:(2 * KL + KU), 0:n)
    integer :: i
 
    call Form1DMassMatrix(KL, KU, U, p, n, nelem, M)
+   call Form1DMassMatrix(KL, KU, U, p, n, nelem, K)
+   call Form1DMassMatrix(KL, KU, U, p, n, nelem, A)
 #ifdef IPRINT
    write(*, *) PRINTRANK, 'M'
    do i = 1, 2 * KL + KU !+ 1
       write(*, *) PRINTRANK, M(i, 1:n)
    enddo
 #endif
+   
+   O = M
 
 end subroutine ComputeMatrix
 
