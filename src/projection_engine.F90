@@ -567,8 +567,8 @@ subroutine ComputeMatrix(KL, KU, U, p, n, nelem, MKA, O)
    integer :: i
 
    if (MKA(1)) call Form1DMassMatrix(KL, KU, U, p, n, nelem, M)
-   if (MKA(2)) call Form1DMassMatrix(KL, KU, U, p, n, nelem, K)
-   if (MKA(3)) call Form1DMassMatrix(KL, KU, U, p, n, nelem, A)
+   if (MKA(2)) call Form1DStifnessMatrix(KL, KU, U, p, n, nelem, K)
+   if (MKA(3)) call Form1DAdvectionMatrix(KL, KU, U, p, n, nelem, A)
 #ifdef IPRINT
    write(*, *) PRINTRANK, 'M'
    do i = 1, 2 * KL + KU !+ 1
