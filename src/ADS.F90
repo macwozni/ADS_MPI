@@ -134,7 +134,7 @@ subroutine ComputeDecomposition(ads)
    write(*, *) PRINTRANK, 'ibegz,iendz', ads % ibeg(3), ads % iend(3)
 #endif
    
-      ! prepare dimensions vectors
+   ! prepare dimensions vectors
    call FillDimVector(ads % dimensionsX, ads % shiftsX, ads % nrcpp(1), ads % s(2) * ads % s(3), ads % n(1), NRPROCX)
    call FillDimVector(ads % dimensionsY, ads % shiftsY, ads % nrcpp(2), ads % s(1) * ads % s(3), ads % n(2), NRPROCY)
    call FillDimVector(ads % dimensionsZ, ads % shiftsZ, ads % nrcpp(3), ads % s(1) * ads % s(2), ads % n(3), NRPROCZ)
@@ -352,7 +352,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
       use parallelism, ONLY:PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
       use communicators, ONLY: COMMX, COMMY, COMMZ
       use reorderRHS, ONLY: ReorderRHSForX, ReorderRHSForY, ReorderRHSForZ
-      use projection_engine, ONLY: Form3DRHS, ComputeMassMatrix
+      use projection_engine, ONLY: Form3DRHS, ComputeMatrix
       use my_mpi, ONLY: DistributeSpline, Gather, Scatter
       use RHS_interface, ONLY: RHS_fun_int
       use mpi
@@ -424,7 +424,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
 #ifdef PERFORMANCE
          time1 = MPI_Wtime()
 #endif
-         call ComputeMassMatrix(ads % KL(1), ads % KU(1), ads % Ux, ads % p(1), &
+         call ComputeMatrix(ads % KL(1), ads % KU(1), ads % Ux, ads % p(1), &
          ads % n(1), ads % nelem(1), ads_data % Mx)
 #ifdef PERFORMANCE
          time2 = MPI_Wtime()
@@ -502,7 +502,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
 #ifdef PERFORMANCE
          time1 = MPI_Wtime()
 #endif
-         call ComputeMassMatrix(ads % KL(2), ads % KU(2), ads % Uy, ads % p(2), ads % n(2), &
+         call ComputeMatrix(ads % KL(2), ads % KU(2), ads % Uy, ads % p(2), ads % n(2), &
          ads % nelem(2), ads_data % My)
 #ifdef PERFORMANCE
          time2 = MPI_Wtime()
@@ -591,7 +591,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
 #ifdef PERFORMANCE
          time1 = MPI_Wtime()
 #endif
-         call ComputeMassMatrix(ads % KL(3), ads % KU(3), ads % Uz, ads % p(3), ads % n(3), &
+         call ComputeMatrix(ads % KL(3), ads % KU(3), ads % Uz, ads % p(3), ads % n(3), &
          ads % nelem(3), ads_data % Mz)
 #ifdef PERFORMANCE
          time2 = MPI_Wtime()

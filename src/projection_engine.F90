@@ -6,7 +6,7 @@ contains
 
 
    ! -------------------------------------------------------------------
-   ! Calculates the mass matrix. 
+   ! Calculates the mass matrix M. 
    !
    ! Input:
    ! ------
@@ -88,6 +88,174 @@ contains
    end subroutine
 
 
+   !!!!!!!!!!!!!!! TODO !!!!!!!!!!!!!!!!!!!!
+   ! -------------------------------------------------------------------
+   ! Calculates the stifness matrix K. 
+   !
+   ! Input:
+   ! ------
+   ! KL     - number of lower diagonals of the resulting matrix
+   ! KU     - number of upper diagonals of the resulting matrix
+   ! U      - knot vector
+   ! p      - degree of approximation
+   ! n      - number of control points minus one
+   ! nelem  - number of subintervals in knot
+   !
+   ! Output:
+   ! -------
+   ! M      - mass matrix, logically (n+1) x (n+1)
+   !
+   ! Values in the matrix are stored in the band format, i.e. while M
+   ! is (n+1) x (n+1), it is stored as (2 KL + KU + 1) x n, and the
+   ! index correspondence is given by:
+   !
+   !     A(i, j) = M(KL + KU + 1 + i - j, j)
+   ! -------------------------------------------------------------------
+   subroutine Form1DStifnessMatrix(KL, KU, U, p, n, nelem, M)
+      use basis, ONLY: BasisData
+      use omp_lib
+      implicit none
+      integer(kind = 4), intent(in) :: KL, KU
+      integer(kind = 4), intent(in) :: n, p, nelem
+      real (kind = 8), intent(in) :: U(0:n + p + 1)
+      real (kind = 8), intent(out) :: M(0:(2 * KL + KU), 0:n)
+      real (kind = 8) :: J(nelem)
+      real (kind = 8) :: W(p + 1)
+      real (kind = 8) :: X(p + 1, nelem)
+      real (kind = 8) :: NN(0:0, 0:p, p + 1, nelem)
+      integer(kind = 4) :: d
+      integer(kind = 4) :: ia, ib
+      integer(kind = 4) :: mm, ng, e, k, a, b
+      integer(kind = 4) :: O(nelem)
+      integer(kind = 4) :: all, tmp, total_size
+
+      mm = n + p + 1
+      ng = p + 1
+      d = 0
+      M = 0
+
+      call BasisData(p, mm, U, d, ng, nelem, O, J, W, X, NN)
+
+      total_size = nelem * ng * (p + 1)*(p + 1)
+
+! new parallel loop
+!$OMP PARALLEL DO &
+!$OMP DEFAULT(PRIVATE) &
+!$OMP PRIVATE(b,a,k,e,ia,ib,tmp) &
+!$OMP SHARED(nelem,ng,p,O,KL,KU,NN,W,J,total_size) &
+!$OMP REDUCTION(+:M)
+      do all = 1, total_size
+! loop over shape functions over elements (p+1 functions)
+         b = modulo(all - 1, p + 1)
+         tmp = (all - b) / (p + 1)
+! loop over shape functions over elements (p+1 functions)
+         a = modulo(tmp, p + 1)
+         tmp = (tmp - a) / (p + 1)
+! loop over Gauss points
+         k = modulo(tmp, ng) + 1
+! loop over elements
+         e = (tmp - k + 1) / ng + 1
+         ! O(e) + a = first dof of element + 1st local shape function index
+         ! O(e) + b = first dof of element + 2nd local shape function index
+         ! NN(0,a,k,e) = value of shape function a at Gauss point k over element e
+         ! NN(0,b,k,e) = value of shape function b at Gauss point k over element e
+         ! W(k) weight for Gauss point k
+         ! J(e) jacobian for element e
+         ia = O(e) + a
+         ib = O(e) + b
+         M(KL + KU + ia - ib, ib) = M(KL + KU + ia - ib, ib) + NN(0, a, k, e) * NN(0, b, k, e) * J(e) * W(k)
+
+
+      enddo
+!$OMP END PARALLEL DO
+
+   end subroutine
+   
+   
+   !!!!!!!!!!!!!!! TODO !!!!!!!!!!!!!!!!!!!!
+   ! -------------------------------------------------------------------
+   ! Calculates the advection matrix A. 
+   !
+   ! Input:
+   ! ------
+   ! KL     - number of lower diagonals of the resulting matrix
+   ! KU     - number of upper diagonals of the resulting matrix
+   ! U      - knot vector
+   ! p      - degree of approximation
+   ! n      - number of control points minus one
+   ! nelem  - number of subintervals in knot
+   !
+   ! Output:
+   ! -------
+   ! M      - mass matrix, logically (n+1) x (n+1)
+   !
+   ! Values in the matrix are stored in the band format, i.e. while M
+   ! is (n+1) x (n+1), it is stored as (2 KL + KU + 1) x n, and the
+   ! index correspondence is given by:
+   !
+   !     A(i, j) = M(KL + KU + 1 + i - j, j)
+   ! -------------------------------------------------------------------
+   subroutine Form1DAdvectionMatrix(KL, KU, U, p, n, nelem, M)
+      use basis, ONLY: BasisData
+      use omp_lib
+      implicit none
+      integer(kind = 4), intent(in) :: KL, KU
+      integer(kind = 4), intent(in) :: n, p, nelem
+      real (kind = 8), intent(in) :: U(0:n + p + 1)
+      real (kind = 8), intent(out) :: M(0:(2 * KL + KU), 0:n)
+      real (kind = 8) :: J(nelem)
+      real (kind = 8) :: W(p + 1)
+      real (kind = 8) :: X(p + 1, nelem)
+      real (kind = 8) :: NN(0:0, 0:p, p + 1, nelem)
+      integer(kind = 4) :: d
+      integer(kind = 4) :: ia, ib
+      integer(kind = 4) :: mm, ng, e, k, a, b
+      integer(kind = 4) :: O(nelem)
+      integer(kind = 4) :: all, tmp, total_size
+
+      mm = n + p + 1
+      ng = p + 1
+      d = 0
+      M = 0
+
+      call BasisData(p, mm, U, d, ng, nelem, O, J, W, X, NN)
+
+      total_size = nelem * ng * (p + 1)*(p + 1)
+
+! new parallel loop
+!$OMP PARALLEL DO &
+!$OMP DEFAULT(PRIVATE) &
+!$OMP PRIVATE(b,a,k,e,ia,ib,tmp) &
+!$OMP SHARED(nelem,ng,p,O,KL,KU,NN,W,J,total_size) &
+!$OMP REDUCTION(+:M)
+      do all = 1, total_size
+! loop over shape functions over elements (p+1 functions)
+         b = modulo(all - 1, p + 1)
+         tmp = (all - b) / (p + 1)
+! loop over shape functions over elements (p+1 functions)
+         a = modulo(tmp, p + 1)
+         tmp = (tmp - a) / (p + 1)
+! loop over Gauss points
+         k = modulo(tmp, ng) + 1
+! loop over elements
+         e = (tmp - k + 1) / ng + 1
+         ! O(e) + a = first dof of element + 1st local shape function index
+         ! O(e) + b = first dof of element + 2nd local shape function index
+         ! NN(0,a,k,e) = value of shape function a at Gauss point k over element e
+         ! NN(0,b,k,e) = value of shape function b at Gauss point k over element e
+         ! W(k) weight for Gauss point k
+         ! J(e) jacobian for element e
+         ia = O(e) + a
+         ib = O(e) + b
+         M(KL + KU + ia - ib, ib) = M(KL + KU + ia - ib, ib) + NN(0, a, k, e) * NN(0, b, k, e) * J(e) * W(k)
+
+
+      enddo
+!$OMP END PARALLEL DO
+
+   end subroutine
+   
+   
    ! -------------------------------------------------------------------
    ! Calculate right-hand side of the equation.
    !
@@ -359,7 +527,7 @@ end subroutine
 ! -------------------------------------------------------------------
 ! Calculates mass matrix M
 ! -------------------------------------------------------------------
-subroutine ComputeMassMatrix(KL, KU, U, p, n, nelem, M)
+subroutine ComputeMatrix(KL, KU, U, p, n, nelem, M)
    use parallelism, ONLY: PRINTRANK
    implicit none
    integer(kind = 4), intent(in) :: KL, KU
