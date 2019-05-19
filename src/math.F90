@@ -23,7 +23,7 @@ contains
 
       val = (1.d0 - t) * x + t * y
 
-   end function
+   end function lerp
 
 
    ! -------------------------------------------------------------------
@@ -45,7 +45,7 @@ contains
          fval = ((h - 1.d0) * (h + 1.d0)) ** 2.d0
       endif
 
-   end function
+   end function falloff
 
 
 
@@ -67,7 +67,7 @@ contains
          val = 0.d0
       endif
 
-   end function
+   end function bump
 
 
    !!!!! przeskalowany bump
@@ -84,7 +84,7 @@ contains
 
       val = bump(4 * (x - 0.5d0))
 
-   end function
+   end function bump01
 
 
    !!!!!! 3D fall off, jedynka w 1/2. 1/2. 1/2
@@ -95,7 +95,7 @@ contains
       t = norm2((/x, y, z/) - 0.5d0)
       val = falloff(r/2.d0, Rr/2.d0, t)
 
-   end function
+   end function bump3d
 
 
    !!!!!! przerobic
@@ -106,8 +106,8 @@ contains
       double precision, intent(in) :: x(:)
       double precision :: norm2
       norm2 = sqrt(dot_product(x,x))
-   end function
+   end function norm2
 #endif
    
-end module
+end module math
 

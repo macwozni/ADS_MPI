@@ -19,7 +19,7 @@ module plot
 
       ! Number of points to sample
       integer(kind = 4) :: resx, resy, resz
-   end type
+   end type PlotParams
 
 
 contains
@@ -75,7 +75,7 @@ contains
 
       call output(filename, vals, params)
 
-   end subroutine
+   end subroutine SavePlot
 
 
    ! -------------------------------------------------------------------
@@ -142,9 +142,9 @@ contains
 
       call output(filename, vals, params)
 
-   end subroutine
+   end subroutine SaveSplinePlot
 
 
 
-end module
+end module plot
 

@@ -28,7 +28,7 @@ contains
       enddo
       write(*, *) 'Done with output.'
 
-   end subroutine
+   end subroutine GnuPlotOutput
 
 
    ! -------------------------------------------------------------------
@@ -52,7 +52,7 @@ contains
       buffer = adjustl(buffer)
       filename = trim(pattern // buffer) // '.plot'
 
-   end subroutine
+   end subroutine BuildFileName
 
 
    ! -------------------------------------------------------------------
@@ -93,8 +93,8 @@ contains
 
       close(outFile)
 
-   end subroutine
+   end subroutine OutputLayer
 
 
-end module
+end module gnuplot
 

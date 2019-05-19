@@ -53,7 +53,7 @@ contains
       write(*, *) 'U', U
 #endif
 
-   end subroutine
+   end subroutine PrepareKnot
 
 
    !---------------------------------------------------------------------------  
@@ -85,7 +85,7 @@ contains
          U(i) = real(i - p - 1) / real(n - p + 1)
       enddo
 
-   end subroutine
+   end subroutine FillOpenKnot
 
    !---------------------------------------------------------------------------  
    !> @author 
@@ -122,9 +122,9 @@ contains
          i = i + 1
       enddo
 
-   end function
+   end function CountSpans
 
 
 
 
-end module
+end module knot_vector

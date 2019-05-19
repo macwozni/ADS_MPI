@@ -72,7 +72,7 @@ contains
 
       ierr = 0
 
-   end subroutine
+   end subroutine InitializeParallelism
 
 
    ! -------------------------------------------------------------------
@@ -100,7 +100,7 @@ contains
       rankx = rank - rankz * (NRPROCX * NRPROCY)
       rankx = rankx - ranky * NRPROCX
 
-   end subroutine
+   end subroutine Decompose
 
 
    ! -------------------------------------------------------------------
@@ -122,7 +122,7 @@ contains
       rank = rank * NRPROCY + ranky
       rank = rank * NRPROCX + rankx
 
-   end function
+   end function LinearIndex
 
 
 
@@ -164,7 +164,7 @@ contains
       mine = max(ibeg - p - 1, 1)
       maxe = min(iend, elems)
 
-   end subroutine
+   end subroutine ComputeEndpoints
 
 
 
@@ -204,15 +204,15 @@ contains
          shifts(1) = 0
       endif
 
-   end subroutine
+   end subroutine FillDimVector
 
 
    subroutine CleanParallelism(ierr)
       implicit none
       integer(kind = 4), intent(out) :: ierr
       ierr = 0
-   end subroutine
+   end subroutine CleanParallelism
 
 
 
-end module
+end module parallelism

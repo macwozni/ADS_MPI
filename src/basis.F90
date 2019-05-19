@@ -88,7 +88,7 @@ contains
          enddo
       enddo
 
-   end subroutine
+   end subroutine BasisData
 
 
    ! -------------------------------------------------------------------
@@ -174,7 +174,7 @@ contains
          r = r * (p - k)
       enddo
 
-   end subroutine
+   end subroutine DersBasisFuns
 
 
    ! -------------------------------------------------------------------
@@ -227,7 +227,9 @@ contains
          span = (low + high) / 2
       enddo
 
-   end function
+   end function FindSpan
+   
+   
    ! -------------------------------------------------------------------
    ! Calculates number of elements (nonempty subintervals) in the knot 
    ! vector.
@@ -263,7 +265,7 @@ contains
          i = i + 1
       enddo
 
-   end function
+   end function CountSpans
 
 
    ! -------------------------------------------------------------------
@@ -329,8 +331,8 @@ contains
          enddo
       enddo
 
-   end function
+   end function EvalSpline
 
 
-end module
+end module basis
 

@@ -85,12 +85,12 @@ contains
       enddo
 !$OMP END PARALLEL DO
 
-   end subroutine
+   end subroutine Form1DMassMatrix
 
 
    !!!!!!!!!!!!!!! TODO !!!!!!!!!!!!!!!!!!!!
    ! -------------------------------------------------------------------
-   ! Calculates the stifness matrix K. 
+   ! Calculates the stifness matrix M. 
    !
    ! Input:
    ! ------
@@ -103,7 +103,7 @@ contains
    !
    ! Output:
    ! -------
-   ! M      - mass matrix, logically (n+1) x (n+1)
+   ! M      - stifness matrix, logically (n+1) x (n+1)
    !
    ! Values in the matrix are stored in the band format, i.e. while M
    ! is (n+1) x (n+1), it is stored as (2 KL + KU + 1) x n, and the
@@ -169,12 +169,12 @@ contains
       enddo
 !$OMP END PARALLEL DO
 
-   end subroutine
+   end subroutine Form1DStifnessMatrix
    
    
    !!!!!!!!!!!!!!! TODO !!!!!!!!!!!!!!!!!!!!
    ! -------------------------------------------------------------------
-   ! Calculates the advection matrix A. 
+   ! Calculates the advection matrix M. 
    !
    ! Input:
    ! ------
@@ -187,7 +187,7 @@ contains
    !
    ! Output:
    ! -------
-   ! M      - mass matrix, logically (n+1) x (n+1)
+   ! M      - advection matrix, logically (n+1) x (n+1)
    !
    ! Values in the matrix are stored in the band format, i.e. while M
    ! is (n+1) x (n+1), it is stored as (2 KL + KU + 1) x n, and the
@@ -253,7 +253,7 @@ contains
       enddo
 !$OMP END PARALLEL DO
 
-   end subroutine
+   end subroutine Form1DAdvectionMatrix
    
    
    ! -------------------------------------------------------------------
@@ -468,7 +468,7 @@ contains
       enddo
 !$OMP END PARALLEL DO
 
-   end subroutine
+   end subroutine Form3DRHS
 
 
 
@@ -492,7 +492,7 @@ logical function IndexInRange(ind, ibeg, iend)
    if (ind(2) < ibeg(2) - 1 .or. ind(2) > iend(2) - 1) IndexInRange = .false.
    if (ind(3) < ibeg(3) - 1 .or. ind(3) > iend(3) - 1) IndexInRange = .false.
 
-end function
+end function IndexInRange
 
 
 !!!!! to nie tu
@@ -519,7 +519,7 @@ subroutine global2local(ind, n, x, y, z)
    y = tmp / (n(1) + 1)
    x = tmp - y * (n(1) + 1)
 
-end subroutine
+end subroutine global2local
 
 
 
@@ -544,8 +544,8 @@ subroutine ComputeMatrix(KL, KU, U, p, n, nelem, M)
    enddo
 #endif
 
-end subroutine
+end subroutine ComputeMatrix
 
 
-end module
+end module projection_engine
 

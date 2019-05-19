@@ -98,7 +98,7 @@ contains
       write(*, *) PRINTRANK, 'ibegz,iendz', ads % ibeg(3), ads % iend(3)
 #endif
       
-end subroutine
+end subroutine initialize
 
 
 ! -------------------------------------------------------------------
@@ -163,7 +163,7 @@ subroutine ComputeDecomposition(ads)
       ads % iendsz(iz), imine, imaxe)
    enddo
 
-end subroutine
+end subroutine ComputeDecomposition
 
 
 ! -------------------------------------------------------------------
@@ -200,7 +200,7 @@ subroutine AllocateArrays(ads, ads_data)
 
    call mpi_barrier(MPI_COMM_WORLD, ierr)
 
-end subroutine
+end subroutine AllocateArrays
 
 
 ! -------------------------------------------------------------------
@@ -235,7 +235,7 @@ subroutine AllocateStatic(ads, ads_data)
    allocate(ads % Wy(ads % p(2) + 1))
    allocate(ads % Wz(ads % p(3) + 1))
 
-end subroutine
+end subroutine AllocateStatic
 
 
 !!!!! przeniesc do debug
@@ -274,7 +274,7 @@ subroutine PrintDistributedData(ads, ads_data)
 
    write(*, *) '----'
 
-end subroutine
+end subroutine PrintDistributedData
 
 
 !!!! przeniesc do solver
@@ -333,7 +333,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
    enddo
 #endif
    
-   end subroutine
+   end subroutine SolveOneDirection
 
 
 
@@ -662,7 +662,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
       call mpi_barrier(MPI_COMM_WORLD, ierr)
 
       mierr = 0
-   end subroutine
+   end subroutine Step
 
 
 
@@ -731,7 +731,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
 
       mierr = 0
 
-   end subroutine
+   end subroutine Cleanup
 
 
 
@@ -790,7 +790,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
          stop
       endif
 
-   end subroutine
+   end subroutine ValidateDimensions
 
 
 
@@ -817,7 +817,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
       write(*, *) PRINTRANK, 'ibegy,iendy', ibeg(2), iend(2)
       write(*, *) PRINTRANK, 'ibegz,iendz', ibeg(3), iend(3)
 
-   end subroutine
+   end subroutine PrintDecompositionInfo
 
 
    ! -------------------------------------------------------------------
@@ -862,8 +862,8 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
          ! call SavePlot(trim(filename), ftest, GnuPlotOutput, params)
       endif
 
-   end subroutine
+   end subroutine PrintSolution
 
 
 
-end module
+end module ADSS

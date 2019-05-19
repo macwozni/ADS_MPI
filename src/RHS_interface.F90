@@ -27,4 +27,4 @@ module RHS_interface
 
    end interface 
 
-end module
+end module RHS_interface

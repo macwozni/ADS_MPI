@@ -193,7 +193,7 @@ call mpi_barrier(MPI_COMM_WORLD, ierr)
       
 mierr = 0
 
-   end subroutine
+   end subroutine CreateCommunicators
 
    !!!!! przeniesc do debug
    ! -------------------------------------------------------------------
@@ -221,7 +221,7 @@ mierr = 0
          enddo
       enddo
 
-   end subroutine
+   end subroutine PrintGroups
 
    !!! przeniesc do debug
    ! -------------------------------------------------------------------
@@ -249,9 +249,9 @@ mierr = 0
          enddo
       enddo
 
-   end subroutine
+   end subroutine PrintCommunicators
 
    !!!!! dodac czyszczenie komunikatorow
 
 
-end module
+end module communicators

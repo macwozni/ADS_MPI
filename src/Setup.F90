@@ -72,7 +72,7 @@ module Setup
       
       ! time step length
       real (kind = 8) :: tau
-   end type
+   end type ADS_setup
 
 
    type ADS_compute_data
@@ -91,8 +91,8 @@ module Setup
       
       ! current time step
       real (kind = 8) :: t
-   end type
+   end type ADS_compute_data
             
 contains
 
-end module
+end module Setup

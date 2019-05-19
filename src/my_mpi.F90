@@ -17,7 +17,7 @@ contains
       iz = MYRANKZ + d(3) + 1
       idx = processors(ix, iy, iz)
 
-   end function
+   end function neighbour
 
 
    !!! przesyla cala kostke
@@ -33,7 +33,7 @@ contains
       call mpi_isend(items, nrcpp(3) * nrcpp(1) * nrcpp(2), &
       MPI_DOUBLE_PRECISION, dst, 0, MPI_COMM_WORLD, req, ierr)
 
-   end subroutine
+   end subroutine send_piece
 
 
    !! odbiera cala kostke
@@ -48,7 +48,7 @@ contains
       call mpi_irecv(items, nrcpp(3) * nrcpp(1) * nrcpp(2), &
       MPI_DOUBLE_PRECISION, src, 0, MPI_COMM_WORLD, req, ierr)
 
-   end subroutine
+   end subroutine recv_piece
 
 
 
@@ -272,7 +272,7 @@ contains
 
       call mpi_barrier(MPI_COMM_WORLD, fierr)
 
-   end subroutine
+   end subroutine DistributeSpline
 
 
    ! -------------------------------------------------------------------
@@ -301,7 +301,7 @@ contains
 
       s = sx * sy * sz
 
-   end function
+   end function SizeOfPiece
 
 
    ! -------------------------------------------------------------------
@@ -411,7 +411,7 @@ contains
 
       deallocate(buffer)
 
-   end subroutine
+   end subroutine GatherFullSolution
 
 
 
@@ -448,7 +448,7 @@ contains
          F(i,:) = F_lin(a:b)
       enddo
 
-   end subroutine
+   end subroutine Delinearize
 
 
 
@@ -493,7 +493,7 @@ contains
       if (allocated(F_lin)) deallocate(F_lin)
       if (allocated(F_out_lin)) deallocate(F_out_lin)
 
-   end subroutine
+   end subroutine Gather
 
 
 
@@ -535,7 +535,7 @@ contains
       
       if (allocated(F_lin)) deallocate(F_lin)
 
-   end subroutine
+   end subroutine Scatter2
 
 
    ! -------------------------------------------------------------------
@@ -567,7 +567,7 @@ contains
 
       if (allocated(F_out_lin)) deallocate(F_out_lin)
       
-   end subroutine
+   end subroutine Scatter
 
 
    ! -------------------------------------------------------------------
@@ -610,7 +610,7 @@ contains
 
       call Delinearize(F_out_lin, F_out, n + 1, stride)
 
-   end subroutine
+   end subroutine AllGather
 
 
 
@@ -653,10 +653,10 @@ contains
          F_lin(a:b) = F(i,:)
       enddo
 
-   end subroutine
+   end subroutine Linearize
 
 
 
 
 
-end module
+end module my_mpi

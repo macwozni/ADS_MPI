@@ -101,7 +101,7 @@ contains
          enddo
       enddo
 
-   end subroutine
+   end subroutine NormL2
 
-end module
+end module analysis
 

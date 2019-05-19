@@ -74,7 +74,7 @@ contains
    write(*, *) 'Done with output.'
 #endif
    
-end subroutine
+end subroutine VtkOutput
 
 
    ! -------------------------------------------------------------------
@@ -162,8 +162,8 @@ end subroutine
    write(*, *) 'Done with output.'
 #endif
    
-end subroutine
+end subroutine VtkStructuredGridOutput
 
 
-end module
+end module vtk
 

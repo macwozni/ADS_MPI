@@ -147,8 +147,8 @@ contains
          W = 0.0
       end select
 
-   end subroutine
+   end subroutine GaussRule
 
-end module
+end module gauss
 
 

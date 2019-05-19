@@ -30,7 +30,7 @@ contains
          enddo
       enddo
 
-   end subroutine
+   end subroutine ReorderRHSForY
 
 
    subroutine ReorderRHSForZ(ibeg, iend, F, F2)
@@ -60,7 +60,7 @@ contains
          enddo
       enddo
 
-   end subroutine
+   end subroutine ReorderRHSForZ
 
 
    subroutine ReorderRHSForX(ibeg, iend, F, F2)
@@ -90,6 +90,6 @@ contains
          enddo
       enddo
 
-   end subroutine
+   end subroutine ReorderRHSForX
 
-end module
+end module reorderRHS
