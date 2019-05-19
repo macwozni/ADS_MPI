@@ -1,7 +1,7 @@
 
 SOURCES = \
     ../src/Setup.F90 \
-    ../src/RHS_interface.F90 \
+    ../src/Interfaces.F90 \
     ../src/knot_vector.F90 \
     ../src/parallelism.F90 \
     ../src/communicators.F90 \
