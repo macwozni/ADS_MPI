@@ -70,7 +70,7 @@ contains
       call GET_COMMAND_ARGUMENT(7, input, length, status)
       read(input, *) Dt
 
-   end subroutine
+   end subroutine InitializeParameters
 
 
 
@@ -91,7 +91,7 @@ contains
          write(*, *) fulldrained
       endif
 
-   end subroutine
+   end subroutine ComputeResults
 
 
 
@@ -133,7 +133,7 @@ contains
          arg = arg + 3
       enddo
 
-   end subroutine
+   end subroutine InitPumps
 
 
    subroutine InitInputData()
@@ -162,7 +162,7 @@ contains
 
       call InitPumps()
 
-   end subroutine
+   end subroutine InitInputData
 
 
 
@@ -202,7 +202,7 @@ contains
 
       d = (point(1) - xx)**2 + (point(2) - yy)**2 + (point(3) - zz)**2
 
-   end function
+   end function dist_from_segment
 
 
 
@@ -235,7 +235,7 @@ contains
          end do
       end do
 
-   end function
+   end function dist_from_curves
 
 
 
@@ -259,7 +259,7 @@ contains
          fval = fval + pumping_strength * falloff(0.d0, radius, norm2(pumps(:, i) - p1))
       enddo
 
-   end function
+   end function pumping
 
 
 
@@ -284,7 +284,7 @@ contains
       enddo
       fval = fval * u
 
-   end function
+   end function draining
 
 
    function kq(x, y, z) result (val)
@@ -300,7 +300,7 @@ contains
       dist = sqrt(dist_from_curves(p1, cx, cy, cz, cN, cL))
       val = lerp(falloff(0.d0, 0.06d0, dist), Kqmin, Kqmax)
 
-   end function
+   end function kq
 
 
    function bq(x, y, z, u) result (val)
@@ -308,8 +308,8 @@ contains
       real (kind = 8) :: val
 
       val = exp(mi * u)
-
-   end function
+ 
+   end function bq
 
 
 
@@ -326,7 +326,7 @@ contains
       dist = sqrt(dist_from_curves(p1, cx, cy, cz, cN, cL))
       val = 0.1d0 * lerp(falloff(0.d0, 0.1d0, dist), 0.d0, 1.d0) * bump3d(0.2d0, 0.6d0, x, y, z)
 
-   end function
+   end function initial_state
 
 
 
@@ -377,7 +377,7 @@ contains
          end do
       end do
 
-   end subroutine
+   end subroutine CacheKqValues
 
 
 
@@ -392,7 +392,7 @@ contains
       ads % Uz, ads % p(3), ads % n(3), ads % mine(3), ads % maxe(3), ads % nelem(3), &
       Kqvals)
 
-   end subroutine
+   end subroutine PrecomputeKq
 
 
-end module
+end module input_data

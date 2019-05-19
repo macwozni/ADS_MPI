@@ -47,8 +47,8 @@ contains
       call GET_COMMAND_ARGUMENT(7, input, length, status)
       read(input, *) procz
       
-   end subroutine
+   end subroutine InitializeParameters
 
 
 
-end module
+end module input_data

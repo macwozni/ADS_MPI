@@ -50,7 +50,7 @@ contains
       call GET_COMMAND_ARGUMENT(7, input, length, status)
       read(input, *) procz
 
-   end subroutine
+   end subroutine InitializeParameters
 
 
    ! Initial state of the system - u(0)
@@ -67,7 +67,7 @@ contains
       !val = 1.d0 * lerp(falloff(0.d0, 0.2d0, dist), 0.d0, 1.d0) * bump3d(0.2d0, 0.6d0, x, y, z)
       val = 2.d0  * bump3d(0.05d0, 0.4d0, x, y, z)
 
-   end function
+   end function initial_state
 
 
-end module
+end module input_data

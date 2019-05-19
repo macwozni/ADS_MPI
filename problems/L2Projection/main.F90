@@ -84,5 +84,5 @@ program main
    call Cleanup(ads, ads_data, ierr)
    call CleanParallelism(ierr)
 
-end
-
+end program main
+ 

@@ -73,7 +73,7 @@ else
   l2norm = J*W*v*fval*fval
 endif
 
-end subroutine
+end subroutine ComputePointForRHS
 
 
-end module
+end module RHS_eq

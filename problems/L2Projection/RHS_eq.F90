@@ -56,7 +56,7 @@ v   = ads % NNx(0,a(1),k(1),e(1)) * ads % NNy(0,a(2),k(2),e(2)) * ads % NNz(0,a(
 fval = 1.d0 !initial_state(X(1),X(2),X(3))
 ret= J*W*v*fval
 l2norm = J*W*v*fval*fval
-end subroutine
+end subroutine ComputePointForRHS
 
 
-end module
+end module RHS_eq
