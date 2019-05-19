@@ -35,6 +35,9 @@ k, &
 e, &
 a, &
 du, &
+un, &
+un13, &
+un23, &
 Uval, &
 ads_data, J, W, direction, substep, l2norm, ret)
 use Setup, ONLY: ADS_Setup,ADS_compute_data
@@ -47,6 +50,7 @@ integer(kind=4), intent(in), dimension(3)  :: e
 integer(kind=4), intent(in), dimension(3)  :: a
 real   (kind=8), intent(in), dimension(3)  :: du
 real (kind = 8), intent(in) :: Uval
+real (kind = 8), intent(in) :: un,un13,un23
 type (ADS_compute_data), intent(in) :: ads_data
 real   (kind=8), intent(in)  :: J,W
 integer (kind=4), intent(in) :: direction,substep

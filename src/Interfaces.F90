@@ -13,6 +13,9 @@ module Interfaces
 ! a_              - indexes of basis functions
 ! du_             - value of derivative from previous time step
 ! Uval            - previous solution coefficient at given point
+! Un              - U_n
+! Un13            - U_n+1/3
+! Un23            - U_n+2/3
 ! ads_data        - data structures for ADS
 ! J               - jacobian
 ! W               - weight for quadratures
@@ -33,6 +36,9 @@ module Interfaces
          a, &
          du, &
          Uval, &
+         un, &
+         un13, &
+         un23, &
          ads_data, J, W, direction, substep, l2norm, ret)
          use Setup
          implicit none
@@ -43,6 +49,7 @@ module Interfaces
          integer(kind = 4), intent(in), dimension(3) :: a
          real (kind = 8), intent(in), dimension(3) :: du
          real (kind = 8), intent(in) :: Uval
+         real (kind = 8), intent(in) :: un,un13,un23
          type (ADS_compute_data), intent(in) :: ads_data
          real (kind = 8), intent(in) :: J, W
          integer (kind=4), intent(in) :: direction,substep
