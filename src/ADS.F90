@@ -333,540 +333,540 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
    enddo
 #endif
    
-   end subroutine SolveOneDirection
+end subroutine SolveOneDirection
 
 
 
-   !!!! podzielic na wraper i czesc wlasciwa
-   ! przeniesc czesc do solver
+!!!! podzielic na wraper i czesc wlasciwa
+! przeniesc czesc do solver
+
    
-   
-   ! -------------------------------------------------------------------
-   ! Performs one step of the simulation
-   !
-   ! iter - number of the iteration
-   ! t    - time at the beginning of step
-   ! -------------------------------------------------------------------
-   subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
-      use Setup, ONLY: ADS_Setup, ADS_compute_data
-      use parallelism, ONLY:PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
-      use communicators, ONLY: COMMX, COMMY, COMMZ
-      use reorderRHS, ONLY: ReorderRHSForX, ReorderRHSForY, ReorderRHSForZ
-      use projection_engine, ONLY: Form3DRHS, ComputeMatrix
-      use my_mpi, ONLY: DistributeSpline, Gather, Scatter
-      use Interfaces, ONLY: RHS_fun_int
-      use mpi
-      implicit none
-      procedure(RHS_fun_int) :: RHS_fun
-      type (ADS_setup), intent(in) :: ads
-      type (ADS_compute_data), intent(inout) :: ads_data
-      real (kind = 8), intent(out) :: l2norm
-      integer(kind = 4), intent(out) :: mierr
-      integer(kind = 4) :: iter
-      integer(kind = 4) :: i
-      integer(kind = 4) :: iret, ierr
-      integer(kind = 4), dimension(3) :: nrcpp
-      real(kind = 8) :: time1, time2
-      logical :: MKA(3)
+! -------------------------------------------------------------------
+! Performs one step of the simulation
+!
+! iter - number of the iteration
+! t    - time at the beginning of step
+! -------------------------------------------------------------------
+subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
+   use Setup, ONLY: ADS_Setup, ADS_compute_data
+   use parallelism, ONLY:PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
+   use communicators, ONLY: COMMX, COMMY, COMMZ
+   use reorderRHS, ONLY: ReorderRHSForX, ReorderRHSForY, ReorderRHSForZ
+   use projection_engine, ONLY: Form3DRHS, ComputeMatrix
+   use my_mpi, ONLY: DistributeSpline, Gather, Scatter
+   use Interfaces, ONLY: RHS_fun_int
+   use mpi
+   implicit none
+   procedure(RHS_fun_int) :: RHS_fun
+   type (ADS_setup), intent(in) :: ads
+   type (ADS_compute_data), intent(inout) :: ads_data
+   real (kind = 8), intent(out) :: l2norm
+   integer(kind = 4), intent(out) :: mierr
+   integer(kind = 4) :: iter
+   integer(kind = 4) :: i
+   integer(kind = 4) :: iret, ierr
+   integer(kind = 4), dimension(3) :: nrcpp
+   real(kind = 8) :: time1, time2
+   logical :: MKA(3)
+
+#ifdef PERFORMANCE
+   time1 = MPI_Wtime()
+#endif
+   ! generate the RHS vectors
+   call Form3DRHS(ads, ads_data, RHS_fun,l2norm)
+#ifdef PERFORMANCE
+   time2 = MPI_Wtime()
+   write(*,*) "Form 3D RHS: ", time2 - time1
+#endif
+
+#ifdef IPRINT
+   write(*, *) PRINTRANK, 'F'
+   do i = 1, ads % s(1)
+      write(*, *) PRINTRANK, ads % F(i, 1:ads % s(2) * ads % s(3))
+   enddo
+#endif
+
+   !--------------------------------------------------------------------
+   ! Solve the first problem
+   !--------------------------------------------------------------------
+   call mpi_barrier(MPI_COMM_WORLD, ierr)
+
+#ifdef IINFO
+   write(*, *) PRINTRANK, '1a) GATHER'
+#endif
+
+   allocate(ads_data % F_out((ads % n(1) + 1), ads % s(2) * ads % s(3)))
+
+#ifdef PERFORMANCE
+   time1 = MPI_Wtime()
+#endif
+   call Gather(ads_data % F, ads_data % F_out, ads % n(1), ads % s(1), ads % s(2) &
+   *ads % s(3), ads % dimensionsX, ads % shiftsX, COMMX, ierr)
+#ifdef PERFORMANCE
+   time2 = MPI_Wtime()
+   write(*,*) "Gather 1: ", time2 - time1
+#endif
+
+#ifdef IPRINT
+   write(*, *) PRINTRANK, 'after call mpi_gather'
+   write(*, *) PRINTRANK, 'ierr', ierr
+   write(*, *) PRINTRANK, 'F_out:'
+   do i = 1, ads % n(1) + 1
+      write(*, *) PRINTRANK, i, 'row=', ads % F_out(i, 1:ads % s(2) * ads % s(3))
+   enddo
+#endif
+   call mpi_barrier(MPI_COMM_WORLD, ierr)
+
+   if (MYRANKX == 0) then
+#ifdef IINFO
+      write(*, *) PRINTRANK, '1b) SOLVE THE FIRST PROBLEM'
+#endif
 
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
-      ! generate the RHS vectors
-      call Form3DRHS(ads, ads_data, RHS_fun,l2norm)
+      MKA = (/.TRUE., .FALSE., .FALSE./)
+      call ComputeMatrix(ads % KL(1), ads % KU(1), ads % Ux, ads % p(1), &
+      ads % n(1), ads % nelem(1), MKA, ads_data % Mx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
-      write(*,*) "Form 3D RHS: ", time2 - time1
+      write(*,*) "Mass matrix 1: ", time2 - time1
+      time1 = MPI_Wtime()
 #endif
+      call SolveOneDirection(ads_data % F_out, ads % s(2) * ads % s(3), ads % n(1), &
+      ads % KL(1), ads % KU(1), ads % p(1), ads_data % Mx, ads % IPIVx)
+#ifdef PERFORMANCE
+      time2 = MPI_Wtime()
+      write(*,*) "Solve 1: ", time2 - time1
+#endif
+   endif
 
-#ifdef IPRINT
-      write(*, *) PRINTRANK, 'F'
-      do i = 1, ads % s(1)
-         write(*, *) PRINTRANK, ads % F(i, 1:ads % s(2) * ads % s(3))
-      enddo
-#endif
-      
-      !--------------------------------------------------------------------
-      ! Solve the first problem
-      !--------------------------------------------------------------------
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
+   call mpi_barrier(MPI_COMM_WORLD, ierr)
 
 #ifdef IINFO
-      write(*, *) PRINTRANK, '1a) GATHER'
+   write(*, *) PRINTRANK, '1c) SCATTER'
 #endif
-      
-      allocate(ads_data % F_out((ads % n(1) + 1), ads % s(2) * ads % s(3)))
+   allocate(ads_data % F2_out(ads % s(1), ads % s(2) * ads % s(3)))
+#ifdef PERFORMANCE
+   time1 = MPI_Wtime()
+#endif
+   call Scatter(ads_data % F_out, ads_data % F2_out, ads % n(1), ads % s(1), ads % s(2) * &
+   ads % s(3), ads % dimensionsX, ads % shiftsX, COMMX, ierr)
+#ifdef PERFORMANCE
+   time2 = MPI_Wtime()
+   write(*,*) "Scatter 1: ", time2 - time1
+#endif
+   deallocate(ads_data % F_out)
+
+   call mpi_barrier(MPI_COMM_WORLD, ierr)
+
+#ifdef IINFO
+   write(*, *) PRINTRANK, '1d) REORDER'
+#endif
+   call ReorderRHSForY(ads % ibeg, ads % iend, ads_data % F2_out, ads_data % F2)
+   deallocate(ads_data % F2_out)
+
+#ifdef IPRINT
+   write(*, *) PRINTRANK, 'after ReorderRHSForY'
+   write(*, *) PRINTRANK, 'F2:'
+   do i = 1, ads % s(2)
+      write(*, *) PRINTRANK, i, 'row=', ads_data % F2(i, 1:ads % s(1) * ads % s(3))
+   enddo
+#endif
+
+   !--------------------------------------------------------------------
+   ! Solve the second problem
+   !--------------------------------------------------------------------
+   call mpi_barrier(MPI_COMM_WORLD, ierr)
+
+#ifdef IINFO
+   write(*, *) PRINTRANK, '2a) GATHER'
+#endif
+
+   allocate(ads_data % F2_out((ads % n(2) + 1), ads % s(1) * ads % s(3)))
+#ifdef PERFORMANCE
+   time1 = MPI_Wtime()
+#endif
+   call Gather(ads_data % F2, ads_data % F2_out, ads % n(2), ads % s(2), ads % s(1) * ads % s(3), &
+   ads % dimensionsY, ads % shiftsY, COMMY, ierr)
+#ifdef PERFORMANCE
+   time2 = MPI_Wtime()
+   write(*,*) "Gather 2: ", time2 - time1
+#endif
+
+   call mpi_barrier(MPI_COMM_WORLD, ierr)
+
+   if (MYRANKY == 0) then
+#ifdef IINFO
+      write(*, *) PRINTRANK, '2b) SOLVE THE SECOND PROBLEM'
+#endif
 
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
-      call Gather(ads_data % F, ads_data % F_out, ads % n(1), ads % s(1), ads % s(2) &
-      *ads % s(3), ads % dimensionsX, ads % shiftsX, COMMX, ierr)
+      MKA = (/.TRUE., .FALSE., .FALSE./)
+      call ComputeMatrix(ads % KL(2), ads % KU(2), ads % Uy, ads % p(2), ads % n(2), &
+      ads % nelem(2), MKA, ads_data % My)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
-      write(*,*) "Gather 1: ", time2 - time1
+      write(*,*) "Mass matrix 2: ", time2 - time1
+      time1 = MPI_Wtime()
 #endif
+      call SolveOneDirection(ads_data % F2_out, ads % s(1) * ads % s(3), ads % n(2), ads % KL(2), &
+      ads % KU(2), ads % p(2), ads_data % My, ads % IPIVy)
+#ifdef PERFORMANCE
+      time2 = MPI_Wtime()
+      write(*,*) "Solve 2: ", time2 - time1
+#endif
+
+   endif
+
+   call mpi_barrier(MPI_COMM_WORLD, ierr)
+
+#ifdef IINFO
+   write(*, *) PRINTRANK, '2c) SCATHER'
+#endif
+
+   ! CORRECTION
+   allocate(ads_data % F3_out(ads % s(2), ads % s(1) * ads % s(3)))
+#ifdef PERFORMANCE
+   time1 = MPI_Wtime()
+#endif
+   call Scatter(ads_data % F2_out, ads_data % F3_out, ads % n(2), ads % s(2), ads % s(1) * ads % s(3), &
+   ads % dimensionsY, ads % shiftsY, COMMY, ierr)
+#ifdef PERFORMANCE
+   time2 = MPI_Wtime()
+   write(*,*) "Scatter 2: ", time2 - time1
+#endif
+   deallocate(ads_data % F2_out)
 
 #ifdef IPRINT
-      write(*, *) PRINTRANK, 'after call mpi_gather'
-      write(*, *) PRINTRANK, 'ierr', ierr
-      write(*, *) PRINTRANK, 'F_out:'
-      do i = 1, ads % n(1) + 1
-         write(*, *) PRINTRANK, i, 'row=', ads % F_out(i, 1:ads % s(2) * ads % s(3))
-      enddo
+   write(*, *) PRINTRANK, 'after call mpi_scatterv'
+   write(*, *) PRINTRANK, 'ierr', ierr
+   write(*, *) PRINTRANK, 'F3_out:'
+   do i = 1, ads % s(2)
+      write(*, *) PRINTRANK, i, 'row=', ads % F3_out(i, 1:ads % s(1) * ads % s(3))
+   enddo
 #endif
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
 
-      if (MYRANKX == 0) then
-#ifdef IINFO
-         write(*, *) PRINTRANK, '1b) SOLVE THE FIRST PROBLEM'
-#endif
-         
-#ifdef PERFORMANCE
-         time1 = MPI_Wtime()
-#endif
-         MKA = (/.TRUE., .FALSE., .FALSE./)
-         call ComputeMatrix(ads % KL(1), ads % KU(1), ads % Ux, ads % p(1), &
-         ads % n(1), ads % nelem(1), MKA, ads_data % Mx)
-#ifdef PERFORMANCE
-         time2 = MPI_Wtime()
-         write(*,*) "Mass matrix 1: ", time2 - time1
-         time1 = MPI_Wtime()
-#endif
-         call SolveOneDirection(ads_data % F_out, ads % s(2) * ads % s(3), ads % n(1), &
-         ads % KL(1), ads % KU(1), ads % p(1), ads_data % Mx, ads % IPIVx)
-#ifdef PERFORMANCE
-         time2 = MPI_Wtime()
-         write(*,*) "Solve 1: ", time2 - time1
-#endif
-      endif
-
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
+   call mpi_barrier(MPI_COMM_WORLD, ierr)
 
 #ifdef IINFO
-      write(*, *) PRINTRANK, '1c) SCATTER'
+   write(*, *) PRINTRANK, '2d) REORDER'
 #endif
-      allocate(ads_data % F2_out(ads % s(1), ads % s(2) * ads % s(3)))
+   ! Reorder right hand sides
+   call ReorderRHSForZ(ads % ibeg, ads % iend, ads_data % F3_out, ads_data % F3)
+   deallocate(ads_data % F3_out)
+
+#ifdef IPRINT
+   write(*, *) PRINTRANK, 'after ReorderRHSForZ'
+   write(*, *) PRINTRANK, 'F3:'
+   do i = 1, ads % s(3)
+      write(*, *) PRINTRANK, i, 'row=', ads_data % F3(i, 1:ads % s(1) * ads % s(2))
+   enddo
+#endif
+
+   !--------------------------------------------------------------------
+   ! Solve the third problem
+   !--------------------------------------------------------------------
+#ifdef IINFO
+   write(*, *) PRINTRANK, '3a) GATHER'
+#endif
+
+   call mpi_barrier(MPI_COMM_WORLD, ierr)
+   allocate(ads_data % F3_out((ads % n(3) + 1), ads % s(1) * ads % s(2)))
+#ifdef PERFORMANCE
+   time1 = MPI_Wtime()
+#endif
+   call Gather(ads_data % F3, ads_data % F3_out, ads % n(3), ads % s(3), ads % s(1) * ads % s(2), &
+   ads % dimensionsZ, ads % shiftsZ, COMMZ, ierr)
+#ifdef PERFORMANCE
+   time2 = MPI_Wtime()
+   write(*,*) "Gather 3: ", time2 - time1
+#endif
+   call mpi_barrier(MPI_COMM_WORLD, ierr)
+
+   if (MYRANKZ == 0) then
+#ifdef IINFO
+      write(*, *) PRINTRANK, '3b) SOLVE THE THIRD PROBLEM'
+#endif
+
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
-      call Scatter(ads_data % F_out, ads_data % F2_out, ads % n(1), ads % s(1), ads % s(2) * &
-      ads % s(3), ads % dimensionsX, ads % shiftsX, COMMX, ierr)
+      MKA = (/.TRUE., .FALSE., .FALSE./)
+      call ComputeMatrix(ads % KL(3), ads % KU(3), ads % Uz, ads % p(3), ads % n(3), &
+      ads % nelem(3), MKA, ads_data % Mz)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
-      write(*,*) "Scatter 1: ", time2 - time1
-#endif
-      deallocate(ads_data % F_out)
-
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
-
-#ifdef IINFO
-      write(*, *) PRINTRANK, '1d) REORDER'
-#endif
-      call ReorderRHSForY(ads % ibeg, ads % iend, ads_data % F2_out, ads_data % F2)
-      deallocate(ads_data % F2_out)
-
-#ifdef IPRINT
-      write(*, *) PRINTRANK, 'after ReorderRHSForY'
-      write(*, *) PRINTRANK, 'F2:'
-      do i = 1, ads % s(2)
-         write(*, *) PRINTRANK, i, 'row=', ads_data % F2(i, 1:ads % s(1) * ads % s(3))
-      enddo
-#endif
-      
-      !--------------------------------------------------------------------
-      ! Solve the second problem
-      !--------------------------------------------------------------------
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
-
-#ifdef IINFO
-      write(*, *) PRINTRANK, '2a) GATHER'
-#endif
-      
-      allocate(ads_data % F2_out((ads % n(2) + 1), ads % s(1) * ads % s(3)))
-#ifdef PERFORMANCE
+      write(*,*) "Mass matrix 3: ", time2 - time1
       time1 = MPI_Wtime()
 #endif
-      call Gather(ads_data % F2, ads_data % F2_out, ads % n(2), ads % s(2), ads % s(1) * ads % s(3), &
-      ads % dimensionsY, ads % shiftsY, COMMY, ierr)
+      call SolveOneDirection(ads_data % F3_out, ads % s(1) * ads % s(2), ads % n(3), ads % KL(3), &
+      ads % KU(3), ads % p(3), ads_data % Mz, ads % IPIVz)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
-      write(*,*) "Gather 2: ", time2 - time1
+      write(*,*) "Solve 3: ", time2 - time1
 #endif
+   endif
 
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
-
-      if (MYRANKY == 0) then
-#ifdef IINFO
-         write(*, *) PRINTRANK, '2b) SOLVE THE SECOND PROBLEM'
-#endif
-         
-#ifdef PERFORMANCE
-         time1 = MPI_Wtime()
-#endif
-         MKA = (/.TRUE., .FALSE., .FALSE./)
-         call ComputeMatrix(ads % KL(2), ads % KU(2), ads % Uy, ads % p(2), ads % n(2), &
-         ads % nelem(2), MKA, ads_data % My)
-#ifdef PERFORMANCE
-         time2 = MPI_Wtime()
-         write(*,*) "Mass matrix 2: ", time2 - time1
-         time1 = MPI_Wtime()
-#endif
-         call SolveOneDirection(ads_data % F2_out, ads % s(1) * ads % s(3), ads % n(2), ads % KL(2), &
-         ads % KU(2), ads % p(2), ads_data % My, ads % IPIVy)
-#ifdef PERFORMANCE
-         time2 = MPI_Wtime()
-         write(*,*) "Solve 2: ", time2 - time1
-#endif
-
-      endif
-
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
+   call mpi_barrier(MPI_COMM_WORLD, ierr)
 
 #ifdef IINFO
-      write(*, *) PRINTRANK, '2c) SCATHER'
+   write(*, *) PRINTRANK, '3c) SCATTER'
 #endif
-      
-      ! CORRECTION
-      allocate(ads_data % F3_out(ads % s(2), ads % s(1) * ads % s(3)))
+
+   ! CORRECTION
+   allocate(ads_data % F_out(ads % s(3), ads % s(1) * ads % s(2)))
 #ifdef PERFORMANCE
-      time1 = MPI_Wtime()
+   time1 = MPI_Wtime()
 #endif
-      call Scatter(ads_data % F2_out, ads_data % F3_out, ads % n(2), ads % s(2), ads % s(1) * ads % s(3), &
-      ads % dimensionsY, ads % shiftsY, COMMY, ierr)
+   call Scatter(ads_data % F3_out, ads_data % F_out, ads % n(3), ads % s(3), ads % s(1) * ads % s(2), &
+   ads % dimensionsZ, ads % shiftsZ, COMMZ, ierr)
 #ifdef PERFORMANCE
-      time2 = MPI_Wtime()
-      write(*,*) "Scatter 2: ", time2 - time1
+   time2 = MPI_Wtime()
+   write(*,*) "Scatter 3: ", time2 - time1
 #endif
-      deallocate(ads_data % F2_out)
+   deallocate(ads_data % F3_out)
+
+   call mpi_barrier(MPI_COMM_WORLD, ierr)
+
+#ifdef IINFO
+   write(*, *) PRINTRANK, '3d) REORDER'
+#endif
+   ! Reorder right hand sides
+   call ReorderRHSForX(ads % ibeg, ads % iend, ads_data % F_out, ads_data % F)
+   deallocate(ads_data % F_out)
 
 #ifdef IPRINT
-      write(*, *) PRINTRANK, 'after call mpi_scatterv'
-      write(*, *) PRINTRANK, 'ierr', ierr
-      write(*, *) PRINTRANK, 'F3_out:'
-      do i = 1, ads % s(2)
-         write(*, *) PRINTRANK, i, 'row=', ads % F3_out(i, 1:ads % s(1) * ads % s(3))
-      enddo
+   write(*, *) PRINTRANK, 'after ReorderRHSForX'
+   write(*, *) PRINTRANK, 'F:'
+   do i = 1, ads % s(1)
+      write(*, *) PRINTRANK, i, 'row=', ads % F(i, 1:ads % s(2) * ads % s(3))
+   enddo
 #endif
       
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
-
 #ifdef IINFO
-      write(*, *) PRINTRANK, '2d) REORDER'
+   write(*, *) PRINTRANK, '3e) DISTRIBUTE SOLUTION'
 #endif
-      ! Reorder right hand sides
-      call ReorderRHSForZ(ads % ibeg, ads % iend, ads_data % F3_out, ads_data % F3)
-      deallocate(ads_data % F3_out)
+   do i=1,ads % s(2) * ads % s(3)
+      ads_data % R((i-1)*ads % s(1)+1:i*ads % s(1), 2, 2, 2) = ads_data % F(:,i)
+   enddo
+   nrcpp = (/ ads % nrcpp(3), ads % nrcpp(1), ads % nrcpp(2) /)
+   call DistributeSpline(ads_data % R, nrcpp, ads_data % R)
 
 #ifdef IPRINT
-      write(*, *) PRINTRANK, 'after ReorderRHSForZ'
-      write(*, *) PRINTRANK, 'F3:'
-      do i = 1, ads % s(3)
-         write(*, *) PRINTRANK, i, 'row=', ads_data % F3(i, 1:ads % s(1) * ads % s(2))
-      enddo
-#endif
-      
-      !--------------------------------------------------------------------
-      ! Solve the third problem
-      !--------------------------------------------------------------------
-#ifdef IINFO
-      write(*, *) PRINTRANK, '3a) GATHER'
-#endif
-      
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
-      allocate(ads_data % F3_out((ads % n(3) + 1), ads % s(1) * ads % s(2)))
-#ifdef PERFORMANCE
-      time1 = MPI_Wtime()
-#endif
-      call Gather(ads_data % F3, ads_data % F3_out, ads % n(3), ads % s(3), ads % s(1) * ads % s(2), &
-      ads % dimensionsZ, ads % shiftsZ, COMMZ, ierr)
-#ifdef PERFORMANCE
-      time2 = MPI_Wtime()
-      write(*,*) "Gather 3: ", time2 - time1
-#endif
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
-
-      if (MYRANKZ == 0) then
-#ifdef IINFO
-         write(*, *) PRINTRANK, '3b) SOLVE THE THIRD PROBLEM'
-#endif
-         
-#ifdef PERFORMANCE
-         time1 = MPI_Wtime()
-#endif
-         MKA = (/.TRUE., .FALSE., .FALSE./)
-         call ComputeMatrix(ads % KL(3), ads % KU(3), ads % Uz, ads % p(3), ads % n(3), &
-         ads % nelem(3), MKA, ads_data % Mz)
-#ifdef PERFORMANCE
-         time2 = MPI_Wtime()
-         write(*,*) "Mass matrix 3: ", time2 - time1
-         time1 = MPI_Wtime()
-#endif
-         call SolveOneDirection(ads_data % F3_out, ads % s(1) * ads % s(2), ads % n(3), ads % KL(3), &
-         ads % KU(3), ads % p(3), ads_data % Mz, ads % IPIVz)
-#ifdef PERFORMANCE
-         time2 = MPI_Wtime()
-         write(*,*) "Solve 3: ", time2 - time1
-#endif
-      endif
-
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
-
-#ifdef IINFO
-      write(*, *) PRINTRANK, '3c) SCATTER'
-#endif
-      
-      ! CORRECTION
-      allocate(ads_data % F_out(ads % s(3), ads % s(1) * ads % s(2)))
-#ifdef PERFORMANCE
-      time1 = MPI_Wtime()
-#endif
-      call Scatter(ads_data % F3_out, ads_data % F_out, ads % n(3), ads % s(3), ads % s(1) * ads % s(2), &
-      ads % dimensionsZ, ads % shiftsZ, COMMZ, ierr)
-#ifdef PERFORMANCE
-      time2 = MPI_Wtime()
-      write(*,*) "Scatter 3: ", time2 - time1
-#endif
-      deallocate(ads_data % F3_out)
-
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
-
-#ifdef IINFO
-      write(*, *) PRINTRANK, '3d) REORDER'
-#endif
-      ! Reorder right hand sides
-      call ReorderRHSForX(ads % ibeg, ads % iend, ads_data % F_out, ads_data % F)
-      deallocate(ads_data % F_out)
-
-#ifdef IPRINT
-      write(*, *) PRINTRANK, 'after ReorderRHSForX'
-      write(*, *) PRINTRANK, 'F:'
-      do i = 1, ads % s(1)
-         write(*, *) PRINTRANK, i, 'row=', ads % F(i, 1:ads % s(2) * ads % s(3))
-      enddo
-#endif
-      
-#ifdef IINFO
-      write(*, *) PRINTRANK, '3e) DISTRIBUTE SOLUTION'
-#endif
-      do i=1,ads % s(2) * ads % s(3)
-         ads_data % R((i-1)*ads % s(1)+1:i*ads % s(1), 2, 2, 2) = ads_data % F(:,i)
-      enddo
-      nrcpp = (/ ads % nrcpp(3), ads % nrcpp(1), ads % nrcpp(2) /)
-      call DistributeSpline(ads_data % R, nrcpp, ads_data % R)
-
-#ifdef IPRINT
-      write(*, *) PRINTRANK, 'Result:'
-      do i = 1, ads % s(3)
-         write(*, *) PRINTRANK, i, 'row=', ads % F(i,:)
-      enddo
+   write(*, *) PRINTRANK, 'Result:'
+   do i = 1, ads % s(3)
+      write(*, *) PRINTRANK, i, 'row=', ads % F(i,:)
+   enddo
 #endif
       
 
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
+   call mpi_barrier(MPI_COMM_WORLD, ierr)
 
-      mierr = 0
-   end subroutine Step
-
-
+   mierr = 0
+end subroutine Step
 
 
-   ! -------------------------------------------------------------------
-   ! Deallocates all the resources and finalizes MPI.
-   ! -------------------------------------------------------------------
-   subroutine Cleanup(ads, ads_data, mierr)
-      use Setup, ONLY: ADS_Setup, ADS_compute_data
-      use parallelism, ONLY: PRINTRANK
-      implicit none
-      type (ADS_setup), intent(inout) :: ads
-      type (ADS_compute_data), intent(inout) :: ads_data
-      integer(kind = 4), intent(out) :: mierr
-      integer(kind = 4) :: ierr
 
-      if (allocated(ads % shiftsX)) deallocate(ads % shiftsX)
-      if (allocated(ads % shiftsY)) deallocate(ads % shiftsY)
-      if (allocated(ads % shiftsZ)) deallocate(ads % shiftsZ)
 
-      if (allocated(ads % dimensionsX)) deallocate(ads % dimensionsX)
-      if (allocated(ads % dimensionsX)) deallocate(ads % dimensionsY)
-      if (allocated(ads % dimensionsZ)) deallocate(ads % dimensionsZ)
+! -------------------------------------------------------------------
+! Deallocates all the resources and finalizes MPI.
+! -------------------------------------------------------------------
+subroutine Cleanup(ads, ads_data, mierr)
+   use Setup, ONLY: ADS_Setup, ADS_compute_data
+   use parallelism, ONLY: PRINTRANK
+   implicit none
+   type (ADS_setup), intent(inout) :: ads
+   type (ADS_compute_data), intent(inout) :: ads_data
+   integer(kind = 4), intent(out) :: mierr
+   integer(kind = 4) :: ierr
 
-      if (allocated(ads % IPIVx)) deallocate(ads % IPIVx)
-      if (allocated(ads % IPIVy)) deallocate(ads % IPIVy)
-      if (allocated(ads % IPIVz)) deallocate(ads % IPIVz)
+   if (allocated(ads % shiftsX)) deallocate(ads % shiftsX)
+   if (allocated(ads % shiftsY)) deallocate(ads % shiftsY)
+   if (allocated(ads % shiftsZ)) deallocate(ads % shiftsZ)
 
-      if (allocated(ads % Ux)) deallocate(ads % Ux)
-      if (allocated(ads % Uy)) deallocate(ads % Uy)
-      if (allocated(ads % Uz)) deallocate(ads % Uz)
+   if (allocated(ads % dimensionsX)) deallocate(ads % dimensionsX)
+   if (allocated(ads % dimensionsX)) deallocate(ads % dimensionsY)
+   if (allocated(ads % dimensionsZ)) deallocate(ads % dimensionsZ)
 
-      if (allocated(ads_data % Mx)) deallocate(ads_data % Mx)
-      if (allocated(ads_data % My)) deallocate(ads_data % My)
-      if (allocated(ads_data % Mz)) deallocate(ads_data % Mz)
+   if (allocated(ads % IPIVx)) deallocate(ads % IPIVx)
+   if (allocated(ads % IPIVy)) deallocate(ads % IPIVy)
+   if (allocated(ads % IPIVz)) deallocate(ads % IPIVz)
 
-      if (allocated(ads_data % F)) deallocate(ads_data % F)
-      if (allocated(ads_data % F2)) deallocate(ads_data % F2)
-      if (allocated(ads_data % F3)) deallocate(ads_data % F3)
+   if (allocated(ads % Ux)) deallocate(ads % Ux)
+   if (allocated(ads % Uy)) deallocate(ads % Uy)
+   if (allocated(ads % Uz)) deallocate(ads % Uz)
 
-      if (allocated(ads % Ox)) deallocate(ads % Ox)
-      if (allocated(ads % Oy)) deallocate(ads % Oy)
-      if (allocated(ads % Oz)) deallocate(ads % Oz)
+   if (allocated(ads_data % Mx)) deallocate(ads_data % Mx)
+   if (allocated(ads_data % My)) deallocate(ads_data % My)
+   if (allocated(ads_data % Mz)) deallocate(ads_data % Mz)
 
-      if (allocated(ads % Jx)) deallocate(ads % Jx)
-      if (allocated(ads % Jy)) deallocate(ads % Jy)
-      if (allocated(ads % Jz)) deallocate(ads % Jz)
+   if (allocated(ads_data % F)) deallocate(ads_data % F)
+   if (allocated(ads_data % F2)) deallocate(ads_data % F2)
+   if (allocated(ads_data % F3)) deallocate(ads_data % F3)
 
-      if (allocated(ads % Xx)) deallocate(ads % Xx)
-      if (allocated(ads % Xy)) deallocate(ads % Xy)
-      if (allocated(ads % Xz)) deallocate(ads % Xz)
+   if (allocated(ads % Ox)) deallocate(ads % Ox)
+   if (allocated(ads % Oy)) deallocate(ads % Oy)
+   if (allocated(ads % Oz)) deallocate(ads % Oz)
 
-      if (allocated(ads % NNx)) deallocate(ads % NNx)
-      if (allocated(ads % NNy)) deallocate(ads % NNy)
-      if (allocated(ads % NNz)) deallocate(ads % NNz)
+   if (allocated(ads % Jx)) deallocate(ads % Jx)
+   if (allocated(ads % Jy)) deallocate(ads % Jy)
+   if (allocated(ads % Jz)) deallocate(ads % Jz)
 
-      if (allocated(ads % Wx)) deallocate(ads % Wx)
-      if (allocated(ads % Wy)) deallocate(ads % Wy)
-      if (allocated(ads % Wz)) deallocate(ads % Wz)
-      
-      !!!!!! wyciac
-      call mpi_finalize(ierr)
+   if (allocated(ads % Xx)) deallocate(ads % Xx)
+   if (allocated(ads % Xy)) deallocate(ads % Xy)
+   if (allocated(ads % Xz)) deallocate(ads % Xz)
+
+   if (allocated(ads % NNx)) deallocate(ads % NNx)
+   if (allocated(ads % NNy)) deallocate(ads % NNy)
+   if (allocated(ads % NNz)) deallocate(ads % NNz)
+
+   if (allocated(ads % Wx)) deallocate(ads % Wx)
+   if (allocated(ads % Wy)) deallocate(ads % Wy)
+   if (allocated(ads % Wz)) deallocate(ads % Wz)
+
+   !!!!!! wyciac
+   call mpi_finalize(ierr)
 #ifdef IINFO
-      write(*, *) PRINTRANK, "Exiting..."
+   write(*, *) PRINTRANK, "Exiting..."
 #endif
 
-      mierr = 0
+   mierr = 0
 
-   end subroutine Cleanup
-
-
-
-   !!!! przeniesc do debug
-   ! -------------------------------------------------------------------
-   ! Sanity-check of dimensions vector
-   ! -------------------------------------------------------------------
-   subroutine ValidateDimensions(n, s, nrcpp, &
-      dimensionsX, dimensionsY, dimensionsZ)
-      use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ, PRINTRANK
-      use mpi
-      implicit none
-      integer(kind = 4), intent(in), dimension(3) :: n
-      integer(kind = 4), intent(in), dimension(3) :: s
-      integer(kind = 4), intent(in), dimension(3) :: nrcpp
-      integer(kind = 4), intent(in), allocatable, dimension(:) :: dimensionsX
-      integer(kind = 4), intent(in), allocatable, dimension(:) :: dimensionsY
-      integer(kind = 4), intent(in), allocatable, dimension(:) :: dimensionsZ
-
-      integer(kind = 4) :: i, k
-
-      k = 0
-      do i = 1, NRPROCX
-         k = k + dimensionsX(i)
-      enddo
-      if (k /= (n(1) + 1) * s(2) * s(3)) then
-         write(*, *) PRINTRANK, 'problem with dimensionsX', dimensionsX
-         write(*, *) PRINTRANK, 'nx+1', n(1) + 1
-         write(*, *) PRINTRANK, 'sy', s(2)
-         write(*, *) PRINTRANK, 'sz', s(3)
-         write(*, *) PRINTRANK, 'nrcppx', nrcpp(1)
-         stop
-      endif
-
-      k = 0
-      do i = 1, NRPROCY
-         k = k + dimensionsY(i)
-      enddo
-      if (k /= (n(2) + 1) * s(1) * s(3)) then
-         write(*, *) PRINTRANK, 'problem with dimensionsY', dimensionsY
-         write(*, *) PRINTRANK, 'n+1', n(2) + 1
-         write(*, *) PRINTRANK, 'sx', s(1)
-         write(*, *) PRINTRANK, 'sz', s(3)
-         stop
-      endif
-
-      k = 0
-      do i = 1, NRPROCZ
-         k = k + dimensionsZ(i)
-      enddo
-      if (k /= (n(3) + 1) * s(1) * s(2)) then
-         write(*, *) PRINTRANK, 'problem with dimensionsZ', dimensionsZ
-         write(*, *) PRINTRANK, 'n+1', n(3) + 1
-         write(*, *) PRINTRANK, 'sx', s(1)
-         write(*, *) PRINTRANK, 'sy', s(2)
-         stop
-      endif
-
-   end subroutine ValidateDimensions
+end subroutine Cleanup
 
 
 
-   !!!!! przeniesc do debug
-   ! -------------------------------------------------------------------
-   ! Displays computed domain decomposition, for debugging.
-   ! -------------------------------------------------------------------
-   subroutine PrintDecompositionInfo(n, nrcpp, ibeg, iend)
-      use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ, PRINTRANK, &
-      MYRANKX, MYRANKY, MYRANKZ
-      implicit none
-      integer(kind = 4), intent(in), dimension(3) :: n
-      integer(kind = 4), intent(in), dimension(3) :: nrcpp
-      integer(kind = 4), intent(in), dimension(3) :: ibeg
-      integer(kind = 4), intent(in), dimension(3) :: iend
+!!!! przeniesc do debug
+! -------------------------------------------------------------------
+! Sanity-check of dimensions vector
+! -------------------------------------------------------------------
+subroutine ValidateDimensions(n, s, nrcpp, &
+   dimensionsX, dimensionsY, dimensionsZ)
+   use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ, PRINTRANK
+   use mpi
+   implicit none
+   integer(kind = 4), intent(in), dimension(3) :: n
+   integer(kind = 4), intent(in), dimension(3) :: s
+   integer(kind = 4), intent(in), dimension(3) :: nrcpp
+   integer(kind = 4), intent(in), allocatable, dimension(:) :: dimensionsX
+   integer(kind = 4), intent(in), allocatable, dimension(:) :: dimensionsY
+   integer(kind = 4), intent(in), allocatable, dimension(:) :: dimensionsZ
 
-      write(*, *) PRINTRANK, 'MYRANKX,MYRANKY,MYRANKZ', MYRANKX, MYRANKY, MYRANKZ
-      write(*, *) PRINTRANK, 'NRPROCX,NRPROCY,NRPROCZ', NRPROCX, NRPROCY, NRPROCZ
+   integer(kind = 4) :: i, k
+
+   k = 0
+   do i = 1, NRPROCX
+      k = k + dimensionsX(i)
+   enddo
+   if (k /= (n(1) + 1) * s(2) * s(3)) then
+      write(*, *) PRINTRANK, 'problem with dimensionsX', dimensionsX
       write(*, *) PRINTRANK, 'nx+1', n(1) + 1
-      write(*, *) PRINTRANK, 'ny+1', n(2) + 1
-      write(*, *) PRINTRANK, 'nz+1', n(3) + 1
-      write(*, *) PRINTRANK, 'nrcppx,nrcppy,nrcppz', nrcpp(1), nrcpp(2), nrcpp(3)
-      write(*, *) PRINTRANK, 'ibegx,iendx', ibeg(1), iend(1)
-      write(*, *) PRINTRANK, 'ibegy,iendy', ibeg(2), iend(2)
-      write(*, *) PRINTRANK, 'ibegz,iendz', ibeg(3), iend(3)
+      write(*, *) PRINTRANK, 'sy', s(2)
+      write(*, *) PRINTRANK, 'sz', s(3)
+      write(*, *) PRINTRANK, 'nrcppx', nrcpp(1)
+      stop
+   endif
 
-   end subroutine PrintDecompositionInfo
+   k = 0
+   do i = 1, NRPROCY
+      k = k + dimensionsY(i)
+   enddo
+   if (k /= (n(2) + 1) * s(1) * s(3)) then
+      write(*, *) PRINTRANK, 'problem with dimensionsY', dimensionsY
+      write(*, *) PRINTRANK, 'n+1', n(2) + 1
+      write(*, *) PRINTRANK, 'sx', s(1)
+      write(*, *) PRINTRANK, 'sz', s(3)
+      stop
+   endif
+
+   k = 0
+   do i = 1, NRPROCZ
+      k = k + dimensionsZ(i)
+   enddo
+   if (k /= (n(3) + 1) * s(1) * s(2)) then
+      write(*, *) PRINTRANK, 'problem with dimensionsZ', dimensionsZ
+      write(*, *) PRINTRANK, 'n+1', n(3) + 1
+      write(*, *) PRINTRANK, 'sx', s(1)
+      write(*, *) PRINTRANK, 'sy', s(2)
+      stop
+   endif
+
+end subroutine ValidateDimensions
 
 
-   ! -------------------------------------------------------------------
-   ! Gathers full solution and plots it
-   ! -------------------------------------------------------------------
-   subroutine PrintSolution(iter, t, ads, ads_data)
-      use Setup, ONLY: ADS_Setup, ADS_compute_data
-      use parallelism, ONLY: MYRANK
-      use plot, ONLY: SaveSplinePlot, PlotParams
-      use vtk, ONLY: VtkOutput
-      use my_mpi, ONLY: GatherFullSolution
-      implicit none
-      type (ADS_compute_data), intent(in) :: ads_data
-      type (ADS_setup), intent(in) :: ads
-      integer(kind = 4), intent(in) :: iter
-      real (kind = 8), intent(in) :: t
-      real (kind = 8), allocatable :: solution(:,:,:)
-      type (PlotParams) :: params
-      character(len = 20) :: filename
-      integer (kind = 4), dimension(3) :: tmp1, tmp2, tmp3
-      
-      tmp1 = (/ads % n(1), ads % n(2), ads % n(3)/)
-      tmp2 = (/ads % p(1), ads % p(2), ads % p(3)/)
-      tmp3 = (/ads % s(1), ads % s(2), ads % s(3)/)
 
-      call GatherFullSolution(0, ads_data % F, solution, &
-      tmp1, tmp2, tmp3)
+!!!!! przeniesc do debug
+! -------------------------------------------------------------------
+! Displays computed domain decomposition, for debugging.
+! -------------------------------------------------------------------
+subroutine PrintDecompositionInfo(n, nrcpp, ibeg, iend)
+   use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ, PRINTRANK, &
+   MYRANKX, MYRANKY, MYRANKZ
+   implicit none
+   integer(kind = 4), intent(in), dimension(3) :: n
+   integer(kind = 4), intent(in), dimension(3) :: nrcpp
+   integer(kind = 4), intent(in), dimension(3) :: ibeg
+   integer(kind = 4), intent(in), dimension(3) :: iend
 
-      if (MYRANK == 0) then
-         write(filename, '(I10)') iter
-         filename = 'step' // adjustl(filename)
-         ! filename = trim(filename) // '_'
+   write(*, *) PRINTRANK, 'MYRANKX,MYRANKY,MYRANKZ', MYRANKX, MYRANKY, MYRANKZ
+   write(*, *) PRINTRANK, 'NRPROCX,NRPROCY,NRPROCZ', NRPROCX, NRPROCY, NRPROCZ
+   write(*, *) PRINTRANK, 'nx+1', n(1) + 1
+   write(*, *) PRINTRANK, 'ny+1', n(2) + 1
+   write(*, *) PRINTRANK, 'nz+1', n(3) + 1
+   write(*, *) PRINTRANK, 'nrcppx,nrcppy,nrcppz', nrcpp(1), nrcpp(2), nrcpp(3)
+   write(*, *) PRINTRANK, 'ibegx,iendx', ibeg(1), iend(1)
+   write(*, *) PRINTRANK, 'ibegy,iendy', ibeg(2), iend(2)
+   write(*, *) PRINTRANK, 'ibegz,iendz', ibeg(3), iend(3)
 
-         params = PlotParams(0.d0, 1.d0, 0.d0, 1.d0, 0.d0, 1.d0, 31, 31, 31)
-         call SaveSplinePlot(trim(filename), &
-         ads % Ux, ads % p(1), ads % n(1), ads % nelem(1), &
-         ads % Uy, ads % p(2), ads % n(2), ads % nelem(2), &
-         ads % Uz, ads % p(3), ads % n(3), ads % nelem(3), &
-         ! solution, GnuPlotOutput, params)
-         solution, VtkOutput, params)
+end subroutine PrintDecompositionInfo
 
-         ! call SavePlot(trim(filename), ftest, GnuPlotOutput, params)
-      endif
 
-   end subroutine PrintSolution
+! -------------------------------------------------------------------
+! Gathers full solution and plots it
+! -------------------------------------------------------------------
+subroutine PrintSolution(iter, t, ads, ads_data)
+   use Setup, ONLY: ADS_Setup, ADS_compute_data
+   use parallelism, ONLY: MYRANK
+   use plot, ONLY: SaveSplinePlot, PlotParams
+   use vtk, ONLY: VtkOutput
+   use my_mpi, ONLY: GatherFullSolution
+   implicit none
+   type (ADS_compute_data), intent(in) :: ads_data
+   type (ADS_setup), intent(in) :: ads
+   integer(kind = 4), intent(in) :: iter
+   real (kind = 8), intent(in) :: t
+   real (kind = 8), allocatable :: solution(:,:,:)
+   type (PlotParams) :: params
+   character(len = 20) :: filename
+   integer (kind = 4), dimension(3) :: tmp1, tmp2, tmp3
+
+   tmp1 = (/ads % n(1), ads % n(2), ads % n(3)/)
+   tmp2 = (/ads % p(1), ads % p(2), ads % p(3)/)
+   tmp3 = (/ads % s(1), ads % s(2), ads % s(3)/)
+
+   call GatherFullSolution(0, ads_data % F, solution, &
+   tmp1, tmp2, tmp3)
+
+   if (MYRANK == 0) then
+      write(filename, '(I10)') iter
+      filename = 'step' // adjustl(filename)
+      ! filename = trim(filename) // '_'
+
+      params = PlotParams(0.d0, 1.d0, 0.d0, 1.d0, 0.d0, 1.d0, 31, 31, 31)
+      call SaveSplinePlot(trim(filename), &
+      ads % Ux, ads % p(1), ads % n(1), ads % nelem(1), &
+      ads % Uy, ads % p(2), ads % n(2), ads % nelem(2), &
+      ads % Uz, ads % p(3), ads % n(3), ads % nelem(3), &
+      ! solution, GnuPlotOutput, params)
+      solution, VtkOutput, params)
+
+      ! call SavePlot(trim(filename), ftest, GnuPlotOutput, params)
+   endif
+
+end subroutine PrintSolution
 
 
 
