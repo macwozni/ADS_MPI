@@ -26,6 +26,9 @@ contains
    ! index correspondence is given by:
    !
    !     A(i, j) = M(KL + KU + 1 + i - j, j)
+   !
+   ! M = u*v
+   !
    ! -------------------------------------------------------------------
    subroutine Form1DMassMatrix(KL, KU, U, p, n, nelem, M)
       use basis, ONLY: BasisData
@@ -79,6 +82,7 @@ contains
          ! J(e) jacobian for element e
          ia = O(e) + a
          ib = O(e) + b
+         ! M = u*v
          M(KL + KU + ia - ib, ib) = M(KL + KU + ia - ib, ib) + NN(0, a, k, e) * NN(0, b, k, e) * J(e) * W(k)
 
 
@@ -110,6 +114,9 @@ contains
    ! index correspondence is given by:
    !
    !     A(i, j) = M(KL + KU + 1 + i - j, j)
+   !
+   ! M = du/dx*dv/dx
+   !
    ! -------------------------------------------------------------------
    subroutine Form1DStifnessMatrix(KL, KU, U, p, n, nelem, M)
       use basis, ONLY: BasisData
@@ -122,7 +129,7 @@ contains
       real (kind = 8) :: J(nelem)
       real (kind = 8) :: W(p + 1)
       real (kind = 8) :: X(p + 1, nelem)
-      real (kind = 8) :: NN(0:0, 0:p, p + 1, nelem)
+      real (kind = 8) :: NN(0:1, 0:p, p + 1, nelem)
       integer(kind = 4) :: d
       integer(kind = 4) :: ia, ib
       integer(kind = 4) :: mm, ng, e, k, a, b
@@ -131,7 +138,7 @@ contains
 
       mm = n + p + 1
       ng = p + 1
-      d = 0
+      d = 1
       M = 0
 
       call BasisData(p, mm, U, d, ng, nelem, O, J, W, X, NN)
@@ -163,7 +170,8 @@ contains
          ! J(e) jacobian for element e
          ia = O(e) + a
          ib = O(e) + b
-         M(KL + KU + ia - ib, ib) = M(KL + KU + ia - ib, ib) + NN(0, a, k, e) * NN(0, b, k, e) * J(e) * W(k)
+         ! M = du/dx*dv/dx
+         M(KL + KU + ia - ib, ib) = M(KL + KU + ia - ib, ib) + NN(1, a, k, e) * NN(1, b, k, e) * J(e) * W(k)
 
 
       enddo
@@ -194,6 +202,9 @@ contains
    ! index correspondence is given by:
    !
    !     A(i, j) = M(KL + KU + 1 + i - j, j)
+   !
+   ! M = du/dx*v
+   !
    ! -------------------------------------------------------------------
    subroutine Form1DAdvectionMatrix(KL, KU, U, p, n, nelem, M)
       use basis, ONLY: BasisData
@@ -206,7 +217,7 @@ contains
       real (kind = 8) :: J(nelem)
       real (kind = 8) :: W(p + 1)
       real (kind = 8) :: X(p + 1, nelem)
-      real (kind = 8) :: NN(0:0, 0:p, p + 1, nelem)
+      real (kind = 8) :: NN(0:1, 0:p, p + 1, nelem)
       integer(kind = 4) :: d
       integer(kind = 4) :: ia, ib
       integer(kind = 4) :: mm, ng, e, k, a, b
@@ -215,7 +226,7 @@ contains
 
       mm = n + p + 1
       ng = p + 1
-      d = 0
+      d = 1
       M = 0
 
       call BasisData(p, mm, U, d, ng, nelem, O, J, W, X, NN)
@@ -247,7 +258,8 @@ contains
          ! J(e) jacobian for element e
          ia = O(e) + a
          ib = O(e) + b
-         M(KL + KU + ia - ib, ib) = M(KL + KU + ia - ib, ib) + NN(0, a, k, e) * NN(0, b, k, e) * J(e) * W(k)
+         ! M = du/dx*v
+         M(KL + KU + ia - ib, ib) = M(KL + KU + ia - ib, ib) + NN(1, a, k, e) * NN(0, b, k, e) * J(e) * W(k)
 
 
       enddo

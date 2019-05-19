@@ -1,6 +1,27 @@
 module RHS_interface
 
    interface
+! -------------------------------------------------------------------
+! Right-hand side of the equation.
+!
+! Input:
+! ------
+! ads             - ADS setup structure
+! X_              - quadrature points
+! k_              - indexes for quadrature points
+! e_              - indexes for elements
+! a_              - indexes of basis functions
+! du_             - value of derivative from previous time step
+! Uval            - previous solution coefficient at given point
+! ads_data        - data structures for ADS
+! J               - jacobian
+! W               - weight for quadratures
+!
+! Output:
+! -------
+! ret             - value of RHS function at given point
+!
+! -------------------------------------------------------------------
       subroutine RHS_fun_int(&
          ads, &
          X, &
