@@ -293,7 +293,7 @@ contains
    subroutine Form3DRHS(ads, ads_data, RHS_fun,l2norm)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use parallelism, ONLY: PRINTRANK
-      use RHS_interface, ONLY: RHS_fun_int
+      use Interfaces, ONLY: RHS_fun_int
       USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
       use omp_lib
       implicit none

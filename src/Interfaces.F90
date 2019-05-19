@@ -1,4 +1,4 @@
-module RHS_interface
+module Interfaces
 
    interface
 ! -------------------------------------------------------------------
@@ -48,4 +48,4 @@ module RHS_interface
 
    end interface 
 
-end module RHS_interface
+end module Interfaces

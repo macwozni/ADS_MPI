@@ -354,7 +354,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
       use reorderRHS, ONLY: ReorderRHSForX, ReorderRHSForY, ReorderRHSForZ
       use projection_engine, ONLY: Form3DRHS, ComputeMatrix
       use my_mpi, ONLY: DistributeSpline, Gather, Scatter
-      use RHS_interface, ONLY: RHS_fun_int
+      use Interfaces, ONLY: RHS_fun_int
       use mpi
       implicit none
       procedure(RHS_fun_int) :: RHS_fun
