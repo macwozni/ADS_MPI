@@ -655,19 +655,19 @@ subroutine ComputeMatrix(KL, KU, U, p, n, nelem, MKAT, mix, O)
    real (kind = 8), intent(out) :: O(0:(2 * KL + KU), 0:n)
    real (kind = 8) :: M(0:(2 * KL + KU), 0:n)
    real (kind = 8) :: K(0:(2 * KL + KU), 0:n)
-   real (kind = 8) :: A(0:(2 * KL + KU), 0:n)
-   real (kind = 8) :: AT(0:(2 * KL + KU), 0:n)
+   real (kind = 8) :: B(0:(2 * KL + KU), 0:n)
+   real (kind = 8) :: BT(0:(2 * KL + KU), 0:n)
    integer :: i
 
    M = 0.0d0
    K = 0.0d0
-   A = 0.0d0
-   AT = 0.0d0
+   B = 0.0d0
+   BT = 0.0d0
    
    if (MKAT(1)) call Form1DMassMatrix(KL, KU, U, p, n, nelem, M)
    if (MKAT(2)) call Form1DStifnessMatrix(KL, KU, U, p, n, nelem, K)
-   if (MKAT(3)) call Form1DAdvectionMatrix(KL, KU, U, p, n, nelem, A)
-   if (MKAT(4)) call Form1DAdvectionMatrixT(KL, KU, U, p, n, nelem, A)
+   if (MKAT(3)) call Form1DAdvectionMatrix(KL, KU, U, p, n, nelem, B)
+   if (MKAT(4)) call Form1DAdvectionMatrixT(KL, KU, U, p, n, nelem, BT)
 #ifdef IPRINT
    write(*, *) PRINTRANK, 'M'
    do i = 1, 2 * KL + KU !+ 1
@@ -677,17 +677,17 @@ subroutine ComputeMatrix(KL, KU, U, p, n, nelem, MKAT, mix, O)
    do i = 1, 2 * KL + KU !+ 1
       write(*, *) PRINTRANK, K(i, 1:n)
    enddo
-   write(*, *) PRINTRANK, 'A'
+   write(*, *) PRINTRANK, 'B'
    do i = 1, 2 * KL + KU !+ 1
-      write(*, *) PRINTRANK, A(i, 1:n)
+      write(*, *) PRINTRANK, B(i, 1:n)
    enddo
-   write(*, *) PRINTRANK, 'AT'
+   write(*, *) PRINTRANK, 'BT'
    do i = 1, 2 * KL + KU !+ 1
-      write(*, *) PRINTRANK, AT(i, 1:n)
+      write(*, *) PRINTRANK, BT(i, 1:n)
    enddo
 #endif
    
-   O = mix(1)*M + mix(2)*K + mix(3)*A + mix(4)*AT
+   O = mix(1)*M + mix(2)*K + mix(3)*B + mix(4)*BT
    
 #ifdef IPRINT
    write(*, *) PRINTRANK, 'O'
