@@ -268,6 +268,94 @@ contains
    end subroutine Form1DAdvectionMatrix
    
    
+   !!!!!!!!!!!!!!! TODO !!!!!!!!!!!!!!!!!!!!
+   ! -------------------------------------------------------------------
+   ! Calculates the advection matrix M transposed. 
+   !
+   ! Input:
+   ! ------
+   ! KL     - number of lower diagonals of the resulting matrix
+   ! KU     - number of upper diagonals of the resulting matrix
+   ! U      - knot vector
+   ! p      - degree of approximation
+   ! n      - number of control points minus one
+   ! nelem  - number of subintervals in knot
+   !
+   ! Output:
+   ! -------
+   ! M      - advection matrix transposed, logically (n+1) x (n+1)
+   !
+   ! Values in the matrix are stored in the band format, i.e. while M
+   ! is (n+1) x (n+1), it is stored as (2 KL + KU + 1) x n, and the
+   ! index correspondence is given by:
+   !
+   !     A(i, j) = M(KL + KU + 1 + i - j, j)
+   !
+   ! M = du/dx*v
+   !
+   ! -------------------------------------------------------------------
+   subroutine Form1DAdvectionMatrixT(KL, KU, U, p, n, nelem, M)
+      use basis, ONLY: BasisData
+      use omp_lib
+      implicit none
+      integer(kind = 4), intent(in) :: KL, KU
+      integer(kind = 4), intent(in) :: n, p, nelem
+      real (kind = 8), intent(in) :: U(0:n + p + 1)
+      real (kind = 8), intent(out) :: M(0:(2 * KL + KU), 0:n)
+      real (kind = 8) :: J(nelem)
+      real (kind = 8) :: W(p + 1)
+      real (kind = 8) :: X(p + 1, nelem)
+      real (kind = 8) :: NN(0:1, 0:p, p + 1, nelem)
+      integer(kind = 4) :: d
+      integer(kind = 4) :: ia, ib
+      integer(kind = 4) :: mm, ng, e, k, a, b
+      integer(kind = 4) :: O(nelem)
+      integer(kind = 4) :: all, tmp, total_size
+
+      mm = n + p + 1
+      ng = p + 1
+      d = 1
+      M = 0
+
+      call BasisData(p, mm, U, d, ng, nelem, O, J, W, X, NN)
+
+      total_size = nelem * ng * (p + 1)*(p + 1)
+
+! new parallel loop
+!$OMP PARALLEL DO &
+!$OMP DEFAULT(PRIVATE) &
+!$OMP PRIVATE(b,a,k,e,ia,ib,tmp) &
+!$OMP SHARED(nelem,ng,p,O,KL,KU,NN,W,J,total_size) &
+!$OMP REDUCTION(+:M)
+      do all = 1, total_size
+! loop over shape functions over elements (p+1 functions)
+         b = modulo(all - 1, p + 1)
+         tmp = (all - b) / (p + 1)
+! loop over shape functions over elements (p+1 functions)
+         a = modulo(tmp, p + 1)
+         tmp = (tmp - a) / (p + 1)
+! loop over Gauss points
+         k = modulo(tmp, ng) + 1
+! loop over elements
+         e = (tmp - k + 1) / ng + 1
+         ! O(e) + a = first dof of element + 1st local shape function index
+         ! O(e) + b = first dof of element + 2nd local shape function index
+         ! NN(0,a,k,e) = value of shape function a at Gauss point k over element e
+         ! NN(0,b,k,e) = value of shape function b at Gauss point k over element e
+         ! W(k) weight for Gauss point k
+         ! J(e) jacobian for element e
+         ia = O(e) + a
+         ib = O(e) + b
+         ! M = du/dx*v
+         M(KL + KU + ia - ib, ib) = M(KL + KU + ia - ib, ib) + NN(0, a, k, e) * NN(1, b, k, e) * J(e) * W(k)
+
+
+      enddo
+!$OMP END PARALLEL DO
+
+   end subroutine Form1DAdvectionMatrixT
+   
+   
    ! -------------------------------------------------------------------
    ! Calculate right-hand side of the equation.
    !
@@ -548,36 +636,38 @@ end subroutine global2local
 ! p      - degree of approximation
 ! n      - number of control points minus one
 ! nelem  - number of subintervals in knot
-! MKA    - logical values determining if M-mass, K-stifness, A-advection matrices should be computed
-! mix    - subroutine combining M, K, A matrices to O-matrix
+! MKAT    - logical values determining if M-mass, K-stifness, A-advection matrices should be computed
+! mix    - mixing values for MKAT matrices
 !
 ! Output:
 ! -------
 ! O      - matrix, logically (n+1) x (n+1)
 !
 ! -------------------------------------------------------------------
-subroutine ComputeMatrix(KL, KU, U, p, n, nelem, MKA, mix, O)
+subroutine ComputeMatrix(KL, KU, U, p, n, nelem, MKAT, mix, O)
    use parallelism, ONLY: PRINTRANK
-   use Interfaces, ONLY: Form1DMatrix
    implicit none
    integer(kind = 4), intent(in) :: KL, KU
    integer(kind = 4), intent(in) :: n, p, nelem
    real (kind = 8), intent(in) :: U(0:n + p + 1)
-   logical, intent(in) :: MKA(3)
-   procedure(Form1DMatrix) :: mix
+   logical, intent(in) :: MKAT(4)
+   real (kind = 8), intent(in) :: mix(4)
    real (kind = 8), intent(out) :: O(0:(2 * KL + KU), 0:n)
    real (kind = 8) :: M(0:(2 * KL + KU), 0:n)
    real (kind = 8) :: K(0:(2 * KL + KU), 0:n)
    real (kind = 8) :: A(0:(2 * KL + KU), 0:n)
+   real (kind = 8) :: AT(0:(2 * KL + KU), 0:n)
    integer :: i
 
    M = 0.0d0
    K = 0.0d0
    A = 0.0d0
+   AT = 0.0d0
    
-   if (MKA(1)) call Form1DMassMatrix(KL, KU, U, p, n, nelem, M)
-   if (MKA(2)) call Form1DStifnessMatrix(KL, KU, U, p, n, nelem, K)
-   if (MKA(3)) call Form1DAdvectionMatrix(KL, KU, U, p, n, nelem, A)
+   if (MKAT(1)) call Form1DMassMatrix(KL, KU, U, p, n, nelem, M)
+   if (MKAT(2)) call Form1DStifnessMatrix(KL, KU, U, p, n, nelem, K)
+   if (MKAT(3)) call Form1DAdvectionMatrix(KL, KU, U, p, n, nelem, A)
+   if (MKAT(4)) call Form1DAdvectionMatrixT(KL, KU, U, p, n, nelem, A)
 #ifdef IPRINT
    write(*, *) PRINTRANK, 'M'
    do i = 1, 2 * KL + KU !+ 1
@@ -591,9 +681,13 @@ subroutine ComputeMatrix(KL, KU, U, p, n, nelem, MKA, mix, O)
    do i = 1, 2 * KL + KU !+ 1
       write(*, *) PRINTRANK, A(i, 1:n)
    enddo
+   write(*, *) PRINTRANK, 'AT'
+   do i = 1, 2 * KL + KU !+ 1
+      write(*, *) PRINTRANK, AT(i, 1:n)
+   enddo
 #endif
    
-   call mix(KL,KU,n,M,K,A, O)
+   O = mix(1)*M + mix(2)*K + mix(3)*A + mix(4)*AT
    
 #ifdef IPRINT
    write(*, *) PRINTRANK, 'O'
