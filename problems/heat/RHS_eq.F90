@@ -15,7 +15,9 @@ contains
 ! e_              - indexes for elements
 ! a_              - indexes of basis functions
 ! du_             - value of derivative from previous time step
-! Uval            - previous solution coefficient at given point
+! Un              - U_n, previous solution coefficient at given point
+! Un13            - U_n+1/3
+! Un23            - U_n+2/3
 ! ads_data        - data structures for ADS
 ! J               - jacobian
 ! W               - weight for quadratures
@@ -39,7 +41,6 @@ du, &
 un, &
 un13, &
 un23, &
-Uval, &
 ads_data, J, W, direction, substep, l2norm, ret)
 use Setup, ONLY: ADS_Setup,ADS_compute_data
 use input_data
@@ -51,7 +52,6 @@ integer(kind=4), intent(in), dimension(3)  :: k
 integer(kind=4), intent(in), dimension(3)  :: e
 integer(kind=4), intent(in), dimension(3)  :: a
 real   (kind=8), intent(in), dimension(3)  :: du
-real (kind = 8), intent(in) :: Uval
 real (kind = 8), intent(in) :: un,un13,un23
 type (ADS_compute_data), intent(in) :: ads_data
 real   (kind=8), intent(in)  :: J,W
@@ -72,9 +72,9 @@ fval = 0.d0
 !--- Real
 if (t > 0.0) then
   rhs = Dt * ( - kqval  * (du(1)*dvx + du(2)*dvy + du(3)*dvz) + v * fval)
-  ret = J*W*(v * Uval + rhs)
+  ret = J*W*(v * un + rhs)
 
-  l2norm = J*W*v*Uval*Uval
+  l2norm = J*W*v*un*un
 else
   fval = initial_state(X(1),X(2),X(3))
   ret= J*W*v*fval

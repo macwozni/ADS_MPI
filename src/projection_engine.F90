@@ -533,8 +533,7 @@ contains
                               e, &
                               a, &
                               du, &
-                              Uval, &
-                              0.0d0, 0.0d0, 0.0d0, &
+                              Uval, 0.0d0, 0.0d0, &
                               ads_data, J, W, 1, 1, l2normtmp, resvalue)
                               elarr(ax,ay,az) = elarr(ax,ay,az) + resvalue
                               l2norm = l2norm + l2normtmp

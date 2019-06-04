@@ -12,8 +12,7 @@ module Interfaces
 ! e_              - indexes for elements
 ! a_              - indexes of basis functions
 ! du_             - value of derivative from previous time step
-! Uval            - previous solution coefficient at given point
-! Un              - U_n
+! Un              - U_n, previous solution coefficient at given point
 ! Un13            - U_n+1/3
 ! Un23            - U_n+2/3
 ! ads_data        - data structures for ADS
@@ -35,7 +34,6 @@ module Interfaces
          e, &
          a, &
          du, &
-         Uval, &
          un, &
          un13, &
          un23, &
@@ -48,7 +46,6 @@ module Interfaces
          integer(kind = 4), intent(in), dimension(3) :: e
          integer(kind = 4), intent(in), dimension(3) :: a
          real (kind = 8), intent(in), dimension(3) :: du
-         real (kind = 8), intent(in) :: Uval
          real (kind = 8), intent(in) :: un,un13,un23
          type (ADS_compute_data), intent(in) :: ads_data
          real (kind = 8), intent(in) :: J, W
