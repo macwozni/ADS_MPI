@@ -28,7 +28,7 @@ contains
       if (COMMAND_ARGUMENT_COUNT() .NE. 7) then
          write(*,*) "proper usage with arguments: ", &
          "<isizex> <isizey> <isizez> <order> <procx> <procy> <procz>"
-         ERROR STOP -1
+         STOP 5
       end if
       
       

@@ -98,8 +98,6 @@ contains
    end function bump3d
 
 
-   !!!!!! przerobic
-#ifdef PGI
    function norm2(x)
       implicit none
       intrinsic :: dot_product, sqrt
@@ -107,7 +105,6 @@ contains
       double precision :: norm2
       norm2 = sqrt(dot_product(x,x))
    end function norm2
-#endif
    
 end module math
 

@@ -20,7 +20,7 @@ PAPI_INC	  = $(PAPI)/include
 
 MPI_INCLUDE = /opt/mpich3.3_intel19/include
 
-DIALECT = -std08  -module . -implicitnone -fpp -qopenmp
+DIALECT = -std03  -module . -implicitnone -fpp -qopenmp
 BOUNDS = -check bounds
 RELEASE_OPTS = -funroll-all-loops -O3 -DPERFORMANCE=1
 DEBUG_OPTS = -O0 -g -traceback -check all -debug extended -debug-parameters all
@@ -30,7 +30,9 @@ DEBUG_OPTS = -O0 -g -traceback -check all -debug extended -debug-parameters all
 
 FF		=  ifort \
 $(DIALECT) $(RELEASE_OPTS) \
--L/opt/mpich3.3_intel19/lib64/libmpifort.so  -L/opt/mpich3.3_intel19/lib64/libmpi.so -Wl,-rpath,/opt/mpich3.3_intel19/lib64/libmpifort.so:/opt/mpich3.3_intel19/lib64/libmpi.so:/opt/mpich3.3_intel19/lib64  /opt/mpich3.3_intel19/lib64/libmpifort.so /opt/mpich3.3_intel19/lib64/libmpi.so 
+-L/opt/mpich3.3_intel19/lib64/libmpifort.so  -L/opt/mpich3.3_intel19/lib64/libmpi.so -Wl,-rpath,/opt/mpich3.3_intel19/lib64/libmpifort.so:/opt/mpich3.3_intel19/lib64/libmpi.so:/opt/mpich3.3_intel19/lib64 
+
+
 # -I$(MPI_INCLUDE) -I$(DIR_MUMPS)/include -I/opt/mpich/include -I$(PAPI_INC) -L/opt/mpich/lib64 -Wl,-rpath -Wl,/opt/mpich/lib64 -lmpich -lopa -lmpl -lrt -lpthread -O3
 
 
@@ -41,7 +43,7 @@ BLAS_LIB      = -L/opt/intel2/mkl/lib/intel64/  -L/opt/intel2/composerxe/lib/int
 
 
 MPI_LIB = /opt/mpich3.3_intel19/lib64/
-MPI_LIB_PAR = $(MPI_LIB)/libmpi.a $(MPI_LIB)/libmpicxx.a $(MPI_LIB)/libmpifort.a
+MPI_LIB_PAR = $(MPI_LIB)/libmpifort.so  $(MPI_LIB)/libmpi.so
 
 
 

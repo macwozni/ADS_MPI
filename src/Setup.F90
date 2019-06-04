@@ -93,6 +93,4 @@ module Setup
       real (kind = 8) :: t
    end type ADS_compute_data
             
-contains
-
 end module Setup
