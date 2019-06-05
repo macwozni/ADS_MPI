@@ -43,14 +43,11 @@ contains
       integer(kind = 4), intent(in) :: KL, KU
       integer(kind = 4), intent(in) :: n, p, nelem
       real (kind = 8), intent(in) :: U(0:n + p + 1)
-      real (kind = 8), intent(out) :: M(0:(2 * KL + KU), 0:n)
-      real (kind = 8), intent(out) :: K(0:(2 * KL + KU), 0:n)
-      real (kind = 8), intent(out) :: B(0:(2 * KL + KU), 0:n)
-      real (kind = 8), intent(out) :: BT(0:(2 * KL + KU), 0:n)
-      real (kind = 8) :: J(nelem)
-      real (kind = 8) :: W(p + 1)
-      real (kind = 8) :: X(p + 1, nelem)
-      real (kind = 8) :: NN(0:1, 0:p, p + 1, nelem)
+      real (kind = 8), intent(out), dimension(0:(2 * KL + KU), 0:n) :: M,K,B,BT
+      real (kind = 8), dimension(nelem) :: J
+      real (kind = 8), dimension(p + 1) :: W
+      real (kind = 8), dimension(p + 1, nelem) :: X
+      real (kind = 8), dimension(0:1, 0:p, p + 1, nelem) :: NN
       integer(kind = 4) :: dd
       integer(kind = 4) :: ia, ib
       integer(kind = 4) :: mm, ng, e, i, c, d
@@ -60,10 +57,10 @@ contains
       mm = n + p + 1
       ng = p + 1
       dd = 1
-      M = 0
-      K = 0
-      B = 0
-      BT = 0
+      M = 0.d0
+      K = 0.d0
+      B = 0.d0
+      BT = 0.d0
 
       call BasisData(p, mm, U, dd, ng, nelem, O, J, W, X, NN)
 
@@ -161,7 +158,7 @@ contains
       real (kind = 8) :: Uval_m(1)
       real   (kind=8) :: dvx,dvy,dvz,v
       integer(kind = 4) :: threadcnt,threadid
-      real (kind = 8) :: elarr(0:ads % p(1),0:ads % p(2),0:ads % p(3))
+      real (kind = 8), dimension(0:ads % p(1),0:ads % p(2),0:ads % p(3)) :: elarr
       real (kind = 8) :: l2normtmp
 
       total_size = ads % lnelem(1) * ads % lnelem(2) * ads % lnelem(3)
@@ -198,10 +195,10 @@ contains
                   k = (/ kx, ky, kz /)
 !                 weigths
                   W = ads % Wx(kx) * ads % Wy(ky) * ads % Wz(kz)
-                  Uval = 0
-                  dux = 0
-                  duy = 0
-                  duz = 0
+                  Uval = 0.d0
+                  dux = 0.d0
+                  duy = 0.d0
+                  duz = 0.d0
 !                 compute value of derivative from previous time step - du
 !                 compute previous solution coefficient at given point - Uval
                   do bx = 0, ads % p(1)
@@ -404,13 +401,10 @@ subroutine ComputeMatrix(KL, KU, U, p, n, nelem, mix, O)
    implicit none
    integer(kind = 4), intent(in) :: KL, KU
    integer(kind = 4), intent(in) :: n, p, nelem
-   real (kind = 8), intent(in) :: U(0:n + p + 1)
-   real (kind = 8), intent(in) :: mix(4)
-   real (kind = 8), intent(out) :: O(0:(2 * KL + KU), 0:n)
-   real (kind = 8) :: M(0:(2 * KL + KU), 0:n)
-   real (kind = 8) :: K(0:(2 * KL + KU), 0:n)
-   real (kind = 8) :: B(0:(2 * KL + KU), 0:n)
-   real (kind = 8) :: BT(0:(2 * KL + KU), 0:n)
+   real (kind = 8), intent(in), dimension(0:n + p + 1) :: U
+   real (kind = 8), intent(in), dimension(4) :: mix
+   real (kind = 8), intent(out), dimension(0:(2 * KL + KU), 0:n) :: O
+   real (kind = 8), dimension(0:(2 * KL + KU), 0:n) :: M,K,B,BT
    integer :: i
 
    M = 0.0d0
