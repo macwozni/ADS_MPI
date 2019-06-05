@@ -367,7 +367,6 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
    integer(kind = 4) :: iret, ierr
    integer(kind = 4), dimension(3) :: nrcpp
    real(kind = 8) :: time1, time2
-   logical :: MKAT(4)
    real(kind=8) :: mix(4)
 
 #ifdef PERFORMANCE
@@ -426,10 +425,9 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
-      MKAT = (/.TRUE., .FALSE., .FALSE., .FALSE./)
       mix = (/ 1.d0, 0.d0, 0.d0, 0.d0 /)
       call ComputeMatrix(ads % KL(1), ads % KU(1), ads % Ux, ads % p(1), &
-      ads % n(1), ads % nelem(1), MKAT, mix, ads_data % Mx)
+      ads % n(1), ads % nelem(1), mix, ads_data % Mx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write(*,*) "Mass matrix 1: ", time2 - time1
@@ -506,10 +504,9 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
-      MKAT = (/.TRUE., .FALSE., .FALSE., .FALSE./)
       mix = (/ 1.d0, 0.d0, 0.d0, 0.d0 /)
       call ComputeMatrix(ads % KL(2), ads % KU(2), ads % Uy, ads % p(2), ads % n(2), &
-      ads % nelem(2), MKAT, mix, ads_data % My)
+      ads % nelem(2), mix, ads_data % My)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write(*,*) "Mass matrix 2: ", time2 - time1
@@ -597,10 +594,9 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
-      MKAT = (/.TRUE., .FALSE., .FALSE., .FALSE./)
       mix = (/ 1.d0, 0.d0, 0.d0, 0.d0 /)
       call ComputeMatrix(ads % KL(3), ads % KU(3), ads % Uz, ads % p(3), ads % n(3), &
-      ads % nelem(3), MKAT, mix, ads_data % Mz)
+      ads % nelem(3), mix, ads_data % Mz)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write(*,*) "Mass matrix 3: ", time2 - time1
