@@ -6,8 +6,8 @@ contains
 
    subroutine ReorderRHSForY(ibeg, iend, F, F2)
       implicit none
-      integer(kind = 4), intent(in), dimension(3) :: ibeg
-      integer(kind = 4), intent(in), dimension(3) :: iend
+      integer(kind = 4), dimension(3), intent(in) :: ibeg
+      integer(kind = 4), dimension(3), intent(in) :: iend
       real (kind = 8), intent(in) :: F(0:(iend(1) - ibeg(1) + 1) - 1, &
       0:(iend(2) - ibeg(2) + 1)*(iend(3) - ibeg(3) + 1) - 1)
       real (kind = 8), intent(out) :: F2(0:(iend(2) - ibeg(2) + 1) - 1, &
@@ -35,8 +35,8 @@ contains
 
    subroutine ReorderRHSForZ(ibeg, iend, F, F2)
       implicit none
-      integer(kind = 4), intent(in), dimension(3) :: ibeg
-      integer(kind = 4), intent(in), dimension(3) :: iend
+      integer(kind = 4), dimension(3), intent(in) :: ibeg
+      integer(kind = 4), dimension(3), intent(in) :: iend
       real (kind = 8), intent(in) :: F(0:(iend(2) - ibeg(2) + 1) - 1, &
       0:(iend(1) - ibeg(1) + 1)*(iend(3) - ibeg(3) + 1) - 1)
       real (kind = 8), intent(out) :: F2(0:(iend(3) - ibeg(3) + 1) - 1, &
@@ -65,8 +65,8 @@ contains
 
    subroutine ReorderRHSForX(ibeg, iend, F, F2)
       implicit none
-      integer(kind = 4), intent(in), dimension(3) :: ibeg
-      integer(kind = 4), intent(in), dimension(3) :: iend
+      integer(kind = 4), dimension(3), intent(in) :: ibeg
+      integer(kind = 4), dimension(3), intent(in) :: iend
       real (kind = 8), intent(in) :: F(0:(iend(3) - ibeg(3) + 1) - 1, &
       0:(iend(1) - ibeg(1) + 1)*(iend(2) - ibeg(2) + 1) - 1)
       real (kind = 8), intent(out) :: F2(0:(iend(1) - ibeg(1) + 1) - 1, &

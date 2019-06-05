@@ -55,16 +55,17 @@ contains
       use gauss, ONLY: GaussRule
       implicit none
       integer (kind = 4), intent(in) :: p, m
-      real (kind = 8), intent(in) :: U(0:m)
+      real (kind = 8), dimension(0:m), intent(in) :: U
       integer (kind = 4), intent(in) :: d, q, r
-      integer (kind = 4), intent(out) :: O(r)
-      real (kind = 8), intent(out) :: J(r)
-      real (kind = 8), intent(out) :: W(q)
-      real (kind = 8), intent(out) :: X(q, r)
-      real (kind = 8), intent(out) :: N(0:d, 0:p, q, r)
-      integer (kind = 4) i, iq, ir
-      real (kind = 8) uu, Xg(q)
-      real (kind = 8) basis(0:p, 0:d)
+      integer (kind = 4), dimension(r), intent(out) :: O
+      real (kind = 8), dimension(r), intent(out) :: J
+      real (kind = 8), dimension(q), intent(out) :: W
+      real (kind = 8), dimension(q, r), intent(out) :: X
+      real (kind = 8), dimension(0:d, 0:p, q, r), intent(out) :: N
+      integer (kind = 4) :: i, iq, ir
+      real (kind = 8) :: uu
+      real (kind = 8), dimension(q) :: Xg
+      real (kind = 8), dimension(0:p, 0:d) :: basis
 
       ! Calculates first nonzero basis function for each element
       ir = 1
@@ -113,14 +114,16 @@ contains
    subroutine DersBasisFuns(i, uu, p, d, U, ders)
       implicit none
       integer(kind = 4), intent(in) :: i, p, d
-      real (kind = 8), intent(in) :: uu, U(0:i + p)
-      real (kind = 8), intent(out) :: ders(0:p, 0:d)
+      real (kind = 8), intent(in) :: uu
+      real (kind = 8), dimension(0:i + p), intent(in) :: U
+      real (kind = 8), dimension(0:p, 0:d), intent(out) :: ders
       integer(kind = 4) :: j, k, r, s1, s2, rk, pk, j1, j2
       real (kind = 8) :: saved, temp, der
-      real (kind = 8) :: left(p), right(p)
-      real (kind = 8) :: ndu(0:p, 0:p), a(0:1, 0:p)
+      real (kind = 8), dimension(p) :: left, right
+      real (kind = 8), dimension(0:p, 0:p) :: ndu
+      real (kind = 8), dimension(0:1, 0:p) :: a
 
-      ndu(0, 0) = 1.0
+      ndu(0, 0) = 1.d0
       do j = 1, p
          left(j) = uu - U(i + 1 - j)
          right(j) = U(i + j) - uu
@@ -198,7 +201,8 @@ contains
    function FindSpan(n, p, uu, U) result (span)
       implicit none
       integer(kind = 4), intent(in) :: n, p
-      real (kind = 8), intent(in) :: uu, U(0:n + p + 1)
+      real (kind = 8), intent(in) :: uu
+      real (kind = 8), dimension(0:n + p + 1), intent(in) :: U
       integer(kind = 4) :: span
       integer(kind = 4) :: low, high
 
@@ -248,7 +252,7 @@ contains
    function CountSpans(n, p, U) result (nelem)
       implicit none
       integer(kind = 4), intent(in) :: n, p
-      real (kind = 8), intent(in) :: U(0:n + p + 1)
+      real (kind = 8), dimension(0:n + p + 1), intent(in) :: U
       integer(kind = 4) :: i, nelem
 
       nelem = 0
@@ -297,14 +301,16 @@ contains
       integer(kind = 4), intent(in) :: nx, px, nelemx
       integer(kind = 4), intent(in) :: ny, py, nelemy
       integer(kind = 4), intent(in) :: nz, pz, nelemz
-      real (kind = 8), intent(in) :: Ux(0:nx + px + 1)
-      real (kind = 8), intent(in) :: Uy(0:ny + py + 1)
-      real (kind = 8), intent(in) :: Uz(0:nz + pz + 1)
-      real (kind = 8), intent(in) :: coeffs(0:nx, 0:ny, 0:nz)
+      real (kind = 8), dimension(0:nx + px + 1), intent(in) :: Ux
+      real (kind = 8), dimension(0:ny + py + 1), intent(in) :: Uy
+      real (kind = 8), dimension(0:nz + pz + 1), intent(in) :: Uz
+      real (kind = 8), dimension(0:nx, 0:ny, 0:nz), intent(in) :: coeffs
       real (kind = 8), intent(in) :: x, y, z
       real (kind = 8) :: val
-
-      real (kind = 8) :: bx(0:px, 0:d), by(0:py, 0:d), bz(0:pz, 0:d), b
+      real (kind = 8), dimension(0:px, 0:d) :: bx
+      real (kind = 8), dimension(0:py, 0:d) :: by
+      real (kind = 8), dimension(0:pz, 0:d) :: bz
+      real (kind = 8) :: b
       integer(kind = 4) :: xspan, yspan, zspan
       integer(kind = 4) :: ix, iy, iz, x0, y0, z0
 

@@ -43,7 +43,7 @@ contains
       integer(kind = 4), intent(in) :: KL, KU
       integer(kind = 4), intent(in) :: n, p, nelem
       real (kind = 8), intent(in) :: U(0:n + p + 1)
-      real (kind = 8), intent(out), dimension(0:(2 * KL + KU), 0:n) :: M,K,B,BT
+      real (kind = 8), dimension(0:(2 * KL + KU), 0:n), intent(out) :: M,K,B,BT
       real (kind = 8), dimension(nelem) :: J
       real (kind = 8), dimension(p + 1) :: W
       real (kind = 8), dimension(p + 1, nelem) :: X
@@ -338,8 +338,8 @@ contains
 ! -------------------------------------------------------------------
 logical function IndexInRange(ind, ibeg, iend)
    implicit none
-   integer(kind = 4), intent(in), dimension(3) :: ind
-   integer(kind = 4), intent(in), dimension(3) :: ibeg, iend
+   integer(kind = 4), dimension(3), intent(in) :: ind
+   integer(kind = 4), dimension(3), intent(in) :: ibeg, iend
 
    IndexInRange = .true.
    if (ind(1) < ibeg(1) - 1 .or. ind(1) > iend(1) - 1) IndexInRange = .false.
@@ -364,7 +364,7 @@ end function IndexInRange
 subroutine global2local(ind, n, x, y, z)
    implicit none
    integer(kind = 4), intent(in) :: ind
-   integer(kind = 4), intent(in), dimension(3) :: n
+   integer(kind = 4), dimension(3), intent(in) :: n
    integer(kind = 4), intent(out) :: x, y, z
    integer(kind = 4) :: tmp
 
@@ -401,9 +401,9 @@ subroutine ComputeMatrix(KL, KU, U, p, n, nelem, mix, O)
    implicit none
    integer(kind = 4), intent(in) :: KL, KU
    integer(kind = 4), intent(in) :: n, p, nelem
-   real (kind = 8), intent(in), dimension(0:n + p + 1) :: U
-   real (kind = 8), intent(in), dimension(4) :: mix
-   real (kind = 8), intent(out), dimension(0:(2 * KL + KU), 0:n) :: O
+   real (kind = 8), dimension(0:n + p + 1), intent(in) :: U
+   real (kind = 8), dimension(4), intent(in) :: mix
+   real (kind = 8), dimension(0:(2 * KL + KU), 0:n), intent(out) :: O
    real (kind = 8), dimension(0:(2 * KL + KU), 0:n) :: M,K,B,BT
    integer :: i
 
