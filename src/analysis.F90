@@ -26,22 +26,28 @@ contains
       integer(kind = 4), dimension(3), intent(in) :: iend
       integer(kind = 4), dimension(3), intent(in) :: nrank
       integer(kind = 4), dimension(3), intent(in) :: nrp
-      real (kind = 8), intent(in) :: Ux(0:n(1) + p(1) + 1)
-      real (kind = 8), intent(in) :: Uy(0:n(2) + p(2) + 1)
-      real (kind = 8), intent(in) :: Uz(0:n(3) + p(3) + 1)
+      real (kind = 8), dimension(0:n(1) + p(1) + 1), intent(in) :: Ux
+      real (kind = 8), dimension(0:n(2) + p(2) + 1), intent(in) :: Uy
+      real (kind = 8), dimension(0:n(3) + p(3) + 1), intent(in) :: Uz
       real (kind = 8), intent(out) :: F(0:(iend(1) - ibeg(1) + 1) - 1, &
       0:(iend(2) - ibeg(2) + 1)*(iend(3) - ibeg(3) + 1) - 1)
       integer(kind = 4) :: mx, my, mz, ngx, ngy, ngz, ex, ey, ez
       integer(kind = 4) :: kx, ky, kz, ax, ay, az, d
-      integer(kind = 4) :: Ox(nelem(1)), Oy(nelem(2)), Oz(nelem(3))
-      real (kind = 8) :: Jx(nelem(1)), Jy(nelem(2)), Jz(nelem(3))
-      real (kind = 8) :: Wx(p(1) + 1), Wy(p(2) + 1), Wz(p(3) + 1)
-      real (kind = 8) :: Xx(p(1) + 1, nelem(1))
-      real (kind = 8) :: Xy(p(2) + 1, nelem(2))
-      real (kind = 8) :: Xz(p(3) + 1, nelem(3))
-      real (kind = 8) :: NNx(0:0, 0:p(1), p(1) + 1, nelem(1)), &
-      NNy(0:0, 0:p(2), p(2) + 1, nelem(2)), &
-      NNz(0:0, 0:p(3), p(3) + 1, nelem(3))
+      integer(kind = 4), dimension(nelem(1)) :: Ox
+      integer(kind = 4), dimension(nelem(2)) :: Oy
+      integer(kind = 4), dimension(nelem(3)) :: Oz
+      real (kind = 8), dimension(nelem(1)) :: Jx
+      real (kind = 8), dimension(nelem(2)) :: Jy
+      real (kind = 8), dimension(nelem(3)) :: Jz
+      real (kind = 8), dimension(p(1) + 1) :: Wx
+      real (kind = 8), dimension(p(2) + 1) :: Wy
+      real (kind = 8), dimension(p(3) + 1) :: Wz
+      real (kind = 8), dimension(p(1) + 1, nelem(1)) :: Xx
+      real (kind = 8), dimension(p(2) + 1, nelem(2)) :: Xy
+      real (kind = 8), dimension(p(3) + 1, nelem(3)) :: Xz
+      real (kind = 8), dimension(0:0, 0:p(1), p(1) + 1, nelem(1)) :: NNx
+      real (kind = 8), dimension(0:0, 0:p(2), p(2) + 1, nelem(2)) :: NNy
+      real (kind = 8), dimension(0:0, 0:p(3), p(3) + 1, nelem(3)) :: NNz
       real (kind = 8) :: J, W, value
       integer(kind = 4) :: nreppx, nreppy, nreppz !# elements per proc along x,y,z
       integer(kind = 4) :: ind, ind1, ind23, ind23a, indx, indy, indz
