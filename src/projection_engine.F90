@@ -45,48 +45,48 @@ contains
       real (kind = 8) :: W(p + 1)
       real (kind = 8) :: X(p + 1, nelem)
       real (kind = 8) :: NN(0:0, 0:p, p + 1, nelem)
-      integer(kind = 4) :: d
+      integer(kind = 4) :: dd
       integer(kind = 4) :: ia, ib
-      integer(kind = 4) :: mm, ng, e, k, a, b
+      integer(kind = 4) :: mm, ng, e, i, c, d
       integer(kind = 4) :: O(nelem)
       integer(kind = 4) :: all, tmp, total_size
 
       mm = n + p + 1
       ng = p + 1
-      d = 0
+      dd = 0
       M = 0
 
-      call BasisData(p, mm, U, d, ng, nelem, O, J, W, X, NN)
+      call BasisData(p, mm, U, dd, ng, nelem, O, J, W, X, NN)
 
       total_size = nelem * ng * (p + 1)*(p + 1)
 
 ! new parallel loop
 !$OMP PARALLEL DO &
 !$OMP DEFAULT(PRIVATE) &
-!$OMP PRIVATE(b,a,k,e,ia,ib,tmp) &
+!$OMP PRIVATE(d,c,i,e,ia,ib,tmp) &
 !$OMP SHARED(nelem,ng,p,O,KL,KU,NN,W,J,total_size) &
 !$OMP REDUCTION(+:M)
       do all = 1, total_size
 ! loop over shape functions over elements (p+1 functions)
-         b = modulo(all - 1, p + 1)
-         tmp = (all - b) / (p + 1)
+         d = modulo(all - 1, p + 1)
+         tmp = (all - d) / (p + 1)
 ! loop over shape functions over elements (p+1 functions)
-         a = modulo(tmp, p + 1)
-         tmp = (tmp - a) / (p + 1)
+         c = modulo(tmp, p + 1)
+         tmp = (tmp - c) / (p + 1)
 ! loop over Gauss points
-         k = modulo(tmp, ng) + 1
+         i = modulo(tmp, ng) + 1
 ! loop over elements
-         e = (tmp - k + 1) / ng + 1
-         ! O(e) + a = first dof of element + 1st local shape function index
-         ! O(e) + b = first dof of element + 2nd local shape function index
-         ! NN(0,a,k,e) = value of shape function a at Gauss point k over element e
-         ! NN(0,b,k,e) = value of shape function b at Gauss point k over element e
-         ! W(k) weight for Gauss point k
+         e = (tmp - i + 1) / ng + 1
+         ! O(e) + c = first dof of element + 1st local shape function index
+         ! O(e) + d = first dof of element + 2nd local shape function index
+         ! NN(0,c,i,e) = value of shape function c at Gauss point i over element e
+         ! NN(0,d,i,e) = value of shape function d at Gauss point i over element e
+         ! W(i) weight for Gauss point i
          ! J(e) jacobian for element e
-         ia = O(e) + a
-         ib = O(e) + b
+         ia = O(e) + c
+         ib = O(e) + d
          ! M = u*v
-         M(KL + KU + ia - ib, ib) = M(KL + KU + ia - ib, ib) + NN(0, a, k, e) * NN(0, b, k, e) * J(e) * W(k)
+         M(KL + KU + ia - ib, ib) = M(KL + KU + ia - ib, ib) + NN(0, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
 
 
       enddo
