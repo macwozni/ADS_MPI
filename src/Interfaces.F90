@@ -12,6 +12,7 @@ module Interfaces
 ! e_              - indexes for elements
 ! a_              - indexes of basis functions
 ! du_             - value of derivative from previous time step
+! n               - nuber of previous time steps
 ! Un              - U_n, previous solution coefficient at given point
 ! Un13            - U_n+1/3
 ! Un23            - U_n+2/3
@@ -34,6 +35,7 @@ module Interfaces
          e, &
          a, &
          du, &
+         n, &
          un, &
          un13, &
          un23, &
@@ -46,7 +48,9 @@ module Interfaces
          integer(kind = 4), intent(in), dimension(3) :: e
          integer(kind = 4), intent(in), dimension(3) :: a
          real (kind = 8), intent(in), dimension(3) :: du
-         real (kind = 8), intent(in) :: un,un13,un23
+         integer (kind = 4), intent(in) :: n
+         real (kind = 8), intent(in), dimension(n)  :: un
+         real (kind = 8), intent(in) :: un13,un23
          type (ADS_compute_data), intent(in) :: ads_data
          real (kind = 8), intent(in) :: J, W
          integer (kind=4), intent(in) :: direction,substep
