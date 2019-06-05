@@ -23,6 +23,9 @@ contains
    ! Output:
    ! -------
    ! M      - mass matrix, logically (n+1) x (n+1)
+   ! K      - stifness matrix, logically (n+1) x (n+1)
+   ! B      - advection matrix, logically (n+1) x (n+1)
+   ! BT     - advection matrix transposed, logically (n+1) x (n+1)
    !
    ! Values in the matrix are stored in the band format, i.e. while M
    ! is (n+1) x (n+1), it is stored as (2 KL + KU + 1) x n, and the
@@ -33,7 +36,7 @@ contains
    ! M = u*v
    !
    ! -------------------------------------------------------------------
-   subroutine Form1DMassMatrix(KL, KU, U, p, n, nelem, M)
+   subroutine MKBBT(KL, KU, U, p, n, nelem, M,K,B,BT)
       use basis, ONLY: BasisData
       use omp_lib
       implicit none
@@ -41,10 +44,13 @@ contains
       integer(kind = 4), intent(in) :: n, p, nelem
       real (kind = 8), intent(in) :: U(0:n + p + 1)
       real (kind = 8), intent(out) :: M(0:(2 * KL + KU), 0:n)
+      real (kind = 8), intent(out) :: K(0:(2 * KL + KU), 0:n)
+      real (kind = 8), intent(out) :: B(0:(2 * KL + KU), 0:n)
+      real (kind = 8), intent(out) :: BT(0:(2 * KL + KU), 0:n)
       real (kind = 8) :: J(nelem)
       real (kind = 8) :: W(p + 1)
       real (kind = 8) :: X(p + 1, nelem)
-      real (kind = 8) :: NN(0:0, 0:p, p + 1, nelem)
+      real (kind = 8) :: NN(0:1, 0:p, p + 1, nelem)
       integer(kind = 4) :: dd
       integer(kind = 4) :: ia, ib
       integer(kind = 4) :: mm, ng, e, i, c, d
@@ -53,8 +59,11 @@ contains
 
       mm = n + p + 1
       ng = p + 1
-      dd = 0
+      dd = 1
       M = 0
+      K = 0
+      B = 0
+      BT = 0
 
       call BasisData(p, mm, U, dd, ng, nelem, O, J, W, X, NN)
 
@@ -65,7 +74,10 @@ contains
 !$OMP DEFAULT(PRIVATE) &
 !$OMP PRIVATE(d,c,i,e,ia,ib,tmp) &
 !$OMP SHARED(nelem,ng,p,O,KL,KU,NN,W,J,total_size) &
-!$OMP REDUCTION(+:M)
+!$OMP REDUCTION(+:M) &
+!$OMP REDUCTION(+:K) &
+!$OMP REDUCTION(+:B) &
+!$OMP REDUCTION(+:BT)
       do all = 1, total_size
 ! loop over shape functions over elements (p+1 functions)
          d = modulo(all - 1, p + 1)
@@ -87,12 +99,15 @@ contains
          ib = O(e) + d
          ! M = u*v
          M(KL + KU + ia - ib, ib) = M(KL + KU + ia - ib, ib) + NN(0, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
+         K(KL + KU + ia - ib, ib) = K(KL + KU + ia - ib, ib) + NN(1, c, i, e) * NN(1, d, i, e) * J(e) * W(i)
+         B(KL + KU + ia - ib, ib) = B(KL + KU + ia - ib, ib) + NN(1, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
+         BT(KL + KU + ia - ib, ib) = BT(KL + KU + ia - ib, ib) + NN(0, c, i, e) * NN(1, d, i, e) * J(e) * W(i)
 
 
       enddo
 !$OMP END PARALLEL DO
 
-   end subroutine Form1DMassMatrix
+   end subroutine MKBBT
 
 
    !!!!!!!!!!!!!!! TODO !!!!!!!!!!!!!!!!!!!!
@@ -669,10 +684,7 @@ subroutine ComputeMatrix(KL, KU, U, p, n, nelem, MKAT, mix, O)
    B = 0.0d0
    BT = 0.0d0
    
-   if (MKAT(1)) call Form1DMassMatrix(KL, KU, U, p, n, nelem, M)
-   if (MKAT(2)) call Form1DStifnessMatrix(KL, KU, U, p, n, nelem, K)
-   if (MKAT(3)) call Form1DAdvectionMatrix(KL, KU, U, p, n, nelem, B)
-   if (MKAT(4)) call Form1DAdvectionMatrixT(KL, KU, U, p, n, nelem, BT)
+   call MKBBT(KL, KU, U, p, n, nelem, M,K,B,BT)
 #ifdef IPRINT
    write(*, *) PRINTRANK, 'M'
    do i = 1, 2 * KL + KU !+ 1
