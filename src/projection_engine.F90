@@ -7,6 +7,9 @@ contains
 
    ! -------------------------------------------------------------------
    ! Calculates the mass matrix M. 
+   ! Calculates the stifness matrix K. 
+   ! Calculates the advection matrix B. 
+   ! Calculates the advection matrix transposed BT. 
    !
    ! Input:
    ! ------
@@ -404,6 +407,7 @@ contains
       integer(kind = 4) :: mx, my, mz, ngx, ngy, ngz
       integer(kind = 4) :: indbx, indby, indbz
       real (kind = 8) :: Uval, ucoeff
+      real (kind = 8) :: Uval_m(1)
       real   (kind=8) :: dvx,dvy,dvz,v
       integer(kind = 4) :: threadcnt,threadid
       real (kind = 8) :: elarr(0:ads % p(1),0:ads % p(2),0:ads % p(3))
@@ -526,6 +530,7 @@ contains
                               (indz - ads % ibeg(3) + 1)*(ads % iend(2) - ads % ibeg(2) + 1)
                               X = (/ ads % Xx(kx, ex), ads % Xy(ky, ey), ads % Xz(kz, ez) /)
                               a = (/ ax, ay, az /)
+                              Uval_m = (/Uval/)
                               call RHS_fun(&
                               ads, &
                               X, &
@@ -533,10 +538,11 @@ contains
                               e, &
                               a, &
                               du, &
-                              1, (/Uval/), 0.0d0, 0.0d0, &
+                              1, Uval_m, 0.0d0, 0.0d0, &
                               ads_data, J, W, 1, 1, l2normtmp, resvalue)
                               elarr(ax,ay,az) = elarr(ax,ay,az) + resvalue
                               l2norm = l2norm + l2normtmp
+                              Uval = Uval_m(1)
                            endif
                         enddo
                      enddo
