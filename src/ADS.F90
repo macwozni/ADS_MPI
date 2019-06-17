@@ -347,13 +347,8 @@ end subroutine SolveOneDirection
 ! -------------------------------------------------------------------
 subroutine MultiStep(iter, mix, RHS_fun, ads, ads_data, l2norm, mierr)
    use Setup, ONLY: ADS_Setup, ADS_compute_data
-   use parallelism, ONLY:PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
-   use communicators, ONLY: COMMX, COMMY, COMMZ
-   use reorderRHS, ONLY: ReorderRHSForX, ReorderRHSForY, ReorderRHSForZ
-   use projection_engine, ONLY: Form3DRHS, ComputeMatrix, FormUn
-   use my_mpi, ONLY: DistributeSpline, Gather, Scatter
+   use projection_engine, ONLY: FormUn
    use Interfaces, ONLY: RHS_fun_int
-   use mpi
    implicit none
    integer(kind = 4), intent(in) :: iter
    real(kind=8), intent(in) :: mix(4,3)
@@ -409,12 +404,8 @@ end subroutine MultiStep
 ! -------------------------------------------------------------------
 subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
    use Setup, ONLY: ADS_Setup, ADS_compute_data
-   use parallelism, ONLY:PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
-   use communicators, ONLY: COMMX, COMMY, COMMZ
-   use reorderRHS, ONLY: ReorderRHSForX, ReorderRHSForY, ReorderRHSForZ
    use projection_engine, ONLY: FormUn
    use Interfaces, ONLY: RHS_fun_int
-   use mpi
    implicit none
    integer(kind = 4), intent(in) :: iter
    procedure(RHS_fun_int) :: RHS_fun
