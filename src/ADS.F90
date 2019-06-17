@@ -376,23 +376,23 @@ subroutine MultiStep(iter, mix, RHS_fun, ads, ads_data, l2norm, mierr)
    mmix = mix(:,1)
    direction = 1
    substep = 1
+   call FormUn(ads, ads_data, Un, dUn)
    un13 = 0.d0
    un23 = 0.d0
-   call Sub_Step(ads, iter, mix,direction,substep,Un,Un13,Un23,dUn,RHS_fun,ads_data, l2norm, mierr)
+   call Sub_Step(ads, iter, mmix,direction,substep,Un,Un13,Un23,dUn,RHS_fun,ads_data, l2norm, mierr)
    
    mmix = mix(:,2)
    direction = 2
    substep = 2
-   un13 = 0.d0
+   call FormUn(ads, ads_data, Un13, dUn)
    un23 = 0.d0
-   call Sub_Step(ads, iter, mix,direction,substep,Un,Un13,Un23,dUn,RHS_fun,ads_data, l2norm, mierr)
+   call Sub_Step(ads, iter, mmix,direction,substep,Un,Un13,Un23,dUn,RHS_fun,ads_data, l2norm, mierr)
    
    mmix = mix(:,3)
    direction = 3
    substep = 3
-   un13 = 0.d0
-   un23 = 0.d0
-   call Sub_Step(ads, iter, mix,direction,substep,Un,Un13,Un23,dUn,RHS_fun,ads_data, l2norm, mierr)
+   call FormUn(ads, ads_data, Un23, dUn)
+   call Sub_Step(ads, iter, mmix,direction,substep,Un,Un13,Un23,dUn,RHS_fun,ads_data, l2norm, mierr)
    
    
    deallocate(Un)
