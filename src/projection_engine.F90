@@ -138,7 +138,8 @@ contains
       implicit none
       procedure(RHS_fun_int) :: RHS_fun
       type (ADS_setup), intent(in) :: ads
-      integer (kind=4), intent(in) :: direction,substep
+      integer (kind=4), intent(in) :: direction
+      integer (kind=4), intent(in) :: substep
       real (kind = 8), intent(in) :: un13,un23
       type (ADS_compute_data), intent(inout) :: ads_data
       real (kind = 8), intent(out) :: l2norm

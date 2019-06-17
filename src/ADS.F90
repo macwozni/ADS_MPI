@@ -345,7 +345,7 @@ end subroutine SolveOneDirection
 ! iter - number of the iteration
 ! t    - time at the beginning of step
 ! -------------------------------------------------------------------
-subroutine MultiStep(iter, RHS_fun, ads, ads_data, l2norm, mierr)
+subroutine MultiStep(iter, mix, RHS_fun, ads, ads_data, l2norm, mierr)
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    use parallelism, ONLY:PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
    use communicators, ONLY: COMMX, COMMY, COMMZ
@@ -356,21 +356,37 @@ subroutine MultiStep(iter, RHS_fun, ads, ads_data, l2norm, mierr)
    use mpi
    implicit none
    integer(kind = 4), intent(in) :: iter
+   real(kind=8), intent(in) :: mix(4,3)
    procedure(RHS_fun_int) :: RHS_fun
    type (ADS_setup), intent(in) :: ads
    type (ADS_compute_data), intent(inout) :: ads_data
    real (kind = 8), intent(out) :: l2norm
    integer(kind = 4), intent(out) :: mierr
-   real(kind=8) :: mix(4)
-   integer (kind=4) :: direction,substep
+   real(kind=8) :: mmix(4)
+   integer (kind=4) :: direction
+   integer (kind=4) :: substep
    real (kind = 8) :: un13,un23
    
-   mix = (/ 1.d0, 0.d0, 0.d0, 0.d0 /)
+   mmix = mix(:,1)
    direction = 1
    substep = 1
    un13 = 0.d0
    un23 = 0.d0
-   call Sub_Step(iter, mix,direction,substep,un13,un23, RHS_fun, ads, ads_data, l2norm, mierr)
+   call Sub_Step(iter, mmix,direction,substep,un13,un23, RHS_fun, ads, ads_data, l2norm, mierr)
+   
+   mmix = mix(:,2)
+   direction = 2
+   substep = 2
+   un13 = 0.d0
+   un23 = 0.d0
+   call Sub_Step(iter, mmix,direction,substep,un13,un23, RHS_fun, ads, ads_data, l2norm, mierr)
+   
+   mmix = mix(:,3)
+   direction = 3
+   substep = 3
+   un13 = 0.d0
+   un23 = 0.d0
+   call Sub_Step(iter, mmix,direction,substep,un13,un23, RHS_fun, ads, ads_data, l2norm, mierr)
 end subroutine MultiStep
 
 ! -------------------------------------------------------------------
@@ -396,7 +412,8 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
    real (kind = 8), intent(out) :: l2norm
    integer(kind = 4), intent(out) :: mierr
    real(kind=8) :: mix(4)
-   integer (kind=4) :: direction,substep
+   integer (kind=4) :: direction
+   integer (kind=4) :: substep
    real (kind = 8) :: un13,un23
    
    mix = (/ 1.d0, 0.d0, 0.d0, 0.d0 /)
@@ -427,7 +444,8 @@ subroutine Sub_Step(iter, mix,direction,substep,un13,un23,RHS_fun, ads, ads_data
    implicit none
    integer(kind = 4), intent(in) :: iter
    real(kind=8), intent(in) :: mix(4)
-   integer (kind=4), intent(in) :: direction,substep
+   integer (kind=4), intent(in) :: direction
+   integer (kind=4), intent(in) :: substep
    real (kind = 8), intent(in) :: un13,un23
    procedure(RHS_fun_int) :: RHS_fun
    type (ADS_setup), intent(in) :: ads
