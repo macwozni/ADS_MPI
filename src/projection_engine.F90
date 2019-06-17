@@ -129,7 +129,7 @@ contains
    ! R has two 'kinds' of dimensions - it's orgainzed as 3x3x3 array of
    ! domain pieces.
    ! -------------------------------------------------------------------
-   subroutine Form3DRHS(ads, ads_data, RHS_fun,l2norm)
+   subroutine Form3DRHS(ads, ads_data, direction, substep, RHS_fun,l2norm)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use parallelism, ONLY: PRINTRANK
       use Interfaces, ONLY: RHS_fun_int
@@ -138,6 +138,7 @@ contains
       implicit none
       procedure(RHS_fun_int) :: RHS_fun
       type (ADS_setup), intent(in) :: ads
+         integer (kind=4), intent(in) :: direction,substep
       type (ADS_compute_data), intent(inout) :: ads_data
       real (kind = 8), intent(out) :: l2norm
       integer(kind = 4) :: kx, ky, kz, ax, ay, az, ex, ey, ez
@@ -287,7 +288,7 @@ contains
                               a, &
                               du, &
                               1, Uval_m, 0.0d0, 0.0d0, &
-                              ads_data, J, W, 1, 1, l2normtmp, resvalue)
+                              ads_data, J, W, direction, substep, l2normtmp, resvalue)
                               elarr(ax,ay,az) = elarr(ax,ay,az) + resvalue
                               l2norm = l2norm + l2normtmp
                               Uval = Uval_m(1)
