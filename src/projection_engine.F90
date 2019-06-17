@@ -124,7 +124,7 @@ contains
    ! l2norm          -
    !
    ! -------------------------------------------------------------------
-   subroutine Form3DRHS(ads, ads_data, direction, substep,Un,un13,un23,dUn,RHS_fun,l2norm)
+   subroutine Form3DRHS(ads, ads_data, direction, substep,RHS_fun,l2norm)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use parallelism, ONLY: PRINTRANK
       use Interfaces, ONLY: RHS_fun_int
@@ -135,10 +135,6 @@ contains
       type (ADS_setup), intent(in) :: ads
       integer (kind=4), intent(in) :: direction
       integer (kind=4), intent(in) :: substep
-      real (kind = 8), dimension(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)), intent(in) :: Un
-      real (kind = 8), dimension(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)), intent(in) :: Un13
-      real (kind = 8), dimension(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)), intent(in) :: Un23
-      real (kind = 8), dimension(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3),3), intent(in) :: dUn
       type (ADS_compute_data), intent(inout) :: ads_data
       real (kind = 8), intent(out) :: l2norm
       integer(kind = 4) :: kx, ky, kz, ax, ay, az, ex, ey, ez
@@ -192,10 +188,10 @@ contains
                   k = (/ kx, ky, kz /)
 !                 weigths
                   W = ads % Wx(kx) * ads % Wy(ky) * ads % Wz(kz)
-                  Uval = Un(ex,ey,ez,kx,ky,kz)
-                  Uval13 = Un13(ex,ey,ez,kx,ky,kz)
-                  Uval23 = Un23(ex,ey,ez,kx,ky,kz)
-                  du = dUn(ex,ey,ez,kx,ky,kz,:)
+                  Uval = ads_data % Un(ex,ey,ez,kx,ky,kz)
+                  Uval13 = ads_data % Un13(ex,ey,ez,kx,ky,kz)
+                  Uval23 = ads_data % Un23(ex,ey,ez,kx,ky,kz)
+                  du = ads_data % dUn(ex,ey,ez,kx,ky,kz,:)
 
 !                 loop over degrees of freedom
                   do ax = 0, ads % p(1)
