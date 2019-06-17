@@ -19,8 +19,8 @@ module Interfaces
 ! ads_data        - data structures for ADS
 ! J               - jacobian
 ! W               - weight for quadratures
-! directon        -
-! substep         - 
+! directon        - direction for the substep
+! substep         - number of substep
 !
 ! Output:
 ! -------
@@ -53,7 +53,8 @@ module Interfaces
          real (kind = 8), intent(in) :: un13,un23
          type (ADS_compute_data), intent(in) :: ads_data
          real (kind = 8), intent(in) :: J, W
-         integer (kind=4), intent(in) :: direction,substep
+         integer (kind=4), intent(in) :: direction
+         integer (kind=4), intent(in) :: substep
          real (kind = 8), intent(out) :: l2norm
          real (kind = 8), intent(out) :: ret
       end subroutine

@@ -112,22 +112,19 @@ contains
    !
    ! Input:
    ! ------
-   ! U_              - knot vectors
-   ! p_              - degrees of approximation
-   ! n_              - numbers of functions minus one
-   ! nelem_          - number of subintervals
-   ! nrcpp_          - number of basis functions per process
-   ! ibeg_, iend_    - piece of domain associated with this process
-   ! ibegs_, iends_  - pieces of domain surrounding this process' piece
-   ! mine_, maxe_    - indices of first and last elements in each direction
-   ! R               - previous solution coefficients
+   ! ads             - ADS setup structure
+   ! Un              - U_n, previous solution coefficient at given point
+   ! Un13            - U_n+1/3
+   ! Un23            - U_n+2/3
+   ! directon        - direction for the substep
+   ! substep         - number of substep
+   !
+   ! Input/Output
+   ! ads_data        - data structures for ADS
    !
    ! Output:
    ! -------
-   ! F               - output rhs (multiple vectors)
-   !
-   ! R has two 'kinds' of dimensions - it's orgainzed as 3x3x3 array of
-   ! domain pieces.
+   ! l2norm          -
    ! -------------------------------------------------------------------
    subroutine Form3DRHS(ads, ads_data, direction, substep, un13,un23,RHS_fun,l2norm)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
@@ -175,7 +172,7 @@ contains
 !$OMP SHARED(ads,ads_data,total_size) &
 !$OMP PRIVATE(tmp,ex,ey,ez,e,kx,ky,kz,k,W,ax,ay,az,a,ind,indx,indy,indz,ind1,ind23,J) &
 !$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz,X,du,resvalue) &
-!$OMP PRIVATE(indbx,indby,indbz,Uval,dux,duy,duz,v,threadid,elarr,l2normtmp) &
+!$OMP PRIVATE(indbx,indby,indbz,Uval,dux,duy,duz,v,threadid,elarr,l2normtmp,Uval_m) &
 !$OMP REDUCTION(+:l2norm)
       do all = 1, total_size
 !        translate coefficients to local
@@ -237,7 +234,6 @@ contains
                               write(ERROR_UNIT, *) PRINTRANK, 'x', ads % ibeg(1), ads % iend(1)
                               write(ERROR_UNIT, *) PRINTRANK, 'y', ads % ibeg(2), ads % iend(2)
                               write(ERROR_UNIT, *) PRINTRANK, 'z', ads % ibeg(3), ads % iend(3)
-                              write(ERROR_UNIT, *) PRINTRANK, 'idxs', indx, indy, indz
                               write(ERROR_UNIT, *) PRINTRANK, 'sizes=', sx, sy, sz
                               write(ERROR_UNIT, *) PRINTRANK, 'begsx=', ads % ibegsx
                               write(ERROR_UNIT, *) PRINTRANK, 'endsx=', ads % iendsx
@@ -293,7 +289,6 @@ contains
                               ads_data, J, W, direction, substep, l2normtmp, resvalue)
                               elarr(ax,ay,az) = elarr(ax,ay,az) + resvalue
                               l2norm = l2norm + l2normtmp
-                              Uval = Uval_m(1)
                            endif
                         enddo
                      enddo
@@ -327,6 +322,137 @@ contains
 
    end subroutine Form3DRHS
 
+   
+   
+   
+   ! -------------------------------------------------------------------
+   ! Calculates value of derivative from previous time step - du
+   ! Calculates previous solution coefficient - Uval
+   !
+   ! Input:
+   ! ------
+   ! ads             - ADS setup structure
+   ! ads_data        - data structures for ADS
+   !
+   ! Output:
+   ! -------
+   ! 
+   ! -------------------------------------------------------------------
+   subroutine FormUn(ads, ads_data)
+      use Setup, ONLY: ADS_Setup, ADS_compute_data
+      use parallelism, ONLY: PRINTRANK
+      use Interfaces, ONLY: RHS_fun_int
+      USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
+      use omp_lib
+      implicit none
+      type (ADS_setup), intent(in) :: ads
+      type (ADS_compute_data), intent(in) :: ads_data
+      integer(kind = 4) :: kx, ky, kz, ex, ey, ez
+      integer(kind = 4) :: ind
+      integer (kind = 4) :: tmp, all
+      integer (kind = 4) :: total_size
+      integer(kind = 4) :: rx, ry, rz, ix, iy, iz, sx, sy, sz
+      integer(kind = 4) :: bx, by, bz
+      real (kind = 8) :: dux, duy, duz
+      real   (kind=8), dimension(3)  :: du
+      integer(kind = 4) :: indbx, indby, indbz
+      real (kind = 8) :: Uval, ucoeff
+      real   (kind=8) :: dvx,dvy,dvz,v
+
+      total_size = ads % lnelem(1) * ads % lnelem(2) * ads % lnelem(3)
+      
+!      loop over points
+!$OMP PARALLEL DO &
+!$OMP DEFAULT(SHARED) &
+!$OMP SHARED(ads,ads_data,total_size) &
+!$OMP PRIVATE(tmp,ex,ey,ez,kx,ky,kz,ind) &
+!$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz,du) &
+!$OMP PRIVATE(indbx,indby,indbz,Uval,dux,duy,duz,v)
+      do all = 1, total_size
+!        translate coefficients to local
+         ez = modulo(all - 1, ads % lnelem(3))
+         tmp = (all - ez)/ads % lnelem(3) + 1
+         ey = modulo(tmp - 1, ads % lnelem(2))
+         ex = (tmp - ey)/ads % lnelem(2)
+!        fix distributed part
+         ex = ex + ads % mine(1)
+         ey = ey + ads % mine(2)
+         ez = ez + ads % mine(3)
+!        loop over quadrature points
+         do kx = 1, ads % ng(1)
+            do ky = 1, ads % ng(2)
+               do kz = 1, ads % ng(3)
+                  Uval = 0.d0
+                  dux = 0.d0
+                  duy = 0.d0
+                  duz = 0.d0
+!                 compute value of derivative from previous time step - du
+!                 compute previous solution coefficient at given point - Uval
+                  do bx = 0, ads % p(1)
+                     do by = 0, ads % p(2)
+                        do bz = 0, ads % p(3)
+                           indbx = (ads % Ox(ex) + bx)
+                           indby = (ads % Oy(ey) + by)
+                           indbz = (ads % Oz(ez) + bz)
+                           ind = indbx + (indby + indbz*(ads % n(2) + 1))*(ads % n(1) + 1)
+
+                           rx = 2
+                           ry = 2
+                           rz = 2
+                           if (indbx < ads % ibeg(1) - 1) rx = 1
+                           if (indbx > ads % iend(1) - 1) rx = 3
+                           if (indby < ads % ibeg(2) - 1) ry = 1
+                           if (indby > ads % iend(2) - 1) ry = 3
+                           if (indbz < ads % ibeg(3) - 1) rz = 1
+                           if (indbz > ads % iend(3) - 1) rz = 3
+
+                           ix = indbx - ads % ibegsx(rx) + 1
+                           iy = indby - ads % ibegsy(ry) + 1
+                           iz = indbz - ads % ibegsz(rz) + 1
+                           sx = ads % iendsx(rx) - ads % ibegsx(rx) + 1
+                           sy = ads % iendsy(ry) - ads % ibegsy(ry) + 1
+                           sz = ads % iendsz(rz) - ads % ibegsz(rz) + 1
+                           ind = ix + sx * (iy + sy * iz)
+
+#ifdef IDEBUG
+                           if (ind < 0 .or. ind > ads % nrcpp(3) * ads % nrcpp(1) * ads % nrcpp(2) - 1) then
+                              write(ERROR_UNIT, *) PRINTRANK, 'Oh crap', ix, iy, iz
+                              write(ERROR_UNIT, *) PRINTRANK, 'r', rx, ry, rz
+                              write(ERROR_UNIT, *) PRINTRANK, 'x', ads % ibeg(1), ads % iend(1)
+                              write(ERROR_UNIT, *) PRINTRANK, 'y', ads % ibeg(2), ads % iend(2)
+                              write(ERROR_UNIT, *) PRINTRANK, 'z', ads % ibeg(3), ads % iend(3)
+                              write(ERROR_UNIT, *) PRINTRANK, 'sizes=', sx, sy, sz
+                              write(ERROR_UNIT, *) PRINTRANK, 'begsx=', ads % ibegsx
+                              write(ERROR_UNIT, *) PRINTRANK, 'endsx=', ads % iendsx
+                              write(ERROR_UNIT, *) PRINTRANK, 'begsy=', ads % ibegsy
+                              write(ERROR_UNIT, *) PRINTRANK, 'endsy=', ads % iendsy
+                              write(ERROR_UNIT, *) PRINTRANK, 'begsz=', ads % ibegsz
+                              write(ERROR_UNIT, *) PRINTRANK, 'endsz=', ads % iendsz
+                           endif
+#endif
+
+                           Ucoeff = ads_data % R(ind + 1, rx, ry, rz)
+                           v = ads % NNx(0, bx, kx, ex) * ads % NNy(0, by, ky, ey) * ads % NNz(0, bz, kz, ez)
+                           dvx = ads % NNx(1, bx, kx, ex) * ads % NNy(0, by, ky, ey) * ads % NNz(0, bz, kz, ez)
+                           dvy = ads % NNx(0, bx, kx, ex) * ads % NNy(1, by, ky, ey) * ads % NNz(0, bz, kz, ez)
+                           dvz = ads % NNx(0, bx, kx, ex) * ads % NNy(0, by, ky, ey) * ads % NNz(1, bz, kz, ez)
+
+                           Uval = Uval + Ucoeff * v
+                           dux = dux + Ucoeff * dvx
+                           duy = duy + Ucoeff * dvy
+                           duz = duz + Ucoeff * dvz
+                        enddo
+                     enddo
+                  enddo
+                  du = (/ dux, duy, duz /)
+                  ! here we have Uval and du computed
+               enddo
+            enddo
+         enddo
+      enddo
+!$OMP END PARALLEL DO
+
+   end subroutine FormUn
 
 
 !!!!!!! debug?????
