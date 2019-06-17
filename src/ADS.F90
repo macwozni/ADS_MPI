@@ -22,7 +22,21 @@ subroutine initialize(n, p, ads, ads_data, mierr)
    type (ADS_compute_data), intent(out) :: ads_data
    integer(kind = 4), intent(out) :: mierr
    integer(kind = 4) :: ierr
+   integer(kind = 4), dimension(3) :: nelem
+   real (kind = 8), allocatable, dimension(:) :: Ux
+   real (kind = 8), allocatable, dimension(:) :: Uy
+   real (kind = 8), allocatable, dimension(:) :: Uz
 
+   call PrepareKnot(Ux, n(1), p(1), nelem(1))
+   call PrepareKnot(Uy, n(2), p(2), nelem(2))
+   call PrepareKnot(Uz, n(3), p(3), nelem(3))
+   
+   call AllocateADS(n,nelem,p,ads)
+   
+   call move_alloc(Ux, ads % Ux)
+   call move_alloc(Uy, ads % Uy)
+   call move_alloc(Uz, ads % Uz)
+   
    ads % p = p ! order
    ads % n = n ! intervals
 
@@ -61,12 +75,9 @@ subroutine initialize(n, p, ads, ads_data, mierr)
    ads % iend)
 #endif
 
-   call AllocateArrays(ads, ads_data)
+   call AllocateADSdata(ads, ads_data)
 
-   call PrepareKnot(ads % Ux, n(1), p(1), ads % nelem(1))
-   call PrepareKnot(ads % Uy, n(2), p(2), ads % nelem(2))
-   call PrepareKnot(ads % Uz, n(3), p(3), ads % nelem(3))
-
+   ads % nelem = nelem
    mierr = 0
    
    ads % m(1) = ads % n(1) + ads % p(1) + 1
@@ -76,7 +87,6 @@ subroutine initialize(n, p, ads, ads_data, mierr)
    ads % m(3) = ads % n(3) + ads % p(3) + 1
    ads % ng(3) = ads % p(3) + 1
    
-   call AllocateStatic(ads)
    
    call BasisData(ads % p(1), ads % m(1), ads % Ux, 1, ads % ng(1), &
    ads % nelem(1), ads % Ox, ads % Jx, ads % Wx, ads % Xx, ads % NNx)
@@ -169,13 +179,13 @@ end subroutine ComputeDecomposition
 ! -------------------------------------------------------------------
 ! Allocates most of the 'static' arrays
 ! -------------------------------------------------------------------
-subroutine AllocateArrays(ads, ads_data)
+subroutine AllocateADSdata(ads, ads_data)
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ
    use mpi
    implicit none
-   type(ADS_setup), intent(inout) :: ads
-   type (ADS_compute_data), intent(inout) :: ads_data
+   type(ADS_setup), intent(in) :: ads
+   type (ADS_compute_data), intent(out) :: ads_data
    integer :: ierr
 
    allocate(ads_data % Mx(2 * ads % KL(1) + ads % KU(1) + 1, ads % n(1) + 1))
@@ -194,52 +204,53 @@ subroutine AllocateArrays(ads, ads_data)
    allocate(ads_data % F2(ads % s(2), ads % s(1) * ads % s(3))) !y,x,z
    allocate(ads_data % F3(ads % s(3), ads % s(1) * ads % s(2))) !z,x,y
 
-   ! Processes on the border need pivot vector for LAPACK call
-   if (MYRANKX == 0 .or. MYRANKY == 0 .or. MYRANKZ == 0) then
-      allocate(ads % IPIVx(ads % n(1) + 1))
-      allocate(ads % IPIVy(ads % n(2) + 1))
-      allocate(ads % IPIVz(ads % n(3) + 1))
-   endif
-
    allocate(ads_data % R(ads % nrcpp(3) * ads % nrcpp(1) * ads % nrcpp(2), 3, 3, 3))
    ads_data % R = 0.d0
 
    call mpi_barrier(MPI_COMM_WORLD, ierr)
 
-end subroutine AllocateArrays
+end subroutine AllocateADSdata
 
 
 ! -------------------------------------------------------------------
 ! Allocates most of the 'static' arrays
 ! -------------------------------------------------------------------
-subroutine AllocateStatic(ads)
+subroutine AllocateADS(n,nelem,p,ads)
    use Setup, ONLY: ADS_Setup
    use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ
    use mpi
    implicit none
-   type(ADS_setup), intent(inout) :: ads
+   integer (kind=4), dimension(3), intent(in) :: n,nelem,p
+   type(ADS_setup), intent(out) :: ads
    integer :: ierr
 
-   allocate(ads % Ox(ads % nelem(1)))
-   allocate(ads % Oy(ads % nelem(2)))
-   allocate(ads % Oz(ads % nelem(3)))
+   allocate(ads % Ox(nelem(1)))
+   allocate(ads % Oy(nelem(2)))
+   allocate(ads % Oz(nelem(3)))
       
-   allocate(ads % Jx(ads % nelem(1)))
-   allocate(ads % Jy(ads % nelem(2)))
-   allocate(ads % Jz(ads % nelem(3)))
+   allocate(ads % Jx(nelem(1)))
+   allocate(ads % Jy(nelem(2)))
+   allocate(ads % Jz(nelem(3)))
 
-   allocate(ads % Xx(ads % p(1) + 1, ads % nelem(1)))
-   allocate(ads % Xy(ads % p(2) + 1, ads % nelem(2)))
-   allocate(ads % Xz(ads % p(3) + 1, ads % nelem(3)))
+   allocate(ads % Xx(p(1) + 1, nelem(1)))
+   allocate(ads % Xy(p(2) + 1, nelem(2)))
+   allocate(ads % Xz(p(3) + 1, nelem(3)))
 
-   allocate(ads % NNx(0:1, 0:ads % p(1), ads % p(1) + 1, ads % nelem(1)))
-   allocate(ads % NNy(0:1, 0:ads % p(2), ads % p(2) + 1, ads % nelem(2)))
-   allocate(ads % NNz(0:1, 0:ads % p(3), ads % p(3) + 1, ads % nelem(3)))
+   allocate(ads % NNx(0:1, 0:p(1), p(1) + 1, nelem(1)))
+   allocate(ads % NNy(0:1, 0:p(2), p(2) + 1, nelem(2)))
+   allocate(ads % NNz(0:1, 0:p(3), p(3) + 1, nelem(3)))
 
-   allocate(ads % Wx(ads % p(1) + 1))
-   allocate(ads % Wy(ads % p(2) + 1))
-   allocate(ads % Wz(ads % p(3) + 1))
-end subroutine AllocateStatic
+   allocate(ads % Wx(p(1) + 1))
+   allocate(ads % Wy(p(2) + 1))
+   allocate(ads % Wz(p(3) + 1))
+
+   ! Processes on the border need pivot vector for LAPACK call
+   if (MYRANKX == 0 .or. MYRANKY == 0 .or. MYRANKZ == 0) then
+      allocate(ads % IPIVx(n(1) + 1))
+      allocate(ads % IPIVy(n(2) + 1))
+      allocate(ads % IPIVz(n(3) + 1))
+   endif
+end subroutine AllocateADS
 
 
 !!!!! przeniesc do debug
