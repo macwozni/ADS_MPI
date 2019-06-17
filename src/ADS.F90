@@ -362,9 +362,15 @@ subroutine MultiStep(iter, RHS_fun, ads, ads_data, l2norm, mierr)
    real (kind = 8), intent(out) :: l2norm
    integer(kind = 4), intent(out) :: mierr
    real(kind=8) :: mix(4)
+   integer (kind=4) :: direction,substep
+   real (kind = 8) :: un13,un23
    
    mix = (/ 1.d0, 0.d0, 0.d0, 0.d0 /)
-   call Sub_Step(iter, mix, 1 ,1, RHS_fun, ads, ads_data, l2norm, mierr)
+   direction = 1
+   substep = 1
+   un13 = 0.d0
+   un23 = 0.d0
+   call Sub_Step(iter, mix,direction,substep,un13,un23, RHS_fun, ads, ads_data, l2norm, mierr)
 end subroutine MultiStep
 
 ! -------------------------------------------------------------------
@@ -390,9 +396,15 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
    real (kind = 8), intent(out) :: l2norm
    integer(kind = 4), intent(out) :: mierr
    real(kind=8) :: mix(4)
+   integer (kind=4) :: direction,substep
+   real (kind = 8) :: un13,un23
    
    mix = (/ 1.d0, 0.d0, 0.d0, 0.d0 /)
-   call Sub_Step(iter, mix, 1, 1, RHS_fun, ads, ads_data, l2norm, mierr)
+   direction = 1
+   substep = 1
+   un13 = 0.d0
+   un23 = 0.d0
+   call Sub_Step(iter, mix,direction,substep,un13,un23, RHS_fun, ads, ads_data, l2norm, mierr)
 end subroutine Step
    
 !!!! podzielic na wraper i czesc wlasciwa
@@ -403,7 +415,7 @@ end subroutine Step
 ! iter - number of the iteration
 ! t    - time at the beginning of step
 ! -------------------------------------------------------------------
-subroutine Sub_Step(iter, mix, direction, substep, RHS_fun, ads, ads_data, l2norm, mierr)
+subroutine Sub_Step(iter, mix,direction,substep,un13,un23,RHS_fun, ads, ads_data, l2norm, mierr)
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    use parallelism, ONLY:PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
    use communicators, ONLY: COMMX, COMMY, COMMZ
@@ -416,6 +428,7 @@ subroutine Sub_Step(iter, mix, direction, substep, RHS_fun, ads, ads_data, l2nor
    integer(kind = 4), intent(in) :: iter
    real(kind=8), intent(in) :: mix(4)
    integer (kind=4), intent(in) :: direction,substep
+   real (kind = 8), intent(in) :: un13,un23
    procedure(RHS_fun_int) :: RHS_fun
    type (ADS_setup), intent(in) :: ads
    type (ADS_compute_data), intent(inout) :: ads_data
@@ -430,7 +443,7 @@ subroutine Sub_Step(iter, mix, direction, substep, RHS_fun, ads, ads_data, l2nor
    time1 = MPI_Wtime()
 #endif
    ! generate the RHS vectors
-   call Form3DRHS(ads, ads_data, direction, substep, RHS_fun,l2norm)
+   call Form3DRHS(ads, ads_data, direction, substep,un13,un23,RHS_fun,l2norm)
 #ifdef PERFORMANCE
    time2 = MPI_Wtime()
    write(*,*) "Form 3D RHS: ", time2 - time1
