@@ -364,45 +364,29 @@ subroutine MultiStep(iter, mix, RHS_fun, ads, ads_data, l2norm, mierr)
    real(kind=8) :: mmix(4)
    integer (kind=4) :: direction
    integer (kind=4) :: substep
-   real (kind = 8), allocatable, dimension(:,:,:,:,:,:) :: Un
-   real (kind = 8), allocatable, dimension(:,:,:,:,:,:,:) :: dUn
-   
-   
-   allocate(Un(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
-   allocate(dUn(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3),3))
-   call FormUn(ads, ads_data, Un, dUn)
-   
    
    mmix = mix(:,1)
    direction = 1
    substep = 1
-   call FormUn(ads, ads_data, Un, dUn)
-   ads_data % Un = Un
+   call FormUn(1, ads, ads_data)
    ads_data % un13 = 0.d0
    ads_data % un23 = 0.d0
-   ads_data % dUn = dUn
    call Sub_Step(ads, iter, mmix,direction,substep,RHS_fun,ads_data, l2norm, mierr)
    
    mmix = mix(:,2)
    direction = 2
    substep = 2
-   call FormUn(ads, ads_data, Un, dUn)
-   ads_data % Un13 = Un
+   call FormUn(2, ads, ads_data)
    ads_data % un23 = 0.d0
-   ads_data % dUn = dUn
    call Sub_Step(ads, iter, mmix,direction,substep,RHS_fun,ads_data, l2norm, mierr)
    
    mmix = mix(:,3)
    direction = 3
    substep = 3
-   ads_data % Un23 = Un
-   ads_data % dUn = dUn
-   call FormUn(ads, ads_data, Un, dUn)
+   call FormUn(3, ads, ads_data)
    call Sub_Step(ads, iter, mmix,direction,substep,RHS_fun,ads_data, l2norm, mierr)
    
    
-   deallocate(Un)
-   deallocate(dUn)
 end subroutine MultiStep
 
 ! -------------------------------------------------------------------
@@ -425,27 +409,16 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
    real(kind=8) :: mix(4)
    integer (kind=4) :: direction
    integer (kind=4) :: substep
-   real (kind = 8), allocatable, dimension(:,:,:,:,:,:) :: Un
-   real (kind = 8), allocatable, dimension(:,:,:,:,:,:,:) :: dUn
-   
-   
-   allocate(Un(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
-   allocate(dUn(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3),3))
    
    mix = (/ 1.d0, 0.d0, 0.d0, 0.d0 /)
    direction = 1
    substep = 1
    ads_data % un13 = 0.d0
    ads_data % un23 = 0.d0
-   call FormUn(ads, ads_data, Un, dUn)
-   
-   ads_data % Un = Un
-   ads_data % dUn = dUn
+   call FormUn(1, ads, ads_data)
    
    call Sub_Step(ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, mierr)
    
-   deallocate(Un)
-   deallocate(dUn)
 end subroutine Step
    
 !!!! podzielic na wraper i czesc wlasciwa

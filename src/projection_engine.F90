@@ -274,17 +274,17 @@ contains
    ! dUn
    ! 
    ! -------------------------------------------------------------------
-   subroutine FormUn(ads, ads_data, Un, dUn)
+   subroutine FormUn(subun, ads, ads_data)
+      USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use parallelism, ONLY: PRINTRANK
       use Interfaces, ONLY: RHS_fun_int
       USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
       use omp_lib
       implicit none
+      integer (kind = 4), intent(in) :: subun
       type (ADS_setup), intent(in) :: ads
-      type (ADS_compute_data), intent(in) :: ads_data
-      real (kind = 8), dimension(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)), intent(out) :: Un
-      real (kind = 8), dimension(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3),3), intent(out) :: dUn
+      type (ADS_compute_data), intent(inout) :: ads_data
       integer(kind = 4) :: kx, ky, kz, ex, ey, ez
       integer(kind = 4) :: ind
       integer (kind = 4) :: tmp, all
@@ -297,7 +297,17 @@ contains
       real (kind = 8) :: Uval, ucoeff
       real   (kind=8) :: dvx,dvy,dvz,v
 
-      Un = 0.d0
+      
+      if (subun .EQ. 1) then
+         ads_data % Un = 0.d0
+      else if (subun .EQ. 2) then
+         ads_data % Un13 = 0.d0
+      else if (subun .EQ. 3) then
+         ads_data % Un23 = 0.d0
+      else
+         write(ERROR_UNIT, *) "wrong substep"
+      end if
+      ads_data % dUn = 0.d0
       total_size = ads % lnelem(1) * ads % lnelem(2) * ads % lnelem(3)
       
 !      loop over points
@@ -383,8 +393,16 @@ contains
                         enddo
                      enddo
                   enddo
-                  dUn(ex,ey,ez,kx,ky,kz,:) = (/ dux, duy, duz /)
-                  Un(ex,ey,ez,kx,ky,kz) = Uval
+                  ads_data % dUn(ex,ey,ez,kx,ky,kz,:) = (/ dux, duy, duz /)
+                  if (subun .EQ. 1) then
+                     ads_data % Un(ex,ey,ez,kx,ky,kz) = Uval
+                  else if (subun .EQ. 2) then
+                     ads_data % Un13(ex,ey,ez,kx,ky,kz) = Uval
+                  else if (subun .EQ. 3) then
+                     ads_data % Un23(ex,ey,ez,kx,ky,kz) = Uval
+                  else
+                     write(ERROR_UNIT, *) "wrong substep"
+                  end if
                enddo
             enddo
          enddo
