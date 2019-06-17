@@ -350,7 +350,7 @@ subroutine MultiStep(iter, mix, RHS_fun, ads, ads_data, l2norm, mierr)
    use parallelism, ONLY:PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
    use communicators, ONLY: COMMX, COMMY, COMMZ
    use reorderRHS, ONLY: ReorderRHSForX, ReorderRHSForY, ReorderRHSForZ
-   use projection_engine, ONLY: Form3DRHS, ComputeMatrix
+   use projection_engine, ONLY: Form3DRHS, ComputeMatrix, FormUn
    use my_mpi, ONLY: DistributeSpline, Gather, Scatter
    use Interfaces, ONLY: RHS_fun_int
    use mpi
@@ -366,27 +366,39 @@ subroutine MultiStep(iter, mix, RHS_fun, ads, ads_data, l2norm, mierr)
    integer (kind=4) :: direction
    integer (kind=4) :: substep
    real (kind = 8) :: un13,un23
+   real (kind = 8), allocatable, dimension(:,:,:,:,:,:) :: Un
+   real (kind = 8), allocatable, dimension(:,:,:,:,:,:,:) :: dUn
+   
+   
+   allocate(Un(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
+   allocate(dUn(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3),3))
+   call FormUn(ads, ads_data, Un, dUn)
+   
    
    mmix = mix(:,1)
    direction = 1
    substep = 1
    un13 = 0.d0
    un23 = 0.d0
-   call Sub_Step(iter, mmix,direction,substep,un13,un23, RHS_fun, ads, ads_data, l2norm, mierr)
+   call Sub_Step(ads, iter, mix,direction,substep,Un,Un13,Un23,dUn,RHS_fun,ads_data, l2norm, mierr)
    
    mmix = mix(:,2)
    direction = 2
    substep = 2
    un13 = 0.d0
    un23 = 0.d0
-   call Sub_Step(iter, mmix,direction,substep,un13,un23, RHS_fun, ads, ads_data, l2norm, mierr)
+   call Sub_Step(ads, iter, mix,direction,substep,Un,Un13,Un23,dUn,RHS_fun,ads_data, l2norm, mierr)
    
    mmix = mix(:,3)
    direction = 3
    substep = 3
    un13 = 0.d0
    un23 = 0.d0
-   call Sub_Step(iter, mmix,direction,substep,un13,un23, RHS_fun, ads, ads_data, l2norm, mierr)
+   call Sub_Step(ads, iter, mix,direction,substep,Un,Un13,Un23,dUn,RHS_fun,ads_data, l2norm, mierr)
+   
+   
+   deallocate(Un)
+   deallocate(dUn)
 end subroutine MultiStep
 
 ! -------------------------------------------------------------------
@@ -400,8 +412,7 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
    use parallelism, ONLY:PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
    use communicators, ONLY: COMMX, COMMY, COMMZ
    use reorderRHS, ONLY: ReorderRHSForX, ReorderRHSForY, ReorderRHSForZ
-   use projection_engine, ONLY: Form3DRHS, ComputeMatrix
-   use my_mpi, ONLY: DistributeSpline, Gather, Scatter
+   use projection_engine, ONLY: FormUn
    use Interfaces, ONLY: RHS_fun_int
    use mpi
    implicit none
@@ -415,13 +426,23 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
    integer (kind=4) :: direction
    integer (kind=4) :: substep
    real (kind = 8) :: un13,un23
+   real (kind = 8), allocatable, dimension(:,:,:,:,:,:) :: Un
+   real (kind = 8), allocatable, dimension(:,:,:,:,:,:,:) :: dUn
    
    mix = (/ 1.d0, 0.d0, 0.d0, 0.d0 /)
    direction = 1
    substep = 1
    un13 = 0.d0
    un23 = 0.d0
-   call Sub_Step(iter, mix,direction,substep,un13,un23, RHS_fun, ads, ads_data, l2norm, mierr)
+   
+   allocate(Un(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
+   allocate(dUn(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3),3))
+   call FormUn(ads, ads_data, Un, dUn)
+   
+   call Sub_Step(ads, iter, mix,direction,substep,Un,Un13,Un23,dUn,RHS_fun,ads_data, l2norm, mierr)
+   
+   deallocate(Un)
+   deallocate(dUn)
 end subroutine Step
    
 !!!! podzielic na wraper i czesc wlasciwa
@@ -432,7 +453,7 @@ end subroutine Step
 ! iter - number of the iteration
 ! t    - time at the beginning of step
 ! -------------------------------------------------------------------
-subroutine Sub_Step(iter, mix,direction,substep,un13,un23,RHS_fun, ads, ads_data, l2norm, mierr)
+subroutine Sub_Step(ads, iter, mix,direction,substep,Un,Un13,Un23,dUn,RHS_fun,ads_data, l2norm, mierr)
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    use parallelism, ONLY:PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
    use communicators, ONLY: COMMX, COMMY, COMMZ
@@ -442,13 +463,15 @@ subroutine Sub_Step(iter, mix,direction,substep,un13,un23,RHS_fun, ads, ads_data
    use Interfaces, ONLY: RHS_fun_int
    use mpi
    implicit none
+   type (ADS_setup), intent(in) :: ads
    integer(kind = 4), intent(in) :: iter
    real(kind=8), intent(in) :: mix(4)
    integer (kind=4), intent(in) :: direction
    integer (kind=4), intent(in) :: substep
+   real (kind = 8), dimension(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)), intent(in) :: Un
    real (kind = 8), intent(in) :: un13,un23
+   real (kind = 8), dimension(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3),3), intent(in) :: dUn
    procedure(RHS_fun_int) :: RHS_fun
-   type (ADS_setup), intent(in) :: ads
    type (ADS_compute_data), intent(inout) :: ads_data
    real (kind = 8), intent(out) :: l2norm
    integer(kind = 4), intent(out) :: mierr
@@ -461,7 +484,7 @@ subroutine Sub_Step(iter, mix,direction,substep,un13,un23,RHS_fun, ads, ads_data
    time1 = MPI_Wtime()
 #endif
    ! generate the RHS vectors
-   call Form3DRHS(ads, ads_data, direction, substep,un13,un23,RHS_fun,l2norm)
+   call Form3DRHS(ads, ads_data, direction, substep,Un,un13,un23,dUn,RHS_fun,l2norm)
 #ifdef PERFORMANCE
    time2 = MPI_Wtime()
    write(*,*) "Form 3D RHS: ", time2 - time1
