@@ -113,9 +113,6 @@ contains
    ! Input:
    ! ------
    ! ads             - ADS setup structure
-   ! Un              - U_n, previous solution coefficient at given point
-   ! Un13            - U_n+1/3
-   ! Un23            - U_n+2/3
    ! directon        - direction for the substep
    ! substep         - number of substep
    !

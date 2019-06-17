@@ -235,6 +235,10 @@ subroutine AllocateStatic(ads, ads_data)
    allocate(ads % Wy(ads % p(2) + 1))
    allocate(ads % Wz(ads % p(3) + 1))
 
+   allocate(ads_data % Un(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
+   allocate(ads_data % Un13(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
+   allocate(ads_data % Un23(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
+   allocate(ads_data % dUn(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3),3))
 end subroutine AllocateStatic
 
 
@@ -396,6 +400,8 @@ subroutine MultiStep(iter, mix, RHS_fun, ads, ads_data, l2norm, mierr)
    
    
    deallocate(Un)
+   deallocate(Un13)
+   deallocate(Un23)
    deallocate(dUn)
 end subroutine MultiStep
 
@@ -424,16 +430,17 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
    real (kind = 8), allocatable, dimension(:,:,:,:,:,:) :: Un23
    real (kind = 8), allocatable, dimension(:,:,:,:,:,:,:) :: dUn
    
-   mix = (/ 1.d0, 0.d0, 0.d0, 0.d0 /)
-   direction = 1
-   substep = 1
-   un13 = 0.d0
-   un23 = 0.d0
    
    allocate(Un(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
    allocate(Un13(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
    allocate(Un23(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
    allocate(dUn(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3),3))
+   
+   mix = (/ 1.d0, 0.d0, 0.d0, 0.d0 /)
+   direction = 1
+   substep = 1
+   un13 = 0.d0
+   un23 = 0.d0
    call FormUn(ads, ads_data, Un, dUn)
    
    call Sub_Step(ads, iter, mix,direction,substep,Un,Un13,Un23,dUn,RHS_fun,ads_data, l2norm, mierr)
@@ -833,6 +840,10 @@ subroutine Cleanup(ads, ads_data, mierr)
    if (allocated(ads % Wy)) deallocate(ads % Wy)
    if (allocated(ads % Wz)) deallocate(ads % Wz)
 
+   if (allocated(ads_data % Un)) deallocate(ads_data % Un)
+   if (allocated(ads_data % Un13)) deallocate(ads_data % Un13)
+   if (allocated(ads_data % Un23)) deallocate(ads_data % Un23)
+   if (allocated(ads_data % dUn)) deallocate(ads_data % dUn)
    !!!!!! wyciac
    call mpi_finalize(ierr)
 #ifdef IINFO

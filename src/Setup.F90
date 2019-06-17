@@ -93,6 +93,13 @@ type ADS_compute_data
 
    ! current time step
    real (kind = 8) :: t
+   
+   !previous solution coefficient at given point
+   real (kind = 8), allocatable, dimension(:,:,:,:,:,:) :: Un
+   real (kind = 8), allocatable, dimension(:,:,:,:,:,:) :: Un13
+   real (kind = 8), allocatable, dimension(:,:,:,:,:,:) :: Un23
+   !value of derivative from previous time step
+   real (kind = 8), allocatable, dimension(:,:,:,:,:,:,:) :: dUn
 end type ADS_compute_data
    
 end module Setup
