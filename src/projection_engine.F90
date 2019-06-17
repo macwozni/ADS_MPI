@@ -157,7 +157,6 @@ contains
       real (kind = 8) :: Uval, ucoeff
       real (kind = 8) :: Uval_m(1)
       real   (kind=8) :: dvx,dvy,dvz,v
-      integer(kind = 4) :: threadcnt,threadid
       real (kind = 8), dimension(0:ads % p(1),0:ads % p(2),0:ads % p(3)) :: elarr
       real (kind = 8) :: l2normtmp
 
@@ -172,7 +171,7 @@ contains
 !$OMP SHARED(ads,ads_data,total_size) &
 !$OMP PRIVATE(tmp,ex,ey,ez,e,kx,ky,kz,k,W,ax,ay,az,a,ind,indx,indy,indz,ind1,ind23,J) &
 !$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz,X,du,resvalue) &
-!$OMP PRIVATE(indbx,indby,indbz,Uval,dux,duy,duz,v,threadid,elarr,l2normtmp,Uval_m) &
+!$OMP PRIVATE(indbx,indby,indbz,Uval,dux,duy,duz,v,elarr,l2normtmp,Uval_m) &
 !$OMP REDUCTION(+:l2norm)
       do all = 1, total_size
 !        translate coefficients to local
@@ -245,10 +244,10 @@ contains
 #endif
 
                            Ucoeff = ads_data % R(ind + 1, rx, ry, rz)
-                           v = ads % NNx(0, bx, k(1), e(1)) * ads % NNy(0, by, k(2), e(2)) * ads % NNz(0, bz, k(3), e(3))
-                           dvx = ads % NNx(1, bx, k(1), e(1)) * ads % NNy(0, by, k(2), e(2)) * ads % NNz(0, bz, k(3), e(3))
-                           dvy = ads % NNx(0, bx, k(1), e(1)) * ads % NNy(1, by, k(2), e(2)) * ads % NNz(0, bz, k(3), e(3))
-                           dvz = ads % NNx(0, bx, k(1), e(1)) * ads % NNy(0, by, k(2), e(2)) * ads % NNz(1, bz, k(3), e(3))
+                           v = ads % NNx(0, bx, kx, ex) * ads % NNy(0, by, ky, ey) * ads % NNz(0, bz, kz, ez)
+                           dvx = ads % NNx(1, bx, kx, ex) * ads % NNy(0, by, ky, ey) * ads % NNz(0, bz, kz, ez)
+                           dvy = ads % NNx(0, bx, kx, ex) * ads % NNy(1, by, ky, ey) * ads % NNz(0, bz, kz, ez)
+                           dvz = ads % NNx(0, bx, kx, ex) * ads % NNy(0, by, ky, ey) * ads % NNz(1, bz, kz, ez)
 
                            Uval = Uval + Ucoeff * v
                            dux = dux + Ucoeff * dvx
