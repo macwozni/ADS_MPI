@@ -360,12 +360,15 @@ subroutine MultiStep(iter, mix, RHS_fun, ads, ads_data, l2norm, mierr)
    real(kind=8) :: mmix(4)
    integer (kind=4) :: direction
    integer (kind=4) :: substep
-   real (kind = 8) :: un13,un23
    real (kind = 8), allocatable, dimension(:,:,:,:,:,:) :: Un
+   real (kind = 8), allocatable, dimension(:,:,:,:,:,:) :: Un13
+   real (kind = 8), allocatable, dimension(:,:,:,:,:,:) :: Un23
    real (kind = 8), allocatable, dimension(:,:,:,:,:,:,:) :: dUn
    
    
    allocate(Un(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
+   allocate(Un13(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
+   allocate(Un23(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
    allocate(dUn(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3),3))
    call FormUn(ads, ads_data, Un, dUn)
    
@@ -416,8 +419,9 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
    real(kind=8) :: mix(4)
    integer (kind=4) :: direction
    integer (kind=4) :: substep
-   real (kind = 8) :: un13,un23
    real (kind = 8), allocatable, dimension(:,:,:,:,:,:) :: Un
+   real (kind = 8), allocatable, dimension(:,:,:,:,:,:) :: Un13
+   real (kind = 8), allocatable, dimension(:,:,:,:,:,:) :: Un23
    real (kind = 8), allocatable, dimension(:,:,:,:,:,:,:) :: dUn
    
    mix = (/ 1.d0, 0.d0, 0.d0, 0.d0 /)
@@ -427,6 +431,8 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
    un23 = 0.d0
    
    allocate(Un(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
+   allocate(Un13(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
+   allocate(Un23(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
    allocate(dUn(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3),3))
    call FormUn(ads, ads_data, Un, dUn)
    
@@ -460,7 +466,8 @@ subroutine Sub_Step(ads, iter, mix,direction,substep,Un,Un13,Un23,dUn,RHS_fun,ad
    integer (kind=4), intent(in) :: direction
    integer (kind=4), intent(in) :: substep
    real (kind = 8), dimension(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)), intent(in) :: Un
-   real (kind = 8), intent(in) :: un13,un23
+   real (kind = 8), dimension(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)), intent(in) :: Un13
+   real (kind = 8), dimension(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)), intent(in) :: Un23
    real (kind = 8), dimension(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3),3), intent(in) :: dUn
    procedure(RHS_fun_int) :: RHS_fun
    type (ADS_compute_data), intent(inout) :: ads_data

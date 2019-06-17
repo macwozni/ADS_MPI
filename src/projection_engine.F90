@@ -139,7 +139,8 @@ contains
       integer (kind=4), intent(in) :: direction
       integer (kind=4), intent(in) :: substep
       real (kind = 8), dimension(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)), intent(in) :: Un
-      real (kind = 8), intent(in) :: un13,un23
+      real (kind = 8), dimension(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)), intent(in) :: Un13
+      real (kind = 8), dimension(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)), intent(in) :: Un23
       real (kind = 8), dimension(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3),3), intent(in) :: dUn
       type (ADS_compute_data), intent(inout) :: ads_data
       real (kind = 8), intent(out) :: l2norm
@@ -195,6 +196,8 @@ contains
 !                 weigths
                   W = ads % Wx(kx) * ads % Wy(ky) * ads % Wz(kz)
                   Uval = Un(ex,ey,ez,kx,ky,kz)
+                  Uval13 = Un13(ex,ey,ez,kx,ky,kz)
+                  Uval23 = Un23(ex,ey,ez,kx,ky,kz)
                   du = dUn(ex,ey,ez,kx,ky,kz,:)
 
 !                 loop over degrees of freedom
