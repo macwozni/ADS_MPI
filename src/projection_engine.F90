@@ -125,6 +125,7 @@ contains
    ! Output:
    ! -------
    ! l2norm          -
+   !
    ! -------------------------------------------------------------------
    subroutine Form3DRHS(ads, ads_data, direction, substep, un13,un23,RHS_fun,l2norm)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
@@ -325,8 +326,8 @@ contains
    
    
    ! -------------------------------------------------------------------
-   ! Calculates value of derivative from previous time step - du
-   ! Calculates previous solution coefficient - Uval
+   ! Calculates value of derivative from previous time step - dUn
+   ! Calculates previous solution coefficient - Un
    !
    ! Input:
    ! ------
@@ -335,9 +336,11 @@ contains
    !
    ! Output:
    ! -------
+   ! Un
+   ! dUn
    ! 
    ! -------------------------------------------------------------------
-   subroutine FormUn(ads, ads_data)
+   subroutine FormUn(ads, ads_data, Un, dUn)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use parallelism, ONLY: PRINTRANK
       use Interfaces, ONLY: RHS_fun_int
@@ -346,6 +349,8 @@ contains
       implicit none
       type (ADS_setup), intent(in) :: ads
       type (ADS_compute_data), intent(in) :: ads_data
+      real (kind = 8), dimension(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)), intent(out) :: Un
+      real (kind = 8), dimension(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3),3), intent(out) :: dUn
       integer(kind = 4) :: kx, ky, kz, ex, ey, ez
       integer(kind = 4) :: ind
       integer (kind = 4) :: tmp, all
@@ -358,6 +363,7 @@ contains
       real (kind = 8) :: Uval, ucoeff
       real   (kind=8) :: dvx,dvy,dvz,v
 
+      Un = 0.d0
       total_size = ads % lnelem(1) * ads % lnelem(2) * ads % lnelem(3)
       
 !      loop over points
@@ -443,8 +449,8 @@ contains
                         enddo
                      enddo
                   enddo
-                  du = (/ dux, duy, duz /)
-                  ! here we have Uval and du computed
+                  dUn(ex,ey,ez,kx,ky,kz,:) = (/ dux, duy, duz /)
+                  Un(ex,ey,ez,kx,ky,kz) = Uval
                enddo
             enddo
          enddo
