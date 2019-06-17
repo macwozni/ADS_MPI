@@ -337,12 +337,38 @@ end subroutine SolveOneDirection
 
 
 
-!!!! podzielic na wraper i czesc wlasciwa
-! przeniesc czesc do solver
 
-   
+
 ! -------------------------------------------------------------------
-! Performs one step of the simulation
+! Performs one step of the simulation with multiple substeps
+!
+! iter - number of the iteration
+! t    - time at the beginning of step
+! -------------------------------------------------------------------
+subroutine MultiStep(iter, RHS_fun, ads, ads_data, l2norm, mierr)
+   use Setup, ONLY: ADS_Setup, ADS_compute_data
+   use parallelism, ONLY:PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
+   use communicators, ONLY: COMMX, COMMY, COMMZ
+   use reorderRHS, ONLY: ReorderRHSForX, ReorderRHSForY, ReorderRHSForZ
+   use projection_engine, ONLY: Form3DRHS, ComputeMatrix
+   use my_mpi, ONLY: DistributeSpline, Gather, Scatter
+   use Interfaces, ONLY: RHS_fun_int
+   use mpi
+   implicit none
+   integer(kind = 4), intent(in) :: iter
+   procedure(RHS_fun_int) :: RHS_fun
+   type (ADS_setup), intent(in) :: ads
+   type (ADS_compute_data), intent(inout) :: ads_data
+   real (kind = 8), intent(out) :: l2norm
+   integer(kind = 4), intent(out) :: mierr
+   real(kind=8) :: mix(4)
+   
+   mix = (/ 1.d0, 0.d0, 0.d0, 0.d0 /)
+   call SubStep(iter, mix, RHS_fun, ads, ads_data, l2norm, mierr)
+end subroutine MultiStep
+
+! -------------------------------------------------------------------
+! Performs one step of the simulation with single substep
 !
 ! iter - number of the iteration
 ! t    - time at the beginning of step
@@ -357,17 +383,47 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
    use Interfaces, ONLY: RHS_fun_int
    use mpi
    implicit none
+   integer(kind = 4), intent(in) :: iter
    procedure(RHS_fun_int) :: RHS_fun
    type (ADS_setup), intent(in) :: ads
    type (ADS_compute_data), intent(inout) :: ads_data
    real (kind = 8), intent(out) :: l2norm
    integer(kind = 4), intent(out) :: mierr
-   integer(kind = 4) :: iter
+   real(kind=8) :: mix(4)
+   
+   mix = (/ 1.d0, 0.d0, 0.d0, 0.d0 /)
+   call SubStep(iter, mix, RHS_fun, ads, ads_data, l2norm, mierr)
+end subroutine Step
+   
+!!!! podzielic na wraper i czesc wlasciwa
+! przeniesc czesc do solver
+! -------------------------------------------------------------------
+! Performs one substep of the simulation
+!
+! iter - number of the iteration
+! t    - time at the beginning of step
+! -------------------------------------------------------------------
+subroutine SubStep(iter, mix, RHS_fun, ads, ads_data, l2norm, mierr)
+   use Setup, ONLY: ADS_Setup, ADS_compute_data
+   use parallelism, ONLY:PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
+   use communicators, ONLY: COMMX, COMMY, COMMZ
+   use reorderRHS, ONLY: ReorderRHSForX, ReorderRHSForY, ReorderRHSForZ
+   use projection_engine, ONLY: Form3DRHS, ComputeMatrix
+   use my_mpi, ONLY: DistributeSpline, Gather, Scatter
+   use Interfaces, ONLY: RHS_fun_int
+   use mpi
+   implicit none
+   integer(kind = 4), intent(in) :: iter
+   real(kind=8), intent(in) :: mix(4)
+   procedure(RHS_fun_int) :: RHS_fun
+   type (ADS_setup), intent(in) :: ads
+   type (ADS_compute_data), intent(inout) :: ads_data
+   real (kind = 8), intent(out) :: l2norm
+   integer(kind = 4), intent(out) :: mierr
    integer(kind = 4) :: i
    integer(kind = 4) :: iret, ierr
    integer(kind = 4), dimension(3) :: nrcpp
    real(kind = 8) :: time1, time2
-   real(kind=8) :: mix(4)
 
 #ifdef PERFORMANCE
    time1 = MPI_Wtime()
@@ -425,7 +481,6 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
-      mix = (/ 1.d0, 0.d0, 0.d0, 0.d0 /)
       call ComputeMatrix(ads % KL(1), ads % KU(1), ads % Ux, ads % p(1), &
       ads % n(1), ads % nelem(1), mix, ads_data % Mx)
 #ifdef PERFORMANCE
@@ -504,7 +559,6 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
-      mix = (/ 1.d0, 0.d0, 0.d0, 0.d0 /)
       call ComputeMatrix(ads % KL(2), ads % KU(2), ads % Uy, ads % p(2), ads % n(2), &
       ads % nelem(2), mix, ads_data % My)
 #ifdef PERFORMANCE
@@ -594,7 +648,6 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
-      mix = (/ 1.d0, 0.d0, 0.d0, 0.d0 /)
       call ComputeMatrix(ads % KL(3), ads % KU(3), ads % Uz, ads % p(3), ads % n(3), &
       ads % nelem(3), mix, ads_data % Mz)
 #ifdef PERFORMANCE
@@ -666,7 +719,7 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
    call mpi_barrier(MPI_COMM_WORLD, ierr)
 
    mierr = 0
-end subroutine Step
+end subroutine SubStep
 
 
 
