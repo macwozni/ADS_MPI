@@ -76,7 +76,7 @@ subroutine initialize(n, p, ads, ads_data, mierr)
    ads % m(3) = ads % n(3) + ads % p(3) + 1
    ads % ng(3) = ads % p(3) + 1
    
-   call AllocateStatic(ads, ads_data)
+   call AllocateStatic(ads)
    
    call BasisData(ads % p(1), ads % m(1), ads % Ux, 1, ads % ng(1), &
    ads % nelem(1), ads % Ox, ads % Jx, ads % Wx, ads % Xx, ads % NNx)
@@ -182,6 +182,12 @@ subroutine AllocateArrays(ads, ads_data)
    allocate(ads_data % My(2 * ads % KL(2) + ads % KU(2) + 1, ads % n(2) + 1))
    allocate(ads_data % Mz(2 * ads % KL(3) + ads % KU(3) + 1, ads % n(3) + 1))
 
+
+   allocate(ads_data % Un(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
+   allocate(ads_data % Un13(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
+   allocate(ads_data % Un23(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
+   allocate(ads_data % dUn(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3),3))
+   
    ! OLD: MP start with system fully generated along X
    ! allocate( F((n+1),(sy)*(sz))) !x,y,z
    allocate( ads_data % F(ads % s(1), ads % s(2) * ads % s(3))) !x,y,z
@@ -206,13 +212,12 @@ end subroutine AllocateArrays
 ! -------------------------------------------------------------------
 ! Allocates most of the 'static' arrays
 ! -------------------------------------------------------------------
-subroutine AllocateStatic(ads, ads_data)
-   use Setup, ONLY: ADS_Setup, ADS_compute_data
+subroutine AllocateStatic(ads)
+   use Setup, ONLY: ADS_Setup
    use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ
    use mpi
    implicit none
    type(ADS_setup), intent(inout) :: ads
-   type (ADS_compute_data), intent(inout) :: ads_data
    integer :: ierr
 
    allocate(ads % Ox(ads % nelem(1)))
@@ -234,11 +239,6 @@ subroutine AllocateStatic(ads, ads_data)
    allocate(ads % Wx(ads % p(1) + 1))
    allocate(ads % Wy(ads % p(2) + 1))
    allocate(ads % Wz(ads % p(3) + 1))
-
-   allocate(ads_data % Un(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
-   allocate(ads_data % Un13(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
-   allocate(ads_data % Un23(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
-   allocate(ads_data % dUn(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3),3))
 end subroutine AllocateStatic
 
 
