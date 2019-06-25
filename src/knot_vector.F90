@@ -7,7 +7,7 @@
 !> @author
 !> Maciej Wozniak
 !
-! DESCRIPTION: 
+! DESCRIPTION:
 !> This module contains all functionality associated to creating and filling knot vectors.
 !
 ! REVISION HISTORY:
@@ -18,16 +18,16 @@
 
 module knot_vector
 
-
+implicit none
+   
 contains
 
 !---------------------------------------------------------------------------  
-!> @author 
-!> Maciej Wozniak
-!
-! DESCRIPTION: 
+!> @author Maciej Wozniak
+!>
+! DESCRIPTION:
 !> Allocates and fills the knot vector on \f$  [0, 1] \f$.
-!>Number of subintervals is \f$ N = n-p+1 \f$.
+!> Number of subintervals is \f$ N = n-p+1 \f$.
 !> \f$ 0 \f$ and \f$ 1 \f$ are repeated \f$ (p+1) \f$ times.
 !
 ! REVISION HISTORY:
@@ -36,12 +36,12 @@ contains
 !
 ! Input:
 ! ------
-!> @param[in] n  - number of functions on the knot minus one
-!> @param[in] p  - degree of polynomial
+!> @param[in] n      - number of functions on the knot minus one
+!> @param[in] p      - degree of polynomial
 !
 ! Output:
 ! -------
-!> @param[out] U  - array to fill with points
+!> @param[out] U     - array to fill with points
 !> @param[out] nelem - number of elements
 !---------------------------------------------------------------------------  
 subroutine PrepareKnot(n, p, U, nelem)
@@ -64,11 +64,10 @@ end subroutine PrepareKnot
 
 
 !---------------------------------------------------------------------------  
-!> @author 
-!> Maciej Wozniak
-!
-! DESCRIPTION: 
-!> Fills knot vector on [0, 1].
+!> @author Maciej Wozniak
+!>
+! DESCRIPTION:
+!> Fills knot vector on \f$ [0, 1] \f$.
 !> Number of subintervals is \f$ N = n-p+1 \f$.
 !> \f$ 0 \f$ and \f$ 1 \f$ are repeated \f$ (p+1) \f$ times.
 !
@@ -101,10 +100,9 @@ subroutine FillOpenKnot(n, p, U)
 end subroutine FillOpenKnot
 
 !---------------------------------------------------------------------------  
-!> @author 
-!> Maciej Wozniak
-!
-! DESCRIPTION: 
+!> @author Maciej Wozniak
+!>
+! DESCRIPTION:
 !> Calculates number of elements (nonempty subintervals) in the knot vector.
 !
 ! REVISION HISTORY:
@@ -112,9 +110,9 @@ end subroutine FillOpenKnot
 !
 ! Input:
 ! ------
-!> @param[in] n - number of functions (control points) minus 1
-!> @param[in] p - order of basis functions
-!> @param[in] U - knot vector
+!> @param[in] n  - number of functions (control points) minus 1
+!> @param[in] p  - order of basis functions
+!> @param[in] U  - knot vector
 !
 ! Output:
 ! -------
