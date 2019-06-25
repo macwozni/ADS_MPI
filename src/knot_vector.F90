@@ -25,7 +25,7 @@ contains
 !---------------------------------------------------------------------------  
 !> @author Maciej Wozniak
 !>
-! DESCRIPTION:
+!> @brief
 !> Allocates and fills the knot vector on \f$  [0, 1] \f$.
 !> Number of subintervals is \f$ N = n-p+1 \f$.
 !> \f$ 0 \f$ and \f$ 1 \f$ are repeated \f$ (p+1) \f$ times.
@@ -66,7 +66,7 @@ end subroutine PrepareKnot
 !---------------------------------------------------------------------------  
 !> @author Maciej Wozniak
 !>
-! DESCRIPTION:
+!> @brief
 !> Fills knot vector on \f$ [0, 1] \f$.
 !> Number of subintervals is \f$ N = n-p+1 \f$.
 !> \f$ 0 \f$ and \f$ 1 \f$ are repeated \f$ (p+1) \f$ times.
@@ -102,7 +102,7 @@ end subroutine FillOpenKnot
 !---------------------------------------------------------------------------  
 !> @author Maciej Wozniak
 !>
-! DESCRIPTION:
+!> @brief
 !> Calculates number of elements (nonempty subintervals) in the knot vector.
 !
 ! REVISION HISTORY:

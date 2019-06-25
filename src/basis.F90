@@ -24,13 +24,12 @@ contains
 
 
 !---------------------------------------------------------------------------  
-!> @author  Maciej Wozniak
+!> @author Maciej Wozniak
 !>
-!> @BRIEF
-!> Computes all the information about basis B-spline functions needed to perform numerical integration.
-! DESCRIPTION:
+!> @brief
 !> Computes all the information about basis B-spline functions needed to perform numerical integration.
 !>
+!> Computes all the information about basis B-spline functions needed to perform numerical integration.
 !> Array of values - \f$ N \f$ - is indexed by:
 !>
 !>  - derivative
@@ -118,7 +117,7 @@ end subroutine BasisData
 !---------------------------------------------------------------------------  
 !> @author  Maciej Wozniak
 !>
-! DESCRIPTION:
+!> @brief
 !> Computes values of basis functions and their derivatives at the
 !> specified point.
 !
@@ -212,7 +211,7 @@ end subroutine DersBasisFuns
 !---------------------------------------------------------------------------  
 !> @author  Maciej Wozniak
 !>
-! DESCRIPTION:
+!> @brief
 !> Finds the element that contains specified point. It is given as
 !> the index of knot u_i such that \f$  [u_i, u_{i+1}] \f$ contains the point.
 !> In case the point lies on the edge, index of innermost edge node
@@ -272,7 +271,7 @@ end function FindSpan
 !---------------------------------------------------------------------------  
 !> @author  Maciej Wozniak
 !>
-! DESCRIPTION:
+!> @brief
 !> Calculates number of elements (nonempty subintervals) in the knot vector.
 !
 ! Input:
@@ -315,7 +314,7 @@ end function CountSpans
 !---------------------------------------------------------------------------  
 !> @author  Maciej Wozniak
 !>
-! DESCRIPTION:
+!> @brief
 !> Evaluates linear combination of basis spline functions in specified point.
 !
 ! Input:

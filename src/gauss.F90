@@ -26,7 +26,7 @@ contains
 !---------------------------------------------------------------------------  
 !> @author Maciej Wozniak
 !>
-! DESCRIPTION:
+!> @brief
 !> Fills supplied arrays with points and weights for Gauss quadrature.
 !
 ! REVISION HISTORY:
