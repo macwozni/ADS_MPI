@@ -73,6 +73,9 @@ contains
 !> Creates process groups and communicators for each 'fibre' in each direction.
 !> A subroutine initializes some variables in module.
 !
+! REVISION HISTORY:
+! 21 11 2017 - Initial Version
+! 
 ! Output:
 ! -------
 !> @param[out] mierr - error code
@@ -211,6 +214,9 @@ end subroutine CreateCommunicators
 !> @brief
 !> Prints groups used later to create communicators.
 !> For debug only
+!
+! REVISION HISTORY:
+! 21 11 2017 - Initial Version
 ! -------------------------------------------------------------------
 subroutine PrintGroups
    use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ, PRINTRANK
@@ -242,6 +248,9 @@ end subroutine PrintGroups
 !> @brief
 !> Prints communicators.
 !> For debug only
+!
+! REVISION HISTORY:
+! 21 11 2017 - Initial Version
 ! -------------------------------------------------------------------
 subroutine PrintCommunicators
    use parallelism, ONLY: PRINTRANK, NRPROCX, NRPROCY, NRPROCZ
