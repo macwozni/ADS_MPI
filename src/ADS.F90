@@ -27,9 +27,9 @@ subroutine initialize(n, p, ads, ads_data, mierr)
    real (kind = 8), allocatable, dimension(:) :: Uy
    real (kind = 8), allocatable, dimension(:) :: Uz
 
-   call PrepareKnot(Ux, n(1), p(1), nelem(1))
-   call PrepareKnot(Uy, n(2), p(2), nelem(2))
-   call PrepareKnot(Uz, n(3), p(3), nelem(3))
+   call PrepareKnot(n(1), p(1), Ux, nelem(1))
+   call PrepareKnot(n(2), p(2), Uy, nelem(2))
+   call PrepareKnot(n(3), p(3), Uz, nelem(3))
    
    call AllocateADS(n,nelem,p,ads)
    

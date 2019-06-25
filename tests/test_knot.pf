@@ -13,7 +13,7 @@ subroutine test_knot1()
    p = 0
    ! N = 1
    allocate(res(n + p + 2))
-   call FillOpenKnot(res, n, p)
+   call FillOpenKnot(n, p, res)
    U = (/ 0.0, 1.0 /)
    @assertEqual(U, res)
    deallocate(res)
@@ -22,7 +22,7 @@ subroutine test_knot1()
    p = 1
    ! N = 0
    allocate(res(n + p + 2))
-   call FillOpenKnot(res, n, p)
+   call FillOpenKnot(n, p, res)
    U = (/ 0.0, 1.0, 1.0 /) ! this is arbitrary
    @assertEqual(U, res)
    deallocate(res)
@@ -31,7 +31,7 @@ subroutine test_knot1()
    p = 0
    ! N = 2
    allocate(res(n + p + 2))
-   call FillOpenKnot(res, n, p)
+   call FillOpenKnot(n, p, res)
    U = (/ 0.0, 0.5, 1.0 /)
    @assertEqual(U, res)
    deallocate(res)
@@ -40,7 +40,7 @@ subroutine test_knot1()
    p = 0
    ! N = 4
    allocate(res(n + p + 2))
-   call FillOpenKnot(res, n, p)
+   call FillOpenKnot(n, p, res)
    U = (/0.0, 0.25, 0.5, 0.75, 1.0/)
    @assertEqual(U, res)
    deallocate(res)
@@ -49,7 +49,7 @@ subroutine test_knot1()
    p = 1
    ! N = 4
    allocate(res(n + p + 2))
-   call FillOpenKnot(res, n, p)
+   call FillOpenKnot(n, p, res)
    U = (/0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0/)
    @assertEqual(U, res)
    deallocate(res)
@@ -58,7 +58,7 @@ subroutine test_knot1()
    p = 2
    ! N = 4
    allocate(res(n + p + 2))
-   call FillOpenKnot(res, n, p)
+   call FillOpenKnot(n, p, res)
    U = (/0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0/)
    @assertEqual(U, res)
    deallocate(res)
@@ -67,7 +67,7 @@ subroutine test_knot1()
    p = 3
    ! N = 4
    allocate(res(n + p + 2))
-   call FillOpenKnot(res, n, p)
+   call FillOpenKnot(n, p, res)
    U = (/0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0/)
    @assertEqual(U, res)
    deallocate(res)
@@ -150,7 +150,7 @@ subroutine test_knot3()
 
    n = -1
    p = 0
-   call PrepareKnot(res, n, p, nelem)
+   call PrepareKnot(n, p, res, nelem)
    @assertEqual(n - p + 1, nelem)
    U = (/ 0.0, 0.0 /)
    !@assertEqual(U, res)
@@ -159,7 +159,7 @@ subroutine test_knot3()
    
    n = 0
    p = 0
-   call PrepareKnot(res, n, p, nelem)
+   call PrepareKnot(n, p, res, nelem)
    @assertEqual(n - p + 1, nelem)
    U = (/ 0.0, 1.0 /)
    @assertEqual(U, res)
@@ -167,7 +167,7 @@ subroutine test_knot3()
 
    n = 0
    p = 1
-   call PrepareKnot(res, n, p, nelem)
+   call PrepareKnot(n, p, res, nelem)
    @assertEqual(n - p + 1, nelem)
    U = (/ 0.0, 1.0, 1.0 /) ! this is arbitrary
    @assertEqual(U, res)
@@ -175,7 +175,7 @@ subroutine test_knot3()
 
    n = 1
    p = 0
-   call PrepareKnot(res, n, p, nelem)
+   call PrepareKnot(n, p, res, nelem)
    @assertEqual(n - p + 1, nelem)
    U = (/ 0.0, 0.5, 1.0 /)
    @assertEqual(U, res)
@@ -183,7 +183,7 @@ subroutine test_knot3()
 
    n = 3
    p = 0
-   call PrepareKnot(res, n, p, nelem)
+   call PrepareKnot(n, p, res, nelem)
    @assertEqual(n - p + 1, nelem)
    U = (/0.0, 0.25, 0.5, 0.75, 1.0/)
    @assertEqual(U, res)
@@ -191,7 +191,7 @@ subroutine test_knot3()
 
    n = 4
    p = 1
-   call PrepareKnot(res, n, p, nelem)
+   call PrepareKnot(n, p, res, nelem)
    @assertEqual(n - p + 1, nelem)
    U = (/0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0/)
    @assertEqual(U, res)
@@ -199,7 +199,7 @@ subroutine test_knot3()
 
    n = 5
    p = 2
-   call PrepareKnot(res, n, p, nelem)
+   call PrepareKnot(n, p, res, nelem)
    @assertEqual(n - p + 1, nelem)
    U = (/0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0/)
    @assertEqual(U, res)
@@ -207,7 +207,7 @@ subroutine test_knot3()
 
    n = 6
    p = 3
-   call PrepareKnot(res, n, p, nelem)
+   call PrepareKnot(n, p, res, nelem)
    @assertEqual(n - p + 1, nelem)
    U = (/0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0/)
    @assertEqual(U, res)

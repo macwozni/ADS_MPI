@@ -12,6 +12,7 @@
 !
 ! REVISION HISTORY:
 ! 21 11 2017 - Initial Version
+! 25 06 2019 - Refactor intefaces
 ! 
 !------------------------------------------------------------------------------
 
@@ -31,13 +32,19 @@ contains
 !
 ! REVISION HISTORY:
 ! 21 11 2017 - Initial Version
+! 25 06 2019 - Refactor inteface
 !
+! Input:
+! ------
 !> @param[in] n  - number of functions on the knot minus one
 !> @param[in] p  - degree of polynomial
+!
+! Output:
+! -------
 !> @param[out] U  - array to fill with points
 !> @param[out] nelem - number of elements
 !---------------------------------------------------------------------------  
-subroutine PrepareKnot(U, n, p, nelem)
+subroutine PrepareKnot(n, p, U, nelem)
    implicit none
    integer(kind = 4), intent(in) :: n, p
    real (kind = 8), allocatable, dimension(:), intent(out) :: U
@@ -45,7 +52,7 @@ subroutine PrepareKnot(U, n, p, nelem)
 
 
    allocate(U(n + p + 2))
-   call FillOpenKnot(U, n, p)
+   call FillOpenKnot(n, p, U)
    nelem = CountSpans(n, p, U)
 
 #ifdef IINFO
@@ -67,12 +74,18 @@ end subroutine PrepareKnot
 !
 ! REVISION HISTORY:
 ! 21 11 2017 - Initial Version
+! 25 06 2019 - Refactor inteface
 !
+! Input:
+! ------
 !> @param[in] n  - number of functions on the knot minus one
 !> @param[in] p  - degree of polynomial
+!
+! Output:
+! -------
 !> @param[out] U  - array to fill with points
 !--------------------------------------------------------------------------- 
-subroutine FillOpenKnot(U, n, p)
+subroutine FillOpenKnot(n, p, U)
    implicit none
    integer(kind = 4), intent(in) :: n, p
    real (kind = 8), dimension(1:n + p + 2), intent(out) :: U
@@ -97,9 +110,14 @@ end subroutine FillOpenKnot
 ! REVISION HISTORY:
 ! 21 11 2017 - Initial Version
 !
+! Input:
+! ------
 !> @param[in] n - number of functions (control points) minus 1
 !> @param[in] p - order of basis functions
 !> @param[in] U - knot vector
+!
+! Output:
+! -------
 !> @return nelem - number of elements
 !---------------------------------------------------------------------------  
 function CountSpans(n, p, U) result (nelem)
