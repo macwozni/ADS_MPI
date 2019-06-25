@@ -26,6 +26,4 @@ test/tests
 .directory
 *.x
 *.xml
-html/
-latex/
-
+doxygen/
