@@ -213,8 +213,8 @@ end subroutine initialize
 subroutine GaussRule(n, X, W)
    implicit none
    integer(kind = 4), intent(in) :: n
-   real (kind = 8), intent(out) :: X(0:n - 1)
-   real (kind = 8), intent(out) :: W(0:n - 1)
+   real (kind = 8), dimension(0:n - 1), intent(out) :: X
+   real (kind = 8), dimension(0:n - 1), intent(out) :: W
 
    if (.NOT. initialized) call initialize()
    
