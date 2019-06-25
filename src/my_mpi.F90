@@ -8,7 +8,7 @@
 !> Maciej Wozniak
 !
 ! DESCRIPTION:
-!> This module contains
+!> This module contains mpi wrappers.
 !
 ! REVISION HISTORY:
 ! 21 11 2017 - Initial Version

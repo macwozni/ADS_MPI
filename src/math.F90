@@ -32,9 +32,6 @@ contains
 !> @brief
 !> Linear interpolation between two values.
 !
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
-!
 ! Input:
 ! ------
 !> @param[in] t      - interpolation parameter \f$ t \in [0,1] \f$, point between x and y
@@ -63,9 +60,6 @@ end function lerp
 !> \f$ t \in [-\infty, r] \rightarrow 1 \f$,
 !> \f$ t \in [r, R] \rightarrow [1,0] \f$,
 !> \f$ t \in [R, \infty] \rightarrow 0 \f$
-!
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
 !
 ! Input:
 ! ------
@@ -103,9 +97,6 @@ end function falloff
 !> vanish at the endpoints, maximum is attained for \f$ x = 0 \f$ and its
 !> value is \f$ 1 \f$.
 !
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
-!
 ! Input:
 ! ------
 !> @param[in] x - point at which value should be computed
@@ -137,9 +128,6 @@ end function bump
 !> value is \f$ 1 \f$.
 !> It's a rescaled version of bump subroutine.
 !
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
-!
 ! Input:
 ! ------
 !> @param[in] x  - point at which value should be computed
@@ -170,9 +158,6 @@ end function bump01
 !> \f$ || x,y,x || \in [r, R] \rightarrow [1,0] \f$,
 !> \f$ || x,y,x || \in [R, \infty] \rightarrow 0 \f$.
 !
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
-!
 ! Input:
 ! ------
 !> @param[in] r    - left boundary of decaing part
@@ -201,9 +186,6 @@ end function bump3d
 !> @brief
 !> Calculates the Euclidean vector norm (\f$ L_2 \f$ norm) of of vector x. 
 !> Implementation of Fortran2008 function with the same name.
-!
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
 !
 ! Input:
 ! ------

@@ -54,9 +54,6 @@ contains
 !> This is nice, as we integrate mostly bilinear forms in B-spline
 !> basis, consisting of dogree p polynomials.
 !
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
-!
 !> Input:
 ! ------
 !> @param[in] p  - polynomial order
@@ -120,9 +117,6 @@ end subroutine BasisData
 !> @brief
 !> Computes values of basis functions and their derivatives at the
 !> specified point.
-!
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
 !
 ! Input:
 ! ------
@@ -224,9 +218,6 @@ end subroutine DersBasisFuns
 !> @param[in] uu - coordinate of the point
 !> @param[in] U  - knot vector
 !
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
-!
 ! Output:
 ! ------
 !> @return span  - index of element
@@ -280,9 +271,6 @@ end function FindSpan
 !> @param[in] p      - order of basis functions
 !> @param[in] U      - knot vector
 !
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
-!
 ! Output:
 ! ------
 !> @param[out] nelem - number of elements
@@ -326,9 +314,6 @@ end function CountSpans
 !> @param[in] nelem_     - number of elements
 !> @param[in] coeffs     - 3D array of coefficients of basis functions (0-based)
 !> @param[in] x, y, z    - point to evaluate at
-!
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
 !
 ! Output:
 ! ------

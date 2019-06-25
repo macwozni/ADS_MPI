@@ -30,10 +30,6 @@ contains
 !> Number of subintervals is \f$ N = n-p+1 \f$.
 !> \f$ 0 \f$ and \f$ 1 \f$ are repeated \f$ (p+1) \f$ times.
 !
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
-! 25 06 2019 - Refactor inteface
-!
 ! Input:
 ! ------
 !> @param[in] n      - number of functions on the knot minus one
@@ -71,10 +67,6 @@ end subroutine PrepareKnot
 !> Number of subintervals is \f$ N = n-p+1 \f$.
 !> \f$ 0 \f$ and \f$ 1 \f$ are repeated \f$ (p+1) \f$ times.
 !
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
-! 25 06 2019 - Refactor inteface
-!
 ! Input:
 ! ------
 !> @param[in] n  - number of functions on the knot minus one
@@ -104,9 +96,6 @@ end subroutine FillOpenKnot
 !>
 !> @brief
 !> Calculates number of elements (nonempty subintervals) in the knot vector.
-!
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
 !
 ! Input:
 ! ------

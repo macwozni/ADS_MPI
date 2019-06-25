@@ -72,9 +72,6 @@ contains
 !> @brief
 !> Creates process groups and communicators for each 'fibre' in each direction.
 !> A subroutine initializes some variables in module.
-!
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
 ! 
 ! Output:
 ! -------
@@ -213,10 +210,7 @@ end subroutine CreateCommunicators
 !>
 !> @brief
 !> Prints groups used later to create communicators.
-!> For debug only
-!
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
+!> For debug only.
 ! -------------------------------------------------------------------
 subroutine PrintGroups
    use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ, PRINTRANK
@@ -247,10 +241,7 @@ end subroutine PrintGroups
 !>
 !> @brief
 !> Prints communicators.
-!> For debug only
-!
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
+!> For debug only.
 ! -------------------------------------------------------------------
 subroutine PrintCommunicators
    use parallelism, ONLY: PRINTRANK, NRPROCX, NRPROCY, NRPROCZ
