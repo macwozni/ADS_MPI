@@ -38,12 +38,18 @@ contains
 !
 ! Input:
 ! ------
-!> @param[in] KL     - number of lower diagonals of the resulting matrix
-!> @param[in] KU     - number of upper diagonals of the resulting matrix
-!> @param[in] U      - knot vector
-!> @param[in] p      - degree of approximation
-!> @param[in] n      - number of control points minus one
-!> @param[in] nelem  - number of subintervals in knot
+!> @param[in] KL1     - number of lower diagonals of the resulting matrix
+!> @param[in] KU1     - number of upper diagonals of the resulting matrix
+!> @param[in] U1      - knot vector
+!> @param[in] p1      - degree of approximation
+!> @param[in] n1      - number of control points minus one
+!> @param[in] nelem1  - number of subintervals in knot
+!> @param[in] KL2     - number of lower diagonals of the resulting matrix
+!> @param[in] KU2     - number of upper diagonals of the resulting matrix
+!> @param[in] U2      - knot vector
+!> @param[in] p2      - degree of approximation
+!> @param[in] n2      - number of control points minus one
+!> @param[in] nelem2  - number of subintervals in knot
 !
 ! Output:
 ! -------
@@ -60,22 +66,32 @@ contains
 !>
 !> \f$ M = u*v \f$
 ! -------------------------------------------------------------------
-subroutine MKBBT(KL, KU, U, p, n, nelem, M,K,B,BT)
+subroutine MKBBT(KL1, KU1, U1, p1, n1, nelem1,&
+    KL2, KU2, U2, p2, n2,n elem2&
+    M,K,B,BT)
    use basis, ONLY: BasisData
    use omp_lib
    implicit none
-   integer(kind = 4), intent(in) :: KL, KU
-   integer(kind = 4), intent(in) :: n, p, nelem
-   real (kind = 8), intent(in) :: U(0:n + p + 1)
+   integer(kind = 4), intent(in) :: KL1, KU1
+   integer(kind = 4), intent(in) :: n1, p1, nelem1
+   real (kind = 8), intent(in) :: U1(0:n1 + p1 + 1)
+   integer(kind = 4), intent(in) :: KL2, KU2
+   integer(kind = 4), intent(in) :: n2, p2, nelem2
+   real (kind = 8), intent(in) :: U2(0:n2 + p2 + 1)
    real (kind = 8), dimension(0:(2 * KL + KU), 0:n), intent(out) :: M,K,B,BT
-   real (kind = 8), dimension(nelem) :: J
-   real (kind = 8), dimension(p + 1) :: W
-   real (kind = 8), dimension(p + 1, nelem) :: X
-   real (kind = 8), dimension(0:1, 0:p, p + 1, nelem) :: NN
-   integer(kind = 4) :: dd
+   real (kind = 8), dimension(nelem1) :: J1
+   real (kind = 8), dimension(p1 + 1) :: W1
+   real (kind = 8), dimension(p1 + 1, nelem1) :: X1
+   real (kind = 8), dimension(0:1, 0:p1, p1 + 1, nelem1) :: NN1
+   real (kind = 8), dimension(nelem2) :: J2
+   real (kind = 8), dimension(p2 + 1) :: W2
+   real (kind = 8), dimension(p2 + 1, nelem2) :: X2
+   real (kind = 8), dimension(0:1, 0:p2, p2 + 1, nelem2) :: NN2
+   integer(kind = 4) :: dd1, dd2
    integer(kind = 4) :: ia, ib
-   integer(kind = 4) :: mm, ng, e, i, c, d
-   integer(kind = 4) :: O(nelem)
+   integer(kind = 4) :: mm1, mm2, ng1, ng2, e, i, c, d
+   integer(kind = 4) :: O1(nelem1)
+   integer(kind = 4) :: O2(nelem2)
    integer(kind = 4) :: all, tmp, total_size
 
    mm = n + p + 1
@@ -86,7 +102,8 @@ subroutine MKBBT(KL, KU, U, p, n, nelem, M,K,B,BT)
    B = 0.d0
    BT = 0.d0
 
-   call BasisData(p, mm, U, dd, ng, nelem, O, J, W, X, NN)
+   call BasisData(p1, mm1, U1, dd1, ng1, nelem1, O1, J1, W1, X1, NN1)
+   call BasisData(p2, mm2, U2, dd2, ng2, nelem2, O2, J2, W2, X2, NN2)
 
    total_size = nelem * ng * (p + 1)*(p + 1)
 
