@@ -142,6 +142,43 @@ subroutine add(matrix,x,y,val)
 end subroutine add
 
 
+subroutine clear_matrix(matrix)
+    implicit none
+    type(sparse_matrix), intent(inout) :: matrix
+    
+    matrix%x = 0
+    matrix%y = 0
+    matrix%total_entries = 0
+    call clear_line(matrix%first)
+end subroutine clear_matrix
+
+
+
+recursive subroutine clear_line(line)
+    implicit none
+    type(sparse_matrix_line), pointer, intent(inout) :: line
+    type(sparse_matrix_line), pointer :: tmp
+    
+    if (.NOT. associated(line)) return
+    tmp => line%next
+    call clear_entry(line%first)
+    deallocate(line)
+    call clear_line(tmp)
+end subroutine clear_line
+
+
+
+recursive subroutine clear_entry(entr)
+    implicit none
+    type(sparse_matrix_entry), pointer, intent(inout) :: entr
+    type(sparse_matrix_entry), pointer :: tmp
+    
+    if(.NOT. associated(entr)) return
+    tmp => entr%next
+    deallocate(entr)
+    call clear_entry(tmp)
+end subroutine clear_entry
+
 end module sparse
     
     
