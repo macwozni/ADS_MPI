@@ -75,8 +75,6 @@ subroutine initialize(n, p, ads, ads_data, mierr)
    ads % iend)
 #endif
 
-   call AllocateADSdata(ads, ads_data)
-
    ads % nelem = nelem
    mierr = 0
    
@@ -98,6 +96,7 @@ subroutine initialize(n, p, ads, ads_data, mierr)
    ads % lnelem(1) = ads % maxe(1) - ads % mine(1) + 1
    ads % lnelem(2) = ads % maxe(2) - ads % mine(2) + 1
    ads % lnelem(3) = ads % maxe(3) - ads % mine(3) + 1
+   call AllocateADSdata(ads, ads_data)
    
 #ifdef IPRINT
       write(*, *) PRINTRANK, 'ex:', ads % mine(1), ads % maxe(1)
@@ -586,7 +585,7 @@ subroutine Sub_Step(ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, m
 #ifdef PERFORMANCE
    time2 = MPI_Wtime()
    write(*,*) "Gather 2: ", time2 - time1
-#endif), intent
+#endif
 
    call mpi_barrier(MPI_COMM_WORLD, ierr)
 
