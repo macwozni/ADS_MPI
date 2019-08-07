@@ -16,7 +16,7 @@
 #======================================================================
 
 
-include m_options_intel
+include m_options_gfortran
   
 .SUFFIXES:
 .PHONY: build_error banner tar tgz clean realclean link done

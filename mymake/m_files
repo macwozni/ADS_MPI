@@ -10,6 +10,7 @@ SOURCES = \
     ../src/math.F90 \
     ../src/reorderRHS.F90 \
     ../src/my_mpi.F90 \
+    ../src/sparse.F90 \
     ../src/projection_engine.F90 \
     ../src/analysis.F90 \
     ../src/int2str.F90 \

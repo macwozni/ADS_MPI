@@ -23,13 +23,13 @@ MPI_INCLUDE = /opt/mpich3.3_intel19/include
 DIALECT = -std03  -module . -implicitnone -fpp -qopenmp
 BOUNDS = -check bounds
 RELEASE_OPTS = -funroll-all-loops -O3 -DPERFORMANCE=1
-DEBUG_OPTS = -O0 -g -traceback -check all -debug extended -debug-parameters all
+DEBUG_OPTS = -O0 -g -traceback -check all -debug extended -debug-parameters all -DPERFORMANCE=1
 
 #-L/opt/mpich3.3_intel19/lib64/libmpifort.so  -L/opt/mpich3.3_intel19/lib64/libmpi.so -Wl,-rpath,/opt/mpich3.3_intel19/lib64/libmpifort.so:/opt/mpich3.3_intel19/lib64/libmpi.so:/opt/mpich3.3_intel19/lib64  /opt/mpich3.3_intel19/lib64/libmpifort.so /opt/mpich3.3_intel19/lib64/libmpi.so 
 
 
 FF		=  ifort \
-$(DIALECT) $(RELEASE_OPTS) \
+$(DIALECT) $(DEBUG_OPTS) \
 -L/opt/mpich3.3_intel19/lib64/libmpifort.so  -L/opt/mpich3.3_intel19/lib64/libmpi.so -Wl,-rpath,/opt/mpich3.3_intel19/lib64/libmpifort.so:/opt/mpich3.3_intel19/lib64/libmpi.so:/opt/mpich3.3_intel19/lib64 
 
 
