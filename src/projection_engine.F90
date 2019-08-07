@@ -63,6 +63,7 @@ contains
 subroutine MKBBT(KL, KU, U, p, n, nelem, M,K,B,BT)
    use basis, ONLY: BasisData
    use omp_lib
+   use sparse
    implicit none
    integer(kind = 4), intent(in) :: KL, KU
    integer(kind = 4), intent(in) :: n, p, nelem
@@ -77,6 +78,8 @@ subroutine MKBBT(KL, KU, U, p, n, nelem, M,K,B,BT)
    integer(kind = 4) :: mm, ng, e, i, c, d
    integer(kind = 4) :: O(nelem)
    integer(kind = 4) :: all, tmp, total_size
+   type(sparse_matrix), pointer :: sprsmtrx
+   real(kind=8) :: val
 
    mm = n + p + 1
    ng = p + 1
@@ -89,6 +92,8 @@ subroutine MKBBT(KL, KU, U, p, n, nelem, M,K,B,BT)
    call BasisData(p, mm, U, dd, ng, nelem, O, J, W, X, NN)
 
    total_size = nelem * ng * (p + 1)*(p + 1)
+
+   call initialize_sparse(n+1,n+1,sprsmtrx)
 
 ! new parallel loop
 !$OMP PARALLEL DO &
@@ -119,6 +124,8 @@ subroutine MKBBT(KL, KU, U, p, n, nelem, M,K,B,BT)
       ia = O(e) + c
       ib = O(e) + d
       ! M = u*v
+      val = NN(0, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
+      call add(sprsmtrx,KL + KU + ia - ib,ib,val)
       M(KL + KU + ia - ib, ib) = M(KL + KU + ia - ib, ib) + NN(0, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
       K(KL + KU + ia - ib, ib) = K(KL + KU + ia - ib, ib) + NN(1, c, i, e) * NN(1, d, i, e) * J(e) * W(i)
       B(KL + KU + ia - ib, ib) = B(KL + KU + ia - ib, ib) + NN(1, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
