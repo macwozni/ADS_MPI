@@ -67,7 +67,7 @@ contains
 !> \f$ M = u*v \f$
 ! -------------------------------------------------------------------
 subroutine MKBBT(KL, KU, U, p, n, nelem,&
-    M,K,B,BT,&
+    mix,OO,&
     sprsmtrx)
    use basis, ONLY: BasisData
    use omp_lib
@@ -76,7 +76,8 @@ subroutine MKBBT(KL, KU, U, p, n, nelem,&
    integer(kind = 4), intent(in) :: KL, KU
    integer(kind = 4), intent(in) :: n, p, nelem
    real (kind = 8), intent(in) :: U(0:n + p + 1)
-   real (kind = 8), dimension(0:(2 * KL + KU), 0:n), intent(out) :: M,K,B,BT
+   real (kind = 8), dimension(4), intent(in) :: mix
+   real (kind = 8), dimension(0:(2 * KL + KU), 0:n), intent(out) :: OO
    real (kind = 8), dimension(nelem) :: J
    real (kind = 8), dimension(p + 1) :: W
    real (kind = 8), dimension(p + 1, nelem) :: X
@@ -88,15 +89,12 @@ subroutine MKBBT(KL, KU, U, p, n, nelem,&
    integer(kind = 4) :: all, tmp, total_size
    type(sparse_matrix), pointer, intent(out) :: sprsmtrx
    real(kind=8) :: val
-   real (kind = 8) :: Mv,Kv,Bv,BTv
+   real (kind = 8) :: M,K,B,BT
 
    mm = n + p + 1
    ng = p + 1
    dd = 1
-   M = 0.d0
-   K = 0.d0
-   B = 0.d0
-   BT = 0.d0
+   OO = 0.d0
 
    call BasisData(p, mm, U, dd, ng, nelem, O, J, W, X, NN)
 
@@ -133,16 +131,13 @@ subroutine MKBBT(KL, KU, U, p, n, nelem,&
       ia = O(e) + c
       ib = O(e) + d
       ! M = u*v
-      Mv = NN(0, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
-      Kv = NN(1, c, i, e) * NN(1, d, i, e) * J(e) * W(i)
-      Bv = NN(1, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
-      BTv = NN(0, c, i, e) * NN(1, d, i, e) * J(e) * W(i)
-      val =  Mv
+      M = NN(0, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
+      K = NN(1, c, i, e) * NN(1, d, i, e) * J(e) * W(i)
+      B = NN(1, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
+      BT = NN(0, c, i, e) * NN(1, d, i, e) * J(e) * W(i)
+      val =  mix(1)*M + mix(2)*K + mix(3)*B + mix(4)*BT
       call add(sprsmtrx,ia,ib,val)
-      M(KL + KU + ia - ib, ib) = M(KL + KU + ia - ib, ib) + NN(0, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
-      K(KL + KU + ia - ib, ib) = K(KL + KU + ia - ib, ib) + NN(1, c, i, e) * NN(1, d, i, e) * J(e) * W(i)
-      B(KL + KU + ia - ib, ib) = B(KL + KU + ia - ib, ib) + NN(1, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
-      BT(KL + KU + ia - ib, ib) = BT(KL + KU + ia - ib, ib) + NN(0, c, i, e) * NN(1, d, i, e) * J(e) * W(i)
+      OO(KL + KU + ia - ib, ib) = OO(KL + KU + ia - ib, ib) + val
 
 
    enddo
@@ -558,36 +553,12 @@ subroutine ComputeMatrix(KL, KU, U, p, n, nelem, mix, O, sprsmtrx)
    real (kind = 8), dimension(0:n + p + 1), intent(in) :: U
    real (kind = 8), dimension(4), intent(in) :: mix
    real (kind = 8), dimension(0:(2 * KL + KU), 0:n), intent(out) :: O
-   real (kind = 8), dimension(0:(2 * KL + KU), 0:n) :: M,K,B,BT
    type(sparse_matrix), pointer, intent(out) :: sprsmtrx
    integer :: i
 
-   M = 0.0d0
-   K = 0.0d0
-   B = 0.0d0
-   BT = 0.0d0
+   call MKBBT(KL, KU, U, p, n, nelem, mix, O,sprsmtrx)
    
-   call MKBBT(KL, KU, U, p, n, nelem, M,K,B,BT,sprsmtrx)
-#ifdef IPRINT
-   write(*, *) PRINTRANK, 'M'
-   do i = 1, 2 * KL + KU !+ 1
-      write(*, *) PRINTRANK, M(i, 1:n)
-   enddo
-   write(*, *) PRINTRANK, 'K'
-   do i = 1, 2 * KL + KU !+ 1
-      write(*, *) PRINTRANK, K(i, 1:n)
-   enddo
-   write(*, *) PRINTRANK, 'B'
-   do i = 1, 2 * KL + KU !+ 1
-      write(*, *) PRINTRANK, B(i, 1:n)
-   enddo
-   write(*, *) PRINTRANK, 'BT'
-   do i = 1, 2 * KL + KU !+ 1
-      write(*, *) PRINTRANK, BT(i, 1:n)
-   enddo
-#endif
-   
-   O = mix(1)*M + mix(2)*K + mix(3)*B + mix(4)*BT
+   !O = mix(1)*M + mix(2)*K + mix(3)*B + mix(4)*BT
    
 #ifdef IPRINT
    write(*, *) PRINTRANK, 'O'
