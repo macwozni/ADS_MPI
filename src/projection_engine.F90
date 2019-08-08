@@ -67,7 +67,8 @@ contains
 !> \f$ M = u*v \f$
 ! -------------------------------------------------------------------
 subroutine MKBBT(KL, KU, U, p, n, nelem,&
-    M,K,B,BT)
+    M,K,B,BT,&
+    sprsmtrx)
    use basis, ONLY: BasisData
    use omp_lib
    use sparse
@@ -85,8 +86,9 @@ subroutine MKBBT(KL, KU, U, p, n, nelem,&
    integer(kind = 4) :: mm, ng, e, i, c, d
    integer(kind = 4) :: O(nelem)
    integer(kind = 4) :: all, tmp, total_size
-   type(sparse_matrix), pointer :: sprsmtrx
+   type(sparse_matrix), pointer, intent(out) :: sprsmtrx
    real(kind=8) :: val
+   real (kind = 8) :: Mv,Kv,Bv,BTv
 
    mm = n + p + 1
    ng = p + 1
@@ -131,8 +133,12 @@ subroutine MKBBT(KL, KU, U, p, n, nelem,&
       ia = O(e) + c
       ib = O(e) + d
       ! M = u*v
-      val = NN(0, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
-      call add(sprsmtrx,KL + KU + ia - ib,ib,val)
+      Mv = NN(0, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
+      Kv = NN(1, c, i, e) * NN(1, d, i, e) * J(e) * W(i)
+      Bv = NN(1, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
+      BTv = NN(0, c, i, e) * NN(1, d, i, e) * J(e) * W(i)
+      val =  Mv
+      call add(sprsmtrx,ia,ib,val)
       M(KL + KU + ia - ib, ib) = M(KL + KU + ia - ib, ib) + NN(0, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
       K(KL + KU + ia - ib, ib) = K(KL + KU + ia - ib, ib) + NN(1, c, i, e) * NN(1, d, i, e) * J(e) * W(i)
       B(KL + KU + ia - ib, ib) = B(KL + KU + ia - ib, ib) + NN(1, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
@@ -543,8 +549,9 @@ end subroutine global2local
 !> @param[out] O     - matrix, logically \f$ (n+1) \times (n+1) \f$
 !
 ! -------------------------------------------------------------------
-subroutine ComputeMatrix(KL, KU, U, p, n, nelem, mix, O)
+subroutine ComputeMatrix(KL, KU, U, p, n, nelem, mix, O, sprsmtrx)
    use parallelism, ONLY: PRINTRANK
+   use sparse
    implicit none
    integer(kind = 4), intent(in) :: KL, KU
    integer(kind = 4), intent(in) :: n, p, nelem
@@ -552,6 +559,7 @@ subroutine ComputeMatrix(KL, KU, U, p, n, nelem, mix, O)
    real (kind = 8), dimension(4), intent(in) :: mix
    real (kind = 8), dimension(0:(2 * KL + KU), 0:n), intent(out) :: O
    real (kind = 8), dimension(0:(2 * KL + KU), 0:n) :: M,K,B,BT
+   type(sparse_matrix), pointer, intent(out) :: sprsmtrx
    integer :: i
 
    M = 0.0d0
@@ -559,7 +567,7 @@ subroutine ComputeMatrix(KL, KU, U, p, n, nelem, mix, O)
    B = 0.0d0
    BT = 0.0d0
    
-   call MKBBT(KL, KU, U, p, n, nelem, M,K,B,BT)
+   call MKBBT(KL, KU, U, p, n, nelem, M,K,B,BT,sprsmtrx)
 #ifdef IPRINT
    write(*, *) PRINTRANK, 'M'
    do i = 1, 2 * KL + KU !+ 1

@@ -299,8 +299,10 @@ end subroutine PrintDistributedData
 ! RHS   - vector of right-hand sides, of dimension (n+1) x eqnum
 ! eqnum - number of right-hand sides (equations)
 ! -------------------------------------------------------------------
-subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
+subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV, sprsmtrx)
+   use sparse
    implicit none
+    include 'dmumps_struc.h'
    real (kind = 8) :: RHS(:,:)
    integer :: KL, KU
    integer, dimension(:) :: IPIV
@@ -308,6 +310,8 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
    integer :: n, p
    integer(kind = 4) :: eqnum
    integer(kind = 4) :: i, iret
+   type(sparse_matrix), pointer, intent(in) :: sprsmtrx
+    type(dmumps_struc) :: mumps_par
 
    IPIV = 0
 
@@ -346,6 +350,8 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV)
       write(*, *) i, 'row=', RHS(i, 1:eqnum)
    enddo
 #endif
+
+   call to_mumps_format(sprsmtrx, mumps_par)
    
 end subroutine SolveOneDirection
 
@@ -448,6 +454,7 @@ subroutine Sub_Step(ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, m
    use my_mpi, ONLY: DistributeSpline, Gather, Scatter
    use Interfaces, ONLY: RHS_fun_int
    use mpi
+   use sparse
    implicit none
    type (ADS_setup), intent(in) :: ads
    integer(kind = 4), intent(in) :: iter
@@ -462,6 +469,7 @@ subroutine Sub_Step(ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, m
    integer(kind = 4) :: iret, ierr
    integer(kind = 4), dimension(3) :: nrcpp
    real(kind = 8) :: time1, time2
+   type(sparse_matrix), pointer :: sprsmtrx
 
 #ifdef PERFORMANCE
    time1 = MPI_Wtime()
@@ -520,14 +528,15 @@ subroutine Sub_Step(ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, m
       time1 = MPI_Wtime()
 #endif
       call ComputeMatrix(ads % KL(1), ads % KU(1), ads % Ux, ads % p(1), &
-      ads % n(1), ads % nelem(1), mix, ads_data % Mx)
+      ads % n(1), ads % nelem(1), mix, ads_data % Mx, sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write(*,*) "Mass matrix 1: ", time2 - time1
       time1 = MPI_Wtime()
 #endif
       call SolveOneDirection(ads_data % F_out, ads % s(2) * ads % s(3), ads % n(1), &
-      ads % KL(1), ads % KU(1), ads % p(1), ads_data % Mx, ads % IPIVx)
+      ads % KL(1), ads % KU(1), ads % p(1), ads_data % Mx, ads % IPIVx, sprsmtrx)
+      call clear_matrix(sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write(*,*) "Solve 1: ", time2 - time1
@@ -598,14 +607,15 @@ subroutine Sub_Step(ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, m
       time1 = MPI_Wtime()
 #endif
       call ComputeMatrix(ads % KL(2), ads % KU(2), ads % Uy, ads % p(2), ads % n(2), &
-      ads % nelem(2), mix, ads_data % My)
+      ads % nelem(2), mix, ads_data % My, sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write(*,*) "Mass matrix 2: ", time2 - time1
       time1 = MPI_Wtime()
 #endif
       call SolveOneDirection(ads_data % F2_out, ads % s(1) * ads % s(3), ads % n(2), ads % KL(2), &
-      ads % KU(2), ads % p(2), ads_data % My, ads % IPIVy)
+      ads % KU(2), ads % p(2), ads_data % My, ads % IPIVy, sprsmtrx)
+      call clear_matrix(sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write(*,*) "Solve 2: ", time2 - time1
@@ -687,14 +697,15 @@ subroutine Sub_Step(ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, m
       time1 = MPI_Wtime()
 #endif
       call ComputeMatrix(ads % KL(3), ads % KU(3), ads % Uz, ads % p(3), ads % n(3), &
-      ads % nelem(3), mix, ads_data % Mz)
+      ads % nelem(3), mix, ads_data % Mz, sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write(*,*) "Mass matrix 3: ", time2 - time1
       time1 = MPI_Wtime()
 #endif
       call SolveOneDirection(ads_data % F3_out, ads % s(1) * ads % s(2), ads % n(3), ads % KL(3), &
-      ads % KU(3), ads % p(3), ads_data % Mz, ads % IPIVz)
+      ads % KU(3), ads % p(3), ads_data % Mz, ads % IPIVz, sprsmtrx)
+      call clear_matrix(sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write(*,*) "Solve 3: ", time2 - time1

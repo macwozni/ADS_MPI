@@ -141,6 +141,7 @@ subroutine add(matrix,x,y,val)
     
     call find(matrix,x,y,entr)
     entr%val = entr%val + val
+    matrix%total_entries = matrix%total_entries+1
 end subroutine add
 
 
@@ -224,8 +225,8 @@ subroutine to_mumps_format(matrix, mumps_par)
     allocate(mumps_par%irn(matrix%total_entries))
     allocate(mumps_par%jcn(matrix%total_entries))
     allocate(mumps_par%a(matrix%total_entries))
-    
-    i = 0
+
+    i = 1
     line => matrix%first
     do while (associated(line))
         entr => line%first
@@ -262,7 +263,7 @@ subroutine to_mumps_format_transposed(matrix, mumps_par)
     allocate(mumps_par%jcn(matrix%total_entries))
     allocate(mumps_par%a(matrix%total_entries))
     
-    i = 0
+    i = 1
     line => matrix%first
     do while (associated(line))
         entr => line%first
