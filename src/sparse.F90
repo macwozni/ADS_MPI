@@ -72,7 +72,7 @@ subroutine find(matrix,x,y,entr)
         line%first%y = y
         line%first%next => tmp2
         line%first%val = 0.d0
-        entr => line%first%next
+        entr => line%first
         matrix%total_entries = matrix%total_entries+1
         return
     end if
@@ -90,7 +90,7 @@ subroutine find(matrix,x,y,entr)
             tmp%next%x = x
             tmp%next%y = y
             tmp%next%next => tmp2
-            tmp%val = 0.d0
+            tmp%next%val = 0.d0
             entr => tmp%next
             matrix%total_entries = matrix%total_entries+1
             return
@@ -102,7 +102,7 @@ subroutine find(matrix,x,y,entr)
     tmp%next%x = x
     tmp%next%y = y
     tmp%next%next => NULL()
-    tmp%val = 0.d0
+    tmp%next%val = 0.d0
     entr => tmp
     matrix%total_entries = matrix%total_entries+1
 end subroutine find
@@ -218,6 +218,7 @@ end subroutine clear_entry
 subroutine to_dense_matrix(matrix, dmatrix)
     implicit none
     type(sparse_matrix), intent(in) :: matrix
+    integer :: x,y
     real (kind=8), dimension(0:matrix%x,0:matrix%y), intent(out) :: dmatrix
     type(sparse_matrix_line), pointer :: line
     type(sparse_matrix_entry), pointer :: entr
