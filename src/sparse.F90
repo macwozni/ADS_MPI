@@ -206,11 +206,11 @@ end subroutine to_dense_matrix
 
 
 
-subroutine to_mumps_format(matrix)
+subroutine to_mumps_format(matrix, mumps_par)
     implicit none
     include 'dmumps_struc.h'
     type (sparse_matrix), pointer, intent(in) :: matrix
-    type(dmumps_struc) :: mumps_par
+    type(dmumps_struc), intent(inout) :: mumps_par
     type(sparse_matrix_entry), pointer :: entr
     type(sparse_matrix_line), pointer  :: line
     integer(kind=4) :: i
@@ -243,11 +243,11 @@ end subroutine to_mumps_format
 
 
 
-subroutine to_mumps_format_transposed(matrix)
+subroutine to_mumps_format_transposed(matrix, mumps_par)
     implicit none
     include 'dmumps_struc.h'
     type (sparse_matrix), pointer, intent(in) :: matrix
-    type(dmumps_struc) :: mumps_par
+    type(dmumps_struc), intent(inout) :: mumps_par
     type(sparse_matrix_entry), pointer :: entr
     type(sparse_matrix_line), pointer  :: line
     integer(kind=4) :: i
