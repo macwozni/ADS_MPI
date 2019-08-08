@@ -203,6 +203,81 @@ subroutine to_dense_matrix(matrix, dmatrix)
     end do
 end subroutine to_dense_matrix
 
+
+
+
+subroutine to_mumps_format(matrix)
+    implicit none
+    include 'dmumps_struc.h'
+    type (sparse_matrix), pointer, intent(in) :: matrix
+    type(dmumps_struc) :: mumps_par
+    type(sparse_matrix_entry), pointer :: entr
+    type(sparse_matrix_line), pointer  :: line
+    integer(kind=4) :: i
+
+    if(matrix%x>matrix%y) then
+        mumps_par%N = matrix%x
+    else
+        mumps_par%N = matrix%y
+    end if
+    mumps_par%NZ = matrix%total_entries
+    allocate(mumps_par%irn(matrix%total_entries))
+    allocate(mumps_par%jcn(matrix%total_entries))
+    allocate(mumps_par%a(matrix%total_entries))
+    
+    i = 0
+    line => matrix%first
+    do while (associated(line))
+        entr => line%first
+        do while (associated(entr))
+            mumps_par%irn(i) = entr%x
+            mumps_par%jcn(i) = entr%y
+            mumps_par%a(i) = entr%val
+            i = i+1
+            entr => entr%next
+        enddo
+        line => line%next
+    enddo
+end subroutine to_mumps_format
+
+
+
+
+subroutine to_mumps_format_transposed(matrix)
+    implicit none
+    include 'dmumps_struc.h'
+    type (sparse_matrix), pointer, intent(in) :: matrix
+    type(dmumps_struc) :: mumps_par
+    type(sparse_matrix_entry), pointer :: entr
+    type(sparse_matrix_line), pointer  :: line
+    integer(kind=4) :: i
+
+    if(matrix%x>matrix%y) then
+        mumps_par%N = matrix%x
+    else
+        mumps_par%N = matrix%y
+    end if
+    mumps_par%NZ = matrix%total_entries
+    allocate(mumps_par%irn(matrix%total_entries))
+    allocate(mumps_par%jcn(matrix%total_entries))
+    allocate(mumps_par%a(matrix%total_entries))
+    
+    i = 0
+    line => matrix%first
+    do while (associated(line))
+        entr => line%first
+        do while (associated(entr))
+            mumps_par%irn(i) = entr%y
+            mumps_par%jcn(i) = entr%x
+            mumps_par%a(i) = entr%val
+            i = i+1
+            entr => entr%next
+        enddo
+        line => line%next
+    enddo
+end subroutine to_mumps_format_transposed
+
+
 end module sparse
     
     
