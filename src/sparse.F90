@@ -53,7 +53,7 @@ subroutine find(matrix,x,y,entr)
     type(sparse_matrix_entry), pointer :: tmp2
     
     call find_line(matrix,x,line)
-    
+
     if(.NOT. associated(line%first)) then
         allocate(line%first)
         line%first%x = x
@@ -65,6 +65,18 @@ subroutine find(matrix,x,y,entr)
         return
     end if
     
+    if (line%first%y .GT. y) then
+        tmp2 => line%first
+        allocate(line%first)
+        line%first%x = x
+        line%first%y = y
+        line%first%next => tmp2
+        line%first%val = 0.d0
+        entr => line%first%next
+        matrix%total_entries = matrix%total_entries+1
+        return
+    end if
+
     tmp => line%first
     
     do while (associated(tmp%next))
@@ -113,6 +125,16 @@ subroutine find_line(matrix,x,line)
         return
     endif
     
+    if(matrix%first%x .GT. x) then
+        tmp2 => matrix%first
+        allocate(matrix%first)
+        matrix%first%x = x
+        matrix%first%next => tmp2
+        matrix%first%first => NULL()
+        line => matrix%first
+        return
+    end if
+
     tmp => matrix%first
     
     do while (associated(tmp%next))
