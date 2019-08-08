@@ -85,6 +85,14 @@ subroutine find(matrix,x,y,entr)
         end if
         tmp => tmp%next
     end do
+
+    allocate(tmp%next)
+    tmp%next%x = x
+    tmp%next%y = y
+    tmp%next%next => NULL()
+    tmp%val = 0.d0
+    entr => tmp
+    matrix%total_entries = matrix%total_entries+1
 end subroutine find
 
 
@@ -188,7 +196,7 @@ end subroutine clear_entry
 subroutine to_dense_matrix(matrix, dmatrix)
     implicit none
     type(sparse_matrix), intent(in) :: matrix
-    real (kind=8), dimension(matrix%x,matrix%y), intent(out) :: dmatrix
+    real (kind=8), dimension(0:matrix%x,0:matrix%y), intent(out) :: dmatrix
     type(sparse_matrix_line), pointer :: line
     type(sparse_matrix_entry), pointer :: entr
     
