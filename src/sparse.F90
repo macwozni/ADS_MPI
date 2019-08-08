@@ -61,6 +61,7 @@ subroutine find(matrix,x,y,entr)
         line%first%next => NULL()
         line%first%val = 0.d0
         entr => line%first
+        matrix%total_entries = matrix%total_entries+1
         return
     end if
     
@@ -79,6 +80,7 @@ subroutine find(matrix,x,y,entr)
             tmp%next%next => tmp2
             tmp%val = 0.d0
             entr => tmp%next
+            matrix%total_entries = matrix%total_entries+1
             return
         end if
         tmp => tmp%next
@@ -141,7 +143,6 @@ subroutine add(matrix,x,y,val)
     
     call find(matrix,x,y,entr)
     entr%val = entr%val + val
-    matrix%total_entries = matrix%total_entries+1
 end subroutine add
 
 
