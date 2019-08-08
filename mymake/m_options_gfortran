@@ -30,9 +30,10 @@ $(DIALECT) $(DEBUG_OPTS) \
 
 
 
-BLAS_LIB      = /home/maciekw/libs/lapack-3.8.0/liblapack.a  /home/maciekw/libs/lapack-3.8.0/libblas.a #-L/opt/intel2/mkl/lib/intel64/  -L/opt/intel2/composerxe/lib/intel64/ -lmkl_lapack95_lp64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -I/opt/intel2/mkl/include/ 
+BLAS_LIB      = /home/maciekw/libs/scalapack-2.0.2/libscalapack.a /home/maciekw/libs/lapack-3.8.0/liblapack.a /home/maciekw/libs/lapack-3.8.0/libblas.a
 
-MUMP_LIB      = /home/maciekw/libs/MUMPS_5.0.2/lib/libcmumps.a /home/maciekw/libs/MUMPS_5.0.2/lib/libdmumps.a /home/maciekw/libs/MUMPS_5.0.2/lib/libmumps_common.a /home/maciekw/libs/MUMPS_5.0.2/lib/libpord.a /home/maciekw/libs/MUMPS_5.0.2/lib/libsmumps.a /home/maciekw/libs/MUMPS_5.0.2/lib/libzmumps.a 
+MUMPS_LIB      = /home/maciekw/libs/MUMPS_5.0.2/lib/libdmumps.a /home/maciekw/libs/MUMPS_5.0.2/lib/libmumps_common.a /home/maciekw/libs/MUMPS_5.0.2/lib/libpord.a
+
 
 
 USER_LIB      = $(X_LIB_PAR) $(LAPACK_LIB) \

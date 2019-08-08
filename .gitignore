@@ -27,3 +27,5 @@ test/tests
 *.x
 *.xml
 doxygen/
+fort.1
+

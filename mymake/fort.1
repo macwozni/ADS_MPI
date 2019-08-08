@@ -1,0 +1,57 @@
+
+***********CONTROL PARAMETERS (ICNTL)**************
+
+ICNTL(1)   Output stream for error messages        =         1
+ICNTL(2)   Output stream for diagnostic messages   =         1
+ICNTL(3)   Output stream for global information    =         6
+ICNTL(4)   Level of printing                       =         3
+ICNTL(5)   Matrix format  ( keep(55) )             =         0
+ICNTL(6)   Maximum transversal  ( keep(23) )       =         7
+ICNTL(7)   Ordering                                =         4
+ICNTL(12)  LDLT ordering strat ( keep(95) )        =         0
+ICNTL(13)  Parallel root (0=on, 1=off)             =         1
+ICNTL(18)  Distributed matrix  ( keep(54) )        =         0
+ICNTL(19)  Schur option ( keep(60) 0=off,else=on ) =         0
+ICNTL(22)  Out-off-core option (0=Off, >0=ON)      =         0
+ICNTL(8)   Scaling strategy                        =        77
+ICNTL(14)  Percent of memory increase              =        50
+L U Solver for unsymmetric matrices
+Type of parallelism: Working host
+
+ ****** ANALYSIS STEP ********
+
+
+*** Warning message from analysis routine ***
+       1st entry (in row       0 and column       0) ignored
+       2nd entry (in row       0 and column       1) ignored
+       3rd entry (in row       1 and column       0) ignored
+       4th entry (in row       2 and column       0) ignored
+ ... Structural symmetry (in percent)=    0
+ ****** Input parameters for DMUMPS_MTRANSA:
+ JOB =         5
+ M   =         5
+ N   =         5
+ NE  =         2
+ IP(1:N+1)   =        1       2       3       3       3       3
+ IRN(1:NE)   =        3       4
+ A(1:NE)     =     3.3275D-01    2.4192D-01
+ ICNTL(1:10) =        1       1       1       0      -1       0       0       0
+                      0       0
+ CNTL(1:10)  =     0.0000D+00    1.7977+308    0.0000D+00    0.0000D+00
+                   0.0000D+00    0.0000D+00    0.0000D+00    0.0000D+00
+                   0.0000D+00    0.0000D+00
+ ****** Warning from DMUMPS_MTRANSA. INFO(1) =  1
+        - The matrix is structurally singular.
+ ****** Output parameters for DMUMPS_MTRANSA:
+ INFO(1:2)   =        1       0
+ NUM         =        2
+ PERM(1:M)   =       -3      -4       1       2      -5
+ DW(1:M)     =       0.000      0.000      0.000      0.000      0.000
+
+ DW(M+1:M+N) =       0.000      0.000      0.000      0.000      0.000
+
+ WARNING in MAXTRANS INFO(1)=    1
+
+** Error: Matrix is structurally singular
+ ** ERROR RETURN ** FROM DMUMPS INFO(1)=   -6
+ ** INFO(2)=         2
