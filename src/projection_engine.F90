@@ -38,25 +38,19 @@ contains
 !
 ! Input:
 ! ------
-!> @param[in] KL1     - number of lower diagonals of the resulting matrix
-!> @param[in] KU1     - number of upper diagonals of the resulting matrix
 !> @param[in] U1      - knot vector
 !> @param[in] p1      - degree of approximation
 !> @param[in] n1      - number of control points minus one
 !> @param[in] nelem1  - number of subintervals in knot
-!> @param[in] KL2     - number of lower diagonals of the resulting matrix
-!> @param[in] KU2     - number of upper diagonals of the resulting matrix
 !> @param[in] U2      - knot vector
 !> @param[in] p2      - degree of approximation
 !> @param[in] n2      - number of control points minus one
 !> @param[in] nelem2  - number of subintervals in knot
+!> @param[in] mix     - mixing proportions of M, K, B and BT matrices
 !
 ! Output:
 ! -------
-!> @param[out] M     - mass matrix, logically \f$ (n+1) \times (n+1) \f$
-!> @param[out] K     - stifness matrix, logically \f$ (n+1) \times (n+1) \f$
-!> @param[out] B     - advection matrix, logically \f$ (n+1) \times (n+1) \f$
-!> @param[out] BT    - advection matrix transposed, logically \f$ (n+1) \times (n+1) \f$
+!> @param[out] sprsmtrx - sparse matrix, logically \f$ (n+1) \times (n+1) \f$, combination of M, K, B and BT matrices
 !>
 !> Values in the matrix are stored in the band format, i.e. while \f$ M \f$
 !> is \f$ (n+1) \times (n+1) \f$, it is stored as \f$ (2 KL + KU + 1) \times n \f$, and the
@@ -66,18 +60,14 @@ contains
 !>
 !> \f$ M = u*v \f$
 ! -------------------------------------------------------------------
-subroutine MKBBT(KL, KU, U, p, n, nelem,&
-    mix,OO,&
-    sprsmtrx)
+subroutine MKBBT(U, p, n, nelem,mix,sprsmtrx)
    use basis, ONLY: BasisData
    use omp_lib
    use sparse
    implicit none
-   integer(kind = 4), intent(in) :: KL, KU
    integer(kind = 4), intent(in) :: n, p, nelem
    real (kind = 8), intent(in) :: U(0:n + p + 1)
    real (kind = 8), dimension(4), intent(in) :: mix
-   real (kind = 8), dimension(0:(2 * KL + KU), 0:n), intent(out) :: OO
    real (kind = 8), dimension(nelem) :: J
    real (kind = 8), dimension(p + 1) :: W
    real (kind = 8), dimension(p + 1, nelem) :: X
@@ -94,7 +84,6 @@ subroutine MKBBT(KL, KU, U, p, n, nelem,&
    mm = n + p + 1
    ng = p + 1
    dd = 1
-   OO = 0.d0
 
    call BasisData(p, mm, U, dd, ng, nelem, O, J, W, X, NN)
 
@@ -106,7 +95,7 @@ subroutine MKBBT(KL, KU, U, p, n, nelem,&
 !$OMP PARALLEL DO &
 !$OMP DEFAULT(PRIVATE) &
 !$OMP PRIVATE(d,c,i,e,ia,ib,tmp) &
-!$OMP SHARED(nelem,ng,p,O,KL,KU,NN,W,J,total_size) &
+!$OMP SHARED(nelem,ng,p,O,NN,W,J,total_size) &
 !$OMP REDUCTION(+:M) &
 !$OMP REDUCTION(+:K) &
 !$OMP REDUCTION(+:B) &
@@ -137,9 +126,6 @@ subroutine MKBBT(KL, KU, U, p, n, nelem,&
       BT = NN(0, c, i, e) * NN(1, d, i, e) * J(e) * W(i)
       val =  mix(1)*M + mix(2)*K + mix(3)*B + mix(4)*BT
       call add(sprsmtrx,ia,ib,val)
-      OO(KL + KU + ia - ib, ib) = OO(KL + KU + ia - ib, ib) + val
-
-
    enddo
 !$OMP END PARALLEL DO
 
@@ -531,8 +517,6 @@ end subroutine global2local
 !
 ! Input:
 ! ------
-!> @param[in] KL     - number of lower diagonals of the resulting matrix
-!> @param[in] KU     - number of upper diagonals of the resulting matrix
 !> @param[in] U      - knot vector
 !> @param[in] p      - degree of approximation
 !> @param[in] n      - number of control points minus one
@@ -541,29 +525,21 @@ end subroutine global2local
 !
 ! Output:
 ! -------
-!> @param[out] O     - matrix, logically \f$ (n+1) \times (n+1) \f$
+!> @param[out] sprsmtrx     - sparse matrix, logically \f$ (n+1) \times (n+1) \f$
 !
 ! -------------------------------------------------------------------
-subroutine ComputeMatrix(KL, KU, U, p, n, nelem, mix, O, sprsmtrx)
+subroutine ComputeMatrix(U, p, n, nelem, mix, sprsmtrx)
    use parallelism, ONLY: PRINTRANK
    use sparse
    implicit none
-   integer(kind = 4), intent(in) :: KL, KU
    integer(kind = 4), intent(in) :: n, p, nelem
    real (kind = 8), dimension(0:n + p + 1), intent(in) :: U
    real (kind = 8), dimension(4), intent(in) :: mix
-   real (kind = 8), dimension(0:(2 * KL + KU), 0:n), intent(out) :: O
    type(sparse_matrix), pointer, intent(out) :: sprsmtrx
    integer :: i
 
-   call MKBBT(KL, KU, U, p, n, nelem, mix, O,sprsmtrx)
+   call MKBBT(U, p, n, nelem, mix,sprsmtrx)
    
-#ifdef IPRINT
-   write(*, *) PRINTRANK, 'O'
-   do i = 1, 2 * KL + KU !+ 1
-      write(*, *) PRINTRANK, O(i, 1:n)
-   enddo
-#endif
 
 end subroutine ComputeMatrix
 

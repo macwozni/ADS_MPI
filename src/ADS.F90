@@ -299,25 +299,18 @@ end subroutine PrintDistributedData
 ! RHS   - vector of right-hand sides, of dimension (n+1) x eqnum
 ! eqnum - number of right-hand sides (equations)
 ! -------------------------------------------------------------------
-subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV, sprsmtrx)
+subroutine SolveOneDirection(RHS, eqnum, n, p, IPIV, sprsmtrx)
    use sparse
    implicit none
     include 'dmumps_struc.h'
    real (kind = 8) :: RHS(:,:)
-   integer :: KL, KU
    integer, dimension(:) :: IPIV
-   real (kind = 8), dimension(:,:) :: M
    integer :: n, p
    integer(kind = 4) :: eqnum
    integer(kind = 4) :: i, iret
    type(sparse_matrix), pointer, intent(in) :: sprsmtrx
     type(dmumps_struc) :: mumps_par
-   !real (kind = 8) :: RHS2(n+1,eqnum)
-   !real (kind = 8) :: RHS3(n+1,eqnum)
 
-!write(*,*) shape(rhs), n+1, eqnum
-!    rhs2(1:n+1,1:eqnum)=rhs(1:n+1,1:eqnum)
-!    rhs3(1:n+1,1:eqnum)=0.d0
    IPIV = 0
 
 #ifdef IPRINT
@@ -602,15 +595,15 @@ subroutine Sub_Step(ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, m
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
-      call ComputeMatrix(ads % KL(1), ads % KU(1), ads % Ux, ads % p(1), &
-      ads % n(1), ads % nelem(1), mix, ads_data % Mx, sprsmtrx)
+      call ComputeMatrix(ads % Ux, ads % p(1), &
+      ads % n(1), ads % nelem(1), mix, sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write(*,*) "Mass matrix 1: ", time2 - time1
       time1 = MPI_Wtime()
 #endif
       call SolveOneDirection(ads_data % F_out, ads % s(2) * ads % s(3), ads % n(1), &
-      ads % KL(1), ads % KU(1), ads % p(1), ads_data % Mx, ads % IPIVx, sprsmtrx)
+      ads % p(1), ads % IPIVx, sprsmtrx)
       call clear_matrix(sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
@@ -681,15 +674,15 @@ subroutine Sub_Step(ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, m
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
-      call ComputeMatrix(ads % KL(2), ads % KU(2), ads % Uy, ads % p(2), ads % n(2), &
-      ads % nelem(2), mix, ads_data % My, sprsmtrx)
+      call ComputeMatrix(ads % Uy, ads % p(2), ads % n(2), &
+      ads % nelem(2), mix, sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write(*,*) "Mass matrix 2: ", time2 - time1
       time1 = MPI_Wtime()
 #endif
-      call SolveOneDirection(ads_data % F2_out, ads % s(1) * ads % s(3), ads % n(2), ads % KL(2), &
-      ads % KU(2), ads % p(2), ads_data % My, ads % IPIVy, sprsmtrx)
+      call SolveOneDirection(ads_data % F2_out, ads % s(1) * ads % s(3), ads % n(2), &
+      ads % p(2), ads % IPIVy, sprsmtrx)
       call clear_matrix(sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
@@ -771,15 +764,15 @@ subroutine Sub_Step(ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, m
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
-      call ComputeMatrix(ads % KL(3), ads % KU(3), ads % Uz, ads % p(3), ads % n(3), &
-      ads % nelem(3), mix, ads_data % Mz, sprsmtrx)
+      call ComputeMatrix(ads % Uz, ads % p(3), ads % n(3), &
+      ads % nelem(3), mix, sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write(*,*) "Mass matrix 3: ", time2 - time1
       time1 = MPI_Wtime()
 #endif
-      call SolveOneDirection(ads_data % F3_out, ads % s(1) * ads % s(2), ads % n(3), ads % KL(3), &
-      ads % KU(3), ads % p(3), ads_data % Mz, ads % IPIVz, sprsmtrx)
+      call SolveOneDirection(ads_data % F3_out, ads % s(1) * ads % s(2), ads % n(3), &
+      ads % p(3), ads % IPIVz, sprsmtrx)
       call clear_matrix(sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
