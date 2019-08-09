@@ -273,8 +273,8 @@ subroutine to_mumps_format(matrix, mumps_par)
     do while (associated(line))
         entr => line%first
         do while (associated(entr))
-            mumps_par%irn(i) = entr%x
-            mumps_par%jcn(i) = entr%y
+            mumps_par%irn(i) = entr%x+1
+            mumps_par%jcn(i) = entr%y+1
             mumps_par%a(i) = entr%val
             i = i+1
             entr => entr%next

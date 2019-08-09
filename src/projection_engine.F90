@@ -558,8 +558,6 @@ subroutine ComputeMatrix(KL, KU, U, p, n, nelem, mix, O, sprsmtrx)
 
    call MKBBT(KL, KU, U, p, n, nelem, mix, O,sprsmtrx)
    
-   !O = mix(1)*M + mix(2)*K + mix(3)*B + mix(4)*BT
-   
 #ifdef IPRINT
    write(*, *) PRINTRANK, 'O'
    do i = 1, 2 * KL + KU !+ 1

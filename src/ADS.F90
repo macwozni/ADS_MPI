@@ -312,12 +312,12 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV, sprsmtrx)
    integer(kind = 4) :: i, iret
    type(sparse_matrix), pointer, intent(in) :: sprsmtrx
     type(dmumps_struc) :: mumps_par
-   real (kind = 8) :: RHS2(n+1,eqnum)
-   real (kind = 8) :: RHS3(n+1,eqnum)
+   !real (kind = 8) :: RHS2(n+1,eqnum)
+   !real (kind = 8) :: RHS3(n+1,eqnum)
 
-write(*,*) shape(rhs), n+1, eqnum
-    rhs2(1:n+1,1:eqnum)=rhs(1:n+1,1:eqnum)
-    rhs3(1:n+1,1:eqnum)=0.d0
+!write(*,*) shape(rhs), n+1, eqnum
+!    rhs2(1:n+1,1:eqnum)=rhs(1:n+1,1:eqnum)
+!    rhs3(1:n+1,1:eqnum)=0.d0
    IPIV = 0
 
 #ifdef IPRINT
@@ -346,7 +346,7 @@ write(*,*) shape(rhs), n+1, eqnum
    ! INTEGER            IPIV( * )
    ! DOUBLE PRECISION   AB( LDAB, * ), B( LDB, * )
 
-   call DGBSV(n + 1, KL, KU, eqnum, M, 2 * KL + KU + 1, IPIV, RHS, n + 1, iret)
+!   call DGBSV(n + 1, KL, KU, eqnum, M, 2 * KL + KU + 1, IPIV, RHS, n + 1, iret)
 
 #ifdef IPRINT
    write(*, *) 'iret=', iret
@@ -368,11 +368,11 @@ write(*,*) shape(rhs), n+1, eqnum
 !     error output stream (non-positive to suppress)
       mumps_par%icntl(1)  = 1 !1
 !     diagnostic, statistics and warnings
-      mumps_par%icntl(2)  = 1 !1
+      mumps_par%icntl(2)  =0! 1 !1
 !     global information
-      mumps_par%icntl(3)  = 6 !6
+      mumps_par%icntl(3)  = 0!6 !6
 !     printing level
-      mumps_par%icntl(4)  = 3 !3
+      mumps_par%icntl(4)  = 0!3 !3
 !     input matrix in assembled or element format
       mumps_par%icntl(5)  = 0
 !     column permutation for zero-free diagonal (automatic)
@@ -412,19 +412,13 @@ write(*,*) shape(rhs), n+1, eqnum
         stop 1
       endif
 
-   do i = 1, 1
-      mumps_par%rhs(1:n+1) = rhs2(1:n+1,i)
+   do i = 1, eqnum
+      mumps_par%rhs(1:n+1) = rhs(1:n+1,i)
       mumps_par%job = 3
       call dmumps(mumps_par)
-      rhs3(1:n+1,i) = mumps_par%rhs(1:n+1)
+      rhs(1:n+1,i) = mumps_par%rhs(1:n+1)
    enddo
-
-   do i = 1, n + 1
-      write(*, *) n+1 !, 'row=', RHS(i, 1:1) - RHS3(i, 1:1)
-   enddo
-stop 1
       
-
       mumps_par%job = -2
       call dmumps(mumps_par)
 
