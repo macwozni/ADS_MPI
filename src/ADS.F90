@@ -312,7 +312,12 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV, sprsmtrx)
    integer(kind = 4) :: i, iret
    type(sparse_matrix), pointer, intent(in) :: sprsmtrx
     type(dmumps_struc) :: mumps_par
+   real (kind = 8) :: RHS2(n+1,eqnum)
+   real (kind = 8) :: RHS3(n+1,eqnum)
 
+write(*,*) shape(rhs), n+1, eqnum
+    rhs2(1:n+1,1:eqnum)=rhs(1:n+1,1:eqnum)
+    rhs3(1:n+1,1:eqnum)=0.d0
    IPIV = 0
 
 #ifdef IPRINT
@@ -351,7 +356,83 @@ subroutine SolveOneDirection(RHS, eqnum, n, KL, KU, p, M, IPIV, sprsmtrx)
    enddo
 #endif
 
+   mumps_par%job = -1
+   mumps_par%par = 1
+   mumps_par%N = n+1
+   call dmumps(mumps_par)
+
    call to_mumps_format(sprsmtrx, mumps_par)
+   allocate(mumps_par%rhs(mumps_par%n))
+
+
+!     error output stream (non-positive to suppress)
+      mumps_par%icntl(1)  = 1 !1
+!     diagnostic, statistics and warnings
+      mumps_par%icntl(2)  = 1 !1
+!     global information
+      mumps_par%icntl(3)  = 6 !6
+!     printing level
+      mumps_par%icntl(4)  = 3 !3
+!     input matrix in assembled or element format
+      mumps_par%icntl(5)  = 0
+!     column permutation for zero-free diagonal (automatic)
+!     mumps_par%icntl(6)  = 7
+!     pivot order (automatic)
+      mumps_par%icntl(7)  = 4 !1 enforce ordering, 5 metis, 0 AMD, 7 auto
+!     scaling (automatic)
+!     mumps_par%icntl(8)  = 7
+!     no transpose
+!     mumps_par%icntl(9)  = 1
+!     max steps for iterative refinement
+!     mumps_par%icntl(10) = 0
+!     statistics info
+      mumps_par%icntl(11) = 2
+!     controls parallelism
+      mumps_par%icntl(12) = 0
+!     use ScaLAPACK for root node
+      mumps_par%icntl(13) = 1 !0 use 1 do not use
+!     percentage increase in estimated workspace
+      mumps_par%icntl(14) = 50
+!     matrix distribution for assembled input
+      mumps_par%icntl(18) = 0 !distributed
+!     nonzero for Schur complement
+      mumps_par%icntl(19) = 0
+!     distribution of RHS (centralized on host)
+      mumps_par%icntl(20) = 0
+!     mumps_par%icntl(32) = 1
+
+      mumps_par%job = 1
+      call dmumps(mumps_par)
+      
+      mumps_par%job = 2
+      call dmumps(mumps_par)
+      if (mumps_par%info(1).ne.0) then
+        write (*,*) 'mumps_par%job=',mumps_par%job
+        write (*,*) 'mumps_par%info=',mumps_par%info
+        stop 1
+      endif
+
+   do i = 1, 1
+      mumps_par%rhs(1:n+1) = rhs2(1:n+1,i)
+      mumps_par%job = 3
+      call dmumps(mumps_par)
+      rhs3(1:n+1,i) = mumps_par%rhs(1:n+1)
+   enddo
+
+   do i = 1, n + 1
+      write(*, *) n+1 !, 'row=', RHS(i, 1:1) - RHS3(i, 1:1)
+   enddo
+stop 1
+      
+
+      mumps_par%job = -2
+      call dmumps(mumps_par)
+
+
+      deallocate(mumps_par%irn)
+      deallocate(mumps_par%jcn)
+      deallocate(mumps_par%a)
+      deallocate(mumps_par%rhs)
    
 end subroutine SolveOneDirection
 
