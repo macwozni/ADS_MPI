@@ -299,55 +299,16 @@ end subroutine PrintDistributedData
 ! RHS   - vector of right-hand sides, of dimension (n+1) x eqnum
 ! eqnum - number of right-hand sides (equations)
 ! -------------------------------------------------------------------
-subroutine SolveOneDirection(RHS, eqnum, n, p, IPIV, sprsmtrx)
+subroutine SolveOneDirection(RHS, eqnum, n, p, sprsmtrx)
    use sparse
    implicit none
-    include 'dmumps_struc.h'
+   include 'dmumps_struc.h'
    real (kind = 8) :: RHS(:,:)
-   integer, dimension(:) :: IPIV
    integer :: n, p
    integer(kind = 4) :: eqnum
    integer(kind = 4) :: i, iret
    type(sparse_matrix), pointer, intent(in) :: sprsmtrx
     type(dmumps_struc) :: mumps_par
-
-   IPIV = 0
-
-#ifdef IPRINT
-   write(*, *) 'CALL DGBSV'
-   write(*, *) 'N=', n + 1
-   write(*, *) 'KL=', KL
-   write(*, *) 'KU=', KU
-   write(*, *) 'NRHS=', eqnum
-   write(*, *) 'AB='
-   do i = 1, 2 * KL + KU + 1
-      write(*, *) i, 'row=', M(i, 1:n + 1)
-   enddo
-   write(*, *) 'LDAB=', 2 * KL + KU + 1
-   write(*, *) 'IPIV=', IPIV
-   write(*, *) 'B='
-   do i = 1, n + 1
-      write(*, *) i, 'row=', RHS(i, 1:eqnum)
-   enddo
-   write(*, *) 'LDB=', n + 1
-#endif
-   
-   ! SUBROUTINE DGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
-   ! .. Scalar Arguments ..
-   ! INTEGER            INFO, KL, KU, LDAB, LDB, N, NRHS
-   ! .. Array Arguments ..
-   ! INTEGER            IPIV( * )
-   ! DOUBLE PRECISION   AB( LDAB, * ), B( LDB, * )
-
-!   call DGBSV(n + 1, KL, KU, eqnum, M, 2 * KL + KU + 1, IPIV, RHS, n + 1, iret)
-
-#ifdef IPRINT
-   write(*, *) 'iret=', iret
-   write(*, *) 'Solution='
-   do i = 1, n + 1
-      write(*, *) i, 'row=', RHS(i, 1:eqnum)
-   enddo
-#endif
 
    mumps_par%job = -1
    mumps_par%par = 1
@@ -603,7 +564,7 @@ subroutine Sub_Step(ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, m
       time1 = MPI_Wtime()
 #endif
       call SolveOneDirection(ads_data % F_out, ads % s(2) * ads % s(3), ads % n(1), &
-      ads % p(1), ads % IPIVx, sprsmtrx)
+      ads % p(1), sprsmtrx)
       call clear_matrix(sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
@@ -682,7 +643,7 @@ subroutine Sub_Step(ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, m
       time1 = MPI_Wtime()
 #endif
       call SolveOneDirection(ads_data % F2_out, ads % s(1) * ads % s(3), ads % n(2), &
-      ads % p(2), ads % IPIVy, sprsmtrx)
+      ads % p(2), sprsmtrx)
       call clear_matrix(sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
@@ -772,7 +733,7 @@ subroutine Sub_Step(ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, m
       time1 = MPI_Wtime()
 #endif
       call SolveOneDirection(ads_data % F3_out, ads % s(1) * ads % s(2), ads % n(3), &
-      ads % p(3), ads % IPIVz, sprsmtrx)
+      ads % p(3), sprsmtrx)
       call clear_matrix(sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
