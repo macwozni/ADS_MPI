@@ -80,8 +80,8 @@ subroutine find(matrix,x,y,entr)
     tmp => line%first
     
     do while (associated(tmp%next))
-        if (tmp%next%y .EQ. y) then
-            entr => tmp%next
+        if (tmp%y .EQ. y) then
+            entr => tmp
             return
         end if
         if (tmp%next%y .GT. y) then
@@ -98,12 +98,17 @@ subroutine find(matrix,x,y,entr)
         tmp => tmp%next
     end do
 
+    if (tmp%y .EQ. y) then
+        entr => tmp
+        return
+    end if
+
     allocate(tmp%next)
     tmp%next%x = x
     tmp%next%y = y
     tmp%next%next => NULL()
     tmp%next%val = 0.d0
-    entr => tmp
+    entr => tmp%next
     matrix%total_entries = matrix%total_entries+1
 end subroutine find
 
@@ -138,8 +143,8 @@ subroutine find_line(matrix,x,line)
     tmp => matrix%first
     
     do while (associated(tmp%next))
-        if (tmp%next%x .EQ. x) then
-            line => tmp%next
+        if (tmp%x .EQ. x) then
+            line => tmp
             return
         end if
         if (tmp%next%x .GT. x) then
@@ -153,7 +158,12 @@ subroutine find_line(matrix,x,line)
         end if
         tmp => tmp%next
     end do
-    
+
+    if (tmp%x .EQ. x) then
+        line => tmp
+        return
+    end if
+
     allocate(tmp%next)
     tmp%next%x = x
     tmp%next%next => NULL()
