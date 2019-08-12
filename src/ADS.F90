@@ -513,6 +513,9 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction,substep,abc,RHS_fu
    integer(kind = 4), dimension(3) :: nrcpp
    real(kind = 8) :: time1, time2
    type(sparse_matrix), pointer :: sprsmtrx
+   integer(kind = 4), dimension(2) :: offset
+
+   offset = 0
 
 #ifdef PERFORMANCE
    time1 = MPI_Wtime()
