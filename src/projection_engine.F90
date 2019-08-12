@@ -171,7 +171,7 @@ subroutine MKBBT(U1, p1, n1, nelem1, U2, p2, n2, nelem2, mix, sprsmtrx)
       ! NN(0,d,i,e) = value of shape function d at Gauss point i over element e
       ! W(i) weight for Gauss point i
       ! J(e) jacobian for element e
-      ia = O1(e) + c                 !!!!!!!!!!!!!!!!!!! TODO - change !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      ia = O1(e) + c + n1+1                !!!!!!!!!!!!!!!!!!! TODO - change !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ib = O1(e) + d                 !!!!!!!!!!!!!!!!!!! TODO - change !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! M = u*v
       M = NN2(0, c, i, e) * NN1(0, d, i, e) * J1(e) * W1(i)
@@ -215,7 +215,7 @@ subroutine MKBBT(U1, p1, n1, nelem1, U2, p2, n2, nelem2, mix, sprsmtrx)
       ! W(i) weight for Gauss point i
       ! J(e) jacobian for element e
       ia = O1(e) + c                 !!!!!!!!!!!!!!!!!!! TODO - change !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      ib = O1(e) + d                 !!!!!!!!!!!!!!!!!!! TODO - change !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      ib = O1(e) + d   +n2+1              !!!!!!!!!!!!!!!!!!! TODO - change !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! M = u*v
       M = NN1(0, c, i, e) * NN2(0, d, i, e) * J2(e) * W2(i)
       K = NN1(1, c, i, e) * NN2(1, d, i, e) * J2(e) * W2(i)
@@ -248,7 +248,7 @@ end subroutine MKBBT
 ! -------
 !> @param[out] l2norm      -
 ! -------------------------------------------------------------------
-subroutine Form3DRHS(ads, ads_data, direction, substep,RHS_fun,l2norm)
+subroutine Form3DRHS(ads, ads_data, direction, offset, substep,RHS_fun,l2norm)
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    use parallelism, ONLY: PRINTRANK
    use Interfaces, ONLY: RHS_fun_int
@@ -258,6 +258,7 @@ subroutine Form3DRHS(ads, ads_data, direction, substep,RHS_fun,l2norm)
    procedure(RHS_fun_int) :: RHS_fun
    type (ADS_setup), intent(in) :: ads
    integer (kind=4), intent(in) :: direction
+   integer (kind=4), dimension(2), intent(in) :: offset
    integer (kind=4), intent(in) :: substep
    type (ADS_compute_data), intent(inout) :: ads_data
    real (kind = 8), intent(out) :: l2norm
@@ -368,8 +369,10 @@ subroutine Form3DRHS(ads, ads_data, direction, substep,RHS_fun,l2norm)
                if ((indx < ads % ibeg(1) - 1) .or. (indx > ads % iend(1) - 1) .or. &
                (indy < ads % ibeg(2) - 1) .or. (indy > ads % iend(2) - 1) .or. &
                (indz < ads % ibeg(3) - 1) .or. (indz > ads % iend(3) - 1)) then
-               else 
-                  ads_data % F(ind1 + 1, ind23 + 1) = ads_data % F(ind1 + 1, ind23 + 1) + elarr(ax,ay,az)
+               else  
+                  ads_data % F(ind1 + offset(1) + 1, ind23 + offset(2) + 1) = &
+                  ads_data % F(ind1 + offset(1) + 1, ind23 + offset(2) + 1) &
+                  + elarr(ax,ay,az)
                endif
             enddo
          enddo
@@ -625,17 +628,19 @@ end subroutine global2local
 !> @param[out] sprsmtrx     - sparse matrix, logically \f$ (n+1) \times (n+1) \f$
 !
 ! -------------------------------------------------------------------
-subroutine ComputeMatrix(U, p, n, nelem, mix, sprsmtrx)
+subroutine ComputeMatrix(U1, p1, n1, nelem1, U2, p2, n2, nelem2, mix, sprsmtrx)
    use parallelism, ONLY: PRINTRANK
    use sparse
    implicit none
-   integer(kind = 4), intent(in) :: n, p, nelem
-   real (kind = 8), dimension(0:n + p + 1), intent(in) :: U
+   integer(kind = 4), intent(in) :: n1, p1, nelem1
+   real (kind = 8), dimension(0:n1 + p1 + 1), intent(in) :: U1
+   integer(kind = 4), intent(in) :: n2, p2, nelem2
+   real (kind = 8), dimension(0:n2 + p2 + 1), intent(in) :: U2
    real (kind = 8), dimension(4), intent(in) :: mix
    type(sparse_matrix), pointer, intent(out) :: sprsmtrx
    integer :: i
 
-   call MKBBT(U, p, n, nelem, U, p, n, nelem, mix, sprsmtrx)
+   call MKBBT(U1, p1, n1, nelem1, U2, p2, n2, nelem2, mix, sprsmtrx)
    
 
 end subroutine ComputeMatrix
