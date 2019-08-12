@@ -47,25 +47,28 @@ type ADS_setup
    integer(kind = 4), dimension(3) :: ibegsz, iendsz
 
 ! Range of elements associated with basis functions assigned to this process
-   integer(kind = 4), dimension(3) :: mine, maxe
+   integer(kind = 4), dimension(3) :: mine, maxe, lnelem
 
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+! index of the last node in knot vector (number of nodes - 1)
    integer(kind = 4), dimension(3) :: m
 
+! number of Gauss quadrature points
    integer(kind = 4), dimension(3) :: ng
 
+! indexes of first nonzero functions on each element
    integer(kind = 4), allocatable, dimension(:) :: Ox, Oy, Oz
 
+! values of the Jacobian of elements
    real (kind = 8), allocatable, dimension(:) :: Jx, Jy, Jz
 
+! points of Gauss quadrature
    real (kind = 8), allocatable, dimension(:,:) :: Xx, Xy, Xz
 
+! values of (p+1) nonzero basis functions and their derivatives at points of Gauss quadrature
    real (kind = 8), allocatable, dimension(:,:,:,:) :: NNx, NNy, NNz
 
+! weights of Gauss quadrature points
    real (kind = 8), allocatable, dimension(:) :: Wx, Wy, Wz
-
-   integer (kind = 4), dimension(3) :: lnelem
 
 ! time step length
    real (kind = 8) :: tau
