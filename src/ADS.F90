@@ -516,182 +516,17 @@ subroutine Sub_Step(ads, ads_trial, iter, mix,direction,substep,RHS_fun,ads_data
    !--------------------------------------------------------------------
    ! Solve the first problem
    !--------------------------------------------------------------------
-   call mpi_barrier(MPI_COMM_WORLD, ierr)
 
-#ifdef IINFO
-   write(*, *) PRINTRANK, '1a) GATHER'
-#endif
-
-   allocate(ads_data % F_out((ads % n(1) + 1), ads % s(2) * ads % s(3)))
-
-#ifdef PERFORMANCE
-   time1 = MPI_Wtime()
-#endif
-   call Gather(ads_data % F, ads_data % F_out, ads % n(1), ads % s(1), ads % s(2) &
-   *ads % s(3), ads % dimensionsX, ads % shiftsX, COMMX, ierr)
-#ifdef PERFORMANCE
-   time2 = MPI_Wtime()
-   write(*,*) "Gather 1: ", time2 - time1
-#endif
-
-#ifdef IPRINT
-   write(*, *) PRINTRANK, 'after call mpi_gather'
-   write(*, *) PRINTRANK, 'ierr', ierr
-   write(*, *) PRINTRANK, 'F_out:'
-   do i = 1, ads % n(1) + 1
-      write(*, *) PRINTRANK, i, 'row=', ads % F_out(i, 1:ads % s(2) * ads % s(3))
-   enddo
-#endif
-   call mpi_barrier(MPI_COMM_WORLD, ierr)
-
-   if (MYRANKX == 0) then
-#ifdef IINFO
-      write(*, *) PRINTRANK, '1b) SOLVE THE FIRST PROBLEM'
-#endif
-
-#ifdef PERFORMANCE
-      time1 = MPI_Wtime()
-#endif
-      call ComputeMatrix(ads % Ux, ads % p(1), ads % n(1), ads % nelem(1), &
-      ads % Ux, ads % p(1), ads % n(1), ads % nelem(1), &
-      mix, sprsmtrx)
-#ifdef PERFORMANCE
-      time2 = MPI_Wtime()
-      write(*,*) "Mass matrix 1: ", time2 - time1
-      time1 = MPI_Wtime()
-#endif
-      call SolveOneDirection(ads_data % F_out, ads % s(2) * ads % s(3), ads % n(1), ads % p(1), sprsmtrx)
-      call clear_matrix(sprsmtrx)
-#ifdef PERFORMANCE
-      time2 = MPI_Wtime()
-      write(*,*) "Solve 1: ", time2 - time1
-#endif
-   endif
-
-   call mpi_barrier(MPI_COMM_WORLD, ierr)
-
-#ifdef IINFO
-   write(*, *) PRINTRANK, '1c) SCATTER'
-#endif
-   allocate(ads_data % F2_out(ads % s(1), ads % s(2) * ads % s(3)))
-#ifdef PERFORMANCE
-   time1 = MPI_Wtime()
-#endif
-   call Scatter(ads_data % F_out, ads_data % F2_out, ads % n(1), ads % s(1), ads % s(2) * &
-   ads % s(3), ads % dimensionsX, ads % shiftsX, COMMX, ierr)
-#ifdef PERFORMANCE
-   time2 = MPI_Wtime()
-   write(*,*) "Scatter 1: ", time2 - time1
-#endif
-   deallocate(ads_data % F_out)
-
-   call mpi_barrier(MPI_COMM_WORLD, ierr)
-
-#ifdef IINFO
-   write(*, *) PRINTRANK, '1d) REORDER'
-#endif
-   call ReorderRHSForY(ads % ibeg, ads % iend, ads_data % F2_out, ads_data % F2)
-   deallocate(ads_data % F2_out)
-
-#ifdef IPRINT
-   write(*, *) PRINTRANK, 'after ReorderRHSForY'
-   write(*, *) PRINTRANK, 'F2:'
-   do i = 1, ads % s(2)
-      write(*, *) PRINTRANK, i, 'row=', ads_data % F2(i, 1:ads % s(1) * ads % s(3))
-   enddo
-#endif
+   
+   call solve_problem(ads, 1, 2, 3, ads % dimensionsX, ads % shiftsX, COMMX, MYRANKX, &
+   mix, ads % ux, sprsmtrx, ads_data % F, ads_data % F2, ierr)
 
    !--------------------------------------------------------------------
    ! Solve the second problem
    !--------------------------------------------------------------------
-   call mpi_barrier(MPI_COMM_WORLD, ierr)
-
-#ifdef IINFO
-   write(*, *) PRINTRANK, '2a) GATHER'
-#endif
-
-   allocate(ads_data % F2_out((ads % n(2) + 1), ads % s(1) * ads % s(3)))
-#ifdef PERFORMANCE
-   time1 = MPI_Wtime()
-#endif
-   call Gather(ads_data % F2, ads_data % F2_out, ads % n(2), ads % s(2), ads % s(1) * ads % s(3), &
-   ads % dimensionsY, ads % shiftsY, COMMY, ierr)
-#ifdef PERFORMANCE
-   time2 = MPI_Wtime()
-   write(*,*) "Gather 2: ", time2 - time1
-#endif
-
-   call mpi_barrier(MPI_COMM_WORLD, ierr)
-
-   if (MYRANKY == 0) then
-#ifdef IINFO
-      write(*, *) PRINTRANK, '2b) SOLVE THE SECOND PROBLEM'
-#endif
-
-#ifdef PERFORMANCE
-      time1 = MPI_Wtime()
-#endif
-      call ComputeMatrix(ads % Uy, ads % p(2), ads % n(2), ads % nelem(2), &
-      ads % Uy, ads % p(2), ads % n(2), ads % nelem(2), &
-      mix, sprsmtrx)
-#ifdef PERFORMANCE
-      time2 = MPI_Wtime()
-      write(*,*) "Mass matrix 2: ", time2 - time1
-      time1 = MPI_Wtime()
-#endif
-      call SolveOneDirection(ads_data % F2_out, ads % s(1) * ads % s(3), ads % n(2), ads % p(2), sprsmtrx)
-      call clear_matrix(sprsmtrx)
-#ifdef PERFORMANCE
-      time2 = MPI_Wtime()
-      write(*,*) "Solve 2: ", time2 - time1
-#endif
-
-   endif
-
-   call mpi_barrier(MPI_COMM_WORLD, ierr)
-
-#ifdef IINFO
-   write(*, *) PRINTRANK, '2c) SCATHER'
-#endif
-
-   ! CORRECTION
-   allocate(ads_data % F3_out(ads % s(2), ads % s(1) * ads % s(3)))
-#ifdef PERFORMANCE
-   time1 = MPI_Wtime()
-#endif
-   call Scatter(ads_data % F2_out, ads_data % F3_out, ads % n(2), ads % s(2), ads % s(1) * ads % s(3), &
-   ads % dimensionsY, ads % shiftsY, COMMY, ierr)
-#ifdef PERFORMANCE
-   time2 = MPI_Wtime()
-   write(*,*) "Scatter 2: ", time2 - time1
-#endif
-   deallocate(ads_data % F2_out)
-
-#ifdef IPRINT
-   write(*, *) PRINTRANK, 'after call mpi_scatterv'
-   write(*, *) PRINTRANK, 'ierr', ierr
-   write(*, *) PRINTRANK, 'F3_out:'
-   do i = 1, ads % s(2)
-      write(*, *) PRINTRANK, i, 'row=', ads % F3_out(i, 1:ads % s(1) * ads % s(3))
-   enddo
-#endif
-
-   call mpi_barrier(MPI_COMM_WORLD, ierr)
-
-#ifdef IINFO
-   write(*, *) PRINTRANK, '2d) REORDER'
-#endif
-   ! Reorder right hand sides
-   call ReorderRHSForZ(ads % ibeg, ads % iend, ads_data % F3_out, ads_data % F3)
-   deallocate(ads_data % F3_out)
-
-#ifdef IPRINT
-   write(*, *) PRINTRANK, 'after ReorderRHSForZ'
-   write(*, *) PRINTRANK, 'F3:'
-   do i = 1, ads % s(3)
-      write(*, *) PRINTRANK, i, 'row=', ads_data % F3(i, 1:ads % s(1) * ads % s(2))
-   enddo
-#endif
+   
+   call solve_problem(ads, 2, 1, 3, ads % dimensionsZ, ads % shiftsY, COMMY, MYRANKY, &
+   mix, ads % uy, sprsmtrx, ads_data % F2, ads_data % F3, ierr)
 
    !--------------------------------------------------------------------
    ! Solve the third problem
@@ -963,7 +798,7 @@ subroutine solve_problem(ads, a, b, c, dimensions, shifts, comm, myrankdim, mix,
    real(kind = 8) :: time1, time2
 
 #ifdef IINFO
-   write(*, *) PRINTRANK, '3a) GATHER'
+   write(*, *) PRINTRANK, a,'a) GATHER'
 #endif
 
    call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -999,7 +834,7 @@ subroutine solve_problem(ads, a, b, c, dimensions, shifts, comm, myrankdim, mix,
       call clear_matrix(sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
-      write(*,*) "Solve ',a,': ", time2 - time1
+      write(*,*) "Solve ", a,": ", time2 - time1
 #endif
    endif
 
@@ -1017,7 +852,7 @@ subroutine solve_problem(ads, a, b, c, dimensions, shifts, comm, myrankdim, mix,
    dimensions, shifts, comm, ierr)
 #ifdef PERFORMANCE
    time2 = MPI_Wtime()
-   write(*,*) "Scatter 3: ", time2 - time1
+   write(*,*) "Scatter ", a,": ", time2 - time1
 #endif
    deallocate(F_out)
 
@@ -1027,11 +862,13 @@ subroutine solve_problem(ads, a, b, c, dimensions, shifts, comm, myrankdim, mix,
    write(*, *) PRINTRANK, '3d) REORDER'
 #endif
    ! Reorder right hand sides
-   call ReorderRHSForX(ads % ibeg, ads % iend, F2_out, F2)
+   if (a .EQ. 1) call ReorderRHSForY(ads % ibeg, ads % iend, F2_out, F2)
+   if (a .EQ. 2) call ReorderRHSForZ(ads % ibeg, ads % iend, F2_out, F2)
+   if (a .EQ. 3) call ReorderRHSForX(ads % ibeg, ads % iend, F2_out, F2)
    deallocate(F2_out)
 
 #ifdef IPRINT
-   write(*, *) PRINTRANK, 'after ReorderRHSForX'
+   write(*, *) PRINTRANK, 'after ReorderRHS'
    write(*, *) PRINTRANK, 'F:'
    do i = 1, ads % s(1)
       write(*, *) PRINTRANK, i, 'row=', F2(i, 1:ads % s(2) * ads % s(3))
