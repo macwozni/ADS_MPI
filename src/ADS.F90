@@ -408,20 +408,20 @@ subroutine MultiStep(iter, mix, RHS_fun, ads, ads_data, l2norm, mierr)
    call FormUn(1, ads, ads_data)
    ads_data % un13 = 0.d0
    ads_data % un23 = 0.d0
-   call Sub_Step(ads, iter, mmix,direction,substep,RHS_fun,ads_data, l2norm, mierr)
+   call Sub_Step(ads, ads, iter, mmix,direction,substep,RHS_fun,ads_data, l2norm, mierr)
    
    mmix = mix(:,2)
    direction = 2
    substep = 2
    call FormUn(2, ads, ads_data)
    ads_data % un23 = 0.d0
-   call Sub_Step(ads, iter, mmix,direction,substep,RHS_fun,ads_data, l2norm, mierr)
+   call Sub_Step(ads, ads, iter, mmix,direction,substep,RHS_fun,ads_data, l2norm, mierr)
    
    mmix = mix(:,3)
    direction = 3
    substep = 3
    call FormUn(3, ads, ads_data)
-   call Sub_Step(ads, iter, mmix,direction,substep,RHS_fun,ads_data, l2norm, mierr)
+   call Sub_Step(ads, ads, iter, mmix,direction,substep,RHS_fun,ads_data, l2norm, mierr)
    
    
 end subroutine MultiStep
@@ -454,7 +454,7 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
    ads_data % un23 = 0.d0
    call FormUn(1, ads, ads_data)
    
-   call Sub_Step(ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, mierr)
+   call Sub_Step(ads, ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, mierr)
    
 end subroutine Step
    
@@ -466,7 +466,7 @@ end subroutine Step
 ! iter - number of the iteration
 ! t    - time at the beginning of step
 ! -------------------------------------------------------------------
-subroutine Sub_Step(ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, mierr)
+subroutine Sub_Step(ads, ads_trial, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, mierr)
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    use parallelism, ONLY:PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
    use communicators, ONLY: COMMX, COMMY, COMMZ
@@ -478,6 +478,7 @@ subroutine Sub_Step(ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, m
    use sparse
    implicit none
    type (ADS_setup), intent(in) :: ads
+   type (ADS_setup), intent(in) :: ads_trial
    integer(kind = 4), intent(in) :: iter
    real(kind=8), intent(in) :: mix(4)
    integer (kind=4), intent(in) :: direction
@@ -491,12 +492,15 @@ subroutine Sub_Step(ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, m
    integer(kind = 4), dimension(3) :: nrcpp
    real(kind = 8) :: time1, time2
    type(sparse_matrix), pointer :: sprsmtrx
+   integer(kind = 4), dimension(2) :: offset
+
+   offset = 0
 
 #ifdef PERFORMANCE
    time1 = MPI_Wtime()
 #endif
    ! generate the RHS vectors
-   call Form3DRHS(ads, ads_data, direction, substep, RHS_fun, l2norm)
+   call Form3DRHS(ads, ads_data, direction, offset, substep, RHS_fun, l2norm)
 #ifdef PERFORMANCE
    time2 = MPI_Wtime()
    write(*,*) "Form 3D RHS: ", time2 - time1
