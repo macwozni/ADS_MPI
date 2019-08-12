@@ -631,6 +631,38 @@ subroutine Cleanup_ADS(ads, mierr)
    integer(kind = 4), intent(out) :: mierr
    integer(kind = 4) :: ierr
 
+   call Cleanup_ADS(ads, mierr)
+
+   if (allocated(ads_data % F)) deallocate(ads_data % F)
+   if (allocated(ads_data % F2)) deallocate(ads_data % F2)
+   if (allocated(ads_data % F3)) deallocate(ads_data % F3)
+
+   if (allocated(ads_data % Un)) deallocate(ads_data % Un)
+   if (allocated(ads_data % Un13)) deallocate(ads_data % Un13)
+   if (allocated(ads_data % Un23)) deallocate(ads_data % Un23)
+   if (allocated(ads_data % dUn)) deallocate(ads_data % dUn)
+   !!!!!! wyciac
+   call mpi_finalize(ierr)
+#ifdef IINFO
+   write(*, *) PRINTRANK, "Exiting..."
+#endif
+
+   mierr = 0
+
+end subroutine Cleanup
+
+
+! -------------------------------------------------------------------
+! Deallocates all the resources and finalizes MPI.
+! -------------------------------------------------------------------
+subroutine Cleanup_ADS(ads, mierr)
+   use Setup, ONLY: ADS_Setup, ADS_compute_data
+   use parallelism, ONLY: PRINTRANK
+   implicit none
+   type (ADS_setup), intent(inout) :: ads
+   integer(kind = 4), intent(out) :: mierr
+   integer(kind = 4) :: ierr
+
    if (allocated(ads % shiftsX)) deallocate(ads % shiftsX)
    if (allocated(ads % shiftsY)) deallocate(ads % shiftsY)
    if (allocated(ads % shiftsZ)) deallocate(ads % shiftsZ)
