@@ -32,11 +32,6 @@ type ADS_setup
    integer(kind = 4), allocatable, dimension(:) :: IPIVy
    integer(kind = 4), allocatable, dimension(:) :: IPIVz
 
-! Number of lower diagonal entries in mass matrix
-   integer(kind = 4), dimension(3) :: KL
-! Number of upper diagonal entries in mass matrix
-   integer(kind = 4), dimension(3) :: KU
-
 ! Number of columns (average) per processor
    integer(kind = 4), dimension(3) :: nrcpp
 
@@ -78,11 +73,6 @@ end type ADS_setup
 
 
 type ADS_compute_data
-! Mass matrix
-   real (kind = 8), allocatable, dimension(:,:) :: Mx
-   real (kind = 8), allocatable, dimension(:,:) :: My
-   real (kind = 8), allocatable, dimension(:,:) :: Mz
-
    real (kind = 8), allocatable, dimension(:,:) :: F, F2, F3
    real (kind = 8), allocatable, dimension(:,:) :: F_out, F2_out, F3_out
 

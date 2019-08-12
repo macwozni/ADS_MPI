@@ -54,9 +54,6 @@ subroutine initialize(n, p, ads, ads_data, mierr)
       stop
    endif
 
-   ads % KL = p
-   ads % KU = p
-
    call ComputeDecomposition(ads)
 
 #ifdef IDEBUG
@@ -186,11 +183,6 @@ subroutine AllocateADSdata(ads, ads_data)
    type(ADS_setup), intent(in) :: ads
    type (ADS_compute_data), intent(out) :: ads_data
    integer :: ierr
-
-   allocate(ads_data % Mx(2 * ads % KL(1) + ads % KU(1) + 1, ads % n(1) + 1))
-   allocate(ads_data % My(2 * ads % KL(2) + ads % KU(2) + 1, ads % n(2) + 1))
-   allocate(ads_data % Mz(2 * ads % KL(3) + ads % KU(3) + 1, ads % n(3) + 1))
-
 
    allocate(ads_data % Un(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
    allocate(ads_data % Un13(ads%lnelem(1),ads%lnelem(2),ads % lnelem(3),ads%ng(1),ads%ng(2),ads%ng(3)))
@@ -829,10 +821,6 @@ subroutine Cleanup(ads, ads_data, mierr)
    if (allocated(ads % Ux)) deallocate(ads % Ux)
    if (allocated(ads % Uy)) deallocate(ads % Uy)
    if (allocated(ads % Uz)) deallocate(ads % Uz)
-
-   if (allocated(ads_data % Mx)) deallocate(ads_data % Mx)
-   if (allocated(ads_data % My)) deallocate(ads_data % My)
-   if (allocated(ads_data % Mz)) deallocate(ads_data % Mz)
 
    if (allocated(ads_data % F)) deallocate(ads_data % F)
    if (allocated(ads_data % F2)) deallocate(ads_data % F2)
