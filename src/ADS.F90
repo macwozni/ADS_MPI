@@ -550,15 +550,15 @@ subroutine Sub_Step(ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, m
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
-      call ComputeMatrix(ads % Ux, ads % p(1), &
-      ads % n(1), ads % nelem(1), mix, sprsmtrx)
+      call ComputeMatrix(ads % Ux, ads % p(1), ads % n(1), ads % nelem(1), &
+      ads % Ux, ads % p(1), ads % n(1), ads % nelem(1), &
+      mix, sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write(*,*) "Mass matrix 1: ", time2 - time1
       time1 = MPI_Wtime()
 #endif
-      call SolveOneDirection(ads_data % F_out, ads % s(2) * ads % s(3), ads % n(1), &
-      ads % p(1), sprsmtrx)
+      call SolveOneDirection(ads_data % F_out, ads % s(2) * ads % s(3), ads % n(1), ads % p(1), sprsmtrx)
       call clear_matrix(sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
@@ -629,15 +629,15 @@ subroutine Sub_Step(ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, m
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
-      call ComputeMatrix(ads % Uy, ads % p(2), ads % n(2), &
-      ads % nelem(2), mix, sprsmtrx)
+      call ComputeMatrix(ads % Uy, ads % p(2), ads % n(2), ads % nelem(2), &
+      ads % Uy, ads % p(2), ads % n(2), ads % nelem(2), &
+      mix, sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write(*,*) "Mass matrix 2: ", time2 - time1
       time1 = MPI_Wtime()
 #endif
-      call SolveOneDirection(ads_data % F2_out, ads % s(1) * ads % s(3), ads % n(2), &
-      ads % p(2), sprsmtrx)
+      call SolveOneDirection(ads_data % F2_out, ads % s(1) * ads % s(3), ads % n(2), ads % p(2), sprsmtrx)
       call clear_matrix(sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
@@ -719,15 +719,15 @@ subroutine Sub_Step(ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, m
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
-      call ComputeMatrix(ads % Uz, ads % p(3), ads % n(3), &
-      ads % nelem(3), mix, sprsmtrx)
+      call ComputeMatrix(ads % Uz, ads % p(3), ads % n(3), ads % nelem(3),&
+      ads % Uz, ads % p(3), ads % n(3), ads % nelem(3), &
+      mix, sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write(*,*) "Mass matrix 3: ", time2 - time1
       time1 = MPI_Wtime()
 #endif
-      call SolveOneDirection(ads_data % F3_out, ads % s(1) * ads % s(2), ads % n(3), &
-      ads % p(3), sprsmtrx)
+      call SolveOneDirection(ads_data % F3_out, ads % s(1) * ads % s(2), ads % n(3), ads % p(3), sprsmtrx)
       call clear_matrix(sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
@@ -808,6 +808,38 @@ subroutine Cleanup(ads, ads_data, mierr)
    integer(kind = 4), intent(out) :: mierr
    integer(kind = 4) :: ierr
 
+   call Cleanup_ADS(ads, mierr)
+
+   if (allocated(ads_data % F)) deallocate(ads_data % F)
+   if (allocated(ads_data % F2)) deallocate(ads_data % F2)
+   if (allocated(ads_data % F3)) deallocate(ads_data % F3)
+
+   if (allocated(ads_data % Un)) deallocate(ads_data % Un)
+   if (allocated(ads_data % Un13)) deallocate(ads_data % Un13)
+   if (allocated(ads_data % Un23)) deallocate(ads_data % Un23)
+   if (allocated(ads_data % dUn)) deallocate(ads_data % dUn)
+   !!!!!! wyciac
+   call mpi_finalize(ierr)
+#ifdef IINFO
+   write(*, *) PRINTRANK, "Exiting..."
+#endif
+
+   mierr = 0
+
+end subroutine Cleanup
+
+
+! -------------------------------------------------------------------
+! Deallocates all the resources and finalizes MPI.
+! -------------------------------------------------------------------
+subroutine Cleanup_ADS(ads, mierr)
+   use Setup, ONLY: ADS_Setup, ADS_compute_data
+   use parallelism, ONLY: PRINTRANK
+   implicit none
+   type (ADS_setup), intent(inout) :: ads
+   integer(kind = 4), intent(out) :: mierr
+   integer(kind = 4) :: ierr
+
    if (allocated(ads % shiftsX)) deallocate(ads % shiftsX)
    if (allocated(ads % shiftsY)) deallocate(ads % shiftsY)
    if (allocated(ads % shiftsZ)) deallocate(ads % shiftsZ)
@@ -823,10 +855,6 @@ subroutine Cleanup(ads, ads_data, mierr)
    if (allocated(ads % Ux)) deallocate(ads % Ux)
    if (allocated(ads % Uy)) deallocate(ads % Uy)
    if (allocated(ads % Uz)) deallocate(ads % Uz)
-
-   if (allocated(ads_data % F)) deallocate(ads_data % F)
-   if (allocated(ads_data % F2)) deallocate(ads_data % F2)
-   if (allocated(ads_data % F3)) deallocate(ads_data % F3)
 
    if (allocated(ads % Ox)) deallocate(ads % Ox)
    if (allocated(ads % Oy)) deallocate(ads % Oy)
@@ -847,21 +875,9 @@ subroutine Cleanup(ads, ads_data, mierr)
    if (allocated(ads % Wx)) deallocate(ads % Wx)
    if (allocated(ads % Wy)) deallocate(ads % Wy)
    if (allocated(ads % Wz)) deallocate(ads % Wz)
-
-   if (allocated(ads_data % Un)) deallocate(ads_data % Un)
-   if (allocated(ads_data % Un13)) deallocate(ads_data % Un13)
-   if (allocated(ads_data % Un23)) deallocate(ads_data % Un23)
-   if (allocated(ads_data % dUn)) deallocate(ads_data % dUn)
-   !!!!!! wyciac
-   call mpi_finalize(ierr)
-#ifdef IINFO
-   write(*, *) PRINTRANK, "Exiting..."
-#endif
-
    mierr = 0
 
-end subroutine Cleanup
-
+end subroutine Cleanup_ADS
 
 
 !!!! przeniesc do debug
