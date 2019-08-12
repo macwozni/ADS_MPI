@@ -697,86 +697,9 @@ subroutine Sub_Step(ads, ads_trial, iter, mix,direction,substep,RHS_fun,ads_data
    ! Solve the third problem
    !--------------------------------------------------------------------
 
-   !call solve_problem(ads, 3, 1, 2, ads % dimensionsZ, ads % shiftsZ, COMMZ, MYRANKZ, &
-   !mix, sprsmtrx, ads % F3, ads % F, ierr)
+   call solve_problem(ads, 3, 1, 2, ads % dimensionsZ, ads % shiftsZ, COMMZ, MYRANKZ, &
+   mix, ads % uz, sprsmtrx, ads_data % F3, ads_data % F, ierr)
 
-
-#ifdef IINFO
-   write(*, *) PRINTRANK, '3a) GATHER'
-#endif
-
-   call mpi_barrier(MPI_COMM_WORLD, ierr)
-   allocate(ads_data % F3_out((ads % n(3) + 1), ads % s(1) * ads % s(2)))
-#ifdef PERFORMANCE
-   time1 = MPI_Wtime()
-#endif
-   call Gather(ads_data % F3, ads_data % F3_out, ads % n(3), ads % s(3), ads % s(1) * ads % s(2), &
-   ads % dimensionsZ, ads % shiftsZ, COMMZ, ierr)
-#ifdef PERFORMANCE
-   time2 = MPI_Wtime()
-   write(*,*) "Gather 3: ", time2 - time1
-#endif
-   call mpi_barrier(MPI_COMM_WORLD, ierr)
-
-   if (MYRANKZ == 0) then
-#ifdef IINFO
-      write(*, *) PRINTRANK, '3b) SOLVE THE THIRD PROBLEM'
-#endif
-
-#ifdef PERFORMANCE
-      time1 = MPI_Wtime()
-#endif
-      call ComputeMatrix(ads % Uz, ads % p(3), ads % n(3), ads % nelem(3),&
-      ads % Uz, ads % p(3), ads % n(3), ads % nelem(3), &
-      mix, sprsmtrx)
-#ifdef PERFORMANCE
-      time2 = MPI_Wtime()
-      write(*,*) "Mass matrix 3: ", time2 - time1
-      time1 = MPI_Wtime()
-#endif
-      call SolveOneDirection(ads_data % F3_out, ads % s(1) * ads % s(2), ads % n(3), ads % p(3), sprsmtrx)
-      call clear_matrix(sprsmtrx)
-#ifdef PERFORMANCE
-      time2 = MPI_Wtime()
-      write(*,*) "Solve 3: ", time2 - time1
-#endif
-   endif
-
-   call mpi_barrier(MPI_COMM_WORLD, ierr)
-
-#ifdef IINFO
-   write(*, *) PRINTRANK, '3c) SCATTER'
-#endif
-
-   ! CORRECTION
-   allocate(ads_data % F_out(ads % s(3), ads % s(1) * ads % s(2)))
-#ifdef PERFORMANCE
-   time1 = MPI_Wtime()
-#endif
-   call Scatter(ads_data % F3_out, ads_data % F_out, ads % n(3), ads % s(3), ads % s(1) * ads % s(2), &
-   ads % dimensionsZ, ads % shiftsZ, COMMZ, ierr)
-#ifdef PERFORMANCE
-   time2 = MPI_Wtime()
-   write(*,*) "Scatter 3: ", time2 - time1
-#endif
-   deallocate(ads_data % F3_out)
-
-   call mpi_barrier(MPI_COMM_WORLD, ierr)
-
-#ifdef IINFO
-   write(*, *) PRINTRANK, '3d) REORDER'
-#endif
-   ! Reorder right hand sides
-   call ReorderRHSForX(ads % ibeg, ads % iend, ads_data % F_out, ads_data % F)
-   deallocate(ads_data % F_out)
-
-#ifdef IPRINT
-   write(*, *) PRINTRANK, 'after ReorderRHSForX'
-   write(*, *) PRINTRANK, 'F:'
-   do i = 1, ads % s(1)
-      write(*, *) PRINTRANK, i, 'row=', ads % F(i, 1:ads % s(2) * ads % s(3))
-   enddo
-#endif
       
 #ifdef IINFO
    write(*, *) PRINTRANK, '3e) DISTRIBUTE SOLUTION'
@@ -1017,13 +940,14 @@ end subroutine PrintSolution
 
 
 
-subroutine solve_problem(ads, a, b, c, dimensions, shifts, comm, myrankdim, mix, sprsmtrx, F, F2, ierr)
+subroutine solve_problem(ads, a, b, c, dimensions, shifts, comm, myrankdim, mix, u, sprsmtrx, F, F2, ierr)
    use Setup, ONLY: ADS_Setup
    use sparse
    use mpi
    use my_mpi, ONLY: Gather, Scatter
    use reorderRHS, ONLY: ReorderRHSForX, ReorderRHSForY, ReorderRHSForZ
    use projection_engine, ONLY: ComputeMatrix
+   implicit none
    type (ADS_setup), intent(in) :: ads
    integer(kind=4), intent(in) :: a,b,c
    integer(kind = 4), dimension(:), intent(in) :: dimensions ! Size of slices of domain in each dimension
@@ -1031,6 +955,7 @@ subroutine solve_problem(ads, a, b, c, dimensions, shifts, comm, myrankdim, mix,
    real (kind = 8), allocatable, dimension(:,:) :: F,F2
    integer(kind = 4), intent(in) :: comm
    real(kind=8), intent(in) :: mix(4)
+   real (kind = 8), dimension(:), intent(in) :: U
    integer(kind = 4) :: myrankdim ! Integer coordinates of processor along X, Y or Z
    type(sparse_matrix), pointer :: sprsmtrx
    integer(kind=4), intent(out) :: ierr
@@ -1042,7 +967,7 @@ subroutine solve_problem(ads, a, b, c, dimensions, shifts, comm, myrankdim, mix,
 #endif
 
    call mpi_barrier(MPI_COMM_WORLD, ierr)
-   allocate(F((ads % n(a) + 1), ads % s(b) * ads % s(c)))
+   allocate(F_out((ads % n(a) + 1), ads % s(b) * ads % s(c)))
 #ifdef PERFORMANCE
    time1 = MPI_Wtime()
 #endif
@@ -1056,14 +981,14 @@ subroutine solve_problem(ads, a, b, c, dimensions, shifts, comm, myrankdim, mix,
 
    if (myrankdim == 0) then
 #ifdef IINFO
-      write(*, *) PRINTRANK, '3b) SOLVE THE THIRD PROBLEM'
+      write(*, *) PRINTRANK, a,'b) SOLVE THE ',a,' PROBLEM'
 #endif
 
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
-      call ComputeMatrix(ads % Uz, ads % p(a), ads % n(a), ads % nelem(a),&
-      ads % Uz, ads % p(a), ads % n(a), ads % nelem(a), &
+      call ComputeMatrix(U, ads % p(a), ads % n(a), ads % nelem(a),&
+      U, ads % p(a), ads % n(a), ads % nelem(a), &
       mix, sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
@@ -1074,28 +999,27 @@ subroutine solve_problem(ads, a, b, c, dimensions, shifts, comm, myrankdim, mix,
       call clear_matrix(sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
-      write(*,*) "Solve 3: ", time2 - time1
+      write(*,*) "Solve ',a,': ", time2 - time1
 #endif
    endif
 
    call mpi_barrier(MPI_COMM_WORLD, ierr)
 
 #ifdef IINFO
-   write(*, *) PRINTRANK, '3c) SCATTER'
+   write(*, *) PRINTRANK, a,'c) SCATTER'
 #endif
 
-   ! CORRECTION
-   allocate(F_out(ads % s(a), ads % s(b) * ads % s(c)))
+   allocate(F2_out(ads % s(a), ads % s(b) * ads % s(c)))
 #ifdef PERFORMANCE
    time1 = MPI_Wtime()
 #endif
-   call Scatter(F2_out, F_out, ads % n(a), ads % s(a), ads % s(b) * ads % s(c), &
+   call Scatter(F_out, F2_out, ads % n(a), ads % s(a), ads % s(b) * ads % s(c), &
    dimensions, shifts, comm, ierr)
 #ifdef PERFORMANCE
    time2 = MPI_Wtime()
    write(*,*) "Scatter 3: ", time2 - time1
 #endif
-   deallocate(F2_out)
+   deallocate(F_out)
 
    call mpi_barrier(MPI_COMM_WORLD, ierr)
 
@@ -1103,8 +1027,8 @@ subroutine solve_problem(ads, a, b, c, dimensions, shifts, comm, myrankdim, mix,
    write(*, *) PRINTRANK, '3d) REORDER'
 #endif
    ! Reorder right hand sides
-   call ReorderRHSForX(ads % ibeg, ads % iend, F_out, F2)
-   deallocate(F_out)
+   call ReorderRHSForX(ads % ibeg, ads % iend, F2_out, F2)
+   deallocate(F2_out)
 
 #ifdef IPRINT
    write(*, *) PRINTRANK, 'after ReorderRHSForX'
