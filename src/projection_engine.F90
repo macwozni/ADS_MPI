@@ -60,37 +60,50 @@ contains
 !>
 !> \f$ M = u*v \f$
 ! -------------------------------------------------------------------
-subroutine MKBBT(U, p, n, nelem,mix,sprsmtrx)
+subroutine MKBBT(U1, p1, n1, nelem1, U2, p2, n2, nelem2, mix, sprsmtrx)
    use basis, ONLY: BasisData
    use omp_lib
    use sparse
    implicit none
-   integer(kind = 4), intent(in) :: n, p, nelem
-   real (kind = 8), intent(in) :: U(0:n + p + 1)
+   integer(kind = 4), intent(in) :: n1, p1, nelem1
+   integer(kind = 4), intent(in) :: n2, p2, nelem2
+   real (kind = 8), intent(in) :: U1(0:n1 + p1 + 1)
+   real (kind = 8), intent(in) :: U2(0:n2 + p2 + 1)
    real (kind = 8), dimension(4), intent(in) :: mix
-   real (kind = 8), dimension(nelem) :: J
-   real (kind = 8), dimension(p + 1) :: W
-   real (kind = 8), dimension(p + 1, nelem) :: X
-   real (kind = 8), dimension(0:1, 0:p, p + 1, nelem) :: NN
-   integer(kind = 4) :: dd
+   real (kind = 8), dimension(nelem1) :: J1 ! values of the Jacobian of elements
+   real (kind = 8), dimension(nelem2) :: J2 ! values of the Jacobian of elements
+   real (kind = 8), dimension(p1 + 1) :: W1 ! weights of Gauss quadrature points
+   real (kind = 8), dimension(p2 + 1) :: W2 ! weights of Gauss quadrature points
+   real (kind = 8), dimension(p1 + 1, nelem1) :: X1 ! points of Gauss quadrature
+   real (kind = 8), dimension(p2 + 1, nelem2) :: X2 ! points of Gauss quadrature
+   real (kind = 8), dimension(0:1, 0:p1, p1 + 1, nelem1) :: NN1 ! values of (p1+1) nonzero basis functions and their derivatives at points of Gauss quadrature
+   real (kind = 8), dimension(0:1, 0:p2, p2 + 1, nelem2) :: NN2 ! values of (p2+1) nonzero basis functions and their derivatives at points of Gauss quadrature
+   integer(kind = 4) :: dd1,dd2 ! order of highest derivatives we want to compute
    integer(kind = 4) :: ia, ib
-   integer(kind = 4) :: mm, ng, e, i, c, d
-   integer(kind = 4) :: O(nelem)
+   integer(kind = 4) :: mm1,mm2
+   integer(kind = 4) :: ng1, ng2 ! number of Gauss quadrature points
+   integer(kind = 4) :: e, i, c, d
+   integer(kind = 4) :: O1(nelem1) ! indexes of first nonzero functions on each element
+   integer(kind = 4) :: O2(nelem2) ! indexes of first nonzero functions on each element
    integer(kind = 4) :: all, tmp, total_size
    type(sparse_matrix), pointer, intent(out) :: sprsmtrx
    real(kind=8) :: val
    real (kind = 8) :: M,K,B,BT
 
-   mm = n + p + 1
-   ng = p + 1
-   dd = 1
+   mm1 = n1 + p1 + 1
+   ng1 = p1 + 1
+   dd1 = 1
+   mm2 = n2 + p2 + 1
+   ng2 = p2 + 1
+   dd2 = 1
 
-   call BasisData(p, mm, U, dd, ng, nelem, O, J, W, X, NN)
+   call BasisData(p1, mm1, U1, dd1, ng1, nelem1, O1, J1, W1, X1, NN1)
+   call BasisData(p2, mm2, U2, dd2, ng2, nelem2, O2, J2, W2, X2, NN2)
 
-   total_size = nelem * ng * (p + 1)*(p + 1)
+   call initialize_sparse(n1+1,n1+1,sprsmtrx) 
 
-   call initialize_sparse(n+1,n+1,sprsmtrx)
-
+   total_size = (nelem1) * (ng1) * (p1 + 1)*(p1 + 1)
+! submatrix A
 ! new parallel loop
 ! !$OMP PARALLEL DO &
 ! !$OMP DEFAULT(PRIVATE) &
@@ -101,33 +114,117 @@ subroutine MKBBT(U, p, n, nelem,mix,sprsmtrx)
 ! !$OMP REDUCTION(+:B) &
 ! !$OMP REDUCTION(+:BT)
    do all = 1, total_size
-! loop over shape functions over elements (p+1 functions)
-      d = modulo(all - 1, p + 1)
-      tmp = (all - d) / (p + 1)
-! loop over shape functions over elements (p+1 functions)
-      c = modulo(tmp, p + 1)
-      tmp = (tmp - c) / (p + 1)
+! loop over shape functions over elements (p1+1 functions)
+      d = modulo(all - 1, p1 + 1)
+      tmp = (all - d) / (p1 + 1)
+! loop over shape functions over elements (p1+1 functions)
+      c = modulo(tmp, p1 + 1)
+      tmp = (tmp - c) / (p1 + 1)
 ! loop over Gauss points
-      i = modulo(tmp, ng) + 1
+      i = modulo(tmp, ng1) + 1
 ! loop over elements
-      e = (tmp - i + 1) / ng + 1
+      e = (tmp - i + 1) / (ng1) + 1
       ! O(e) + c = first dof of element + 1st local shape function index
       ! O(e) + d = first dof of element + 2nd local shape function index
       ! NN(0,c,i,e) = value of shape function c at Gauss point i over element e
       ! NN(0,d,i,e) = value of shape function d at Gauss point i over element e
       ! W(i) weight for Gauss point i
       ! J(e) jacobian for element e
-      ia = O(e) + c
-      ib = O(e) + d
+      ia = O1(e) + c
+      ib = O1(e) + d
       ! M = u*v
-      M = NN(0, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
-      K = NN(1, c, i, e) * NN(1, d, i, e) * J(e) * W(i)
-      B = NN(1, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
-      BT = NN(0, c, i, e) * NN(1, d, i, e) * J(e) * W(i)
+      M = NN1(0, c, i, e) * NN1(0, d, i, e) * J1(e) * W1(i)
+      K = NN1(1, c, i, e) * NN1(1, d, i, e) * J1(e) * W1(i)
+      B = NN1(1, c, i, e) * NN1(0, d, i, e) * J1(e) * W1(i)
+      BT = NN1(0, c, i, e) * NN1(1, d, i, e) * J1(e) * W1(i)
       val =  mix(1)*M + mix(2)*K + mix(3)*B + mix(4)*BT
       call add(sprsmtrx,ia,ib,val)
    enddo
 ! !$OMP END PARALLEL DO
+
+
+   total_size = (nelem1) * (ng1) * (p1 + 1)*(p2 + 1)
+! submatrix B
+! new parallel loop
+!$OMP PARALLEL DO &
+!$OMP DEFAULT(PRIVATE) &
+!$OMP PRIVATE(d,c,i,e,ia,ib,tmp) &
+!$OMP SHARED(nelem,ng,p,O,NN,W,J,total_size) &
+!$OMP REDUCTION(+:M) &
+!$OMP REDUCTION(+:K) &
+!$OMP REDUCTION(+:B) &
+!$OMP REDUCTION(+:BT)
+   do all = 1, total_size
+! loop over shape functions over elements (p1+1 functions)
+      d = modulo(all - 1, p1 + 1)
+      tmp = (all - d) / (p1 + 1)
+! loop over shape functions over elements (p2+1 functions)
+      c = modulo(tmp, p2 + 1)
+      tmp = (tmp - c) / (p2 + 1)
+! loop over Gauss points
+      i = modulo(tmp, ng1) + 1
+! loop over elements
+      e = (tmp - i + 1) / (ng1) + 1
+      ! O(e) + c = first dof of element + 1st local shape function index
+      ! O(e) + d = first dof of element + 2nd local shape function index
+      ! NN(0,c,i,e) = value of shape function c at Gauss point i over element e
+      ! NN(0,d,i,e) = value of shape function d at Gauss point i over element e
+      ! W(i) weight for Gauss point i
+      ! J(e) jacobian for element e
+      ia = O1(e) + c                 !!!!!!!!!!!!!!!!!!! TODO - change !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      ib = O1(e) + d                 !!!!!!!!!!!!!!!!!!! TODO - change !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      ! M = u*v
+      M = NN2(0, c, i, e) * NN1(0, d, i, e) * J1(e) * W1(i)
+      K = NN2(1, c, i, e) * NN1(1, d, i, e) * J1(e) * W1(i)
+      B = NN2(1, c, i, e) * NN1(0, d, i, e) * J1(e) * W1(i)
+      BT = NN2(0, c, i, e) * NN1(1, d, i, e) * J1(e) * W1(i)
+      val =  mix(1)*M + mix(2)*K + mix(3)*B + mix(4)*BT                 !!!!!!!!!!!!!!!!!!! TODO - change !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      call add(sprsmtrx,ia,ib,val)
+   enddo
+!$OMP END PARALLEL DO
+
+
+
+
+   total_size = (nelem2) * (ng2) * (p2 + 1)*(p1 + 1)
+! submatrix BT
+! new parallel loop
+!$OMP PARALLEL DO &
+!$OMP DEFAULT(PRIVATE) &
+!$OMP PRIVATE(d,c,i,e,ia,ib,tmp) &
+!$OMP SHARED(nelem,ng,p,O,NN,W,J,total_size) &
+!$OMP REDUCTION(+:M) &
+!$OMP REDUCTION(+:K) &
+!$OMP REDUCTION(+:B) &
+!$OMP REDUCTION(+:BT)
+   do all = 1, total_size
+! loop over shape functions over elements (p2+1 functions)
+      d = modulo(all - 1, p2 + 1)
+      tmp = (all - d) / (p2 + 1)
+! loop over shape functions over elements (p1+1 functions)
+      c = modulo(tmp, p1 + 1)
+      tmp = (tmp - c) / (p1 + 1)
+! loop over Gauss points
+      i = modulo(tmp, ng2) + 1
+! loop over elements
+      e = (tmp - i + 1) / (ng2) + 1
+      ! O(e) + c = first dof of element + 1st local shape function index
+      ! O(e) + d = first dof of element + 2nd local shape function index
+      ! NN(0,c,i,e) = value of shape function c at Gauss point i over element e
+      ! NN(0,d,i,e) = value of shape function d at Gauss point i over element e
+      ! W(i) weight for Gauss point i
+      ! J(e) jacobian for element e
+      ia = O1(e) + c                 !!!!!!!!!!!!!!!!!!! TODO - change !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      ib = O1(e) + d                 !!!!!!!!!!!!!!!!!!! TODO - change !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      ! M = u*v
+      M = NN1(0, c, i, e) * NN2(0, d, i, e) * J2(e) * W2(i)
+      K = NN1(1, c, i, e) * NN2(1, d, i, e) * J2(e) * W2(i)
+      B = NN1(1, c, i, e) * NN2(0, d, i, e) * J2(e) * W2(i)
+      BT = NN1(0, c, i, e) * NN2(1, d, i, e) * J2(e) * W2(i)
+      val =  mix(1)*M + mix(2)*K + mix(3)*B + mix(4)*BT                 !!!!!!!!!!!!!!!!!!! TODO - change !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      call add(sprsmtrx,ia,ib,val)
+   enddo
+!$OMP END PARALLEL DO
 
 end subroutine MKBBT
 
@@ -538,7 +635,7 @@ subroutine ComputeMatrix(U, p, n, nelem, mix, sprsmtrx)
    type(sparse_matrix), pointer, intent(out) :: sprsmtrx
    integer :: i
 
-   call MKBBT(U, p, n, nelem, mix,sprsmtrx)
+   call MKBBT(U, p, n, nelem, U, p, n, nelem, mix, sprsmtrx)
    
 
 end subroutine ComputeMatrix
