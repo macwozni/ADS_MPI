@@ -274,8 +274,10 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
    use omp_lib
    use sparse
    implicit none
-   integer(kind = 4), intent(in) :: n, p, nelem
-   real (kind = 8), intent(in) :: U(0:n + p + 1)
+   integer(kind = 4), intent(in) :: n1, p1, nelem1
+   integer(kind = 4), intent(in) :: n2, p2, nelem2
+   real (kind = 8), intent(in) :: U1(0:n1 + p1 + 1)
+   real (kind = 8), intent(in) :: U2(0:n2 + p2 + 1)
    real (kind = 8), dimension(4), intent(in) :: mix
    real (kind = 8), dimension(nelem) :: J ! values of the Jacobian of elements
    real (kind = 8), dimension(p + 1) :: W ! weights of Gauss quadrature points
@@ -292,11 +294,15 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
    real(kind=8) :: val
    real (kind = 8) :: M,K,B,BT
 
-   mm = n + p + 1
-   ng = p + 1
-   dd = 1
+   mm1 = n1 + p1 + 1
+   ng1 = p1 + 1
+   dd1 = 1
+   mm2 = n2 + p2 + 1
+   ng2 = p2 + 1
+   dd2 = 1
 
-   call BasisData(p, mm, U, dd, ng, nelem, O, J, W, X, NN)
+   call BasisData(p1, mm1, U1, dd1, ng1, nelem1, O1, J1, W1, X1, NN1)
+   call BasisData(p2, mm2, U2, dd2, ng2, nelem2, O2, J2, W2, X2, NN2)
 
    call initialize_sparse(n+1,n+1,sprsmtrx) 
 
@@ -319,7 +325,7 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
       c = modulo(tmp, p + 1)
       tmp = (tmp - c) / (p + 1)
 ! loop over Gauss points
-      i = modulo(tmp, ng) + 1
+      i = modulo(tmp, ng1) + 1
 ! loop over elements
       e = (tmp - i + 1) / (ng) + 1
       ! O(e) + c = first dof of element + 1st local shape function index
@@ -328,13 +334,13 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
       ! NN(0,d,i,e) = value of shape function d at Gauss point i over element e
       ! W(i) weight for Gauss point i
       ! J(e) jacobian for element e
-      ia = O(e) + c
-      ib = O(e) + d
+      ia = O1(e) + c
+      ib = O1(e) + d
       ! M = u*v
-      M = NN(0, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
-      K = NN(1, c, i, e) * NN(1, d, i, e) * J(e) * W(i)
-      B = NN(1, c, i, e) * NN(0, d, i, e) * J(e) * W(i)
-      BT = NN(0, c, i, e) * NN(1, d, i, e) * J(e) * W(i)
+      M = NN1(0, c, i, e) * NN1(0, d, i, e) * J1(e) * W1(i)
+      K = NN1(1, c, i, e) * NN1(1, d, i, e) * J1(e) * W1(i)
+      B = NN1(1, c, i, e) * NN1(0, d, i, e) * J1(e) * W1(i)
+      BT = NN1(0, c, i, e) * NN1(1, d, i, e) * J1(e) * W1(i)
       val =  mix(1)*M + mix(2)*K + mix(3)*B + mix(4)*BT
       call add(sprsmtrx,ia,ib,val)
    enddo
