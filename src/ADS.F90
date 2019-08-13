@@ -492,15 +492,13 @@ subroutine Sub_Step(ads, ads_trial, iter, mix,direction,substep,RHS_fun,ads_data
    integer(kind = 4), dimension(3) :: nrcpp
    real(kind = 8) :: time1, time2
    type(sparse_matrix), pointer :: sprsmtrx
-   integer(kind = 4), dimension(2) :: offset
-
-   offset = 0
 
 #ifdef PERFORMANCE
    time1 = MPI_Wtime()
 #endif
    ! generate the RHS vectors
-   call Form3DRHS(ads, ads_data, direction, offset, substep, RHS_fun, l2norm)
+   call Form3DRHS(ads, ads_data, direction, substep, RHS_fun, l2norm)
+   call Form3DRHS(ads_trial, ads_data, direction, substep, RHS_fun, l2norm)
 #ifdef PERFORMANCE
    time2 = MPI_Wtime()
    write(*,*) "Form 3D RHS: ", time2 - time1
@@ -508,8 +506,8 @@ subroutine Sub_Step(ads, ads_trial, iter, mix,direction,substep,RHS_fun,ads_data
 
 #ifdef IPRINT
    write(*, *) PRINTRANK, 'F'
-   do i = 1, ads % s(1)
-      write(*, *) PRINTRANK, ads % F(i, 1:ads % s(2) * ads % s(3))
+   do i = 1, ads_trial % s(1)
+      write(*, *) PRINTRANK, ads % F(i, 1:ads_trial % s(2) * ads_trial % s(3))
    enddo
 #endif
 
@@ -518,21 +516,21 @@ subroutine Sub_Step(ads, ads_trial, iter, mix,direction,substep,RHS_fun,ads_data
    !--------------------------------------------------------------------
 
    
-   call solve_problem(ads, 1, 2, 3, ads % dimensionsX, ads % shiftsX, COMMX, MYRANKX, &
+   call solve_problem(ads, ads_trial, 1, 2, 3, ads % dimensionsX, ads % shiftsX, COMMX, MYRANKX, &
    mix, ads % ux, sprsmtrx, ads_data % F, ads_data % F2, ierr)
 
    !--------------------------------------------------------------------
    ! Solve the second problem
    !--------------------------------------------------------------------
    
-   call solve_problem(ads, 2, 1, 3, ads % dimensionsZ, ads % shiftsY, COMMY, MYRANKY, &
+   call solve_problem(ads, ads_trial, 2, 1, 3, ads % dimensionsZ, ads % shiftsY, COMMY, MYRANKY, &
    mix, ads % uy, sprsmtrx, ads_data % F2, ads_data % F3, ierr)
 
    !--------------------------------------------------------------------
    ! Solve the third problem
    !--------------------------------------------------------------------
 
-   call solve_problem(ads, 3, 1, 2, ads % dimensionsZ, ads % shiftsZ, COMMZ, MYRANKZ, &
+   call solve_problem(ads, ads_trial, 3, 1, 2, ads % dimensionsZ, ads % shiftsZ, COMMZ, MYRANKZ, &
    mix, ads % uz, sprsmtrx, ads_data % F3, ads_data % F, ierr)
 
       
@@ -775,7 +773,7 @@ end subroutine PrintSolution
 
 
 
-subroutine solve_problem(ads, a, b, c, dimensions, shifts, comm, myrankdim, mix, u, sprsmtrx, F, F2, ierr)
+subroutine solve_problem(ads, ads_trial, a, b, c, dimensions, shifts, comm, myrankdim, mix, u, sprsmtrx, F, F2, ierr)
    use Setup, ONLY: ADS_Setup
    use sparse
    use mpi
@@ -783,7 +781,7 @@ subroutine solve_problem(ads, a, b, c, dimensions, shifts, comm, myrankdim, mix,
    use reorderRHS, ONLY: ReorderRHSForX, ReorderRHSForY, ReorderRHSForZ
    use projection_engine, ONLY: ComputeMatrix
    implicit none
-   type (ADS_setup), intent(in) :: ads
+   type (ADS_setup), intent(in) :: ads,ads_trial
    integer(kind=4), intent(in) :: a,b,c
    integer(kind = 4), dimension(:), intent(in) :: dimensions ! Size of slices of domain in each dimension
    integer(kind = 4), allocatable, dimension(:) :: shifts
@@ -796,6 +794,8 @@ subroutine solve_problem(ads, a, b, c, dimensions, shifts, comm, myrankdim, mix,
    integer(kind=4), intent(out) :: ierr
    real (kind = 8), allocatable, dimension(:,:) :: F_out, F2_out
    real(kind = 8) :: time1, time2
+
+   call mpi_barrier(MPI_COMM_WORLD, ierr)
 
 #ifdef IINFO
    write(*, *) PRINTRANK, a,'a) GATHER'
@@ -859,7 +859,7 @@ subroutine solve_problem(ads, a, b, c, dimensions, shifts, comm, myrankdim, mix,
    call mpi_barrier(MPI_COMM_WORLD, ierr)
 
 #ifdef IINFO
-   write(*, *) PRINTRANK, '3d) REORDER'
+   write(*, *) PRINTRANK, a,'d) REORDER'
 #endif
    ! Reorder right hand sides
    if (a .EQ. 1) call ReorderRHSForY(ads % ibeg, ads % iend, F2_out, F2)
