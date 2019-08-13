@@ -513,9 +513,6 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction,substep,abc,RHS_fu
    integer(kind = 4), dimension(3) :: nrcpp
    real(kind = 8) :: time1, time2
    type(sparse_matrix), pointer :: sprsmtrx
-   integer(kind = 4), dimension(2) :: offset
-
-   offset = 0
 
 #ifdef PERFORMANCE
    time1 = MPI_Wtime()
@@ -884,6 +881,8 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
      shifts = ads_trial % shiftsZ
      dimensions = ads_trial % dimensionsZ
    endif
+
+   call mpi_barrier(MPI_COMM_WORLD, ierr)
 
    call mpi_barrier(MPI_COMM_WORLD, ierr)
 
