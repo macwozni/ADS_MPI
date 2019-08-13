@@ -130,6 +130,111 @@ function CountSpans(n, p, U) result (nelem)
 end function CountSpans
 
 
+subroutine repeatedKnot(n, p, iblock, U, nelem)
+   implicit none
+   integer(kind = 4), intent(inout) :: n
+   integer(kind = 4), intent(in) :: p, iblock
+   real (kind = 8), allocatable, dimension(:), intent(out) :: U
+   integer(kind = 4), intent(out) :: nelem
+   integer(kind=4) :: i,j,k,l
+
+   !---------------------------------------------------------------------------
+   if (p .EQ. 2)then
+
+      allocate(U(n + p + 2)) !knot vector
+      U(1:p + 1) = 0.d0
+      U(n + 2:n + p + 2) = 1.d0
+      do i = p + 2, n + 1
+         U(i) = real(i - p - 1)/real(n - 1)
+      enddo
+      
+      nelem = CountSpans(n, p, U)
+
+      deallocate(U)
+      allocate(U(n + p + 2 + (nelem/iblock)*(p - 1) - 1))
+      n = n + (nelem/iblock)*(p - 1) - 1
+      U(1:p + 1) = 0.d0
+      i = p + 2; l = 1
+      do j = 1, nelem/IBLOCK
+         do k = 0, IBLOCK - p
+            U(i + k) = real(l + k)/real(nelem)
+         enddo
+         if (j .lt. nelem/IBLOCK)then
+            do k = IBLOCK - p + 1, IBLOCK
+               U(i + k) = real(l + IBLOCK - p + 1)/real(nelem)
+            enddo
+            i = i + IBLOCK + 1; l = l + IBLOCK - p + 2
+         else
+            i = i + IBLOCK + 1 - p
+         endif
+      enddo
+      U(i:i + p) = 1.d0
+   endif
+   !-------------------------------------------------------------------------
+   if (p .EQ. 3)then
+      allocate(U(n + p + 2)) !knot vector
+      U(1:p + 1) = 0.d0
+      U(n + 2:n + p + 2) = 1.d0
+      do i = p + 2, n + 1
+         U(i) = real(i - p - 1) / real(n - p + 1)
+      enddo
+      !
+      nelem = CountSpans(n, p, U)
+
+      deallocate(U)
+      allocate(U(n + p + 2 + (nelem/iblock)*(p - 1) - 2))
+      n = n + (nelem/iblock)*(p - 1) - 2
+      U(1:p + 1) = 0.d0
+      i = p + 2; l = 1
+      do j = 1, nelem/IBLOCK
+         do k = 0, IBLOCK - p + 1
+            U(i + k) = real(l + k)/real(nelem)
+         enddo
+         if (j .lt. nelem/IBLOCK)then
+            do k = IBLOCK - p + 1, IBLOCK
+               U(i + k + 1) = real(l + IBLOCK - p + 2)/real(nelem)
+            enddo
+            i = i + IBLOCK + 1 -p + 4 ; l = l + IBLOCK - p + 3
+         else
+            i = i + IBLOCK + 1 - p + 1
+         endif
+      enddo
+      U(i:i + p) = 1.d0
+   endif
+   !----------------------------------------------------------------------
+   if (p .EQ. 4)then
+      allocate(U(n + p + 2)) !knot vector
+      U(1:p + 1) = 0.d0
+      U(n + 2:n + p + 2) = 1.d0
+      do i = p + 2, n + 1
+         U(i) = real(i - p - 1) / real(n - p + 1)
+      enddo
+      
+      nelem = CountSpans(n, p, U)
+
+      deallocate(U)
+      allocate(U(n + p + 2 + (nelem/iblock)*(p - 1) - 3))
+      n = n + (nelem/iblock)*(p - 1) - 3
+      U(1:p + 1) = 0.d0
+      i = p + 2; l = 1
+      do j = 1, nelem/IBLOCK
+         do k = 0, IBLOCK - p + 2
+            U(i + k) = real(l + k)/real(nelem)
+         enddo
+         if (j .lt. nelem/IBLOCK)then
+            do k = IBLOCK - p + 1, IBLOCK
+               U(i + k + 2) = real(l + IBLOCK - p + 3)/real(nelem)
+            enddo
+            i = i + IBLOCK + 1 -p + 6 ; l = l + IBLOCK - p + 4
+         else
+            i = i + IBLOCK + 1 - p + 2
+         endif
+      enddo
+   endif
+
+   !<- rIGA
+end subroutine repeatedKnot
+
 
 
 end module knot_vector
