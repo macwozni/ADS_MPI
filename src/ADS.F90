@@ -524,22 +524,22 @@ subroutine Sub_Step(ads, ads_trial, iter, mix,direction,substep,RHS_fun,ads_data
    !--------------------------------------------------------------------
 
    
-   call solve_problem(ads, ads_trial, 1, 2, 3, ads % dimensionsX, ads % shiftsX, COMMX, MYRANKX, &
-   mix, ads % ux, sprsmtrx, ads_data % F, ads_data % F2, ierr)
+   call solve_problem(ads, ads_trial, 1, 2, 3, &
+   mix, sprsmtrx, ads_data % F, ads_data % F2, ierr)
 
    !--------------------------------------------------------------------
    ! Solve the second problem
    !--------------------------------------------------------------------
    
-   call solve_problem(ads, ads_trial, 2, 1, 3, ads % dimensionsZ, ads % shiftsY, COMMY, MYRANKY, &
-   mix, ads % uy, sprsmtrx, ads_data % F2, ads_data % F3, ierr)
+   call solve_problem(ads, ads_trial, 2, 1, 3, &
+   mix, sprsmtrx, ads_data % F2, ads_data % F3, ierr)
 
    !--------------------------------------------------------------------
    ! Solve the third problem
    !--------------------------------------------------------------------
 
-   call solve_problem(ads, ads_trial, 3, 1, 2, ads % dimensionsZ, ads % shiftsZ, COMMZ, MYRANKZ, &
-   mix, ads % uz, sprsmtrx, ads_data % F3, ads_data % F, ierr)
+   call solve_problem(ads, ads_trial, 3, 1, 2, &
+   mix, sprsmtrx, ads_data % F3, ads_data % F, ierr)
 
       
 #ifdef IINFO
@@ -781,27 +781,49 @@ end subroutine PrintSolution
 
 
 
-subroutine solve_problem(ads, ads_trial, a, b, c, dimensions, shifts, comm, myrankdim, mix, u, sprsmtrx, F, F2, ierr)
+subroutine solve_problem(ads, ads_trial, a, b, c, mix, sprsmtrx, F, F2, ierr)
    use Setup, ONLY: ADS_Setup
    use sparse
    use mpi
    use my_mpi, ONLY: Gather, Scatter
+   use parallelism, ONLY:PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
+   use communicators, ONLY: COMMX, COMMY, COMMZ
    use reorderRHS, ONLY: ReorderRHSForX, ReorderRHSForY, ReorderRHSForZ
    use projection_engine, ONLY: ComputeMatrix
    implicit none
    type (ADS_setup), intent(in) :: ads,ads_trial
    integer(kind=4), intent(in) :: a,b,c
-   integer(kind = 4), dimension(:), intent(in) :: dimensions ! Size of slices of domain in each dimension
+   integer(kind = 4), dimension(:), allocatable :: dimensions ! Size of slices of domain in each dimension
    integer(kind = 4), allocatable, dimension(:) :: shifts
    real (kind = 8), allocatable, dimension(:,:) :: F,F2
-   integer(kind = 4), intent(in) :: comm
+   integer(kind = 4) :: comm
    real(kind=8), intent(in) :: mix(4)
-   real (kind = 8), dimension(:), intent(in) :: U
+   real (kind = 8), allocatable, dimension(:) :: U
    integer(kind = 4) :: myrankdim ! Integer coordinates of processor along X, Y or Z
-   type(sparse_matrix), pointer :: sprsmtrx
+   type(sparse_matrix), pointer, intent(inout) :: sprsmtrx
    integer(kind=4), intent(out) :: ierr
    real (kind = 8), allocatable, dimension(:,:) :: F_out, F2_out
    real(kind = 8) :: time1, time2
+
+   if (a.EQ.1) then
+     comm = COMMX
+     myrankdim = MYRANKX
+     u = ads % ux
+     shifts = ads % shiftsX
+     dimensions = ads % dimensionsX
+   else if (a .EQ. 2) then
+     comm = COMMY
+     myrankdim = MYRANKY
+     u = ads % uy
+     shifts = ads % shiftsY
+     dimensions = ads % dimensionsY
+   else
+     comm = COMMZ
+     myrankdim = MYRANKZ
+     u = ads % uz
+     shifts = ads % shiftsZ
+     dimensions = ads % dimensionsZ
+   endif
 
    call mpi_barrier(MPI_COMM_WORLD, ierr)
 
