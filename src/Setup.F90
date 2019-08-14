@@ -76,6 +76,7 @@ end type ADS_setup
 
 
 type ADS_compute_data
+   real (kind = 8), allocatable, dimension(:,:) :: F_test ! small RHS for test functions only
    real (kind = 8), allocatable, dimension(:,:) :: F, F2, F3
 
 ! Buffer for coefficients of solution corresponding to neighbouring

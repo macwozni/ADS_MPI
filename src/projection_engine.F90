@@ -248,7 +248,7 @@ end subroutine MKBBT
 ! -------
 !> @param[out] l2norm      -
 ! -------------------------------------------------------------------
-subroutine Form3DRHS(ads, ads_data, direction, substep,RHS_fun,l2norm)
+subroutine Form3DRHS(ads, ads_trial, ads_data, direction, substep,RHS_fun,l2norm)
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    use parallelism, ONLY: PRINTRANK
    use Interfaces, ONLY: RHS_fun_int
@@ -256,7 +256,7 @@ subroutine Form3DRHS(ads, ads_data, direction, substep,RHS_fun,l2norm)
    use omp_lib
    implicit none
    procedure(RHS_fun_int) :: RHS_fun
-   type (ADS_setup), intent(in) :: ads
+   type (ADS_setup), intent(in) :: ads, ads_trial
    integer (kind=4), intent(in) :: direction
    integer (kind=4), intent(in) :: substep
    type (ADS_compute_data), intent(inout) :: ads_data
@@ -281,7 +281,7 @@ subroutine Form3DRHS(ads, ads_data, direction, substep,RHS_fun,l2norm)
    total_size = ads % lnelem(1) * ads % lnelem(2) * ads % lnelem(3)
 
    l2norm=0.d0
-   ads_data % F = 0.d0
+   ads_data % F_test = 0.d0
 
 !      loop over points
 !$OMP PARALLEL DO &
@@ -369,8 +369,8 @@ subroutine Form3DRHS(ads, ads_data, direction, substep,RHS_fun,l2norm)
                (indy < ads % ibeg(2) - 1) .or. (indy > ads % iend(2) - 1) .or. &
                (indz < ads % ibeg(3) - 1) .or. (indz > ads % iend(3) - 1)) then
                else  
-                  ads_data % F(ind1 + 1, ind23 + 1) = &
-                  ads_data % F(ind1 + 1, ind23 + 1) &
+                  ads_data % F_test(ind1 + 1, ind23 + 1) = &
+                  ads_data % F_test(ind1 + 1, ind23 + 1) &
                   + elarr(ax,ay,az)
                endif
             enddo
