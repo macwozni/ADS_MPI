@@ -884,6 +884,26 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
 
    call mpi_barrier(MPI_COMM_WORLD, ierr)
 
+   if (a.EQ.1) then
+     comm = COMMX
+     myrankdim = MYRANKX
+     u = ads % ux
+     shifts = ads % shiftsX
+     dimensions = ads % dimensionsX
+   else if (a .EQ. 2) then
+     comm = COMMY
+     myrankdim = MYRANKY
+     u = ads % uy
+     shifts = ads % shiftsY
+     dimensions = ads % dimensionsY
+   else
+     comm = COMMZ
+     myrankdim = MYRANKZ
+     u = ads % uz
+     shifts = ads % shiftsZ
+     dimensions = ads % dimensionsZ
+   endif
+
    call mpi_barrier(MPI_COMM_WORLD, ierr)
 
 #ifdef IINFO
