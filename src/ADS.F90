@@ -191,6 +191,9 @@ subroutine AllocateADSdata(ads, ads_data)
    
    ! OLD: MP start with system fully generated along X
    ! allocate( F((n+1),(sy)*(sz))) !x,y,z
+   allocate( ads_data % F_test(ads % s(1), ads % s(2) * ads % s(3))) !x,y,z
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TODO CHANGE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    allocate( ads_data % F(ads % s(1), ads % s(2) * ads % s(3))) !x,y,z
    allocate(ads_data % F2(ads % s(2), ads % s(1) * ads % s(3))) !y,x,z
    allocate(ads_data % F3(ads % s(3), ads % s(1) * ads % s(2))) !z,x,y
@@ -499,12 +502,15 @@ subroutine Sub_Step(ads, ads_trial, iter, mix,direction,substep,RHS_fun,ads_data
    time1 = MPI_Wtime()
 #endif
    ! generate the RHS vectors
-   call Form3DRHS(ads, ads_data, direction, substep, RHS_fun, l2norm)
-   call Form3DRHS(ads_trial, ads_data, direction, substep, RHS_fun, l2norm)
+   call Form3DRHS(ads, ads_trial, ads_data, direction, substep, RHS_fun, l2norm)
 #ifdef PERFORMANCE
    time2 = MPI_Wtime()
    write(*,*) "Form 3D RHS: ", time2 - time1
 #endif
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TODO CHANGE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   ads_data%F = 0.d0
+   ads_data%F = ads_data%F_test
 
 #ifdef IPRINT
    write(*, *) PRINTRANK, 'F'
