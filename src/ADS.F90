@@ -631,7 +631,8 @@ subroutine Cleanup_ADS(ads, mierr)
    integer(kind = 4), intent(out) :: mierr
    integer(kind = 4) :: ierr
 
-   call Cleanup_ADS(ads, mierr)
+   call Cleanup_ADS(ads_test, mierr)
+   call Cleanup_ADS(ads_trial, mierr)
 
    if (allocated(ads_data % F)) deallocate(ads_data % F)
    if (allocated(ads_data % F2)) deallocate(ads_data % F2)
@@ -884,24 +885,27 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
 
    call mpi_barrier(MPI_COMM_WORLD, ierr)
 
+   equ = .TRUE.
+   if (direction(a) .EQ. 1) equ = .FALSE.
+   
    if (a.EQ.1) then
      comm = COMMX
      myrankdim = MYRANKX
-     u = ads % ux
-     shifts = ads % shiftsX
-     dimensions = ads % dimensionsX
+     u = ads_trial % ux
+     shifts = ads_trial % shiftsX
+     dimensions = ads_trial % dimensionsX
    else if (a .EQ. 2) then
      comm = COMMY
      myrankdim = MYRANKY
-     u = ads % uy
-     shifts = ads % shiftsY
-     dimensions = ads % dimensionsY
+     u = ads_trial % uy
+     shifts = ads_trial % shiftsY
+     dimensions = ads_trial % dimensionsY
    else
      comm = COMMZ
      myrankdim = MYRANKZ
-     u = ads % uz
-     shifts = ads % shiftsZ
-     dimensions = ads % dimensionsZ
+     u = ads_trial % uz
+     shifts = ads_trial % shiftsZ
+     dimensions = ads_trial % dimensionsZ
    endif
 
    call mpi_barrier(MPI_COMM_WORLD, ierr)
