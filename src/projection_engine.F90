@@ -363,7 +363,7 @@ end subroutine MKBBT_small
 ! -------
 !> @param[out] l2norm      -
 ! -------------------------------------------------------------------
-subroutine Form3DRHS(ads, ads_data, direction, substep,RHS_fun,l2norm)
+subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, substep,RHS_fun,l2norm)
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    use parallelism, ONLY: PRINTRANK
    use Interfaces, ONLY: RHS_fun_int
@@ -371,8 +371,8 @@ subroutine Form3DRHS(ads, ads_data, direction, substep,RHS_fun,l2norm)
    use omp_lib
    implicit none
    procedure(RHS_fun_int) :: RHS_fun
-   type (ADS_setup), intent(in) :: ads
-   integer (kind=4), intent(in) :: direction
+   type (ADS_setup), intent(in) :: ads_test, ads_trial
+   integer (kind=4), dimension(3), intent(in) :: direction
    integer (kind=4), intent(in) :: substep
    type (ADS_compute_data), intent(inout) :: ads_data
    real (kind = 8), intent(out) :: l2norm
@@ -390,9 +390,50 @@ subroutine Form3DRHS(ads, ads_data, direction, substep,RHS_fun,l2norm)
    real (kind = 8) :: Uval13
    real (kind = 8) :: Uval23
    real (kind = 8) :: Uval_m(1)
-   real (kind = 8), dimension(0:ads % p(1),0:ads % p(2),0:ads % p(3)) :: elarr
+   real (kind = 8), dimension(:,:,:), allocatable :: elarr
    real (kind = 8) :: l2normtmp
+   type (ADS_setup) :: ads
+   
+   ads = ads_trial
+   
+   if (direction(1) .EQ. 1) then
+      ads % lnelem(1) = ads_test % lnelem(1)
+      ads % mine(1) = ads_test % mine(1)
+      ads % ng(1) = ads_test % ng(1)
+      ads % p(1) = ads_test % p(1)
+      ads % n(1) = ads_test % n(1)
+      ads % ibeg(1) = ads_test % ibeg(1)
+      ads % iend(1) = ads_test % iend(1)
+      ads % Ox = ads_test % Ox
+      ads % Xx = ads_test % Xx
+      ads % Jx = ads_test % Jx
+   endif
+   if (direction(1) .EQ. 2) then
+      ads % lnelem(2) = ads_test % lnelem(2)
+      ads % mine(2) = ads_test % mine(2)
+      ads % ng(2) = ads_test % ng(2)
+      ads % p(2) = ads_test % p(2)
+      ads % n(2) = ads_test % n(2)
+      ads % ibeg(2) = ads_test % ibeg(2)
+      ads % iend(2) = ads_test % iend(2)
+      ads % Oy = ads_test % Oy
+      ads % Xy = ads_test % Xy
+      ads % Jy = ads_test % Jy
+   endif
+   if (direction(1) .EQ. 3) then
+      ads % lnelem(3) = ads_test % lnelem(3)
+      ads % mine(3) = ads_test % mine(3)
+      ads % ng(3) = ads_test % ng(3)
+      ads % p(3) = ads_test % p(3)
+      ads % n(3) = ads_test % n(3)
+      ads % ibeg(3) = ads_test % ibeg(3)
+      ads % iend(3) = ads_test % iend(3)
+      ads % Oz = ads_test % Oz
+      ads % Xz = ads_test % Xz
+      ads % Jz = ads_test % Jz
+   endif
 
+   allocate(elarr(0:ads % p(1),0:ads % p(2),0:ads % p(3)))
    total_size = ads % lnelem(1) * ads % lnelem(2) * ads % lnelem(3)
 
    l2norm=0.d0
@@ -495,6 +536,8 @@ subroutine Form3DRHS(ads, ads_data, direction, substep,RHS_fun,l2norm)
    enddo
 !$OMP END PARALLEL DO
 
+   deallocate(elarr)
+   
 end subroutine Form3DRHS
 
 
@@ -742,7 +785,7 @@ end subroutine global2local
 !> @param[out] sprsmtrx     - sparse matrix, logically \f$ (n+1) \times (n+1) \f$
 !
 ! -------------------------------------------------------------------
-subroutine ComputeMatrix(U1, p1, n1, nelem1, U2, p2, n2, nelem2, mixA, mixB, mixBT, eq, sprsmtrx)
+subroutine ComputeMatrix(U1, p1, n1, nelem1, U2, p2, n2, nelem2, mixA, mixB, mixBT, equ, sprsmtrx)
    use parallelism, ONLY: PRINTRANK
    use sparse
    implicit none
@@ -751,12 +794,12 @@ subroutine ComputeMatrix(U1, p1, n1, nelem1, U2, p2, n2, nelem2, mixA, mixB, mix
    integer(kind = 4), intent(in) :: n2, p2, nelem2
    real (kind = 8), dimension(0:n2 + p2 + 1), intent(in) :: U2
    real (kind = 8), dimension(4), intent(in) :: mixA, mixB, mixBT
-   logical, intent(in) :: eq
+   logical, intent(in) :: equ
    type(sparse_matrix), pointer, intent(out) :: sprsmtrx
    integer :: i
    
-   if (eq) then
-      call MKBBT_small(U1, p1, n1, nelem1, mixA, sprsmtrx)
+   if (equ) then
+      call MKBBT_small(U2, p2, n2, nelem2, mixA, sprsmtrx)
    else
       call MKBBT_large(U1, p1, n1, nelem1, U2, p2, n2, nelem2, mixA, mixB, mixBT, sprsmtrx)
    endif
