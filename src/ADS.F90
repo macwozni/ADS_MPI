@@ -404,27 +404,37 @@ subroutine MultiStep(iter, mix, RHS_fun, ads, ads_data, l2norm, mierr)
    real(kind=8) :: mmix(4)
    integer (kind=4), dimension(3) :: direction
    integer (kind=4) :: substep
+   integer (kind=4), dimension(3,3) :: abc
    
    mmix = mix(:,1)
    direction = (/ 1, 0, 0 /)
+   abc(:,1) = (/ 1, 2, 3 /)
+   abc(:,2) = (/ 2, 1, 3 /)
+   abc(:,3) = (/ 3, 1, 2 /)
    substep = 1
    call FormUn(1, ads, ads_data)
    ads_data % un13 = 0.d0
    ads_data % un23 = 0.d0
-   call Sub_Step(ads, ads, iter, mmix,direction,substep,RHS_fun,ads_data, l2norm, mierr)
+   call Sub_Step(ads, ads, iter, mmix,direction,substep,abc,RHS_fun,ads_data, l2norm, mierr)
    
    mmix = mix(:,2)
    direction = (/ 0, 1, 0 /)
+   abc(:,2) = (/ 1, 2, 3 /)
+   abc(:,3) = (/ 2, 1, 3 /)
+   abc(:,1) = (/ 3, 1, 2 /)
    substep = 2
    call FormUn(2, ads, ads_data)
    ads_data % un23 = 0.d0
-   call Sub_Step(ads, ads, iter, mmix,direction,substep,RHS_fun,ads_data, l2norm, mierr)
+   call Sub_Step(ads, ads, iter, mmix,direction,substep,abc,RHS_fun,ads_data, l2norm, mierr)
    
    mmix = mix(:,3)
    direction = (/ 0, 0, 1 /)
+   abc(:,3) = (/ 1, 2, 3 /)
+   abc(:,1) = (/ 2, 1, 3 /)
+   abc(:,2) = (/ 3, 1, 2 /)
    substep = 3
    call FormUn(3, ads, ads_data)
-   call Sub_Step(ads, ads, iter, mmix,direction,substep,RHS_fun,ads_data, l2norm, mierr)
+   call Sub_Step(ads, ads, iter, mmix,direction,substep,abc,RHS_fun,ads_data, l2norm, mierr)
    
    
 end subroutine MultiStep
@@ -449,15 +459,19 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
    real(kind=8) :: mix(4)
    integer (kind=4), dimension(3) :: direction
    integer (kind=4) :: substep
+   integer (kind=4), dimension(3,3) :: abc
    
    mix = (/ 1.d0, 0.d0, 0.d0, 0.d0 /)
    direction = (/ 0, 0, 0 /)
+   abc(:,1) = (/ 1, 2, 3 /)
+   abc(:,2) = (/ 2, 1, 3 /)
+   abc(:,3) = (/ 3, 1, 2 /)
    substep = 1
    ads_data % un13 = 0.d0
    ads_data % un23 = 0.d0
    call FormUn(1, ads, ads_data)
    
-   call Sub_Step(ads, ads, iter, mix,direction,substep,RHS_fun,ads_data, l2norm, mierr)
+   call Sub_Step(ads, ads, iter, mix,direction,substep,abc,RHS_fun,ads_data, l2norm, mierr)
    
 end subroutine Step
    
@@ -469,7 +483,7 @@ end subroutine Step
 ! iter - number of the iteration
 ! t    - time at the beginning of step
 ! -------------------------------------------------------------------
-subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction,substep,RHS_fun,ads_data, l2norm, mierr)
+subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction,substep,abc,RHS_fun,ads_data, l2norm, mierr)
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    use parallelism, ONLY:PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
    use communicators, ONLY: COMMX, COMMY, COMMZ
@@ -486,6 +500,7 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction,substep,RHS_fun,ad
    real(kind=8), intent(in) :: mix(4)
    integer(kind=4), intent(in), dimension(3) :: direction
    integer (kind=4), intent(in) :: substep
+   integer (kind=4), dimension(3,3), intent(in) :: abc
    procedure(RHS_fun_int) :: RHS_fun
    type (ADS_compute_data), intent(inout) :: ads_data
    real (kind = 8), intent(out) :: l2norm
@@ -525,21 +540,21 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction,substep,RHS_fun,ad
    !--------------------------------------------------------------------
 
       
-   call solve_problem(ads_test, ads_trial, 1, 2, 3, &
+   call solve_problem(ads_test, ads_trial, abc(1,1),abc(1,2),abc(1,3), &
    mix, mix, mix, direction, sprsmtrx, ads_data % F, ads_data % F2, ierr)
 
    !--------------------------------------------------------------------
    ! Solve the second problem
    !--------------------------------------------------------------------
    
-   call solve_problem(ads_test, ads_trial, 2, 1, 3, &
+   call solve_problem(ads_test, ads_trial, abc(2,1),abc(2,2),abc(2,3), &
    mix, mix, mix, direction, sprsmtrx, ads_data % F2, ads_data % F3, ierr)
 
    !--------------------------------------------------------------------
    ! Solve the third problem
    !--------------------------------------------------------------------
 
-   call solve_problem(ads_test, ads_trial, 3, 1, 2, &
+   call solve_problem(ads_test, ads_trial, abc(3,1),abc(3,2),abc(3,3), &
    mix, mix, mix, direction, sprsmtrx, ads_data % F3, ads_data % F, ierr)
 
       
