@@ -82,13 +82,43 @@ contains
       implicit none
       real (kind = 8) :: x, y, z
       real (kind = 8) :: fval
-      integer(kind = 4) :: i
-      real (kind = 8), dimension(3) :: p1
-
-
 
    end function forcing
 
+
+
+   ! 
+   ! x, y, z - point in space
+   function g(x, y, z) result (fval)
+      implicit none
+      real (kind = 8) :: x, y, z
+      real (kind = 8) :: fval
+
+   end function g
+
+
+
+
+   ! 
+   ! x, y, z - point in space
+   function b(x, y, z) result (fval)
+      implicit none
+      real (kind = 8) :: x, y, z
+      real (kind = 8) :: fval
+
+   end function b
+
+
+
+
+   ! normal to boundary
+   ! x, y, z - point in space
+   function n(x, y, z) result (fval)
+      implicit none
+      real (kind = 8) :: x, y, z
+      real (kind = 8) :: fval
+
+   end function n
 
 
 end module input_data
