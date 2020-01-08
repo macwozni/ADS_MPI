@@ -25,6 +25,7 @@ program main
    logical :: ok = .TRUE.
 
    type (ADS_setup) :: ads
+   type (ADS_setup) :: ads_trial
    type (ADS_compute_data) :: ads_data
    
    real (kind = 8) :: epsilon = 1.E-10
@@ -81,7 +82,7 @@ program main
       endif
    endif
 
-   call Cleanup(ads, ads_data, ierr)
+   call Cleanup(ads, ads_trial, ads_data, ierr)
    call CleanParallelism(ierr)
 
 end program main

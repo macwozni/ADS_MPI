@@ -43,13 +43,13 @@ program main
    call CreateCommunicators(ierr)
    p1 = (/ SIZE, SIZE, SIZE /)
    p2 = (/ ORDER, ORDER, ORDER /)
-   call Initialize(p1, p2, ads, ads_data, ierr)
+   call Initialize(p1, p2, cp, ads_test, ads_trial ads_data, ierr)
    
    ! Iterations
    do iter = 0, steps
 
       l2norm = 0.d0
-      call Step(iter, ComputePointForRHS, ads, ads_data, l2norm, ierr)
+      call Step(iter, forcing, ads_test, ads_trial, ads_data, l2norm, ierr)
       call MPI_Reduce(l2norm, fullnorm, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
       if (MYRANK == 0) then
          write(*, *) iter, 'L2 norm:', fullnorm
