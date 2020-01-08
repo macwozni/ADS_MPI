@@ -43,10 +43,11 @@ n, &
 un, &
 un13, &
 un23, &
-ads_data, J, W, direction, substep, l2norm, ret)
+ads_data, J, W, direction, substep, &
+alpha_step, &
+l2norm, ret)
 use Setup, ONLY: ADS_Setup,ADS_compute_data
-use projection_engine, ONLY: global2local
-use input_data
+use Interfaces, ONLY: forcing_fun
 implicit none
 type (ADS_setup), intent(in) :: ads
 real   (kind=8), intent(in), dimension(3)  :: X
@@ -60,44 +61,51 @@ real (kind = 8), intent(in) :: un13,un23
 type (ADS_compute_data), intent(in) :: ads_data
 real   (kind=8), intent(in)  :: J,W
 integer (kind=4), intent(in) :: direction,substep
+procedure(forcing_fun) :: forcing
+real (kind=8), intent(in), dimension(7,3) :: alpha_step
 real (kind = 8), intent(out) :: l2norm
 real (kind = 8), intent(out) :: ret
-real   (kind=8) :: vforce
-real   (kind=8) :: Umax = -1d10, Umin = 1d10
-real   (kind=8) :: dvx,dvy,dvz,rhs,v
-logical :: boundary
-real (kind = 9) :: epsilon_zero
+real   (kind=8) :: fval,kqval
+real   (kind=8), dimension(3) :: dv
+real   (kind=8) :: rhs,v,u
+real (kind=8), dimension(7) :: alpha
 
-
-boundary = .FALSE.
-epsilon_zero = 10E-14
-
-vforce = forcing(X(1),X(2),X(3))    
+alpha = alpha_step(:,substep)
+if (substep .EQ. 1) u = un(1)
+if (substep .EQ. 2) u = un13
+if (substep .EQ. 3) u = un23
 
 v   = ads % NNx(0,a(1),k(1),e(1)) * ads % NNy(0,a(2),k(2),e(2)) * ads % NNz(0,a(3),k(3),e(3))
-dvx = ads % NNx(1,a(1),k(1),e(1)) * ads % NNy(0,a(2),k(2),e(2)) * ads % NNz(0,a(3),k(3),e(3)) 
-dvy = ads % NNx(0,a(1),k(1),e(1)) * ads % NNy(1,a(2),k(2),e(2)) * ads % NNz(0,a(3),k(3),e(3)) 
-dvz = ads % NNx(0,a(1),k(1),e(1)) * ads % NNy(0,a(2),k(2),e(2)) * ads % NNz(1,a(3),k(3),e(3)) 
+dv(1) = ads % NNx(1,a(1),k(1),e(1)) * ads % NNy(0,a(2),k(2),e(2)) * ads % NNz(0,a(3),k(3),e(3)) 
+dv(2) = ads % NNx(0,a(1),k(1),e(1)) * ads % NNy(1,a(2),k(2),e(2)) * ads % NNz(0,a(3),k(3),e(3)) 
+dv(3) = ads % NNx(0,a(1),k(1),e(1)) * ads % NNy(0,a(2),k(2),e(2)) * ads % NNz(1,a(3),k(3),e(3))
 
-if (abs((X(1) - ads%Ux(0)) boundary) .LE. epsilon_zero) = .TRUE
-if (abs((X(1) - ads%Ux(size(ads%Ux)))) .LE. epsilon_zero) boundary = .TRUE
-if (abs((X(2) - ads%Uy(0))) .LE. epsilon_zero) boundary = .TRUE
-if (abs((X(2) - ads%Uy(size(ads%Uy)))) .LE. epsilon_zero) boundary = .TRUE
-if (abs((X(3) - ads%Uz(0))) .LE. epsilon_zero) boundary = .TRUE
-if (abs((X(3) - ads%Uz(size(ads%Uz)))) .LE. epsilon_zero) boundary = .TRUE
+rhs = forcing(un,X)
 
-ret = vforce * v
+fval =        alpha(1)*du(1)*dv(1)
+fval = fval + alpha(2)*un(1)*v
+fval = fval + alpha(3)*un(2)*dv(2)
+fval = fval + alpha(4)*du(2)*v
+fval = fval + alpha(5)*du(3)*dv(3)
+fval = fval + alpha(6)*un(3)*v
+fval = fval * ads%tau
+fval = fval + alpha(3)*rhs*v
+fval = fval + u * v
 
-if (boundary) then
-! influx
-    bound_norm = abs(b(X(1),X(2),X(3)) * n(X(1),X(2),X(3)))
-    bound_norm = bound_norm - b(X(1),X(2),X(3) * n(X(1),X(2),X(3))
-    bound_norm = bound_norm / 2.d0
-! g - source on boundary
-    bound = bound_norm * g(X(1),X(2),X(3)) * v
-    ret = ret + bound
-endif
 
+!kqval = 1.d0
+!fval = 0.d0
+!!--- Real
+!if (t > 0.0) then
+!  rhs = Dt * ( - kqval  * (du(1)*dvx + du(2)*dvy + du(3)*dvz) + v * fval)
+!  ret = J*W*(v * un(1) + rhs)
+!
+!  l2norm = J*W*v*un(1)*un(1)
+!else
+!  fval = initial_state(X(1),X(2),X(3))
+!  ret= J*W*v*fval
+!  l2norm = J*W*v*fval*fval
+!endif
 
 end subroutine ComputePointForRHS
 

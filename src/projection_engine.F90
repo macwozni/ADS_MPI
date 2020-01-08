@@ -363,14 +363,15 @@ end subroutine MKBBT_small
 ! -------
 !> @param[out] l2norm      -
 ! -------------------------------------------------------------------
-subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, substep,RHS_fun,l2norm)
+subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, substep,forcing,l2norm)
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    use parallelism, ONLY: PRINTRANK
-   use Interfaces, ONLY: RHS_fun_int
+   use Interfaces, ONLY: forcing_fun
    USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
    use omp_lib
+   use RHS_eq
    implicit none
-   procedure(RHS_fun_int) :: RHS_fun
+   procedure(forcing_fun) :: forcing
    type (ADS_setup), intent(in) :: ads_test, ads_trial
    integer (kind=4), dimension(3), intent(in) :: direction
    integer (kind=4), intent(in) :: substep

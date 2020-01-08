@@ -8,7 +8,7 @@ contains
 ! -------------------------------------------------------------------
 ! Initialization of clocks and MPI
 ! -------------------------------------------------------------------
-subroutine initialize(n, p, ads, ads_data, mierr)
+subroutine initialize(n, p1, p2, contiuity, ads_test, ads_trial, ads_data, mierr)
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ
    use parallelism, ONLY: PRINTRANK
@@ -17,8 +17,9 @@ subroutine initialize(n, p, ads, ads_data, mierr)
    use mpi
    implicit none
    integer(kind = 4), intent(in), dimension(3) :: n
-   integer(kind = 4), intent(in), dimension(3) :: p
-   type(ADS_setup), intent(out) :: ads
+   integer(kind = 4), intent(in), dimension(3) :: p1,p2
+   integer(kind = 4), intent(in), dimension(3) :: continuity
+   type(ADS_setup), intent(out) :: ads_test
    type (ADS_compute_data), intent(out) :: ads_data
    integer(kind = 4), intent(out) :: mierr
    integer(kind = 4) :: ierr
@@ -27,18 +28,18 @@ subroutine initialize(n, p, ads, ads_data, mierr)
    real (kind = 8), allocatable, dimension(:) :: Uy
    real (kind = 8), allocatable, dimension(:) :: Uz
 
-   call PrepareKnot(n(1), p(1), Ux, nelem(1))
-   call PrepareKnot(n(2), p(2), Uy, nelem(2))
-   call PrepareKnot(n(3), p(3), Uz, nelem(3))
+   call PrepareKnot(n(1), p2(1), Ux, nelem(1))
+   call PrepareKnot(n(2), p2(2), Uy, nelem(2))
+   call PrepareKnot(n(3), p2(3), Uz, nelem(3))
    
    call AllocateADS(n,nelem,p,ads)
    
-   call move_alloc(Ux, ads % Ux)
-   call move_alloc(Uy, ads % Uy)
-   call move_alloc(Uz, ads % Uz)
+   call move_alloc(Ux, ads_trial % Ux)
+   call move_alloc(Uy, ads_trial % Uy)
+   call move_alloc(Uz, ads_trial % Uz)
    
-   ads % p = p ! order
-   ads % n = n ! intervals
+   ads_trial % p = p2 ! order
+   ads_trial % n = n ! intervals
 
    call mpi_barrier(MPI_COMM_WORLD, ierr)
 
