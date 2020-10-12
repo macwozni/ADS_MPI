@@ -11,6 +11,7 @@ SOURCES = \
     ../src/reorderRHS.F90 \
     ../src/my_mpi.F90 \
     ../src/sparse.F90 \
+    ../src/RHS_eq.F90 \
     ../src/projection_engine.F90 \
     ../src/analysis.F90 \
     ../src/int2str.F90 \
@@ -31,8 +32,7 @@ L2 = \
 
 HEAT = \
     ../problems/heat/input_data.F90 \
-    ../problems/heat/RHS_eq.F90 \
     ../problems/heat/main.F90
   
 
-SOURCE_ALL = $(SOURCES) $(L2)
+SOURCE_ALL = $(SOURCES) $(HEAT)

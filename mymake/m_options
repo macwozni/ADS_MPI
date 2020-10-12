@@ -1,0 +1,54 @@
+
+# this file is included in the makefile
+
+#  These may/should be modified to fit available compiler
+#  and computer configuration
+
+#PAPI = /opt/papi
+#PAPI_LIB	  = $(PAPI)/lib64/libpfm.a $(PAPI)/lib64/libpapi.a
+#PAPI_INC	  = $(PAPI)/include
+
+
+###########################################################
+#select directories
+
+MUMPS_DIR = /home/maciekw/libs/MUMPS_5.0.2
+LAPACK_DIR = /home/maciekw/libs/lapack-3.8.0
+SCALAPACK_DIR = /home/maciekw/libs/scalapack-2.0.2
+BLAS_DIR = /home/maciekw/libs/lapack-3.8.0
+COMPILER = mpif90
+
+###########################################################
+#     options for compiler
+###########################################################
+
+DIALECT = -std=f2003  -fimplicit-none -cpp #-fopenmp
+BOUNDS = -fbounds-check
+RELEASE_OPTS = -funroll-all-loops -O3 -DPERFORMANCE=1
+DEBUG_OPTS = -O0 -g -fcheck=all -DPERFORMANCE=1
+
+
+FF		=  $(COMPILER) \
+$(DIALECT) $(DEBUG_OPTS) \
+-I$(MUMPS_DIR)/include/
+
+
+
+BLAS_LIB      = $(SCALAPACK_DIR)/libscalapack.a $(LAPACK_DIR)/liblapack.a $(BLAS_DIR)/libblas.a
+
+MUMPS_LIB      = $(MUMPS_DIR)/lib/libdmumps.a $(MUMPS_DIR)/lib/libmumps_common.a $(MUMPS_DIR)/lib/libpord.a
+
+
+
+USER_LIB      = $(X_LIB_PAR) $(LAPACK_LIB) \
+                  $(MUMPS_LIB) $(METIS_LIB) $(PAPI_LIB)\
+                  $(SCALAP_LIB_PAR) $(BLAS_LIB) $(LIBIRC)
+
+
+FPP		=  fpp -O3
+
+
+
+
+
+

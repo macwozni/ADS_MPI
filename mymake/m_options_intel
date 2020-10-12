@@ -20,18 +20,19 @@ PAPI_INC	  = $(PAPI)/include
 
 MPI_INCLUDE = /opt/mpich3.3_intel19/include
 
-DIALECT = -std03  -module . -implicitnone -fpp -qopenmp
+DIALECT = -std03  -module . -implicitnone -fpp #-qopenmp
 BOUNDS = -check bounds
 RELEASE_OPTS = -funroll-all-loops -O3 -DPERFORMANCE=1
 DEBUG_OPTS = -O0 -g -traceback -check all -debug extended -debug-parameters all -DPERFORMANCE=1
 
-#-L/opt/mpich3.3_intel19/lib64/libmpifort.so  -L/opt/mpich3.3_intel19/lib64/libmpi.so -Wl,-rpath,/opt/mpich3.3_intel19/lib64/libmpifort.so:/opt/mpich3.3_intel19/lib64/libmpi.so:/opt/mpich3.3_intel19/lib64  /opt/mpich3.3_intel19/lib64/libmpifort.so /opt/mpich3.3_intel19/lib64/libmpi.so 
+#-L/opt/mpich3.3_intel19/lib64/libmpifort.so  -L/opt/mpich3.3_intel19/lib64/libmpi.so -Wl,-rpath,/opt/mpich3.3_intel19/lib64/libmpifort.so:/opt/mpich3.3_intel19/lib64/libmpi.so:/opt/mpich3.3_intel19/lib64  /opt/mpich3.3_intel19/lib64/libmpifort.so /opt/mpich3.3_intel19/lib64/libmpi.so \
+/home/maciekw/libs_install/MUMPS_5.1.2/include/ 
 
 
 FF		=  ifort \
 $(DIALECT) $(DEBUG_OPTS) \
--L/opt/mpich3.3_intel19/lib64/libmpifort.so  -L/opt/mpich3.3_intel19/lib64/libmpi.so -Wl,-rpath,/opt/mpich3.3_intel19/lib64/libmpifort.so:/opt/mpich3.3_intel19/lib64/libmpi.so:/opt/mpich3.3_intel19/lib64 
-
+-L/opt/mpich3.3_intel19/lib64/libmpifort.so  -L/opt/mpich3.3_intel19/lib64/libmpi.so -Wl,-rpath,/opt/mpich3.3_intel19/lib64/libmpifort.so:/opt/mpich3.3_intel19/lib64/libmpi.so:/opt/mpich3.3_intel19/lib64 \
+-I/home/maciekw/libs_install/MUMPS_5.1.2/include/
 
 # -I$(MPI_INCLUDE) -I$(DIR_MUMPS)/include -I/opt/mpich/include -I$(PAPI_INC) -L/opt/mpich/lib64 -Wl,-rpath -Wl,/opt/mpich/lib64 -lmpich -lopa -lmpl -lrt -lpthread -O3
 
@@ -40,6 +41,9 @@ $(DIALECT) $(DEBUG_OPTS) \
 
 BLAS_LIB      = -L/opt/intel2/mkl/lib/intel64/  -L/opt/intel2/composerxe/lib/intel64/ -lmkl_lapack95_lp64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -I/opt/intel2/mkl/include/ 
 
+
+
+MUMPS_LIB      = /home/maciekw/libs_install/MUMPS_5.1.2/lib/libdmumps.a /home/maciekw/libs_install/MUMPS_5.1.2/lib/libmumps_common.a /home/maciekw/libs_install/MUMPS_5.1.2/lib/libpord.a
 
 
 MPI_LIB = /opt/mpich3.3_intel19/lib64/

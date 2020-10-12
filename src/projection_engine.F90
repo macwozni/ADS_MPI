@@ -311,6 +311,7 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
 !$OMP REDUCTION(+:K) &
 !$OMP REDUCTION(+:B) &
 !$OMP REDUCTION(+:BT)
+!!!!!!!!!!!!!!!!! USUNAC REDUKCJE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    do all = 1, total_size
 ! loop over shape functions over elements (p1+1 functions)
       d = modulo(all - 1, p + 1)
