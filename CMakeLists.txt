@@ -64,6 +64,7 @@ set(ads_SRC
   ${SRC}/math.F90
   ${SRC}/reorderRHS.F90
   ${SRC}/my_mpi.F90
+  ${SRC}/sparse.F90
   ${SRC}/projection_engine.F90
   ${SRC}/analysis.F90
   ${SRC}/int2str.F90
