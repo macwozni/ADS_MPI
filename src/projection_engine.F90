@@ -92,14 +92,14 @@ subroutine MKBBT(U, p, n, nelem,mix,sprsmtrx)
    call initialize_sparse(n+1,n+1,sprsmtrx)
 
 ! new parallel loop
-!$OMP PARALLEL DO &
-!$OMP DEFAULT(PRIVATE) &
-!$OMP PRIVATE(d,c,i,e,ia,ib,tmp) &
-!$OMP SHARED(nelem,ng,p,O,NN,W,J,total_size) &
-!$OMP REDUCTION(+:M) &
-!$OMP REDUCTION(+:K) &
-!$OMP REDUCTION(+:B) &
-!$OMP REDUCTION(+:BT)
+! !$OMP PARALLEL DO &
+! !$OMP DEFAULT(PRIVATE) &
+! !$OMP PRIVATE(d,c,i,e,ia,ib,tmp) &
+! !$OMP SHARED(nelem,ng,p,O,NN,W,J,total_size) &
+! !$OMP REDUCTION(+:M) &
+! !$OMP REDUCTION(+:K) &
+! !$OMP REDUCTION(+:B) &
+! !$OMP REDUCTION(+:BT)
    do all = 1, total_size
 ! loop over shape functions over elements (p+1 functions)
       d = modulo(all - 1, p + 1)
@@ -127,7 +127,7 @@ subroutine MKBBT(U, p, n, nelem,mix,sprsmtrx)
       val =  mix(1)*M + mix(2)*K + mix(3)*B + mix(4)*BT
       call add(sprsmtrx,ia,ib,val)
    enddo
-!$OMP END PARALLEL DO
+! !$OMP END PARALLEL DO
 
 end subroutine MKBBT
 
