@@ -1,0 +1,56 @@
+
+
+###########################################################
+# This file is included in the makefile
+# These may/should be modified to fit available compiler
+# and computer configuration
+###########################################################
+
+
+###########################################################
+#     select directories
+###########################################################
+
+MUMPS_DIR = /opt/libs/system/MUMPS/5.3.3/
+LAPACK_DIR = /opt/libs/system/LAPACK/3.9.0/
+SCALAPACK_DIR = /opt/libs/system/ScaLAPACK/2.1.0/
+BLAS_DIR = /opt/libs/system/LAPACK/3.9.0/
+PARMETIS_DIR = /opt/libs/system/parmetis/4.0.3/
+METIS_DIR = /opt/libs/system/metis/5.1.0/
+
+
+
+###########################################################
+#     options for compiler
+###########################################################
+
+COMPILER = mpif90
+DIALECT = -std=f2003  -fimplicit-none -cpp -fopenmp -pthread
+BOUNDS = -fbounds-check
+RELEASE_OPTS = -funroll-all-loops -O3 
+DEBUG_OPTS = -O0 -g -fcheck=all $(BOUNDS)
+
+
+
+###########################################################
+#     options for compiler
+###########################################################
+
+INCLUDE = -I$(MUMPS_DIR)/include/ -I$(PARMETIS_DIR)/include
+FF		= $(COMPILER) $(DIALECT) $(DEBUG_OPTS) $(INCLUDE)
+FPP		= fpp -O3
+
+###########################################################
+#     libs
+###########################################################
+
+BLAS_LIB      = $(BLAS_DIR)/libblas.a
+LAPACK_LIB    = $(LAPACK_DIR)/liblapack.a
+SCALAPACK_LIB = $(SCALAPACK_DIR)/lib/libscalapack.a
+METIS_LIB     = $(METIS_DIR)/lib/libGKlib.a $(METIS_DIR)/lib/libmetis.a
+PARMETIS_LIB  = $(PARMETIS_DIR)/lib/libparmetis.a 
+MUMPS_LIB     = $(MUMPS_DIR)/lib/libdmumps.a $(MUMPS_DIR)/lib/libmumps_common.a $(MUMPS_DIR)/lib/libpord.a
+
+
+
+USER_LIB      = $(MUMPS_LIB) $(LAPACK_LIB) $(SCALAPACK_LIB) $(PARMETIS_LIB) $(METIS_LIB) $(BLAS_LIB)

@@ -35,4 +35,3 @@ HEAT = \
     ../problems/heat/main.F90
   
 
-SOURCE_ALL = $(SOURCES) $(L2)
