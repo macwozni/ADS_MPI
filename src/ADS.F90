@@ -293,6 +293,7 @@ end subroutine PrintDistributedData
 ! -------------------------------------------------------------------
 subroutine SolveOneDirection(RHS, eqnum, n, p, sprsmtrx)
    use sparse
+   use mpi
    implicit none
    include 'dmumps_struc.h'
    real (kind = 8) :: RHS(:,:)
@@ -302,6 +303,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, p, sprsmtrx)
    type(sparse_matrix), pointer, intent(in) :: sprsmtrx
     type(dmumps_struc) :: mumps_par
 
+   mumps_par % comm = MPI_COMM_SELF
    mumps_par%job = -1
    mumps_par%par = 1
    mumps_par%N = n+1
