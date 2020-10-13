@@ -146,14 +146,14 @@ subroutine MKBBT_large(U1, p1, n1, nelem1, U2, p2, n2, nelem2, mixA, mixB, mixBT
    total_size = (nelem1) * (ng1) * (p1 + 1)*(p2 + 1)
 ! submatrix B
 ! new parallel loop
-!$OMP PARALLEL DO &
-!$OMP DEFAULT(PRIVATE) &
-!$OMP PRIVATE(d,c,i,e,ia,ib,tmp) &
-!$OMP SHARED(nelem,ng,p,O,NN,W,J,total_size) &
-!$OMP REDUCTION(+:M) &
-!$OMP REDUCTION(+:K) &
-!$OMP REDUCTION(+:B) &
-!$OMP REDUCTION(+:BT)
+! !$OMP PARALLEL DO &
+! !$OMP DEFAULT(PRIVATE) &
+! !$OMP PRIVATE(d,c,i,e,ia,ib,tmp) &
+! !$OMP SHARED(nelem,ng,p,O,NN,W,J,total_size) &
+! !$OMP REDUCTION(+:M) &
+! !$OMP REDUCTION(+:K) &
+! !$OMP REDUCTION(+:B) &
+! !$OMP REDUCTION(+:BT)
    do all = 1, total_size
 ! loop over shape functions over elements (p1+1 functions)
       d = modulo(all - 1, p1 + 1)
@@ -181,7 +181,7 @@ subroutine MKBBT_large(U1, p1, n1, nelem1, U2, p2, n2, nelem2, mixA, mixB, mixBT
       val =  mixB(1)*M + mixB(2)*K + mixB(3)*B + mixB(4)*BT
       call add(sprsmtrx,ia,ib,val)
    enddo
-!$OMP END PARALLEL DO
+! !$OMP END PARALLEL DO
 
 
 
