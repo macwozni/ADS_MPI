@@ -290,8 +290,8 @@ end subroutine Form3DRHS
 !> @author Maciej Wozniak
 !>
 !> @brief
-!> Calculates value of derivative from previous time step - dUn.
-!> Calculates previous solution coefficient - Un.
+!> Calculates value of derivative from previous time step - \f$ dU_n \f$.
+!> Calculates previous solution coefficient - \f$ U_n \f$.
 !
 ! Input:
 ! ------
@@ -300,8 +300,8 @@ end subroutine Form3DRHS
 !
 ! Output:
 ! -------
-!> @param[out] Un      -
-!> @param[out] dUn     -
+!> @param[out] Un      - previous solution coefficient - \f$ U_n \f$
+!> @param[out] dUn     - derivative from previous time step - \f$ dU_n \f$
 ! -------------------------------------------------------------------
 subroutine FormUn(subun, ads, ads_data)
    USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment

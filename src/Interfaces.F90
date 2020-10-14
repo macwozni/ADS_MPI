@@ -1,32 +1,53 @@
+!------------------------------------------------------------------------------
+! AGH University of Science and Technology, Krakow, Poland
+!------------------------------------------------------------------------------
+!
+! MODULE: Interfaces
+!
+!> @author
+!> Maciej Wozniak
+!
+! DESCRIPTION:
+!> This module contains interfaces for subroutines to be implemented for each problem.
+!
+! REVISION HISTORY:
+! 13 10 2020 - Initial Version
+! 
+!------------------------------------------------------------------------------
+
+
+
 module Interfaces
 
    interface
-! -------------------------------------------------------------------
-! Right-hand side of the equation.
+!---------------------------------------------------------------------------  
+!> @author Maciej Wozniak
+!>
+!> @brief Interface for Right-hand-side of the equation.
+!> Subroutine that is implemented as RHS-equation should comply to this interface
 !
 ! Input:
 ! ------
-! ads             - ADS setup structure
-! X_              - quadrature points
-! k_              - indexes for quadrature points
-! e_              - indexes for elements
-! a_              - indexes of basis functions
-! du_             - value of derivative from previous time step
-! n               - nuber of previous time steps
-! Un              - U_n, previous solution coefficient at given point
-! Un13            - U_n+1/3
-! Un23            - U_n+2/3
-! ads_data        - data structures for ADS
-! J               - jacobian
-! W               - weight for quadratures
-! directon        - direction for the substep
-! substep         - number of substep
+!> @param[in] ads         - ADS setup structure
+!> @param[in] X_          - quadrature points
+!> @param[in] k_          - indexes for quadrature points
+!> @param[in] e_          - indexes for elements
+!> @param[in] a_          - indexes of basis functions
+!> @param[in] du_         - value of derivative from previous time step
+!> @param[in] n           - nuber of previous time steps
+!> @param[in] Un          - \f$ U_n \f$, previous solution coefficient at given point
+!> @param[in] Un13        - \f$ U_{n+1/3} \f$
+!> @param[in] Un23        - \f$ U_{n+2/3} \f$
+!> @param[in] ads_data    - data structures for ADS
+!> @param[in] J           - jacobian
+!> @param[in] W           - weight for quadratures
+!> @param[in] directon    - direction for the substep
+!> @param[in] substep     - number of substep
 !
 ! Output:
 ! -------
-! ret             - value of RHS function at given point
-! l2norm          -
-!
+!> @param[out] ret        - value of RHS function at given point
+!> @param[out] l2norm     -
 ! -------------------------------------------------------------------
       subroutine RHS_fun_int(&
          ads, &
