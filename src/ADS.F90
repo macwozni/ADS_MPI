@@ -192,7 +192,7 @@ subroutine AllocateADSdata(ads, ads_data)
    
    ! OLD: MP start with system fully generated along X
    ! allocate( F((n+1),(sy)*(sz))) !x,y,z
-   allocate( ads_data % F_test(ads % s(1), ads % s(2) * ads % s(3))) !x,y,z
+   !allocate( ads_data % F_test(ads % s(1), ads % s(2) * ads % s(3))) !x,y,z
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TODO CHANGE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    allocate( ads_data % F(ads % s(1), ads % s(2) * ads % s(3))) !x,y,z
@@ -294,6 +294,11 @@ end subroutine PrintDistributedData
 !
 ! RHS   - vector of right-hand sides, of dimension (n+1) x eqnum
 ! eqnum - number of right-hand sides (equations)
+!
+!
+!!!!!!!!!!!!!
+! Transforms all data to MUMPS format and calls MUMPS solver
+!
 ! -------------------------------------------------------------------
 subroutine SolveOneDirection(RHS, eqnum, n, p, sprsmtrx)
    use sparse
@@ -307,62 +312,66 @@ subroutine SolveOneDirection(RHS, eqnum, n, p, sprsmtrx)
    type(sparse_matrix), pointer, intent(in) :: sprsmtrx
     type(dmumps_struc) :: mumps_par
 
+
+!  initialize MUMPS
    mumps_par % comm = MPI_COMM_SELF
    mumps_par%job = -1
    mumps_par%par = 1
    mumps_par%N = n+1
    call dmumps(mumps_par)
 
+!  convert LHS and RHS to MUMPS format
    call to_mumps_format(sprsmtrx, mumps_par)
    allocate(mumps_par%rhs(mumps_par%n))
 
+!  set MUMPS parameters
+!  error output stream (non-positive to suppress)
+   mumps_par%icntl(1)  = 1 !1
+!  diagnostic, statistics and warnings
+   mumps_par%icntl(2)  =0! 1 !1
+!  global information
+   mumps_par%icntl(3)  = 0!6 !6
+!  printing level
+   mumps_par%icntl(4)  = 0!3 !3
+!  input matrix in assembled or element format
+   mumps_par%icntl(5)  = 0
+!  column permutation for zero-free diagonal (automatic)
+!  mumps_par%icntl(6)  = 7
+!  pivot order (automatic)
+   mumps_par%icntl(7)  = 4 !1 enforce ordering, 5 metis, 0 AMD, 7 auto
+!  scaling (automatic)
+!  mumps_par%icntl(8)  = 7
+!  no transpose
+!  mumps_par%icntl(9)  = 1
+!  max steps for iterative refinement
+!  mumps_par%icntl(10) = 0
+!  statistics info
+   mumps_par%icntl(11) = 2
+!  controls parallelism
+   mumps_par%icntl(12) = 0
+!  use ScaLAPACK for root node
+   mumps_par%icntl(13) = 1 !0 use 1 do not use
+!  percentage increase in estimated workspace
+   mumps_par%icntl(14) = 50
+!  matrix distribution for assembled input
+   mumps_par%icntl(18) = 0 !distributed
+!  nonzero for Schur complement
+   mumps_par%icntl(19) = 0
+!  distribution of RHS (centralized on host)
+   mumps_par%icntl(20) = 0
+!  mumps_par%icntl(32) = 1
 
-!     error output stream (non-positive to suppress)
-      mumps_par%icntl(1)  = 1 !1
-!     diagnostic, statistics and warnings
-      mumps_par%icntl(2)  =0! 1 !1
-!     global information
-      mumps_par%icntl(3)  = 0!6 !6
-!     printing level
-      mumps_par%icntl(4)  = 0!3 !3
-!     input matrix in assembled or element format
-      mumps_par%icntl(5)  = 0
-!     column permutation for zero-free diagonal (automatic)
-!     mumps_par%icntl(6)  = 7
-!     pivot order (automatic)
-      mumps_par%icntl(7)  = 4 !1 enforce ordering, 5 metis, 0 AMD, 7 auto
-!     scaling (automatic)
-!     mumps_par%icntl(8)  = 7
-!     no transpose
-!     mumps_par%icntl(9)  = 1
-!     max steps for iterative refinement
-!     mumps_par%icntl(10) = 0
-!     statistics info
-      mumps_par%icntl(11) = 2
-!     controls parallelism
-      mumps_par%icntl(12) = 0
-!     use ScaLAPACK for root node
-      mumps_par%icntl(13) = 1 !0 use 1 do not use
-!     percentage increase in estimated workspace
-      mumps_par%icntl(14) = 50
-!     matrix distribution for assembled input
-      mumps_par%icntl(18) = 0 !distributed
-!     nonzero for Schur complement
-      mumps_par%icntl(19) = 0
-!     distribution of RHS (centralized on host)
-      mumps_par%icntl(20) = 0
-!     mumps_par%icntl(32) = 1
-
-      mumps_par%job = 1
-      call dmumps(mumps_par)
+!  start MUMPS
+   mumps_par%job = 1
+   call dmumps(mumps_par)
       
-      mumps_par%job = 2
-      call dmumps(mumps_par)
-      if (mumps_par%info(1).ne.0) then
-        write (*,*) 'mumps_par%job=',mumps_par%job
-        write (*,*) 'mumps_par%info=',mumps_par%info
-        stop 1
-      endif
+   mumps_par%job = 2
+   call dmumps(mumps_par)
+   if (mumps_par%info(1).ne.0) then
+      write (*,*) 'mumps_par%job=',mumps_par%job
+      write (*,*) 'mumps_par%info=',mumps_par%info
+      stop 1
+   endif
 
    do i = 1, eqnum
       mumps_par%rhs(1:n+1) = rhs(1:n+1,i)
@@ -370,15 +379,15 @@ subroutine SolveOneDirection(RHS, eqnum, n, p, sprsmtrx)
       call dmumps(mumps_par)
       rhs(1:n+1,i) = mumps_par%rhs(1:n+1)
    enddo
-      
-      mumps_par%job = -2
-      call dmumps(mumps_par)
+   
+!  stop MUMPS
+   mumps_par%job = -2
+   call dmumps(mumps_par)
 
-
-      deallocate(mumps_par%irn)
-      deallocate(mumps_par%jcn)
-      deallocate(mumps_par%a)
-      deallocate(mumps_par%rhs)
+   deallocate(mumps_par%irn)
+   deallocate(mumps_par%jcn)
+   deallocate(mumps_par%a)
+   deallocate(mumps_par%rhs)
    
 end subroutine SolveOneDirection
 
@@ -410,10 +419,10 @@ subroutine MultiStep(iter, mix, RHS_fun, ads, ads_data, l2norm, mierr)
    integer (kind=4), dimension(3,3) :: abc
    
    mmix = mix(:,1)
-   direction = (/ 1, 0, 0 /)
-   abc(:,1) = (/ 1, 2, 3 /)
-   abc(:,2) = (/ 2, 1, 3 /)
-   abc(:,3) = (/ 3, 1, 2 /)
+   direction = (/ 1, 0, 0 /) ! x
+   abc(:,1) = (/ 1, 2, 3 /) ! x y z
+   abc(:,2) = (/ 2, 1, 3 /) ! y x z
+   abc(:,3) = (/ 3, 1, 2 /) ! z x y
    substep = 1
    call FormUn(1, ads, ads_data)
    ads_data % un13 = 0.d0
@@ -421,20 +430,20 @@ subroutine MultiStep(iter, mix, RHS_fun, ads, ads_data, l2norm, mierr)
    call Sub_Step(ads, ads, iter, mmix,direction,substep,abc,RHS_fun,ads_data, l2norm, mierr)
    
    mmix = mix(:,2)
-   direction = (/ 0, 1, 0 /)
-   abc(:,2) = (/ 1, 2, 3 /)
-   abc(:,3) = (/ 2, 1, 3 /)
-   abc(:,1) = (/ 3, 1, 2 /)
+   direction = (/ 0, 1, 0 /) ! y
+   abc(:,1) = (/ 3, 1, 2 /) ! z y x
+   abc(:,2) = (/ 1, 2, 3 /) ! x y z
+   abc(:,3) = (/ 2, 1, 3 /) ! y x z
    substep = 2
    call FormUn(2, ads, ads_data)
    ads_data % un23 = 0.d0
    call Sub_Step(ads, ads, iter, mmix,direction,substep,abc,RHS_fun,ads_data, l2norm, mierr)
    
    mmix = mix(:,3)
-   direction = (/ 0, 0, 1 /)
-   abc(:,3) = (/ 1, 2, 3 /)
-   abc(:,1) = (/ 2, 1, 3 /)
-   abc(:,2) = (/ 3, 1, 2 /)
+   direction = (/ 0, 0, 1 /) ! z
+   abc(:,1) = (/ 2, 1, 3 /) ! y x z
+   abc(:,2) = (/ 3, 1, 2 /) ! z x y
+   abc(:,3) = (/ 1, 2, 3 /) ! x y z
    substep = 3
    call FormUn(3, ads, ads_data)
    call Sub_Step(ads, ads, iter, mmix,direction,substep,abc,RHS_fun,ads_data, l2norm, mierr)
@@ -466,9 +475,9 @@ subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
    
    mix = (/ 1.d0, 0.d0, 0.d0, 0.d0 /)
    direction = (/ 0, 0, 0 /)
-   abc(:,1) = (/ 1, 2, 3 /)
-   abc(:,2) = (/ 2, 1, 3 /)
-   abc(:,3) = (/ 3, 1, 2 /)
+   abc(:,1) = (/ 1, 2, 3 /) ! x y z
+   abc(:,2) = (/ 2, 1, 3 /) ! y x z
+   abc(:,3) = (/ 3, 1, 2 /) ! z x y
    substep = 1
    ads_data % un13 = 0.d0
    ads_data % un23 = 0.d0
@@ -480,11 +489,33 @@ end subroutine Step
    
 !!!! podzielic na wraper i czesc wlasciwa
 ! przeniesc czesc do solver
-! -------------------------------------------------------------------
-! Performs one substep of the simulation
+!---------------------------------------------------------------------------  
+!> @author Maciej Wozniak
+!>
+!> @brief
+!> Calculates single substep for different time integration schemes.
+!>
 !
-! iter - number of the iteration
-! t    - time at the beginning of step
+! Input:
+! ------
+!> @param[in] ads_test      - knot vector
+!> @param[in] ads_trial
+!> @param[in] iter         - number of the iteration
+!> @param[in] mix          - mixing values for MKBBT matrices
+!> @param[in] directon     - direction in which we enrich test space
+!> @param[in] substep      - number of substep
+!> @param[in] abc
+!> @param[in] RHS_fun
+!
+! Input/Output:
+! -------
+!> @param[inout] ads_data  - data structures for ADS
+!
+! Output:
+! -------
+!> @param[out] l2norm
+!> @param[out] mierr
+!
 ! -------------------------------------------------------------------
 subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction,substep,abc,RHS_fun,ads_data, l2norm, mierr)
    use Setup, ONLY: ADS_Setup, ADS_compute_data
@@ -513,22 +544,21 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction,substep,abc,RHS_fu
    integer(kind = 4), dimension(3) :: nrcpp
    real(kind = 8) :: time1, time2
    type(sparse_matrix), pointer :: sprsmtrx
+   logical :: igrm
 
 #ifdef PERFORMANCE
    time1 = MPI_Wtime()
 #endif
+
+   if (allocated(ads_data%F))  ads_data%F  = 0.d0
+   if (allocated(ads_data%Ft)) ads_data%Ft = 0.d0
    ! generate the RHS vectors
-   call Form3DRHS(ads_test, ads_trial, ads_data, direction, substep, RHS_fun, l2norm)
+   call Form3DRHS(ads_test, ads_trial, ads_data, direction, substep, RHS_fun, igrm,l2norm)
 #ifdef PERFORMANCE
    time2 = MPI_Wtime()
    write(*,*) "Form 3D RHS: ", time2 - time1
 #endif
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TODO CHANGE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   ! call RHS_mapping(ads_test, ads_trial, ads_data, ads_RHS)
-
-   ads_data%F = 0.d0
-   ads_data%F = ads_data%F_test
 
 
 #ifdef IPRINT
@@ -544,29 +574,31 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction,substep,abc,RHS_fu
 
       
    call solve_problem(ads_test, ads_trial, abc(1,1),abc(1,2),abc(1,3), &
-   mix, mix, mix, direction, sprsmtrx, ads_data % F, ads_data % F2, ierr)
+   mix, mix, mix, direction, igrm, sprsmtrx, ads_data % F, ads_data % F2, ierr)
 
    !--------------------------------------------------------------------
    ! Solve the second problem
    !--------------------------------------------------------------------
    
    call solve_problem(ads_test, ads_trial, abc(2,1),abc(2,2),abc(2,3), &
-   mix, mix, mix, direction, sprsmtrx, ads_data % F2, ads_data % F3, ierr)
+   mix, mix, mix, direction, igrm, sprsmtrx, ads_data % F2, ads_data % F3, ierr)
 
    !--------------------------------------------------------------------
    ! Solve the third problem
    !--------------------------------------------------------------------
 
    call solve_problem(ads_test, ads_trial, abc(3,1),abc(3,2),abc(3,3), &
-   mix, mix, mix, direction, sprsmtrx, ads_data % F3, ads_data % F, ierr)
+   mix, mix, mix, direction, igrm, sprsmtrx, ads_data % F3, ads_data % F, ierr)
 
       
 #ifdef IINFO
    write(*, *) PRINTRANK, '3e) DISTRIBUTE SOLUTION'
 #endif
+!  copy results to proper buffer
    do i=1,ads_trial % s(2) * ads_trial % s(3)
       ads_data % R((i-1)*ads_trial % s(1)+1:i*ads_trial % s(1), 2, 2, 2) = ads_data % F(:,i)
    enddo
+!  nrcpp - number of columns (average) per processor   
    nrcpp = (/ ads_trial % nrcpp(3), ads_trial % nrcpp(1), ads_trial % nrcpp(2) /)
    call DistributeSpline(ads_data % R, nrcpp, ads_data % R)
 
@@ -801,7 +833,7 @@ end subroutine PrintSolution
 
 
 
-subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direction, sprsmtrx, F, F2, ierr)
+subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direction, igrm, sprsmtrx, F, F2, ierr)
    use Setup, ONLY: ADS_Setup
    use sparse
    use mpi
@@ -817,32 +849,40 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
    integer(kind = 4), allocatable, dimension(:) :: shifts
    real (kind = 8), allocatable, dimension(:,:) :: F,F2
    integer(kind = 4) :: comm
-   real(kind=8), intent(in), dimension(4) :: mixA, mixB, mixBT
    integer(kind=4), intent(in), dimension(3) :: direction
    real (kind = 8), allocatable, dimension(:) :: U
    integer(kind = 4) :: myrankdim ! Integer coordinates of processor along X, Y or Z
    type(sparse_matrix), pointer, intent(inout) :: sprsmtrx
    integer(kind=4), intent(out) :: ierr
-   real (kind = 8), allocatable, dimension(:,:) :: F_out, F2_out
+   real (kind = 8), allocatable, dimension(:,:) :: Fs ! F-solve
+   real (kind = 8), allocatable, dimension(:,:) :: F_out, F2_out ! F-trial
+   real (kind = 8), allocatable, dimension(:,:) :: Ft_out, Ft2_out ! F-test
    real(kind = 8) :: time1, time2
    logical :: equ
+   logical, intent(in) :: igrm
 
+!  we have identical test and trial spaces if equ=true in given direction
    equ = .TRUE.
+!  if we have enriched test space in given direction   
    if (direction(a) .EQ. 1) equ = .FALSE.
    
-   if (a.EQ.1) then
+!  set proper paremeters depending on which direction we solve
+!  we solve in x directon
+   if (a .EQ. 1) then
      comm = COMMX
      myrankdim = MYRANKX
      u = ads_trial % ux
      shifts = ads_trial % shiftsX
      dimensions = ads_trial % dimensionsX
+!  we solve in y directon
    else if (a .EQ. 2) then
      comm = COMMY
      myrankdim = MYRANKY
      u = ads_trial % uy
      shifts = ads_trial % shiftsY
      dimensions = ads_trial % dimensionsY
-   else
+!  we solve in z directon
+   else ! a.EQ.3
      comm = COMMZ
      myrankdim = MYRANKZ
      u = ads_trial % uz
@@ -854,24 +894,58 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
 
 #ifdef IINFO
    write(*, *) PRINTRANK, a,'a) GATHER'
+   call mpi_barrier(MPI_COMM_WORLD, ierr)
 #endif
 
-   call mpi_barrier(MPI_COMM_WORLD, ierr)
-   allocate(F_out((ads_trial % n(a) + direction(a) * ads_test % n(a) + 1), &
+!  allocate result buffer
+   allocate(Fs((ads_trial % n(a) + direction(a) * ads_test % n(a)), &
    (ads_trial % s(b) + direction(b) * ads_test % s(b)) * (ads_trial % s(c) + direction(c) * ads_test % s(c))))
+   allocate(F_out((ads_trial % n(a)), &
+   (ads_trial % s(b) * ads_trial % s(c))))
 #ifdef PERFORMANCE
    time1 = MPI_Wtime()
 #endif
-   call Gather(F, F_out, ads_trial % n(a) + direction(a) * ads_test % n(a), &
-   ads_trial % s(a) + direction(a) * ads_test % s(a), &
-   (ads_trial % s(b) + direction(b) * ads_test % s(b))  * (ads_trial % s(c) + direction(c) * ads_test % s(c)), &
+!  gather onto the face of processors
+   call Gather(F, F_out, ads_trial % n(a), &
+   ads_trial % s(a), &
+   ads_trial % s(b) * ads_trial % s(c), &
    dimensions, shifts, comm, ierr)
 #ifdef PERFORMANCE
    time2 = MPI_Wtime()
    write(*,*) "Gather", a, " : ", time2 - time1
 #endif
+
+   if (igrm) then
+!  allocate result buffer
+      allocate(Ft_out(((1-direction(a)) * ads_trial % n(a) + direction(a) * ads_test % n(a) + 1), &
+      ((1-direction(b)) * ads_trial % s(b) + direction(b) * ads_test % s(b)) *&
+      ((1-direction(c)) * ads_trial % s(c) + direction(c) * ads_test % s(c))))
+#ifdef PERFORMANCE
+      time1 = MPI_Wtime()
+#endif
+!  gather onto the face of processors
+      call Gather(Ft, Ft_out, (1-direction(a)) * ads_trial % n(a) + direction(a) * ads_test % n(a), &
+      (1-direction(a)) * ads_trial % s(a) + direction(a) * ads_test % s(a), &
+      ((1-direction(b)) * ads_trial % s(b) + direction(b) * ads_test % s(b))  *&
+      ((1-direction(c)) * ads_trial % s(c) + direction(c) * ads_test % s(c)), &
+      dimensions, shifts, comm, ierr)
+#ifdef PERFORMANCE
+      time2 = MPI_Wtime()
+      write(*,*) "Gather", a, " : ", time2 - time1
+#endif
+      if (equ) then
+         Fs() = F_out
+         FS() = Ft_out
+      else
+         Fs() = F_out
+         FS() = Ft_out
+      endif
+   else
+      Fs = F_out
+   endif
    call mpi_barrier(MPI_COMM_WORLD, ierr)
 
+!  performed only on face of processors
    if (myrankdim == 0) then
 #ifdef IINFO
       write(*, *) PRINTRANK, a,'b) SOLVE THE ',a,' PROBLEM'
@@ -880,6 +954,7 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
+!     compute LHS matrix
       call ComputeMatrix(U, ads_test % p(a), ads_test % n(a), ads_test % nelem(a), &
       U, ads_trial % p(a), ads_trial % n(a), ads_trial % nelem(a), &
       mixA, mixB, mixBT, equ, sprsmtrx)
@@ -888,10 +963,12 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
       write(*,*) "Mass matrix", a, ": ", time2 - time1
       time1 = MPI_Wtime()
 #endif
-      call SolveOneDirection(F_out, (ads_trial % s(b) + direction(b) * ads_test % s(b)) &
+!     perform real solver
+      call SolveOneDirection(Fs, (ads_trial % s(b) + direction(b) * ads_test % s(b)) &
       * (ads_trial % s(c) + direction(c) * ads_test % s(c)), &
       (ads_trial % n(a) + direction(a) * ads_test % n(a)), &
       (ads_trial % p(a) + direction(a) * ads_test % p(a)), sprsmtrx)
+!     clean buffers
       call clear_matrix(sprsmtrx)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
@@ -905,11 +982,13 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
    write(*, *) PRINTRANK, a,'c) SCATTER'
 #endif
 
+!  allocate buffers
    allocate(F2_out(ads_trial % s(a) + direction(a) * ads_test % s(a), &
    (ads_trial % s(b) + direction(b) * ads_test % s(b)) * (ads_trial % s(c) + direction(c) * ads_test % s(c))))
 #ifdef PERFORMANCE
    time1 = MPI_Wtime()
 #endif
+!  scatter back onto the cube of processors
    call Scatter(F_out, F2_out, ads_trial % n(a) + direction(a) * ads_test % n(a), &
    ads_trial % s(a) + direction(a) * ads_test % s(a), &
    (ads_trial % s(b) + direction(b) * ads_test % s(b)) * (ads_trial % s(c) + direction(c) * ads_test % s(c)), &
@@ -918,6 +997,7 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
    time2 = MPI_Wtime()
    write(*,*) "Scatter ", a,": ", time2 - time1
 #endif
+!  cleanup
    deallocate(F_out)
 
    call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -930,6 +1010,7 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
    if (a .EQ. 2) call ReorderRHSForZ(ads_trial % ibeg, ads_trial % iend, F2_out, F2)
    if (a .EQ. 3) call ReorderRHSForX(ads_trial % ibeg, ads_trial % iend, F2_out, F2)
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TODO reorder !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!  cleanup
    deallocate(F2_out)
 
 #ifdef IPRINT
