@@ -118,8 +118,8 @@ end type ADS_setup
 !> Should not be modified by a user.
 !--------------------------------------------------------------------------- 
 type ADS_compute_data
-   real (kind = 8), allocatable, dimension(:,:) :: F_test ! small RHS for test functions only
-   real (kind = 8), allocatable, dimension(:,:) :: F, F2, F3
+   real (kind = 8), allocatable, dimension(:,:) :: Ft,Ft2,Ft3 ! small RHS for test functions
+   real (kind = 8), allocatable, dimension(:,:) :: F, F2, F3 ! small RHS for trial functions
 
 !> Buffer for coefficients of solution corresponding to neighbouring
 !> parts of the domain. It is \f$ (N_x \times N_y \times N_z) x 3 x 3 x 3 \f$ array, where
