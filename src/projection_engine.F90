@@ -356,14 +356,15 @@ end subroutine MKBBT_small
 !> @param[in] directon     - direction for the substep
 !> @param[in] substep      - number of substep
 !
-! Input/Output
+! Input/Output:
+! -------
 !> @param[inout] ads_data  - data structures for ADS
 !
 ! Output:
 ! -------
 !> @param[out] l2norm      -
 ! -------------------------------------------------------------------
-subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, substep,forcing,l2norm)
+subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, substep,forcing,igrm,l2norm)
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    use parallelism, ONLY: PRINTRANK
    use Interfaces, ONLY: forcing_fun
@@ -394,9 +395,13 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, substep,forcing,l
    real (kind = 8), dimension(:,:,:), allocatable :: elarr
    real (kind = 8) :: l2normtmp
    type (ADS_setup) :: ads
+   logical, intent(out) :: igrm
    
+!  copy default space as trial space
    ads = ads_trial
+   igrm = .FALSE.
    
+!  if we have enriched one direction, then modify default space
    if (direction(1) .EQ. 1) then
       ads % lnelem(1) = ads_test % lnelem(1)
       ads % mine(1) = ads_test % mine(1)
@@ -408,6 +413,7 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, substep,forcing,l
       ads % Ox = ads_test % Ox
       ads % Xx = ads_test % Xx
       ads % Jx = ads_test % Jx
+      igrm = .TRUE.
    endif
    if (direction(1) .EQ. 2) then
       ads % lnelem(2) = ads_test % lnelem(2)
@@ -420,6 +426,7 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, substep,forcing,l
       ads % Oy = ads_test % Oy
       ads % Xy = ads_test % Xy
       ads % Jy = ads_test % Jy
+      igrm = .TRUE.
    endif
    if (direction(1) .EQ. 3) then
       ads % lnelem(3) = ads_test % lnelem(3)
@@ -432,6 +439,7 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, substep,forcing,l
       ads % Oz = ads_test % Oz
       ads % Xz = ads_test % Xz
       ads % Jz = ads_test % Jz
+      igrm = .TRUE.
    endif
 
    allocate(elarr(0:ads % p(1),0:ads % p(2),0:ads % p(3)))
@@ -526,9 +534,15 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, substep,forcing,l
                (indy < ads % ibeg(2) - 1) .or. (indy > ads % iend(2) - 1) .or. &
                (indz < ads % ibeg(3) - 1) .or. (indz > ads % iend(3) - 1)) then
                else  
-                  ads_data % F_test(ind1 + 1, ind23 + 1) = &
-                  ads_data % F_test(ind1 + 1, ind23 + 1) &
-                  + elarr(ax,ay,az)
+                  if (igrm) then
+                     ads_data % Ft(ind1 + 1, ind23 + 1) = &
+                     ads_data % Ft(ind1 + 1, ind23 + 1) &
+                     + elarr(ax,ay,az)
+                  else
+                     ads_data % F(ind1 + 1, ind23 + 1) = &
+                     ads_data % F(ind1 + 1, ind23 + 1) &
+                     + elarr(ax,ay,az)
+                  endif
                endif
             enddo
          enddo
