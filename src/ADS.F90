@@ -934,11 +934,12 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
       write(*,*) "Gather", a, " : ", time2 - time1
 #endif
       if (equ) then
-         Fs() = F_out
-         FS() = Ft_out
+         Fs(1:ads_trial%n(a),:) = F_out
+         FS(ads_trial%n(a)+1:ads_trial%n(a)+direction(a)*ads_test%n(a),:) = Ft_out
       else
-         Fs() = F_out
-         FS() = Ft_out
+         Fs(:,1:ads_trial%s(b)*ads_trial%s(c)) = F_out
+         FS(:,ads_trial%s(b)*ads_trial%s(c)+1,&
+         (ads_trial%s(b)+direction(b)*ads_test%s(b))*(ads_trial%s(c)+direction(c)*ads_test%s(c))) = Ft_out
       endif
    else
       Fs = F_out
@@ -982,23 +983,55 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
    write(*, *) PRINTRANK, a,'c) SCATTER'
 #endif
 
+   if (igrm) then
+      if (equ) then
+         F_out = Fs(1:ads_trial%n(a),:)
+         Ft_out = Fs(ads_trial%n(a)+1:ads_trial%n(a)+direction(a)*ads_test%n(a),:)
+      else
+         F_out = Fs(:,1:ads_trial%s(b)*ads_trial%s(c))
+         Ft_out = Fs(:,ads_trial%s(b)*ads_trial%s(c)+1,&
+         (ads_trial%s(b)+direction(b)*ads_test%s(b))*(ads_trial%s(c)+direction(c)*ads_test%s(c)))
+      endif
+!  allocate buffers
+      allocate(Ft2_out(((1-direction(a)) * ads_trial % n(a) + direction(a) * ads_test % n(a) + 1), &
+      ((1-direction(b)) * ads_trial % s(b) + direction(b) * ads_test % s(b)) *&
+      ((1-direction(c)) * ads_trial % s(c) + direction(c) * ads_test % s(c))))
+#ifdef PERFORMANCE
+      time1 = MPI_Wtime()
+#endif
+!  scatter back onto the cube of processors
+      call Scatter(Ft_out, Ft2_out, (1-direction(a)) * ads_trial % n(a) + direction(a) * ads_test % n(a), &
+      (1-direction(a)) * ads_trial % s(a) + direction(a) * ads_test % s(a), &
+      ((1-direction(b)) * ads_trial % s(b) + direction(b) * ads_test % s(b))  *&
+      ((1-direction(c)) * ads_trial % s(c) + direction(c) * ads_test % s(c)), &
+      dimensions, shifts, comm, ierr)
+#ifdef PERFORMANCE
+      time2 = MPI_Wtime()
+      write(*,*) "Scatter ", a,": ", time2 - time1
+#endif
+   else
+      F_out = Fs
+   endif
+
+
 !  allocate buffers
    allocate(F2_out(ads_trial % s(a) + direction(a) * ads_test % s(a), &
-   (ads_trial % s(b) + direction(b) * ads_test % s(b)) * (ads_trial % s(c) + direction(c) * ads_test % s(c))))
+   ads_trial % s(b) * ads_trial % s(c)))
 #ifdef PERFORMANCE
    time1 = MPI_Wtime()
 #endif
 !  scatter back onto the cube of processors
    call Scatter(F_out, F2_out, ads_trial % n(a) + direction(a) * ads_test % n(a), &
    ads_trial % s(a) + direction(a) * ads_test % s(a), &
-   (ads_trial % s(b) + direction(b) * ads_test % s(b)) * (ads_trial % s(c) + direction(c) * ads_test % s(c)), &
+   ads_trial % s(b)  * ads_trial % s(c), &
    dimensions, shifts, comm, ierr)
 #ifdef PERFORMANCE
    time2 = MPI_Wtime()
    write(*,*) "Scatter ", a,": ", time2 - time1
 #endif
 !  cleanup
-   deallocate(F_out)
+   if (allocated(F_out)) deallocate(F_out)
+   if (allocated(Ft_out)) deallocate(Ft_out)
 
    call mpi_barrier(MPI_COMM_WORLD, ierr)
 
@@ -1009,9 +1042,16 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
    if (a .EQ. 1) call ReorderRHSForY(ads_trial % ibeg, ads_trial % iend, F2_out, F2)
    if (a .EQ. 2) call ReorderRHSForZ(ads_trial % ibeg, ads_trial % iend, F2_out, F2)
    if (a .EQ. 3) call ReorderRHSForX(ads_trial % ibeg, ads_trial % iend, F2_out, F2)
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TODO reorder !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+   if (igrm) then
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TODO reorder !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      if (a .EQ. 1) call ReorderRHSForY(ads_trial % ibeg, ads_trial % iend, Ft2_out, Ft2)
+      if (a .EQ. 2) call ReorderRHSForZ(ads_trial % ibeg, ads_trial % iend, Ft2_out, Ft2)
+      if (a .EQ. 3) call ReorderRHSForX(ads_trial % ibeg, ads_trial % iend, Ft2_out, Ft2)
+   endif
 !  cleanup
-   deallocate(F2_out)
+!   if (allocated(F2_out)) deallocate(F2_out)
+!   if (allocated(Ft2_out)) deallocate(Ft2_out)
 
 #ifdef IPRINT
    write(*, *) PRINTRANK, 'after ReorderRHS'
