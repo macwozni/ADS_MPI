@@ -124,4 +124,33 @@ subroutine PrintDecompositionInfo(n, nrcpp, ibeg, iend)
         write(*, *) PRINTRANK, 'ibegz,iendz', ibeg(3), iend(3)
 end subroutine PrintDecompositionInfo
 
+
+!---------------------------------------------------------------------------  
+!> @author Maciej Wozniak
+!>
+!> @brief
+!> Checks whether the index is within range.
+!
+! Input:
+! ------
+!> @param[in] idn       - 3D index
+!> @param[in] ibeg      - 3D range beginning
+!> @param[in] iend      - 3D range end
+!
+! Output:
+! -------
+!> @return IndexInRange - in 3D range?
+! -------------------------------------------------------------------
+logical function IndexInRange(ind, ibeg, iend)
+    implicit none
+    integer(kind = 4), dimension(3), intent(in) :: ind
+    integer(kind = 4), dimension(3), intent(in) :: ibeg, iend
+
+    IndexInRange = .true.
+    if (ind(1) < ibeg(1) - 1 .or. ind(1) > iend(1) - 1) IndexInRange = .false.
+    if (ind(2) < ibeg(2) - 1 .or. ind(2) > iend(2) - 1) IndexInRange = .false.
+    if (ind(3) < ibeg(3) - 1 .or. ind(3) > iend(3) - 1) IndexInRange = .false.
+
+end function IndexInRange
+
 endmodule DEBUGG
