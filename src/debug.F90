@@ -150,7 +150,68 @@ logical function IndexInRange(ind, ibeg, iend)
     if (ind(1) < ibeg(1) - 1 .or. ind(1) > iend(1) - 1) IndexInRange = .false.
     if (ind(2) < ibeg(2) - 1 .or. ind(2) > iend(2) - 1) IndexInRange = .false.
     if (ind(3) < ibeg(3) - 1 .or. ind(3) > iend(3) - 1) IndexInRange = .false.
-
 end function IndexInRange
+
+
+
+!---------------------------------------------------------------------------  
+!> @author Maciej Wozniak
+!>
+!> @brief
+!> Prints communicators.
+!> For debug only.
+! -------------------------------------------------------------------
+subroutine PrintCommunicators
+    use parallelism, ONLY: PRINTRANK, NRPROCX, NRPROCY, NRPROCZ
+    implicit none
+    integer(kind = 4) :: i, j, k
+
+    do i = 1, NRPROCX
+        do j = 1, NRPROCY
+            write(*, *) PRINTRANK, 'COMMZALL(', i, j, ')', COMMZALL(i, j)
+        enddo
+    enddo
+    do i = 1, NRPROCX
+        do k = 1, NRPROCZ
+            write(*, *) PRINTRANK, 'COMMYALL(', i, k, ')', COMMYALL(i, k)
+        enddo
+    enddo
+    do j = 1, NRPROCY
+        do k = 1, NRPROCZ
+            write(*, *) PRINTRANK, 'COMMXALL(', j, k, ')', COMMXALL(j, k)
+        enddo
+    enddo
+ end subroutine PrintCommunicators
+ 
+
+ 
+!---------------------------------------------------------------------------  
+!> @author Maciej Wozniak
+!>
+!> @brief
+!> Prints groups used later to create communicators.
+!> For debug only.
+! -------------------------------------------------------------------
+ subroutine PrintGroups
+    use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ, PRINTRANK
+    implicit none
+    integer(kind = 4) :: i, j, k
+
+    do i = 1, NRPROCX
+        do j = 1, NRPROCY
+            write(*, *) PRINTRANK, 'GROUPZ(', i, j, ')', GROUPZ(i, j)
+        enddo
+    enddo
+    do i = 1, NRPROCX
+        do k = 1, NRPROCZ
+            write(*, *) PRINTRANK, 'GROUPY(', i, k, ')', GROUPY(i, k)
+        enddo
+    enddo
+    do j = 1, NRPROCY
+        do k = 1, NRPROCZ
+            write(*, *) PRINTRANK, 'GROUPX(', j, k, ')', GROUPX(j, k)
+        enddo
+    enddo
+ end subroutine PrintGroups
 
 endmodule DEBUGG
