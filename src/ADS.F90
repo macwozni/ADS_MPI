@@ -513,14 +513,12 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction,substep,abc,RHS_fu
 
    if (allocated(ads_data%F))  ads_data%F  = 0.d0
    if (allocated(ads_data%Ft)) ads_data%Ft = 0.d0
-   ! generate the RHS vectors
+! generate the RHS vectors
    call Form3DRHS(ads_test, ads_trial, ads_data, direction, substep, RHS_fun, igrm,l2norm)
 #ifdef PERFORMANCE
    time2 = MPI_Wtime()
    write(*,*) "Form 3D RHS: ", time2 - time1
 #endif
-
-
 
 #ifdef IPRINT
    write(*, *) PRINTRANK, 'F'
@@ -529,25 +527,21 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction,substep,abc,RHS_fu
    enddo
 #endif
 
-   !--------------------------------------------------------------------
-   ! Solve the first problem
-   !--------------------------------------------------------------------
-
-      
+!--------------------------------------------------------------------
+! Solve the first problem
+!--------------------------------------------------------------------
    call solve_problem(ads_test, ads_trial, abc(1,1),abc(1,2),abc(1,3), &
    mix, mix, mix, direction, igrm, sprsmtrx, ads_data % F, ads_data % F2, ierr)
 
-   !--------------------------------------------------------------------
-   ! Solve the second problem
-   !--------------------------------------------------------------------
-   
+!--------------------------------------------------------------------
+! Solve the second problem
+!--------------------------------------------------------------------
    call solve_problem(ads_test, ads_trial, abc(2,1),abc(2,2),abc(2,3), &
    mix, mix, mix, direction, igrm, sprsmtrx, ads_data % F2, ads_data % F3, ierr)
 
-   !--------------------------------------------------------------------
-   ! Solve the third problem
-   !--------------------------------------------------------------------
-
+!--------------------------------------------------------------------
+! Solve the third problem
+!--------------------------------------------------------------------
    call solve_problem(ads_test, ads_trial, abc(3,1),abc(3,2),abc(3,3), &
    mix, mix, mix, direction, igrm, sprsmtrx, ads_data % F3, ads_data % F, ierr)
 
@@ -570,7 +564,6 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction,substep,abc,RHS_fu
    enddo
 #endif
       
-
    call mpi_barrier(MPI_COMM_WORLD, ierr)
 
    mierr = 0
@@ -660,7 +653,6 @@ subroutine Cleanup_ADS(ads, mierr)
    if (allocated(ads % Wy)) deallocate(ads % Wy)
    if (allocated(ads % Wz)) deallocate(ads % Wz)
    mierr = 0
-
 end subroutine Cleanup_ADS
 
 
@@ -746,25 +738,25 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
 !  set proper paremeters depending on which direction we solve
 !  we solve in x directon
    if (a .EQ. 1) then
-     comm = COMMX
-     myrankdim = MYRANKX
-     u = ads_trial % ux
-     shifts = ads_trial % shiftsX
-     dimensions = ads_trial % dimensionsX
+      comm = COMMX
+      myrankdim = MYRANKX
+      u = ads_trial % ux
+      shifts = ads_trial % shiftsX
+      dimensions = ads_trial % dimensionsX
 !  we solve in y directon
    else if (a .EQ. 2) then
-     comm = COMMY
-     myrankdim = MYRANKY
-     u = ads_trial % uy
-     shifts = ads_trial % shiftsY
-     dimensions = ads_trial % dimensionsY
+      comm = COMMY
+      myrankdim = MYRANKY
+      u = ads_trial % uy
+      shifts = ads_trial % shiftsY
+      dimensions = ads_trial % dimensionsY
 !  we solve in z directon
    else ! a.EQ.3
-     comm = COMMZ
-     myrankdim = MYRANKZ
-     u = ads_trial % uz
-     shifts = ads_trial % shiftsZ
-     dimensions = ads_trial % dimensionsZ
+      comm = COMMZ
+      myrankdim = MYRANKZ
+      u = ads_trial % uz
+      shifts = ads_trial % shiftsZ
+      dimensions = ads_trial % dimensionsZ
    endif
 
    call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -794,7 +786,7 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
 
    if (igrm) then
 !  allocate result buffer
-      allocate(Ft_out(((1-direction(a)) * ads_trial % n(a) + direction(a) * ads_test % n(a) + 1), &
+      allocate(Ft_out(((1-direction(a)) * ads_trial % n(a) + direction(a) * ads_test % n(a)), &
       ((1-direction(b)) * ads_trial % s(b) + direction(b) * ads_test % s(b)) *&
       ((1-direction(c)) * ads_trial % s(c) + direction(c) * ads_test % s(c))))
 #ifdef PERFORMANCE
@@ -812,10 +804,10 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
 #endif
       if (equ) then
          Fs(1:ads_trial%n(a),:) = F_out
-         FS(ads_trial%n(a)+1:ads_trial%n(a)+direction(a)*ads_test%n(a),:) = Ft_out
+         Fs(ads_trial%n(a)+1:ads_trial%n(a)+direction(a)*ads_test%n(a),:) = Ft_out
       else
          Fs(:,1:ads_trial%s(b)*ads_trial%s(c)) = F_out
-         FS(:,ads_trial%s(b)*ads_trial%s(c)+1,&
+         Fs(:,ads_trial%s(b)*ads_trial%s(c)+1,&
          (ads_trial%s(b)+direction(b)*ads_test%s(b))*(ads_trial%s(c)+direction(c)*ads_test%s(c))) = Ft_out
       endif
    else
@@ -845,7 +837,8 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
       call SolveOneDirection(Fs, (ads_trial % s(b) + direction(b) * ads_test % s(b)) &
       * (ads_trial % s(c) + direction(c) * ads_test % s(c)), &
       (ads_trial % n(a) + direction(a) * ads_test % n(a)), &
-      (ads_trial % p(a) + direction(a) * ads_test % p(a)), sprsmtrx)
+      (ads_trial % n(a) + direction(a) * ads_test % n(a)), sprsmtrx)  ! ????
+      !(ads_trial % p(a) + direction(a) * ads_test % p(a)), sprsmtrx) ! ????
 !     clean buffers
       call clear_matrix(sprsmtrx)
 #ifdef PERFORMANCE
@@ -870,7 +863,7 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
          (ads_trial%s(b)+direction(b)*ads_test%s(b))*(ads_trial%s(c)+direction(c)*ads_test%s(c)))
       endif
 !  allocate buffers
-      allocate(Ft2_out(((1-direction(a)) * ads_trial % n(a) + direction(a) * ads_test % n(a) + 1), &
+      allocate(Ft2_out(((1-direction(a)) * ads_trial % s(a) + direction(a) * ads_test % s(a)), &
       ((1-direction(b)) * ads_trial % s(b) + direction(b) * ads_test % s(b)) *&
       ((1-direction(c)) * ads_trial % s(c) + direction(c) * ads_test % s(c))))
 #ifdef PERFORMANCE
