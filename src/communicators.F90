@@ -50,17 +50,8 @@ integer(kind = 4) :: COMMY
 !> Local communicators Z
 integer(kind = 4) :: COMMZ
 
-!> Corresponding contexts for SCALAPACK calls
-integer(kind = 4) :: CONTEXTX
-!> Corresponding contexts for SCALAPACK calls
-integer(kind = 4) :: CONTEXTY
-!> Corresponding contexts for SCALAPACK calls
-integer(kind = 4) :: CONTEXTZ
-
 PRIVATE :: GROUPX, GROUPY, GROUPZ
 PRIVATE :: COMMXALL, COMMYALL, COMMZALL
-PRIVATE :: CONTEXTX, CONTEXTY, CONTEXTZ
-!PRIVATE :: PrintGroups, PrintCommunicators
 PROTECTED :: processors, COMMX, COMMY, COMMZ
 
 contains
@@ -78,7 +69,7 @@ contains
 !> @param[out] mierr - error code
 ! -------------------------------------------------------------------
 subroutine CreateCommunicators(mierr)
-   use parallelism, ONLY: MYRANK, NRPROC, MYRANKX, MYRANKY, MYRANKZ, PRINTRANK, &
+   use parallelism, ONLY: MYRANK, MYRANKX, MYRANKY, MYRANKZ, &
    NRPROCX, NRPROCY, NRPROCZ
    USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT
    use mpi
@@ -90,7 +81,6 @@ subroutine CreateCommunicators(mierr)
    integer(kind = 4) :: processors_Y(NRPROCY)
    integer(kind = 4) :: processors_Z(NRPROCZ)
    integer(kind = 4) :: i, j, k
-   integer(kind = 4) :: irank
    integer(kind = 4) :: ierr
 
 #ifdef IPRINT
