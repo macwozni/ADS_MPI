@@ -13,79 +13,79 @@
 ! REVISION HISTORY:
 ! 21 11 2017 - Initial Version
 ! 25.06.2019 - changed into precomputing/initializing values
-! 
+!
 !------------------------------------------------------------------------------
 
 
 module gauss
 
-implicit none
+   implicit none
 
 !> Checks if private varaibles are initialized
-logical :: initialized = .FALSE.
+   logical :: initialized = .FALSE.
 
-real (kind = 8), dimension(0:0) :: X1
-real (kind = 8), dimension(0:0) :: W1
+   real (kind = 8), dimension(0:0) :: X1
+   real (kind = 8), dimension(0:0) :: W1
 
-real (kind = 8), dimension(0:1) :: X2
-real (kind = 8), dimension(0:1) :: W2
+   real (kind = 8), dimension(0:1) :: X2
+   real (kind = 8), dimension(0:1) :: W2
 
-real (kind = 8), dimension(0:2) :: X3
-real (kind = 8), dimension(0:2) :: W3
+   real (kind = 8), dimension(0:2) :: X3
+   real (kind = 8), dimension(0:2) :: W3
 
-real (kind = 8), dimension(0:3) :: X4
-real (kind = 8), dimension(0:3) :: W4
+   real (kind = 8), dimension(0:3) :: X4
+   real (kind = 8), dimension(0:3) :: W4
 
-real (kind = 8), dimension(0:4) :: X5
-real (kind = 8), dimension(0:4) :: W5
+   real (kind = 8), dimension(0:4) :: X5
+   real (kind = 8), dimension(0:4) :: W5
 
-real (kind = 8), dimension(0:5) :: X6
-real (kind = 8), dimension(0:5) :: W6
+   real (kind = 8), dimension(0:5) :: X6
+   real (kind = 8), dimension(0:5) :: W6
 
-real (kind = 8), dimension(0:6) :: X7
-real (kind = 8), dimension(0:6) :: W7
+   real (kind = 8), dimension(0:6) :: X7
+   real (kind = 8), dimension(0:6) :: W7
 
-real (kind = 8), dimension(0:7) :: X8
-real (kind = 8), dimension(0:7) :: W8
+   real (kind = 8), dimension(0:7) :: X8
+   real (kind = 8), dimension(0:7) :: W8
 
-real (kind = 8), dimension(0:8) :: X9
-real (kind = 8), dimension(0:8) :: W9
+   real (kind = 8), dimension(0:8) :: X9
+   real (kind = 8), dimension(0:8) :: W9
 
-real (kind = 8), dimension(0:9) :: X10
-real (kind = 8), dimension(0:9) :: W10
+   real (kind = 8), dimension(0:9) :: X10
+   real (kind = 8), dimension(0:9) :: W10
 
 
-PRIVATE :: X1,X2,X3,X4,X5,X6,X7,X8,X9,X10
-PRIVATE :: W1,W2,W3,W4,W5,W6,W7,W8,W9,W10
-PROTECTED :: initialized
+   PRIVATE :: X1,X2,X3,X4,X5,X6,X7,X8,X9,X10
+   PRIVATE :: W1,W2,W3,W4,W5,W6,W7,W8,W9,W10
+   PROTECTED :: initialized
 
 contains
 
 
-!---------------------------------------------------------------------------  
+!---------------------------------------------------------------------------
 !> @author Maciej Wozniak
 !>
 !> @brief
 !> Precomputes all Gaussian quadrature points and weights
 ! -------------------------------------------------------------------
-subroutine initialize()
-   initialized = .TRUE.
-   ! p = 1
+   subroutine initialize()
+      initialized = .TRUE.
+      ! p = 1
       X1(0) = 0.0d0
       W1(0) = 2.0d0
-   ! p = 3
+      ! p = 3
       X2(0) = - 1.0d0 / sqrt(3.0d0)
       X2(1) = -X2(0)
       W2(0) = 1.0d0
       W2(1) = W2(0)
-   ! p = 5
+      ! p = 5
       X3(0) = - sqrt(3.0d0 / 5.0d0)
       X3(1) = 0.0d0
       X3(2) = -X3(0)
       W3(0) = 5.0d0/9.0d0
       W3(1) = 8.0d0/9.0d0
       W3(2) = W3(0)
-   ! p = 7
+      ! p = 7
       X4(0) = -sqrt((3.0d0+2.0d0*sqrt(6.0d0/5.0d0))/7.0d0)
       X4(1) = -sqrt((3.0d0-2.0d0*sqrt(6.0d0/5.0d0))/7.0d0)
       X4(2) = -X4(1)
@@ -94,7 +94,7 @@ subroutine initialize()
       W4(1) = (18.0d0+sqrt(30.0d0))/36.0d0
       W4(2) = W4(1)
       W4(3) = W4(0)
-   ! p = 9
+      ! p = 9
       X5(0) = -1.0d0/3.0d0*sqrt(5.0d0+2.0d0*sqrt(10.0d0/7.0d0))
       X5(1) = -1.0d0/3.0d0*sqrt(5.0d0-2.0d0*sqrt(10.0d0/7.0d0))
       X5(2) = 0.0d0
@@ -105,7 +105,7 @@ subroutine initialize()
       W5(2) = 128.0d0/225.0d0
       W5(3) = W5(1)
       W5(4) = W5(0)
-   
+
       X6(0) = -0.9324695142031520d0
       X6(1) = -0.6612093864662645d0
       X6(2) = -0.2386191860831969d0
@@ -118,7 +118,7 @@ subroutine initialize()
       W6(3) = W6(2)
       W6(4) = W6(1)
       W6(5) = W6(0)
-      
+
       X7(0) = -0.9491079123427585d0
       X7(1) = -0.7415311855993944d0
       X7(2) = -0.4058451513773972d0
@@ -133,7 +133,7 @@ subroutine initialize()
       W7(4) = W7(2)
       W7(5) = W7(1)
       W7(6) = W7(0)
-      
+
       X8(0) = -0.9602898564975362d0
       X8(1) = -0.7966664774136267d0
       X8(2) = -0.5255324099163290d0
@@ -150,7 +150,7 @@ subroutine initialize()
       W8(5) = W8(2)
       W8(6) = W8(1)
       W8(7) = W8(0)
-      
+
       X9(0) = -0.9681602395076261d0
       X9(1) = -0.8360311073266358d0
       X9(2) = -0.6133714327005904d0
@@ -169,7 +169,7 @@ subroutine initialize()
       W9(6) = W9(2)
       W9(7) = W9(1)
       W9(8) = W9(0)
-      
+
       X10(0) = -0.973906528517172d0
       X10(1) = -0.865063366688985d0
       X10(2) = -0.679409568299024d0
@@ -190,9 +190,9 @@ subroutine initialize()
       W10(7) = W10(2)
       W10(8) = W10(1)
       W10(9) = W10(0)
-end subroutine initialize
+   end subroutine initialize
 
-!---------------------------------------------------------------------------  
+!---------------------------------------------------------------------------
 !> @author Maciej Wozniak
 !>
 !> @brief
@@ -210,51 +210,51 @@ end subroutine initialize
 !> Note: \f$ n \f$- point Gauss quadrature yields exact results for polynomials
 !> of degree up to \f$ 2n - 1 \f$.
 ! -------------------------------------------------------------------
-subroutine GaussRule(n, X, W)
-   implicit none
-   integer(kind = 4), intent(in) :: n
-   real (kind = 8), dimension(0:n - 1), intent(out) :: X
-   real (kind = 8), dimension(0:n - 1), intent(out) :: W
+   subroutine GaussRule(n, X, W)
+      implicit none
+      integer(kind = 4), intent(in) :: n
+      real (kind = 8), dimension(0:n - 1), intent(out) :: X
+      real (kind = 8), dimension(0:n - 1), intent(out) :: W
 
-   if (.NOT. initialized) call initialize()
-   
-   select case (n)
-   case (1) ! p = 1
-      X = X1
-      W = W1
-   case (2) ! p = 3
-      X = X2
-      W = W2
-   case (3) ! p = 5
-      X = X3
-      W = W3
-   case (4) ! p = 7
-      X = X4
-      W = W4
-   case (5) ! p = 9
-      X = X5
-      W = W5
-   case (6)
-      X = X6
-      W = W6
-   case (7)
-      X = X7
-      W = W7
-   case (8)
-      X = X8
-      W = W8
-   case (9)
-      X = X9
-      W = W9
-   case (10)
-      X = X10
-      W = W10
-   case default
-      X = 0.0d0
-      W = 0.0d0
-   end select
+      if (.NOT. initialized) call initialize()
 
-end subroutine GaussRule
+      select case (n)
+       case (1) ! p = 1
+         X = X1
+         W = W1
+       case (2) ! p = 3
+         X = X2
+         W = W2
+       case (3) ! p = 5
+         X = X3
+         W = W3
+       case (4) ! p = 7
+         X = X4
+         W = W4
+       case (5) ! p = 9
+         X = X5
+         W = W5
+       case (6)
+         X = X6
+         W = W6
+       case (7)
+         X = X7
+         W = W7
+       case (8)
+         X = X8
+         W = W8
+       case (9)
+         X = X9
+         W = W9
+       case (10)
+         X = X10
+         W = W10
+       case default
+         X = 0.0d0
+         W = 0.0d0
+      end select
+
+   end subroutine GaussRule
 
 end module gauss
 
