@@ -81,7 +81,7 @@ contains
       call BuildFileName(pattern, zlayer, filename)
 
       open(unit = outFile, file = filename, &
-      form = 'formatted', access = 'sequential', status = 'unknown')
+         form = 'formatted', access = 'sequential', status = 'unknown')
 
       do ix = 1, params % resx
          do iy = 1, params % resy
