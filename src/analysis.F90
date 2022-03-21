@@ -50,7 +50,7 @@ contains
       real (kind = 8), dimension(0:0, 0:p(3), p(3) + 1, nelem(3)) :: NNz
       real (kind = 8) :: J, W, value
       integer(kind = 4) :: nreppx, nreppy, nreppz !# elements per proc along x,y,z
-      integer(kind = 4) :: ind, ind1, ind23, ind23a, indx, indy, indz
+      integer(kind = 4) :: ind, ind1, ind23, indx, indy, indz
       integer(kind = 4) :: iprint
 
       iprint = 0
