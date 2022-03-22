@@ -417,7 +417,7 @@ contains
          ads % Jx = ads_test % Jx
          igrm = .TRUE.
       endif
-      if (direction(1) .EQ. 2) then
+      if (direction(2) .EQ. 1) then
          ads % lnelem(2) = ads_test % lnelem(2)
          ads % mine(2) = ads_test % mine(2)
          ads % ng(2) = ads_test % ng(2)
@@ -430,7 +430,7 @@ contains
          ads % Jy = ads_test % Jy
          igrm = .TRUE.
       endif
-      if (direction(1) .EQ. 3) then
+      if (direction(3) .EQ. 1) then
          ads % lnelem(3) = ads_test % lnelem(3)
          ads % mine(3) = ads_test % mine(3)
          ads % ng(3) = ads_test % ng(3)
@@ -629,6 +629,10 @@ contains
       real (kind = 8) :: Uval, ucoeff
       real   (kind=8) :: dvx,dvy,dvz,v
 
+
+      ads_data%un   = 0.d0
+      ads_data%un13 = 0.d0
+      ads_data%un23 = 0.d0
 
       if (subun .EQ. 1) then
          ads_data % Un = 0.d0

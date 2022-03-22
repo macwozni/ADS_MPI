@@ -422,13 +422,10 @@ contains
       mmix = mix(:, 1)
       direction = (/1, 0, 0/) ! x
       abc(:, 1) = (/1, 2, 3/) ! x y z
-      abc(:, 2) = (/2, 1, 3/) ! y x z
+      abc(:, 2) = (/2, 3, 1/) ! y x z
       abc(:, 3) = (/3, 1, 2/) ! z x y
       substep = 1
-      call FormUn(1, ads_trial, ads_data)
-      ads_data%un13 = 0.d0
-      ads_data%un23 = 0.d0
-      !call Sub_Step(ads, ads, iter, mmix,direction,substep,abc,RHS_fun,ads_data, l2norm, mierr)
+      call FormUn(substep, ads_trial, ads_data)
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
          n, alpha_step, RHS_fun, ads_data, l2norm, mierr)
 
@@ -436,11 +433,9 @@ contains
       direction = (/0, 1, 0/) ! y
       abc(:, 1) = (/3, 1, 2/) ! z y x
       abc(:, 2) = (/1, 2, 3/) ! x y z
-      abc(:, 3) = (/2, 1, 3/) ! y x z
+      abc(:, 3) = (/2, 3, 1/) ! y x z
       substep = 2
-      call FormUn(2, ads_trial, ads_data)
-      ads_data%un23 = 0.d0
-      !call Sub_Step(ads, ads, iter, mmix,direction,substep,abc,RHS_fun,ads_data, l2norm, mierr)
+      call FormUn(substep, ads_trial, ads_data)
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
          n, alpha_step, RHS_fun, ads_data, l2norm, mierr)
 
@@ -450,8 +445,7 @@ contains
       abc(:, 2) = (/3, 1, 2/) ! z x y
       abc(:, 3) = (/1, 2, 3/) ! x y z
       substep = 3
-      call FormUn(3, ads_trial, ads_data)
-      !call Sub_Step(ads, ads, iter, mmix,direction,substep,abc,RHS_fun,ads_data, l2norm, mierr)
+      call FormUn(substep, ads_trial, ads_data)
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
          n, alpha_step, RHS_fun, ads_data, l2norm, mierr)
 
@@ -566,7 +560,6 @@ contains
       if (allocated(ads_data%F)) ads_data%F = 0.d0
       if (allocated(ads_data%Ft)) ads_data%Ft = 0.d0
 ! generate the RHS vectors
-      ! call Form3DRHS(ads_test, ads_trial, ads_data, direction, substep, RHS_fun, igrm,l2norm)
       call Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, alpha_step, RHS_fun, igrm, l2norm)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
@@ -907,8 +900,7 @@ contains
          call SolveOneDirection(Fs, (ads_trial%s(b) + direction(b)*ads_test%s(b)) &
             *(ads_trial%s(c) + direction(c)*ads_test%s(c)), &
             (ads_trial%n(a) + direction(a)*ads_test%n(a)), &
-            (ads_trial%n(a) + direction(a)*ads_test%n(a)), sprsmtrx)  ! ????
-         !(ads_trial % p(a) + direction(a) * ads_test % p(a)), sprsmtrx) ! ????
+            (ads_trial%n(a) + direction(a)*ads_test%n(a)), sprsmtrx)
 !     clean buffers
          call clear_matrix(sprsmtrx)
 #ifdef PERFORMANCE

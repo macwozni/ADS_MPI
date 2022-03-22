@@ -545,8 +545,8 @@ contains
    subroutine Delinearize(F_lin, F, elems, stride)
       implicit none
       integer(kind = 4), intent(in) :: elems, stride
-      real (kind = 8), intent(in) :: F_lin(elems * stride)
-      real (kind = 8), intent(out) :: F(elems, stride)
+      real (kind = 8), intent(in), dimension(:) :: F_lin
+      real (kind = 8), intent(out), dimension(:,:) :: F
       integer(kind = 4) :: i, a, b
 
       do i = 1, elems
@@ -585,9 +585,9 @@ contains
       use mpi
       implicit none
       integer(kind = 4), intent(in) :: n, elems, stride, comm
-      real (kind = 8), intent(in) :: F(elems, stride)
-      integer(kind = 4), intent(in) :: dims(:), shifts(:)
-      real (kind = 8), intent(out) :: F_out(n + 1, stride)
+      real (kind = 8), intent(in), dimension(:,:) :: F
+      integer(kind = 4), intent(in), dimension(:) :: dims, shifts
+      real (kind = 8), intent(out), dimension(:,:) :: F_out
       integer(kind = 4), intent(out) :: ierr
       real (kind = 8), allocatable, dimension(:) :: F_lin, F_out_lin
 
@@ -638,9 +638,9 @@ contains
       use mpi
       implicit none
       integer(kind = 4), intent(in) :: n, elems, stride, comm
-      real (kind = 8), intent(in) :: F(n + 1, stride)
-      integer(kind = 4), intent(in) :: dims(:), shifts(:)
-      real (kind = 8), intent(out) :: F_out(elems * stride)
+      real (kind = 8), intent(in), dimension(:,:) :: F
+      integer(kind = 4), intent(in), dimension(:) :: dims, shifts
+      real (kind = 8), intent(out), dimension(:) :: F_out
       integer(kind = 4), intent(out) :: ierr
       real (kind = 8), allocatable, dimension(:) :: F_lin
 
@@ -685,9 +685,9 @@ contains
    subroutine Scatter(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
       implicit none
       integer(kind = 4), intent(in) :: n, elems, stride, comm
-      real (kind = 8), intent(in) :: F(n + 1, stride)
-      integer(kind = 4), intent(in) :: dims(:), shifts(:)
-      real (kind = 8), intent(out) :: F_out(elems, stride)
+      real (kind = 8), intent(in), dimension(:,:) :: F
+      integer(kind = 4), intent(in), dimension(:) :: dims, shifts
+      real (kind = 8), intent(out), dimension(:,:) :: F_out
       integer(kind = 4), intent(out) :: ierr
       real (kind = 8), allocatable, dimension(:) :: F_out_lin
 
@@ -779,8 +779,8 @@ contains
    subroutine Linearize(F, F_lin, elems, stride)
       implicit none
       integer(kind = 4), intent(in) :: elems, stride
-      real (kind = 8), intent(in) :: F(elems, stride)
-      real (kind = 8), intent(out) :: F_lin(elems * stride)
+      real (kind = 8), intent(in), dimension(:,:) :: F
+      real (kind = 8), intent(out), dimension(:) :: F_lin
       integer(kind = 4) :: i, a, b
 
       do i = 1, elems
