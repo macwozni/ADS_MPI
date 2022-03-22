@@ -865,13 +865,13 @@ contains
          time2 = MPI_Wtime()
          write (*, *) "Gather", a, " : ", time2 - time1
 #endif
-         if (.not.equ) then
-            Fs(1:ads_trial%n(a)+1, :) = F_out
-            Fs(ads_trial%n(a) + 2:ads_trial%n(a) + 1 + direction(a)*(ads_test%n(a)+1), :) = Ft_out
-         else
+         if (equ) then
             Fs(:, 1:ads_trial%s(b)*ads_trial%s(c)) = F_out
             Fs(:, (ads_trial%s(b)*ads_trial%s(c) + 1): &
                (ads_trial%s(b) + direction(b)*ads_test%s(b))*(ads_trial%s(c) + direction(c)*ads_test%s(c))) = Ft_out
+         else
+            Fs(1:ads_trial%n(a)+1, :) = F_out
+            Fs(ads_trial%n(a) + 2:ads_trial%n(a) + 1 + direction(a)*(ads_test%n(a)+1), :) = Ft_out
          end if
       else
          Fs = F_out
@@ -916,13 +916,13 @@ contains
 #endif
 
       if (igrm) then
-          if (.not.equ) then
-            F_out = Fs(1:ads_trial%n(a)+1, :)
-            Ft_out = Fs(ads_trial%n(a) + 2:ads_trial%n(a) + 1 + direction(a)*(ads_test%n(a)+1), :)
-         else
+         if (equ) then
             F_out = Fs(:, 1:ads_trial%s(b)*ads_trial%s(c))
             Ft_out = Fs(:, (ads_trial%s(b)*ads_trial%s(c) + 1): &
-            (ads_trial%s(b) + direction(b)*ads_test%s(b))*(ads_trial%s(c) + direction(c)*ads_test%s(c)))
+               (ads_trial%s(b) + direction(b)*ads_test%s(b))*(ads_trial%s(c) + direction(c)*ads_test%s(c)))
+         else
+            F_out = Fs(1:ads_trial%n(a)+1, :)
+            Ft_out = Fs(ads_trial%n(a) + 2:ads_trial%n(a) + 1 + direction(a)*(ads_test%n(a)+1), :)
          end if
 !  allocate buffers
          allocate (Ft2_out(((1 - direction(a))*ads_trial%s(a) + direction(a)*ads_test%s(a)), &
@@ -981,8 +981,8 @@ contains
          if (a .EQ. 3) call ReorderRHSForX(ads_test%ibeg, ads_test%iend, Ft2_out, Ft2)
       end if
 !  cleanup
-   if (allocated(F2_out)) deallocate(F2_out)
-   if (allocated(Ft2_out)) deallocate(Ft2_out)
+      if (allocated(F2_out)) deallocate(F2_out)
+      if (allocated(Ft2_out)) deallocate(Ft2_out)
 
 #ifdef IPRINT
       write (*, *) PRINTRANK, 'after ReorderRHS'
