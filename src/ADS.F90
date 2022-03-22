@@ -583,19 +583,19 @@ contains
 !--------------------------------------------------------------------
 ! Solve the first problem
 !--------------------------------------------------------------------
-      call solve_problem(ads_test, ads_trial, abc(1, 1), abc(1, 2), abc(1, 3), &
+      call solve_problem(ads_test, ads_trial, abc(1, 1), abc(2,1), abc(3, 1), &
          mix, mix, mix, direction, igrm, ads_data%F, ads_data%F2, ads_data%Ft, ads_data%Ft2, ierr)
 
 !--------------------------------------------------------------------
 ! Solve the second problem
 !--------------------------------------------------------------------
-      call solve_problem(ads_test, ads_trial, abc(2, 1), abc(2, 2), abc(2, 3), &
+      call solve_problem(ads_test, ads_trial, abc(1, 2), abc(2, 2), abc(3, 2), &
          mix, mix, mix, direction, igrm, ads_data%F2, ads_data%F3, ads_data%Ft2, ads_data%Ft3, ierr)
 
 !--------------------------------------------------------------------
 ! Solve the third problem
 !--------------------------------------------------------------------
-      call solve_problem(ads_test, ads_trial, abc(3, 1), abc(3, 2), abc(3, 3), &
+      call solve_problem(ads_test, ads_trial, abc(1, 3), abc(2, 3), abc(3, 3), &
          mix, mix, mix, direction, igrm, ads_data%F3, ads_data%F, ads_data%Ft3, ads_data%Ft, ierr)
 
 #ifdef IINFO
@@ -837,9 +837,9 @@ contains
 #endif
 
 !  allocate result buffer
-      allocate (Fs((ads_trial%n(a) + direction(a)*ads_test%n(a)), &
+      allocate (Fs((ads_trial%n(a) +1 + direction(a)*(ads_test%n(a)+1)), &
          (ads_trial%s(b) + direction(b)*ads_test%s(b))*(ads_trial%s(c) + direction(c)*ads_test%s(c))))
-      allocate (F_out((ads_trial%n(a)), &
+      allocate (F_out((ads_trial%n(a)+1), &
          (ads_trial%s(b)*ads_trial%s(c))))
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
@@ -856,7 +856,7 @@ contains
 
       if (igrm) then
 !  allocate result buffer
-         allocate (Ft_out(((1 - direction(a))*ads_trial%n(a) + direction(a)*ads_test%n(a)), &
+         allocate (Ft_out(((1 - direction(a))*(ads_trial%n(a)+1) + direction(a)*(ads_test%n(a) + 1)), &
             ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
             ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c))))
 #ifdef PERFORMANCE
@@ -872,9 +872,9 @@ contains
          time2 = MPI_Wtime()
          write (*, *) "Gather", a, " : ", time2 - time1
 #endif
-         if (equ) then
-            Fs(1:ads_trial%n(a), :) = F_out
-            Fs(ads_trial%n(a) + 1:ads_trial%n(a) + direction(a)*ads_test%n(a), :) = Ft_out
+         if (.not.equ) then
+            Fs(1:ads_trial%n(a)+1, :) = F_out
+            Fs(ads_trial%n(a) + 2:ads_trial%n(a) + 1 + direction(a)*(ads_test%n(a)+1), :) = Ft_out
          else
             Fs(:, 1:ads_trial%s(b)*ads_trial%s(c)) = F_out
             Fs(:, (ads_trial%s(b)*ads_trial%s(c) + 1): &
@@ -924,13 +924,13 @@ contains
 #endif
 
       if (igrm) then
-         if (equ) then
-            F_out = Fs(1:ads_trial%n(a), :)
-            Ft_out = Fs(ads_trial%n(a) + 1:ads_trial%n(a) + direction(a)*ads_test%n(a), :)
+          if (.not.equ) then
+            F_out = Fs(1:ads_trial%n(a)+1, :)
+            Ft_out = Fs(ads_trial%n(a) + 2:ads_trial%n(a) + 1 + direction(a)*(ads_test%n(a)+1), :)
          else
             F_out = Fs(:, 1:ads_trial%s(b)*ads_trial%s(c))
-            Ft_out = Fs(:, ads_trial%s(b)*ads_trial%s(c) + 1: &
-               (ads_trial%s(b) + direction(b)*ads_test%s(b))*(ads_trial%s(c) + direction(c)*ads_test%s(c)))
+            Ft_out = Fs(:, (ads_trial%s(b)*ads_trial%s(c) + 1): &
+            (ads_trial%s(b) + direction(b)*ads_test%s(b))*(ads_trial%s(c) + direction(c)*ads_test%s(c)))
          end if
 !  allocate buffers
          allocate (Ft2_out(((1 - direction(a))*ads_trial%s(a) + direction(a)*ads_test%s(a)), &
@@ -954,14 +954,14 @@ contains
       end if
 
 !  allocate buffers
-      allocate (F2_out(ads_trial%s(a) + direction(a)*ads_test%s(a), &
+      allocate (F2_out(ads_trial%n(a) + 1, &
          ads_trial%s(b)*ads_trial%s(c)))
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
 !  scatter back onto the cube of processors
-      call Scatter(F_out, F2_out, ads_trial%n(a) + direction(a)*ads_test%n(a), &
-         ads_trial%s(a) + direction(a)*ads_test%s(a), &
+      call Scatter(F_out, F2_out, ads_trial%n(a) , &
+         ads_trial%s(a), &
          ads_trial%s(b)*ads_trial%s(c), &
          dimensions, shifts, comm, ierr)
 #ifdef PERFORMANCE
@@ -989,8 +989,8 @@ contains
          if (a .EQ. 3) call ReorderRHSForX(ads_test%ibeg, ads_test%iend, Ft2_out, Ft2)
       end if
 !  cleanup
-!   if (allocated(F2_out)) deallocate(F2_out)
-!   if (allocated(Ft2_out)) deallocate(Ft2_out)
+   if (allocated(F2_out)) deallocate(F2_out)
+   if (allocated(Ft2_out)) deallocate(Ft2_out)
 
 #ifdef IPRINT
       write (*, *) PRINTRANK, 'after ReorderRHS'
