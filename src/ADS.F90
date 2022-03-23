@@ -225,10 +225,6 @@ contains
       allocate (ads_data%F2(ads_trial%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,x,z
       allocate (ads_data%F3(ads_trial%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
 
-      allocate (ads_data%Ft (ads_test%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
-      allocate (ads_data%Ft2(ads_test%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,x,z
-      allocate (ads_data%Ft3(ads_test%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TODO CHANGE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       allocate (ads_data%R(ads_trial%nrcpp(3)*ads_trial%nrcpp(1)*ads_trial%nrcpp(2), 3, 3, 3))
       ads_data%R = 0.d0
@@ -405,6 +401,10 @@ contains
       integer(kind=4) :: substep
       integer(kind=4), dimension(3, 3) :: abc
 
+      allocate (ads_data%Ft (ads_test%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
+      allocate (ads_data%Ft2(ads_trial%s(2), ads_test%s(3)*ads_trial%s(1))) !y,x,z
+      allocate (ads_data%Ft3(ads_trial%s(3), ads_trial%s(1)*ads_test%s(2))) !z,x,y
+
       mmix = mix(:, 1)
       direction = (/1, 0, 0/) ! x
       abc(:, 1) = (/1, 2, 3/) ! x y z
@@ -414,6 +414,14 @@ contains
       call FormUn(substep, ads_trial, ads_data)
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
                     n, alpha_step, RHS_fun, ads_data, l2norm, mierr)
+      if (allocated(ads_data%Ft)) deallocate(ads_data%Ft)
+      if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
+      if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
+
+
+      allocate (ads_data%Ft (ads_test%s(3), ads_trial%s(1)*ads_trial%s(2))) !x,y,z
+      allocate (ads_data%Ft2(ads_trial%s(1), ads_test%s(2)*ads_trial%s(3))) !y,x,z
+      allocate (ads_data%Ft3(ads_trial%s(2), ads_trial%s(3)*ads_test%s(1))) !z,x,y
 
       mmix = mix(:, 2)
       direction = (/0, 1, 0/) ! y
@@ -424,6 +432,13 @@ contains
       call FormUn(substep, ads_trial, ads_data)
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
                     n, alpha_step, RHS_fun, ads_data, l2norm, mierr)
+      if (allocated(ads_data%Ft)) deallocate(ads_data%Ft)
+      if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
+      if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
+
+      allocate (ads_data%Ft (ads_test%s(2), ads_trial%s(1)*ads_trial%s(3))) !x,y,z
+      allocate (ads_data%Ft2(ads_trial%s(3), ads_test%s(1)*ads_trial%s(2))) !y,x,z
+      allocate (ads_data%Ft3(ads_trial%s(1), ads_trial%s(2)*ads_test%s(3))) !z,x,y
 
       mmix = mix(:, 3)
       direction = (/0, 0, 1/) ! z
@@ -434,6 +449,9 @@ contains
       call FormUn(substep, ads_trial, ads_data)
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
                     n, alpha_step, RHS_fun, ads_data, l2norm, mierr)
+      if (allocated(ads_data%Ft)) deallocate(ads_data%Ft)
+      if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
+      if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
 
    end subroutine MultiStep
 
@@ -878,7 +896,7 @@ contains
 
       if (igrm) then
 !  allocate result buffer
-         allocate (Ft_out(((1 - direction(a))*(ads_trial%n(a) + 1) + direction(a)*(ads_test%n(a) + 1)), &
+         allocate (Ft_out(((1 - direction(a))*ads_trial%s(a) + direction(a)*ads_test%s(a)), &
                           ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
                           ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c))))
 #ifdef PERFORMANCE
