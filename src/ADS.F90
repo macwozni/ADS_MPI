@@ -814,9 +814,9 @@ contains
          dimensions_test = ads_test%dimensionsY
          ! prepare dimensions vectors
          call FillDimVector(dimensions_test, shifts_test,ads_test%nrcpp(2),&
-            (direction(2)*ads_test%s(1)+(1-direction(1))*ads_trial%s(1))*&
+            (direction(1)*ads_test%s(1)+(1-direction(1))*ads_trial%s(1))*&
             (direction(3)*ads_test%s(3)+(1-direction(3))*ads_trial%s(3)),&
-            (direction(1)*ads_test%n(2)+(1-direction(2))*ads_trial%n(2)),&
+            (direction(2)*ads_test%n(2)+(1-direction(2))*ads_trial%n(2)),&
             NRPROCY)
 !  we solve in z directon
       else ! a.EQ.3
@@ -830,9 +830,9 @@ contains
          dimensions_test = ads_test%dimensionsZ
          ! prepare dimensions vectors
          call FillDimVector(dimensions_test, shifts_test,ads_test%nrcpp(3),&
-            (direction(2)*ads_test%s(1)+(1-direction(1))*ads_trial%s(1))*&
-            (direction(3)*ads_test%s(2)+(1-direction(2))*ads_trial%s(2)),&
-            (direction(1)*ads_test%n(3)+(1-direction(3))*ads_trial%n(3)),&
+            (direction(1)*ads_test%s(1)+(1-direction(1))*ads_trial%s(1))*&
+            (direction(2)*ads_test%s(2)+(1-direction(2))*ads_trial%s(2)),&
+            (direction(3)*ads_test%n(3)+(1-direction(3))*ads_trial%n(3)),&
             NRPROCZ)
       end if
 
