@@ -6,8 +6,9 @@ FFLAGS		+= -I./$(obj_path)
 
 
 EXEC = l2
-SOURCE_ALL = $(SOURCES) $(L2)
-VPATH = $(sort $(dir $(SOURCE_ALL)))
+SOURCE_ALL = $(SOURCES) $(IGRM_L2)
+VPATH = $(dir $(SOURCE_ALL))
+# $(sort $(dir $(SOURCE_ALL)))
 
 dot_o = .o
 objF90 :=  $(notdir $(filter %$(dot_o),$(SOURCE_ALL:.F90=$(dot_o))))
