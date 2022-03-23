@@ -4,7 +4,6 @@ module gnuplot
 
 contains
 
-
    ! -------------------------------------------------------------------
    ! Plot output function for gnuplot.
    !
@@ -17,19 +16,18 @@ contains
    subroutine GnuPlotOutput(filename, vals, params)
       use plot, ONLY: PlotParams
       implicit none
-      character(len = *), intent(in) :: filename
-      type (PlotParams), intent(in) :: params
-      real (kind = 8), intent(in) :: vals(params % resx, params % resy, params % resz)
+      character(len=*), intent(in) :: filename
+      type(PlotParams), intent(in) :: params
+      real(kind=8), intent(in) :: vals(params%resx, params%resy, params%resz)
       integer :: z
 
-      write(*, *) 'Starting GNUPLOT output...'
-      do z = 1, params % resz
-         call OutputLayer(filename, z - 1, vals(:,:, z), params)
-      enddo
-      write(*, *) 'Done with output.'
+      write (*, *) 'Starting GNUPLOT output...'
+      do z = 1, params%resz
+         call OutputLayer(filename, z - 1, vals(:, :, z), params)
+      end do
+      write (*, *) 'Done with output.'
 
    end subroutine GnuPlotOutput
-
 
    ! -------------------------------------------------------------------
    ! Auxilary function to create file name from pattern and layer number.
@@ -43,17 +41,16 @@ contains
    ! -------------------------------------------------------------------
    subroutine BuildFileName(pattern, layer, filename)
       implicit none
-      character(len = *), intent(in) :: pattern
+      character(len=*), intent(in) :: pattern
       integer :: layer
-      character(len = *), intent(out) :: filename
-      character(len = 10) :: buffer
+      character(len=*), intent(out) :: filename
+      character(len=10) :: buffer
 
-      write(buffer, '(I10)') layer
+      write (buffer, '(I10)') layer
       buffer = adjustl(buffer)
-      filename = trim(pattern // buffer) // '.plot'
+      filename = trim(pattern//buffer)//'.plot'
 
    end subroutine BuildFileName
-
 
    ! -------------------------------------------------------------------
    ! Writes one layer as gnuplot file. Its name is: pattern{layer}.plot
@@ -68,33 +65,32 @@ contains
    subroutine OutputLayer(pattern, zlayer, vals, params)
       use plot, ONLY: PlotParams
       implicit none
-      character(len = *), intent(in) :: pattern
+      character(len=*), intent(in) :: pattern
       integer, intent(in) :: zlayer
-      type (PlotParams), intent(in) :: params
-      real (kind = 8), intent(in) :: vals(params % resx, params % resy)
+      type(PlotParams), intent(in) :: params
+      real(kind=8), intent(in) :: vals(params%resx, params%resy)
 
-      character(len = 50) :: filename, buf
+      character(len=50) :: filename, buf
       integer :: outFile = 57 ! random value, Grothendieck's prime
       integer :: ix, iy
 
-      write(*, *) 'Layer', zlayer
+      write (*, *) 'Layer', zlayer
       call BuildFileName(pattern, zlayer, filename)
 
-      open(unit = outFile, file = filename, &
-         form = 'formatted', access = 'sequential', status = 'unknown')
+      open (unit=outFile, file=filename, &
+            form='formatted', access='sequential', status='unknown')
 
-      do ix = 1, params % resx
-         do iy = 1, params % resy
-            write(buf, '(F30.10)') vals(ix, iy)
-            write(outFile, *) ix - 1, ' ', iy - 1, ' ', buf
-         enddo
-         write(outFile, *) ! blank line
-      enddo
+      do ix = 1, params%resx
+         do iy = 1, params%resy
+            write (buf, '(F30.10)') vals(ix, iy)
+            write (outFile, *) ix - 1, ' ', iy - 1, ' ', buf
+         end do
+         write (outFile, *) ! blank line
+      end do
 
-      close(outFile)
+      close (outFile)
 
    end subroutine OutputLayer
-
 
 end module gnuplot
 

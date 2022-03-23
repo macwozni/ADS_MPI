@@ -112,19 +112,19 @@ contains
 
 !  test
       call BasisData(ads_test%p(1), ads_test%m(1), ads_test%Ux, 1, ads_test%ng(1), &
-         ads_test%nelem(1), ads_test%Ox, ads_test%Jx, ads_test%Wx, ads_test%Xx, ads_test%NNx)
+                     ads_test%nelem(1), ads_test%Ox, ads_test%Jx, ads_test%Wx, ads_test%Xx, ads_test%NNx)
       call BasisData(ads_test%p(2), ads_test%m(2), ads_test%Uy, 1, ads_test%ng(2), &
-         ads_test%nelem(2), ads_test%Oy, ads_test%Jy, ads_test%Wy, ads_test%Xy, ads_test%NNy)
+                     ads_test%nelem(2), ads_test%Oy, ads_test%Jy, ads_test%Wy, ads_test%Xy, ads_test%NNy)
       call BasisData(ads_test%p(3), ads_test%m(3), ads_test%Uz, 1, ads_test%ng(3), &
-         ads_test%nelem(3), ads_test%Oz, ads_test%Jz, ads_test%Wz, ads_test%Xz, ads_test%NNz)
+                     ads_test%nelem(3), ads_test%Oz, ads_test%Jz, ads_test%Wz, ads_test%Xz, ads_test%NNz)
 
 !  trial
       call BasisData(ads_trial%p(1), ads_trial%m(1), ads_trial%Ux, 1, ads_trial%ng(1), &
-         ads_trial%nelem(1), ads_trial%Ox, ads_trial%Jx, ads_trial%Wx, ads_trial%Xx, ads_trial%NNx)
+                     ads_trial%nelem(1), ads_trial%Ox, ads_trial%Jx, ads_trial%Wx, ads_trial%Xx, ads_trial%NNx)
       call BasisData(ads_trial%p(2), ads_trial%m(2), ads_trial%Uy, 1, ads_trial%ng(2), &
-         ads_trial%nelem(2), ads_trial%Oy, ads_trial%Jy, ads_trial%Wy, ads_trial%Xy, ads_trial%NNy)
+                     ads_trial%nelem(2), ads_trial%Oy, ads_trial%Jy, ads_trial%Wy, ads_trial%Xy, ads_trial%NNy)
       call BasisData(ads_trial%p(3), ads_trial%m(3), ads_trial%Uz, 1, ads_trial%ng(3), &
-         ads_trial%nelem(3), ads_trial%Oz, ads_trial%Jz, ads_trial%Wz, ads_trial%Xz, ads_trial%NNz)
+                     ads_trial%nelem(3), ads_trial%Oz, ads_trial%Jz, ads_trial%Wz, ads_trial%Xz, ads_trial%NNz)
 
       ads_trial%lnelem(1) = ads_trial%maxe(1) - ads_trial%mine(1) + 1
       ads_trial%lnelem(2) = ads_trial%maxe(2) - ads_trial%mine(2) + 1
@@ -153,7 +153,7 @@ contains
    subroutine ComputeDecomposition(ads)
       use Setup, ONLY: ADS_Setup
       use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ, &
-         NRPROCX, NRPROCY, NRPROCZ, ComputeEndpoints, FillDimVector!, PRINTRANK
+                             NRPROCX, NRPROCY, NRPROCZ, ComputeEndpoints, FillDimVector!, PRINTRANK
       implicit none
       type(ADS_setup), intent(inout) :: ads
       integer(kind=4) :: i
@@ -162,11 +162,11 @@ contains
 
       ! number of columns per processors
       call ComputeEndpoints(MYRANKX, NRPROCX, ads%n(1), ads%p(1), ads%nrcpp(1), ads%ibeg(1), &
-         ads%iend(1), ads%mine(1), ads%maxe(1))
+                            ads%iend(1), ads%mine(1), ads%maxe(1))
       call ComputeEndpoints(MYRANKY, NRPROCY, ads%n(2), ads%p(2), ads%nrcpp(2), ads%ibeg(2), &
-         ads%iend(2), ads%mine(2), ads%maxe(2))
+                            ads%iend(2), ads%mine(2), ads%maxe(2))
       call ComputeEndpoints(MYRANKZ, NRPROCZ, ads%n(3), ads%p(3), ads%nrcpp(3), ads%ibeg(3), &
-         ads%iend(3), ads%mine(3), ads%maxe(3))
+                            ads%iend(3), ads%mine(3), ads%maxe(3))
 
       ads%s(1) = ads%iend(1) - ads%ibeg(1) + 1
       ads%s(2) = ads%iend(2) - ads%ibeg(2) + 1
@@ -195,17 +195,17 @@ contains
       do i = max(MYRANKX - 1, 0) + 1, min(MYRANKX + 1, NRPROCX - 1) + 1
          ix = i - MYRANKX + 1
          call ComputeEndpoints(i - 1, NRPROCX, ads%n(1), ads%p(1), ads%nrcpp(1), ads%ibegsx(ix), &
-            ads%iendsx(ix), imine, imaxe)
+                               ads%iendsx(ix), imine, imaxe)
       end do
       do i = max(MYRANKY - 1, 0) + 1, min(MYRANKY + 1, NRPROCY - 1) + 1
          iy = i - MYRANKY + 1
          call ComputeEndpoints(i - 1, NRPROCY, ads%n(2), ads%p(2), ads%nrcpp(2), ads%ibegsy(iy), &
-            ads%iendsy(iy), imine, imaxe)
+                               ads%iendsy(iy), imine, imaxe)
       end do
       do i = max(MYRANKZ - 1, 0) + 1, min(MYRANKZ + 1, NRPROCZ - 1) + 1
          iz = i - MYRANKZ + 1
          call ComputeEndpoints(i - 1, NRPROCZ, ads%n(3), ads%p(3), ads%nrcpp(3), ads%ibegsz(iz), &
-            ads%iendsz(iz), imine, imaxe)
+                               ads%iendsz(iz), imine, imaxe)
       end do
 
    end subroutine ComputeDecomposition
@@ -223,13 +223,13 @@ contains
       integer :: ierr
 
       allocate (ads_data%Un(ads_trial%lnelem(1), ads_trial%lnelem(2), ads_trial%lnelem(3), &
-         ads_trial%ng(1), ads_trial%ng(2), ads_trial%ng(3)))
+                            ads_trial%ng(1), ads_trial%ng(2), ads_trial%ng(3)))
       allocate (ads_data%Un13(ads_trial%lnelem(1), ads_trial%lnelem(2), ads_trial%lnelem(3), &
-         ads_trial%ng(1), ads_trial%ng(2), ads_trial%ng(3)))
+                              ads_trial%ng(1), ads_trial%ng(2), ads_trial%ng(3)))
       allocate (ads_data%Un23(ads_trial%lnelem(1), ads_trial%lnelem(2), ads_trial%lnelem(3), &
-         ads_trial%ng(1), ads_trial%ng(2), ads_trial%ng(3)))
+                              ads_trial%ng(1), ads_trial%ng(2), ads_trial%ng(3)))
       allocate (ads_data%dUn(ads_trial%lnelem(1), ads_trial%lnelem(2), ads_trial%lnelem(3), &
-         ads_trial%ng(1), ads_trial%ng(2), ads_trial%ng(3), 3))
+                             ads_trial%ng(1), ads_trial%ng(2), ads_trial%ng(3), 3))
 
       ! OLD: MP start with system fully generated along X
       ! allocate( F((n+1),(sy)*(sz))) !x,y,z
@@ -427,7 +427,7 @@ contains
       substep = 1
       call FormUn(substep, ads_trial, ads_data)
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
-         n, alpha_step, RHS_fun, ads_data, l2norm, mierr)
+                    n, alpha_step, RHS_fun, ads_data, l2norm, mierr)
 
       mmix = mix(:, 2)
       direction = (/0, 1, 0/) ! y
@@ -437,7 +437,7 @@ contains
       substep = 2
       call FormUn(substep, ads_trial, ads_data)
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
-         n, alpha_step, RHS_fun, ads_data, l2norm, mierr)
+                    n, alpha_step, RHS_fun, ads_data, l2norm, mierr)
 
       mmix = mix(:, 3)
       direction = (/0, 0, 1/) ! z
@@ -447,7 +447,7 @@ contains
       substep = 3
       call FormUn(substep, ads_trial, ads_data)
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
-         n, alpha_step, RHS_fun, ads_data, l2norm, mierr)
+                    n, alpha_step, RHS_fun, ads_data, l2norm, mierr)
 
    end subroutine MultiStep
 
@@ -487,7 +487,7 @@ contains
 
       !call Sub_Step(ads, ads, iter, mix,direction,substep,abc,RHS_fun,ads_data, l2norm, mierr)
       call Sub_Step(ads, ads, iter, mix, direction, substep, abc, &
-         1, alpha_step, RHS_fun, ads_data, l2norm, mierr)
+                    1, alpha_step, RHS_fun, ads_data, l2norm, mierr)
 
    end subroutine Step
 
@@ -522,8 +522,8 @@ contains
 !
 ! -------------------------------------------------------------------
    subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
-      n, alpha_step, &
-      RHS_fun, ads_data, l2norm, mierr)
+                       n, alpha_step, &
+                       RHS_fun, ads_data, l2norm, mierr)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       ! use parallelism, ONLY: PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
       ! use communicators, ONLY: COMMX, COMMY, COMMZ
@@ -576,20 +576,20 @@ contains
 !--------------------------------------------------------------------
 ! Solve the first problem
 !--------------------------------------------------------------------
-      call solve_problem(ads_test, ads_trial, abc(1, 1), abc(2,1), abc(3, 1), &
-         mix, mix, mix, direction, igrm, ads_data%F, ads_data%F2, ads_data%Ft, ads_data%Ft2, ierr)
+      call solve_problem(ads_test, ads_trial, abc(1, 1), abc(2, 1), abc(3, 1), &
+                         mix, mix, mix, direction, igrm, ads_data%F, ads_data%F2, ads_data%Ft, ads_data%Ft2, ierr)
 
 !--------------------------------------------------------------------
 ! Solve the second problem
 !--------------------------------------------------------------------
       call solve_problem(ads_test, ads_trial, abc(1, 2), abc(2, 2), abc(3, 2), &
-         mix, mix, mix, direction, igrm, ads_data%F2, ads_data%F3, ads_data%Ft2, ads_data%Ft3, ierr)
+                         mix, mix, mix, direction, igrm, ads_data%F2, ads_data%F3, ads_data%Ft2, ads_data%Ft3, ierr)
 
 !--------------------------------------------------------------------
 ! Solve the third problem
 !--------------------------------------------------------------------
       call solve_problem(ads_test, ads_trial, abc(1, 3), abc(2, 3), abc(3, 3), &
-         mix, mix, mix, direction, igrm, ads_data%F3, ads_data%F, ads_data%Ft3, ads_data%Ft, ierr)
+                         mix, mix, mix, direction, igrm, ads_data%F3, ads_data%F, ads_data%Ft3, ads_data%Ft, ierr)
 
 #ifdef IINFO
       write (*, *) PRINTRANK, '3e) DISTRIBUTE SOLUTION'
@@ -715,7 +715,7 @@ contains
       character(len=20) :: filename
 
       call GatherFullSolution(0, ads_data%F, solution, &
-         ads%n, ads%p, ads%s)
+                              ads%n, ads%p, ads%s)
 
       if (MYRANK == 0) then
          write (filename, '(I10)') iter
@@ -724,11 +724,11 @@ contains
 
          params = PlotParams(0.d0, 1.d0, 0.d0, 1.d0, 0.d0, 1.d0, 31, 31, 31)
          call SaveSplinePlot(trim(filename), &
-            ads%Ux, ads%p(1), ads%n(1), ads%nelem(1), &
-            ads%Uy, ads%p(2), ads%n(2), ads%nelem(2), &
-            ads%Uz, ads%p(3), ads%n(3), ads%nelem(3), &
-         ! solution, GnuPlotOutput, params)
-            solution, VtkOutput, params)
+                             ads%Ux, ads%p(1), ads%n(1), ads%nelem(1), &
+                             ads%Uy, ads%p(2), ads%n(2), ads%nelem(2), &
+                             ads%Uz, ads%p(3), ads%n(3), ads%nelem(3), &
+                             ! solution, GnuPlotOutput, params)
+                             solution, VtkOutput, params)
 
          ! call SavePlot(trim(filename), ftest, GnuPlotOutput, params)
       end if
@@ -830,18 +830,18 @@ contains
 #endif
 
 !  allocate result buffer
-      allocate (Fs((ads_trial%n(a) +1 + direction(a)*(ads_test%n(a)+1)), &
-         (ads_trial%s(b) + direction(b)*ads_test%s(b))*(ads_trial%s(c) + direction(c)*ads_test%s(c))))
-      allocate (F_out((ads_trial%n(a)+1), &
-         (ads_trial%s(b)*ads_trial%s(c))))
+      allocate (Fs((ads_trial%n(a) + 1 + direction(a)*(ads_test%n(a) + 1)), &
+                   (ads_trial%s(b) + direction(b)*ads_test%s(b))*(ads_trial%s(c) + direction(c)*ads_test%s(c))))
+      allocate (F_out((ads_trial%n(a) + 1), &
+                      (ads_trial%s(b)*ads_trial%s(c))))
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
 !  gather onto the face of processors
       call Gather(F, F_out, ads_trial%n(a), &
-         ads_trial%s(a), &
-         ads_trial%s(b)*ads_trial%s(c), &
-         dimensions, shifts, comm, ierr)
+                  ads_trial%s(a), &
+                  ads_trial%s(b)*ads_trial%s(c), &
+                  dimensions, shifts, comm, ierr)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write (*, *) "Gather", a, " : ", time2 - time1
@@ -849,18 +849,18 @@ contains
 
       if (igrm) then
 !  allocate result buffer
-         allocate (Ft_out(((1 - direction(a))*(ads_trial%n(a)+1) + direction(a)*(ads_test%n(a) + 1)), &
-            ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
-            ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c))))
+         allocate (Ft_out(((1 - direction(a))*(ads_trial%n(a) + 1) + direction(a)*(ads_test%n(a) + 1)), &
+                          ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
+                          ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c))))
 #ifdef PERFORMANCE
          time1 = MPI_Wtime()
 #endif
 !  gather onto the face of processors
          call Gather(Ft, Ft_out, (1 - direction(a))*ads_trial%n(a) + direction(a)*ads_test%n(a), &
-            (1 - direction(a))*ads_trial%s(a) + direction(a)*ads_test%s(a), &
-            ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
-            ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c)), &
-            dimensions, shifts, comm, ierr)
+                     (1 - direction(a))*ads_trial%s(a) + direction(a)*ads_test%s(a), &
+                     ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
+                     ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c)), &
+                     dimensions, shifts, comm, ierr)
 #ifdef PERFORMANCE
          time2 = MPI_Wtime()
          write (*, *) "Gather", a, " : ", time2 - time1
@@ -870,8 +870,8 @@ contains
             Fs(:, (ads_trial%s(b)*ads_trial%s(c) + 1): &
                (ads_trial%s(b) + direction(b)*ads_test%s(b))*(ads_trial%s(c) + direction(c)*ads_test%s(c))) = Ft_out
          else
-            Fs(1:ads_trial%n(a)+1, :) = F_out
-            Fs(ads_trial%n(a) + 2:ads_trial%n(a) + 1 + direction(a)*(ads_test%n(a)+1), :) = Ft_out
+            Fs(1:ads_trial%n(a) + 1, :) = F_out
+            Fs(ads_trial%n(a) + 2:ads_trial%n(a) + 1 + direction(a)*(ads_test%n(a) + 1), :) = Ft_out
          end if
       else
          Fs = F_out
@@ -889,8 +889,8 @@ contains
 #endif
 !     compute LHS matrix
          call ComputeMatrix(U, ads_test%p(a), ads_test%n(a), ads_test%nelem(a), &
-            U, ads_trial%p(a), ads_trial%n(a), ads_trial%nelem(a), &
-            mixA, mixB, mixBT, equ, sprsmtrx)
+                            U, ads_trial%p(a), ads_trial%n(a), ads_trial%nelem(a), &
+                            mixA, mixB, mixBT, equ, sprsmtrx)
 #ifdef PERFORMANCE
          time2 = MPI_Wtime()
          write (*, *) "Mass matrix", a, ": ", time2 - time1
@@ -898,9 +898,9 @@ contains
 #endif
 !     perform real solver
          call SolveOneDirection(Fs, (ads_trial%s(b) + direction(b)*ads_test%s(b)) &
-            *(ads_trial%s(c) + direction(c)*ads_test%s(c)), &
-            (ads_trial%n(a) + direction(a)*ads_test%n(a)), &
-            (ads_trial%n(a) + direction(a)*ads_test%n(a)), sprsmtrx)
+                                *(ads_trial%s(c) + direction(c)*ads_test%s(c)), &
+                                (ads_trial%n(a) + direction(a)*ads_test%n(a)), &
+                                (ads_trial%n(a) + direction(a)*ads_test%n(a)), sprsmtrx)
 !     clean buffers
          call clear_matrix(sprsmtrx)
 #ifdef PERFORMANCE
@@ -919,24 +919,24 @@ contains
          if (equ) then
             F_out = Fs(:, 1:ads_trial%s(b)*ads_trial%s(c))
             Ft_out = Fs(:, (ads_trial%s(b)*ads_trial%s(c) + 1): &
-               (ads_trial%s(b) + direction(b)*ads_test%s(b))*(ads_trial%s(c) + direction(c)*ads_test%s(c)))
+                        (ads_trial%s(b) + direction(b)*ads_test%s(b))*(ads_trial%s(c) + direction(c)*ads_test%s(c)))
          else
-            F_out = Fs(1:ads_trial%n(a)+1, :)
-            Ft_out = Fs(ads_trial%n(a) + 2:ads_trial%n(a) + 1 + direction(a)*(ads_test%n(a)+1), :)
+            F_out = Fs(1:ads_trial%n(a) + 1, :)
+            Ft_out = Fs(ads_trial%n(a) + 2:ads_trial%n(a) + 1 + direction(a)*(ads_test%n(a) + 1), :)
          end if
 !  allocate buffers
          allocate (Ft2_out(((1 - direction(a))*ads_trial%s(a) + direction(a)*ads_test%s(a)), &
-            ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
-            ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c))))
+                           ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
+                           ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c))))
 #ifdef PERFORMANCE
          time1 = MPI_Wtime()
 #endif
 !  scatter back onto the cube of processors
          call Scatter(Ft_out, Ft2_out, (1 - direction(a))*ads_trial%n(a) + direction(a)*ads_test%n(a), &
-            (1 - direction(a))*ads_trial%s(a) + direction(a)*ads_test%s(a), &
-            ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
-            ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c)), &
-            dimensions, shifts, comm, ierr)
+                      (1 - direction(a))*ads_trial%s(a) + direction(a)*ads_test%s(a), &
+                      ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
+                      ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c)), &
+                      dimensions, shifts, comm, ierr)
 #ifdef PERFORMANCE
          time2 = MPI_Wtime()
          write (*, *) "Scatter ", a, ": ", time2 - time1
@@ -947,15 +947,15 @@ contains
 
 !  allocate buffers
       allocate (F2_out(ads_trial%n(a) + 1, &
-         ads_trial%s(b)*ads_trial%s(c)))
+                       ads_trial%s(b)*ads_trial%s(c)))
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
 !  scatter back onto the cube of processors
-      call Scatter(F_out, F2_out, ads_trial%n(a) , &
-         ads_trial%s(a), &
-         ads_trial%s(b)*ads_trial%s(c), &
-         dimensions, shifts, comm, ierr)
+      call Scatter(F_out, F2_out, ads_trial%n(a), &
+                   ads_trial%s(a), &
+                   ads_trial%s(b)*ads_trial%s(c), &
+                   dimensions, shifts, comm, ierr)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write (*, *) "Scatter ", a, ": ", time2 - time1
@@ -981,8 +981,8 @@ contains
          if (a .EQ. 3) call ReorderRHSForX(ads_test%ibeg, ads_test%iend, Ft2_out, Ft2)
       end if
 !  cleanup
-      if (allocated(F2_out)) deallocate(F2_out)
-      if (allocated(Ft2_out)) deallocate(Ft2_out)
+      if (allocated(F2_out)) deallocate (F2_out)
+      if (allocated(Ft2_out)) deallocate (Ft2_out)
 
 #ifdef IPRINT
       write (*, *) PRINTRANK, 'after ReorderRHS'

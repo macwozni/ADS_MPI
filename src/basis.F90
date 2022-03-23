@@ -15,13 +15,11 @@
 !
 !------------------------------------------------------------------------------
 
-
 module basis
 
    implicit none
 
 contains
-
 
 !---------------------------------------------------------------------------
 !> @author Maciej Wozniak
@@ -74,18 +72,18 @@ contains
    subroutine BasisData(p, m, U, d, q, r, O, J, W, X, N)
       use gauss, ONLY: GaussRule
       implicit none
-      integer (kind = 4), intent(in) :: p, m
-      real (kind = 8), dimension(0:m), intent(in) :: U
-      integer (kind = 4), intent(in) :: d, q, r
-      integer (kind = 4), dimension(r), intent(out) :: O
-      real (kind = 8), dimension(r), intent(out) :: J
-      real (kind = 8), dimension(q), intent(out) :: W
-      real (kind = 8), dimension(q, r), intent(out) :: X
-      real (kind = 8), dimension(0:d, 0:p, q, r), intent(out) :: N
-      integer (kind = 4) :: i, iq, ir
-      real (kind = 8) :: uu
-      real (kind = 8), dimension(q) :: Xg
-      real (kind = 8), dimension(0:p, 0:d) :: basis
+      integer(kind=4), intent(in) :: p, m
+      real(kind=8), dimension(0:m), intent(in) :: U
+      integer(kind=4), intent(in) :: d, q, r
+      integer(kind=4), dimension(r), intent(out) :: O
+      real(kind=8), dimension(r), intent(out) :: J
+      real(kind=8), dimension(q), intent(out) :: W
+      real(kind=8), dimension(q, r), intent(out) :: X
+      real(kind=8), dimension(0:d, 0:p, q, r), intent(out) :: N
+      integer(kind=4) :: i, iq, ir
+      real(kind=8) :: uu
+      real(kind=8), dimension(q) :: Xg
+      real(kind=8), dimension(0:p, 0:d) :: basis
 
 ! Calculates first nonzero basis function for each element
       ir = 1
@@ -93,21 +91,21 @@ contains
          if (U(i) /= U(i + 1)) then
             O(ir) = i - p
             ir = ir + 1
-         endif
-      enddo
+         end if
+      end do
 
       call GaussRule(q, Xg, W)
 
       do ir = 1, r
          i = O(ir) + p
-         J(ir) = (U(i + 1) - U(i)) / 2.0
-         X(:, ir) = (Xg + 1.0) * J(ir) + U(i) ! translate Gauss [-1,1] -> [0,1]
+         J(ir) = (U(i + 1) - U(i))/2.0
+         X(:, ir) = (Xg + 1.0)*J(ir) + U(i) ! translate Gauss [-1,1] -> [0,1]
          do iq = 1, q
             uu = X(iq, ir)
             call DersBasisFuns(i, uu, p, d, U, basis)
-            N(:,:, iq, ir) = transpose(basis)
-         enddo
-      enddo
+            N(:, :, iq, ir) = transpose(basis)
+         end do
+      end do
 
    end subroutine BasisData
 
@@ -135,15 +133,15 @@ contains
 ! -------------------------------------------------------------------
    subroutine DersBasisFuns(i, uu, p, d, U, ders)
       implicit none
-      integer(kind = 4), intent(in) :: i, p, d
-      real (kind = 8), intent(in) :: uu
-      real (kind = 8), dimension(0:i + p), intent(in) :: U
-      real (kind = 8), dimension(0:p, 0:d), intent(out) :: ders
-      integer(kind = 4) :: j, k, r, s1, s2, rk, pk, j1, j2
-      real (kind = 8) :: saved, temp, der
-      real (kind = 8), dimension(p) :: left, right
-      real (kind = 8), dimension(0:p, 0:p) :: ndu
-      real (kind = 8), dimension(0:1, 0:p) :: a
+      integer(kind=4), intent(in) :: i, p, d
+      real(kind=8), intent(in) :: uu
+      real(kind=8), dimension(0:i + p), intent(in) :: U
+      real(kind=8), dimension(0:p, 0:d), intent(out) :: ders
+      integer(kind=4) :: j, k, r, s1, s2, rk, pk, j1, j2
+      real(kind=8) :: saved, temp, der
+      real(kind=8), dimension(p) :: left, right
+      real(kind=8), dimension(0:p, 0:p) :: ndu
+      real(kind=8), dimension(0:1, 0:p) :: a
 
       ndu(0, 0) = 1.d0
       do j = 1, p
@@ -152,55 +150,54 @@ contains
          saved = 0.0
          do r = 0, j - 1
             ndu(j, r) = right(r + 1) + left(j - r)
-            temp = ndu(r, j - 1) / ndu(j, r)
-            ndu(r, j) = saved + right(r + 1) * temp
-            saved = left(j - r) * temp
-         enddo
+            temp = ndu(r, j - 1)/ndu(j, r)
+            ndu(r, j) = saved + right(r + 1)*temp
+            saved = left(j - r)*temp
+         end do
          ndu(j, j) = saved
-      enddo
+      end do
 
       ders(:, 0) = ndu(:, p)
 
       do r = 0, p
-         s1 = 0; s2 = 1;
+         s1 = 0; s2 = 1; 
          a(0, 0) = 1.0
          do k = 1, d
             der = 0.0
-            rk = r - k; pk = p - k;
+            rk = r - k; pk = p - k; 
             if (r >= k) then
-               a(s2, 0) = a(s1, 0) / ndu(pk + 1, rk)
-               der = a(s2, 0) * ndu(rk, pk)
-            endif
+               a(s2, 0) = a(s1, 0)/ndu(pk + 1, rk)
+               der = a(s2, 0)*ndu(rk, pk)
+            end if
             if (rk > -1) then
                j1 = 1
             else
                j1 = -rk
-            endif
+            end if
             if (r - 1 <= pk) then
                j2 = k - 1
             else
                j2 = p - r
-            endif
+            end if
             do j = j1, j2
-               a(s2, j) = (a(s1, j) - a(s1, j - 1)) / ndu(pk + 1, rk + j)
-               der = der + a(s2, j) * ndu(rk + j, pk)
-            enddo
+               a(s2, j) = (a(s1, j) - a(s1, j - 1))/ndu(pk + 1, rk + j)
+               der = der + a(s2, j)*ndu(rk + j, pk)
+            end do
             if (r <= pk) then
-               a(s2, k) = -a(s1, k - 1) / ndu(pk + 1, r)
-               der = der + a(s2, k) * ndu(r, pk)
-            endif
+               a(s2, k) = -a(s1, k - 1)/ndu(pk + 1, r)
+               der = der + a(s2, k)*ndu(r, pk)
+            end if
             ders(r, k) = der
-            j = s1; s1 = s2; s2 = j;
-         enddo
-      enddo
+            j = s1; s1 = s2; s2 = j; 
+         end do
+      end do
       r = p
       do k = 1, d
-         ders(:, k) = ders(:, k) * r
-         r = r * (p - k)
-      enddo
+         ders(:, k) = ders(:, k)*r
+         r = r*(p - k)
+      end do
 
    end subroutine DersBasisFuns
-
 
 !---------------------------------------------------------------------------
 !> @author  Maciej Wozniak
@@ -223,41 +220,40 @@ contains
 !> @return span  - index of element
 !
 ! -------------------------------------------------------------------
-   function FindSpan(n, p, uu, U) result (span)
+   function FindSpan(n, p, uu, U) result(span)
       implicit none
-      integer(kind = 4), intent(in) :: n, p
-      real (kind = 8), intent(in) :: uu
-      real (kind = 8), dimension(0:n + p + 1), intent(in) :: U
-      integer(kind = 4) :: span
-      integer(kind = 4) :: low, high
+      integer(kind=4), intent(in) :: n, p
+      real(kind=8), intent(in) :: uu
+      real(kind=8), dimension(0:n + p + 1), intent(in) :: U
+      integer(kind=4) :: span
+      integer(kind=4) :: low, high
 
       ! check edge cases
       if (uu >= U(n + 1)) then
          span = n
          return
-      endif
+      end if
 
       if (uu <= U(p)) then
          span = p
          return
-      endif
+      end if
 
       ! Binary search for uu
       low = p
       high = n + 1
-      span = (low + high) / 2
+      span = (low + high)/2
 
       do while (uu < U(span) .or. uu >= U(span + 1))
          if (uu < U(span)) then
             high = span
          else
             low = span
-         endif
-         span = (low + high) / 2
-      enddo
+         end if
+         span = (low + high)/2
+      end do
 
    end function FindSpan
-
 
 !---------------------------------------------------------------------------
 !> @author  Maciej Wozniak
@@ -276,11 +272,11 @@ contains
 !> @param[out] nelem - number of elements
 !
 ! -------------------------------------------------------------------
-   function CountSpans(n, p, U) result (nelem)
+   function CountSpans(n, p, U) result(nelem)
       implicit none
-      integer(kind = 4), intent(in) :: n, p
-      real (kind = 8), dimension(0:n + p + 1), intent(in) :: U
-      integer(kind = 4) :: i, nelem
+      integer(kind=4), intent(in) :: n, p
+      real(kind=8), dimension(0:n + p + 1), intent(in) :: U
+      integer(kind=4) :: i, nelem
 
       nelem = 0
       i = p
@@ -288,16 +284,15 @@ contains
          ! skip multiple knots
          do while (i < n .and. U(i) == U(i + 1))
             i = i + 1
-         enddo
+         end do
 #ifdef IPRINT
-         write(*, *) 'CountSpans:i,n,U(i),U(i+1)', i, n, U(i), U(i + 1)
+         write (*, *) 'CountSpans:i,n,U(i),U(i+1)', i, n, U(i), U(i + 1)
 #endif
          nelem = nelem + 1
          i = i + 1
-      enddo
+      end do
 
    end function CountSpans
-
 
 !---------------------------------------------------------------------------
 !> @author  Maciej Wozniak
@@ -321,27 +316,27 @@ contains
 !
 ! -------------------------------------------------------------------
    function EvalSpline(d, &
-      Ux, px, nx, nelemx, &
-      Uy, py, ny, nelemy, &
-      Uz, pz, nz, nelemz, &
-      coeffs, x, y, z) result (val)
+                       Ux, px, nx, nelemx, &
+                       Uy, py, ny, nelemy, &
+                       Uz, pz, nz, nelemz, &
+                       coeffs, x, y, z) result(val)
       implicit none
-      integer(kind = 4), intent(in) :: d
-      integer(kind = 4), intent(in) :: nx, px, nelemx
-      integer(kind = 4), intent(in) :: ny, py, nelemy
-      integer(kind = 4), intent(in) :: nz, pz, nelemz
-      real (kind = 8), dimension(0:nx + px + 1), intent(in) :: Ux
-      real (kind = 8), dimension(0:ny + py + 1), intent(in) :: Uy
-      real (kind = 8), dimension(0:nz + pz + 1), intent(in) :: Uz
-      real (kind = 8), dimension(0:nx, 0:ny, 0:nz), intent(in) :: coeffs
-      real (kind = 8), intent(in) :: x, y, z
-      real (kind = 8) :: val
-      real (kind = 8), dimension(0:px, 0:d) :: bx
-      real (kind = 8), dimension(0:py, 0:d) :: by
-      real (kind = 8), dimension(0:pz, 0:d) :: bz
-      real (kind = 8) :: b
-      integer(kind = 4) :: xspan, yspan, zspan
-      integer(kind = 4) :: ix, iy, iz, x0, y0, z0
+      integer(kind=4), intent(in) :: d
+      integer(kind=4), intent(in) :: nx, px, nelemx
+      integer(kind=4), intent(in) :: ny, py, nelemy
+      integer(kind=4), intent(in) :: nz, pz, nelemz
+      real(kind=8), dimension(0:nx + px + 1), intent(in) :: Ux
+      real(kind=8), dimension(0:ny + py + 1), intent(in) :: Uy
+      real(kind=8), dimension(0:nz + pz + 1), intent(in) :: Uz
+      real(kind=8), dimension(0:nx, 0:ny, 0:nz), intent(in) :: coeffs
+      real(kind=8), intent(in) :: x, y, z
+      real(kind=8) :: val
+      real(kind=8), dimension(0:px, 0:d) :: bx
+      real(kind=8), dimension(0:py, 0:d) :: by
+      real(kind=8), dimension(0:pz, 0:d) :: bz
+      real(kind=8) :: b
+      integer(kind=4) :: xspan, yspan, zspan
+      integer(kind=4) :: ix, iy, iz, x0, y0, z0
 
       xspan = FindSpan(nx, px, x, Ux)
       yspan = FindSpan(ny, py, y, Uy)
@@ -360,14 +355,13 @@ contains
       do ix = 0, px
          do iy = 0, py
             do iz = 0, pz
-               b = bx(ix, d) * by(iy, d) * bz(iz, d)
-               val = val + b * coeffs(x0 + ix, y0 + iy, z0 + iz)
-            enddo
-         enddo
-      enddo
+               b = bx(ix, d)*by(iy, d)*bz(iz, d)
+               val = val + b*coeffs(x0 + ix, y0 + iy, z0 + iz)
+            end do
+         end do
+      end do
 
    end function EvalSpline
-
 
 end module basis
 
