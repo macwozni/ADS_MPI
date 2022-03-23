@@ -139,7 +139,7 @@ contains
    subroutine ComputeDecomposition(ads)
       use Setup, ONLY: ADS_Setup
       use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ, &
-                             NRPROCX, NRPROCY, NRPROCZ, ComputeEndpoints, FillDimVector!, PRINTRANK
+                             NRPROCX, NRPROCY, NRPROCZ, ComputeEndpoints, FillDimVector
       implicit none
       type(ADS_setup), intent(inout) :: ads
       integer(kind=4) :: i
@@ -225,9 +225,9 @@ contains
       allocate (ads_data%F2(ads_trial%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,x,z
       allocate (ads_data%F3(ads_trial%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
 
-      allocate (ads_data%Ft (ads_test%s(1), ads_test%s(2)*ads_test%s(3))) !x,y,z
-      allocate (ads_data%Ft2(ads_test%s(2), ads_test%s(3)*ads_test%s(1))) !y,x,z
-      allocate (ads_data%Ft3(ads_test%s(3), ads_test%s(1)*ads_test%s(2))) !z,x,y
+      allocate (ads_data%Ft (ads_test%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
+      allocate (ads_data%Ft2(ads_test%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,x,z
+      allocate (ads_data%Ft3(ads_test%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TODO CHANGE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       allocate (ads_data%R(ads_trial%nrcpp(3)*ads_trial%nrcpp(1)*ads_trial%nrcpp(2), 3, 3, 3))
@@ -754,7 +754,7 @@ contains
       use sparse
       use mpi
       use my_mpi, ONLY: Gather, Scatter
-      use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ!, PRINTRANK
+      use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ, NRPROCX, NRPROCY, NRPROCZ, FillDimVector
       use communicators, ONLY: COMMX, COMMY, COMMZ
       use reorderRHS, ONLY: ReorderRHSForX, ReorderRHSForY, ReorderRHSForZ
       use projection_engine, ONLY: ComputeMatrix
@@ -795,6 +795,12 @@ contains
          shifts_test = ads_test%shiftsX
          dimensions_trial = ads_trial%dimensionsX
          dimensions_test = ads_test%dimensionsX
+         ! prepare dimensions vectors
+         call FillDimVector(dimensions_test, shifts_test,ads_test%nrcpp(1),&
+            (direction(2)*ads_test%s(2)+(1-direction(2))*ads_trial%s(2))*&
+            (direction(3)*ads_test%s(3)+(1-direction(3))*ads_trial%s(3)),&
+            (direction(1)*ads_test%n(1)+(1-direction(1))*ads_trial%n(1)),&
+            NRPROCX)
 !  we solve in y directon
       else if (a .EQ. 2) then
          comm = COMMY
@@ -805,6 +811,12 @@ contains
          shifts_test = ads_test%shiftsY
          dimensions_trial = ads_trial%dimensionsY
          dimensions_test = ads_test%dimensionsY
+         ! prepare dimensions vectors
+         call FillDimVector(dimensions_test, shifts_test,ads_test%nrcpp(2),&
+            (direction(2)*ads_test%s(1)+(1-direction(1))*ads_trial%s(1))*&
+            (direction(3)*ads_test%s(3)+(1-direction(3))*ads_trial%s(3)),&
+            (direction(1)*ads_test%n(2)+(1-direction(2))*ads_trial%n(2)),&
+            NRPROCY)
 !  we solve in z directon
       else ! a.EQ.3
          comm = COMMZ
@@ -815,6 +827,12 @@ contains
          shifts_test = ads_test%shiftsZ
          dimensions_trial = ads_trial%dimensionsZ
          dimensions_test = ads_test%dimensionsZ
+         ! prepare dimensions vectors
+         call FillDimVector(dimensions_test, shifts_test,ads_test%nrcpp(3),&
+            (direction(2)*ads_test%s(1)+(1-direction(1))*ads_trial%s(1))*&
+            (direction(3)*ads_test%s(2)+(1-direction(2))*ads_trial%s(2)),&
+            (direction(1)*ads_test%n(3)+(1-direction(3))*ads_trial%n(3)),&
+            NRPROCZ)
       end if
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -845,16 +863,16 @@ contains
       if (igrm) then
 !  allocate result buffer
          allocate (Ft_out(((1 - direction(a))*(ads_trial%n(a) + 1) + direction(a)*(ads_test%n(a) + 1)), &
-                          (direction(b)*ads_trial%s(b) + (1-direction(b))*ads_test%s(b))* &
-                          (direction(c)*ads_trial%s(c) + (1-direction(c))*ads_test%s(c))))
+                          ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
+                          ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c))))
 #ifdef PERFORMANCE
          time1 = MPI_Wtime()
 #endif
 !  gather onto the face of processors
-         call Gather(Ft, Ft_out, (1-direction(a))*ads_trial%n(a) + direction(a)*ads_test%n(a), &
+         call Gather(Ft, Ft_out, (1 - direction(a))*ads_trial%n(a) + direction(a)*ads_test%n(a), &
                      (1 - direction(a))*ads_trial%s(a) + direction(a)*ads_test%s(a), &
-                     (direction(b)*ads_trial%s(b) + (1-direction(b))*ads_test%s(b))* &
-                     (direction(c)*ads_trial%s(c) + (1-direction(c))*ads_test%s(c)), &
+                     ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
+                     ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c)), &
                      dimensions_test, shifts_test, comm, ierr)
 #ifdef PERFORMANCE
          time2 = MPI_Wtime()
@@ -909,7 +927,6 @@ contains
 #ifdef IINFO
       write (*, *) PRINTRANK, a, 'c) SCATTER'
 #endif
-
       if (igrm) then
          if (equ) then
             F_out = Fs(:, 1:ads_trial%s(b)*ads_trial%s(c))
