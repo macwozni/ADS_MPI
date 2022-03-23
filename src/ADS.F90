@@ -24,6 +24,13 @@ contains
       n1 = nelem+p1-1
       n2 = nelem+p2-1
 
+      ads_test%ng = p1+1
+      ads_trial%ng = p2+1
+
+      if (p1(1).GT.p2(1)) ads_trial%ng(1)=p1(1)+1
+      if (p1(2).GT.p2(2)) ads_trial%ng(2)=p1(2)+1
+      if (p1(3).GT.p2(3)) ads_trial%ng(3)=p1(3)+1
+
       call initialize_setup(n1, p1, continuity, ads_test, mierr)
       call initialize_setup(n2, p2, continuity, ads_trial, mierr)
 
@@ -103,12 +110,7 @@ contains
       ads%nelem = nelem
       mierr = 0
 
-      ads%m(1) = ads%n(1) + ads%p(1) + 1
-      ads%ng(1) = ads%p(1) + 1
-      ads%m(2) = ads%n(2) + ads%p(2) + 1
-      ads%ng(2) = ads%p(2) + 1
-      ads%m(3) = ads%n(3) + ads%p(3) + 1
-      ads%ng(3) = ads%p(3) + 1
+      ads%m = ads%n+ads%p+1
 
       call BasisData(ads%p(1), ads%m(1), ads%Ux, 1, ads%ng(1), &
                      ads%nelem(1), ads%Ox, ads%Jx, ads%Wx, ads%Xx, ads%NNx)
@@ -117,9 +119,7 @@ contains
       call BasisData(ads%p(3), ads%m(3), ads%Uz, 1, ads%ng(3), &
                      ads%nelem(3), ads%Oz, ads%Jz, ads%Wz, ads%Xz, ads%NNz)
 
-      ads%lnelem(1) = ads%maxe(1) - ads%mine(1) + 1
-      ads%lnelem(2) = ads%maxe(2) - ads%mine(2) + 1
-      ads%lnelem(3) = ads%maxe(3) - ads%mine(3) + 1
+      ads%lnelem = ads%maxe - ads%mine + 1
 
 #ifdef IPRINT
       write (*, *) PRINTRANK, 'ex:', ads%mine(1), ads%maxe(1)
@@ -221,12 +221,12 @@ contains
       ! allocate( F((n+1),(sy)*(sz))) !x,y,z
       !allocate( ads_data % F_test(ads % s(1), ads % s(2) * ads % s(3))) !x,y,z
 
-      allocate (ads_data%F(ads_trial%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
-      allocate (ads_data%F2(ads_trial%s(2), ads_trial%s(1)*ads_trial%s(3))) !y,x,z
+      allocate (ads_data%F (ads_trial%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
+      allocate (ads_data%F2(ads_trial%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,x,z
       allocate (ads_data%F3(ads_trial%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
 
-      allocate (ads_data%Ft(ads_test%s(1), ads_test%s(2)*ads_test%s(3))) !x,y,z
-      allocate (ads_data%Ft2(ads_test%s(2), ads_test%s(1)*ads_test%s(3))) !y,x,z
+      allocate (ads_data%Ft (ads_test%s(1), ads_test%s(2)*ads_test%s(3))) !x,y,z
+      allocate (ads_data%Ft2(ads_test%s(2), ads_test%s(3)*ads_test%s(1))) !y,x,z
       allocate (ads_data%Ft3(ads_test%s(3), ads_test%s(1)*ads_test%s(2))) !z,x,y
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TODO CHANGE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -767,8 +767,8 @@ contains
       real(kind=8), allocatable, dimension(:, :) :: F, F2
       real(kind=8), allocatable, dimension(:, :) :: Ft, Ft2
       integer(kind=4), intent(out) :: ierr
-      integer(kind=4), dimension(:), allocatable :: dimensions ! Size of slices of domain in each dimension
-      integer(kind=4), allocatable, dimension(:) :: shifts
+      integer(kind=4), dimension(:), allocatable :: dimensions_test, dimensions_trial ! Size of slices of domain in each dimension
+      integer(kind=4), allocatable, dimension(:) :: shifts_test, shifts_trial
       integer(kind=4) :: comm
       real(kind=8), allocatable, dimension(:) :: U_trial, U_test
       integer(kind=4) :: myrankdim ! Integer coordinates of processor along X, Y or Z
@@ -791,24 +791,30 @@ contains
          myrankdim = MYRANKX
          U_trial = ads_trial%ux
          U_test = ads_test%ux
-         shifts = ads_trial%shiftsX
-         dimensions = ads_trial%dimensionsX
+         shifts_trial = ads_trial%shiftsX
+         shifts_test = ads_test%shiftsX
+         dimensions_trial = ads_trial%dimensionsX
+         dimensions_test = ads_test%dimensionsX
 !  we solve in y directon
       else if (a .EQ. 2) then
          comm = COMMY
          myrankdim = MYRANKY
          U_trial = ads_trial%uy
          U_test = ads_test%uy
-         shifts = ads_trial%shiftsY
-         dimensions = ads_trial%dimensionsY
+         shifts_trial = ads_trial%shiftsY
+         shifts_test = ads_test%shiftsY
+         dimensions_trial = ads_trial%dimensionsY
+         dimensions_test = ads_test%dimensionsY
 !  we solve in z directon
       else ! a.EQ.3
          comm = COMMZ
          myrankdim = MYRANKZ
          U_trial = ads_trial%uz
          U_test = ads_test%uz
-         shifts = ads_trial%shiftsZ
-         dimensions = ads_trial%dimensionsZ
+         shifts_trial = ads_trial%shiftsZ
+         shifts_test = ads_test%shiftsZ
+         dimensions_trial = ads_trial%dimensionsZ
+         dimensions_test = ads_test%dimensionsZ
       end if
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
@@ -830,7 +836,7 @@ contains
       call Gather(F, F_out, ads_trial%n(a), &
                   ads_trial%s(a), &
                   ads_trial%s(b)*ads_trial%s(c), &
-                  dimensions, shifts, comm, ierr)
+                  dimensions_trial, shifts_trial, comm, ierr)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write (*, *) "Gather", a, " : ", time2 - time1
@@ -839,17 +845,17 @@ contains
       if (igrm) then
 !  allocate result buffer
          allocate (Ft_out(((1 - direction(a))*(ads_trial%n(a) + 1) + direction(a)*(ads_test%n(a) + 1)), &
-                          ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
-                          ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c))))
+                          (direction(b)*ads_trial%s(b) + (1-direction(b))*ads_test%s(b))* &
+                          (direction(c)*ads_trial%s(c) + (1-direction(c))*ads_test%s(c))))
 #ifdef PERFORMANCE
          time1 = MPI_Wtime()
 #endif
 !  gather onto the face of processors
-         call Gather(Ft, Ft_out, (1 - direction(a))*ads_trial%n(a) + direction(a)*ads_test%n(a), &
+         call Gather(Ft, Ft_out, (1-direction(a))*ads_trial%n(a) + direction(a)*ads_test%n(a), &
                      (1 - direction(a))*ads_trial%s(a) + direction(a)*ads_test%s(a), &
-                     ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
-                     ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c)), &
-                     dimensions, shifts, comm, ierr)
+                     (direction(b)*ads_trial%s(b) + (1-direction(b))*ads_test%s(b))* &
+                     (direction(c)*ads_trial%s(c) + (1-direction(c))*ads_test%s(c)), &
+                     dimensions_test, shifts_test, comm, ierr)
 #ifdef PERFORMANCE
          time2 = MPI_Wtime()
          write (*, *) "Gather", a, " : ", time2 - time1
@@ -925,7 +931,7 @@ contains
                       (1 - direction(a))*ads_trial%s(a) + direction(a)*ads_test%s(a), &
                       ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
                       ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c)), &
-                      dimensions, shifts, comm, ierr)
+                      dimensions_test, shifts_test, comm, ierr)
 #ifdef PERFORMANCE
          time2 = MPI_Wtime()
          write (*, *) "Scatter ", a, ": ", time2 - time1
@@ -944,7 +950,7 @@ contains
       call Scatter(F_out, F2_out, ads_trial%n(a), &
                    ads_trial%s(a), &
                    ads_trial%s(b)*ads_trial%s(c), &
-                   dimensions, shifts, comm, ierr)
+                   dimensions_trial, shifts_trial, comm, ierr)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write (*, *) "Scatter ", a, ": ", time2 - time1
