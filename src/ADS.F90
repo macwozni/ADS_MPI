@@ -776,6 +776,7 @@ contains
       real(kind=8), allocatable, dimension(:, :) :: Fs ! F-solve
       real(kind=8), allocatable, dimension(:, :) :: F_out, F2_out ! F-trial
       real(kind=8), allocatable, dimension(:, :) :: Ft_out, Ft2_out ! F-test
+      integer(kind=4), dimension(3) :: ibeg, iend
       ! real(kind=8) :: time1, time2
       logical :: equ
 
@@ -834,6 +835,21 @@ contains
             (direction(1)*ads_test%n(3)+(1-direction(3))*ads_trial%n(3)),&
             NRPROCZ)
       end if
+
+      ibeg = ads_trial%ibeg
+      iend = ads_trial%iend
+      if (direction(1) .EQ. 1) then
+            ibeg(1) = ads_test%ibeg(1)
+            iend(1) = ads_test%iend(1)
+      endif
+      if (direction(2) .EQ. 1) then
+            ibeg(2) = ads_test%ibeg(2)
+            iend(2) = ads_test%iend(2)
+      endif
+      if (direction(3) .EQ. 1) then
+            ibeg(3) = ads_test%ibeg(3)
+            iend(3) = ads_test%iend(3)
+      endif
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
 
@@ -988,9 +1004,9 @@ contains
 
       if (igrm) then
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TODO reorder !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-         if (a .EQ. 1) call ReorderRHSForY(ads_test%ibeg, ads_test%iend, Ft2_out, Ft2)
-         if (a .EQ. 2) call ReorderRHSForZ(ads_test%ibeg, ads_test%iend, Ft2_out, Ft2)
-         if (a .EQ. 3) call ReorderRHSForX(ads_test%ibeg, ads_test%iend, Ft2_out, Ft2)
+         if (a .EQ. 1) call ReorderRHSForY(ibeg, iend, Ft2_out, Ft2)
+         if (a .EQ. 2) call ReorderRHSForZ(ibeg, iend, Ft2_out, Ft2)
+         if (a .EQ. 3) call ReorderRHSForX(ibeg, iend, Ft2_out, Ft2)
       end if
 !  cleanup
       if (allocated(F2_out)) deallocate (F2_out)
