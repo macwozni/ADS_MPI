@@ -180,7 +180,7 @@ contains
    subroutine FillDimVector(dims, shifts, nrcpp, stride, n, nrproc)
       implicit none
       integer(kind = 4), intent(in) :: nrcpp, stride, n, nrproc
-      integer(kind = 4), allocatable, intent(out) :: dims(:), shifts(:)
+      integer(kind = 4), allocatable, dimension(:), intent(out) :: dims, shifts
       integer(kind = 4) :: i
 
       allocate(dims(nrproc))
