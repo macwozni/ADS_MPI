@@ -58,44 +58,42 @@ contains
 !>
 !> \f$ M = u*v \f$
 ! -------------------------------------------------------------------
-   subroutine MKBBT_large(U1, p1, n1, nelem1, U2, p2, n2, nelem2, mixA, mixB, mixBT, sprsmtrx)
+   subroutine MKBBT_large(nelem, U1, p1, n1, U2, p2, n2, mixA, mixB, mixBT, sprsmtrx)
       use basis, ONLY: BasisData
       use omp_lib
       use sparse
       implicit none
-      integer(kind=4), intent(in) :: n1, p1, nelem1
-      integer(kind=4), intent(in) :: n2, p2, nelem2
+      integer(kind=4), intent(in) :: nelem
+      integer(kind=4), intent(in) :: n1, p1
+      integer(kind=4), intent(in) :: n2, p2
       real(kind=8), intent(in) :: U1(0:n1 + p1 + 1)
       real(kind=8), intent(in) :: U2(0:n2 + p2 + 1)
       real(kind=8), dimension(4), intent(in) :: mixA, mixB, mixBT
-      real(kind=8), dimension(nelem1) :: J1 ! values of the Jacobian of elements
-      real(kind=8), dimension(nelem2) :: J2 ! values of the Jacobian of elements
-      real(kind=8), dimension(p1 + 1) :: W1 ! weights of Gauss quadrature points
-      real(kind=8), dimension(p2 + 1) :: W2 ! weights of Gauss quadrature points
-      real(kind=8), dimension(p1 + 1, nelem1) :: X1 ! points of Gauss quadrature
-      real(kind=8), dimension(p2 + 1, nelem2) :: X2 ! points of Gauss quadrature
-      real(kind=8), dimension(0:1, 0:p1, p1 + 1, nelem1) :: NN1 ! values of (p1+1) nonzero basis functions and their derivatives at points of Gauss quadrature
-      real(kind=8), dimension(0:1, 0:p2, p2 + 1, nelem2) :: NN2 ! values of (p2+1) nonzero basis functions and their derivatives at points of Gauss quadrature
-      integer(kind=4) :: dd1, dd2 ! order of highest derivatives we want to compute
+      real(kind=8), dimension(nelem) :: J ! values of the Jacobian of elements
+      real(kind=8), dimension(p1 + 1) :: W ! weights of Gauss quadrature points
+      real(kind=8), dimension(p1 + 1, nelem) :: X ! points of Gauss quadrature
+      real(kind=8), dimension(0:1, 0:p1, p1 + 1, nelem) :: NN1 ! values of (p1+1) nonzero basis functions and their derivatives at points of Gauss quadrature
+      real(kind=8), dimension(0:1, 0:p2, p1 + 1, nelem) :: NN2 ! values of (p2+1) nonzero basis functions and their derivatives at points of Gauss quadrature
+      integer(kind=4) :: dd ! order of highest derivatives we want to compute
       integer(kind=4) :: ia, ib
       integer(kind=4) :: mm1, mm2
-      integer(kind=4) :: ng1, ng2 ! number of Gauss quadrature points
+      integer(kind=4) :: ng ! number of Gauss quadrature points
       integer(kind=4) :: e, i, c, d
-      integer(kind=4) :: O1(nelem1) ! indexes of first nonzero functions on each element
-      integer(kind=4) :: O2(nelem2) ! indexes of first nonzero functions on each element
+      integer(kind=4) :: O1(nelem) ! indexes of first nonzero functions on each element
+      integer(kind=4) :: O2(nelem) ! indexes of first nonzero functions on each element
       type(sparse_matrix), pointer, intent(out) :: sprsmtrx
       real(kind=8) :: val
       real(kind=8) :: M, K, B, BT
 
       mm1 = n1 + p1 + 1
-      ng1 = p1 + 1
-      dd1 = 1
+      ng = p1 + 1
+      dd = 1
       mm2 = n2 + p2 + 1
-      ng2 = p2 + 1
-      dd2 = 1
 
-      call BasisData(p1, mm1, U1, dd1, ng1, nelem1, O1, J1, W1, X1, NN1)
-      call BasisData(p2, mm2, U2, dd2, ng2, nelem2, O2, J2, W2, X2, NN2)
+! test
+      call BasisData(p1, mm1, U1, dd, ng, nelem, O1, J, W, X, NN1)
+! trial
+      call BasisData(p2, mm2, U2, dd, ng, nelem, O2, J, W, X, NN2)
 
       call initialize_sparse(n1 + n2 + 2, n1 + n2 + 2, sprsmtrx)
 
@@ -111,9 +109,9 @@ contains
 ! !$OMP REDUCTION(+:B) &
 ! !$OMP REDUCTION(+:BT)
 ! loop over elements
-      do e = 1, nelem1
+      do e = 1, nelem
 ! loop over Gauss points
-         do i = 1, ng1
+         do i = 1, ng
 ! loop over shape functions over elements (p+1 functions)
             do c = 0, p1
                ! loop over shape functions over elements (p+1 functions)
@@ -138,10 +136,10 @@ contains
                   ia = O1(e) + c
                   ib = O1(e) + d
                   ! M = u*v
-                  M = NN1(0, c, i, e)*NN1(0, d, i, e)*J1(e)*W1(i)
-                  K = NN1(1, c, i, e)*NN1(1, d, i, e)*J1(e)*W1(i)
-                  B = NN1(1, c, i, e)*NN1(0, d, i, e)*J1(e)*W1(i)
-                  BT = NN1(0, c, i, e)*NN1(1, d, i, e)*J1(e)*W1(i)
+                  M = NN1(0, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
+                  K = NN1(1, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
+                  B = NN1(1, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
+                  BT = NN1(0, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
                   val = mixA(1)*M + mixA(2)*K + mixA(3)*B + mixA(4)*BT
                   call add(sprsmtrx, ia, ib, val)
                end do
@@ -162,9 +160,9 @@ contains
 ! !$OMP REDUCTION(+:B) &
 ! !$OMP REDUCTION(+:BT)
 ! loop over elements
-      do e = 1, nelem1
+      do e = 1, nelem
 ! loop over Gauss points
-         do i = 1, ng1
+         do i = 1, ng
 ! loop over shape functions over elements (p+1 functions)
             do c = 0, p2
                ! loop over shape functions over elements (p+1 functions)
@@ -186,13 +184,13 @@ contains
                   ! NN(0,d,i,e) = value of shape function d at Gauss point i over element e
                   ! W(i) weight for Gauss point i
                   ! J(e) jacobian for element e
-                  ia = O2(e) + c + n1 + 1
-                  ib = O1(e) + d
+                  ia = O2(e) + c
+                  ib = O1(e) + d + n1 + 1
                   ! M = u*v
-                  M = NN2(0, c, i, e)*NN1(0, d, i, e)*J1(e)*W1(i)
-                  K = NN2(1, c, i, e)*NN1(1, d, i, e)*J1(e)*W1(i)
-                  B = NN2(1, c, i, e)*NN1(0, d, i, e)*J1(e)*W1(i)
-                  BT = NN2(0, c, i, e)*NN1(1, d, i, e)*J1(e)*W1(i)
+                  M = NN2(0, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
+                  K = NN2(1, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
+                  B = NN2(1, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
+                  BT = NN2(0, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
                   val = mixB(1)*M + mixB(2)*K + mixB(3)*B + mixB(4)*BT
                   call add(sprsmtrx, ia, ib, val)
                end do
@@ -212,12 +210,12 @@ contains
 ! !$OMP REDUCTION(+:K) &
 ! !$OMP REDUCTION(+:B) &
 ! !$OMP REDUCTION(+:BT)
-      do e = 1, nelem1
+      do e = 1, nelem
 ! loop over Gauss points
-         do i = 1, ng2
+         do i = 1, ng
 ! loop over shape functions over elements (p+1 functions)
             do c = 0, p1
-               ! loop over shape functions over elements (p+1 functions)
+! loop over shape functions over elements (p+1 functions)
                do d = 0, p2
 !       do all = 1, total_size
 ! ! loop over shape functions over elements (p2+1 functions)
@@ -234,13 +232,13 @@ contains
                   ! O(e) + d = first dof of element + 2nd local shape function index
                   ! NN(0,c,i,e) = value of shape function c at Gauss(i) weight for Gauss point i
                   ! J(e) jacobian for element e
-                  ia = O1(e) + c
-                  ib = O2(e) + d + n2 + 1
+                  ia = O1(e) + c + n2 + 1
+                  ib = O2(e) + d
                   ! M = u*v
-                  M = NN1(0, c, i, e)*NN2(0, d, i, e)*J2(e)*W2(i)
-                  K = NN1(1, c, i, e)*NN2(1, d, i, e)*J2(e)*W2(i)
-                  B = NN1(1, c, i, e)*NN2(0, d, i, e)*J2(e)*W2(i)
-                  BT = NN1(0, c, i, e)*NN2(1, d, i, e)*J2(e)*W2(i)
+                  M = NN1(0, c, i, e)*NN2(0, d, i, e)*J(e)*W(i)
+                  K = NN1(1, c, i, e)*NN2(1, d, i, e)*J(e)*W(i)
+                  B = NN1(1, c, i, e)*NN2(0, d, i, e)*J(e)*W(i)
+                  BT = NN1(0, c, i, e)*NN2(1, d, i, e)*J(e)*W(i)
                   val = mixBT(1)*M + mixBT(2)*K + mixBT(3)*B + mixBT(4)*BT
                   call add(sprsmtrx, ia, ib, val)
                end do
@@ -288,7 +286,7 @@ contains
 !>
 !> \f$ M = u*v \f$
 ! -------------------------------------------------------------------
-   subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
+   subroutine MKBBT_small(nelem, U, p, n, mix, sprsmtrx)
       use basis, ONLY: BasisData
       use omp_lib
       use sparse
@@ -876,9 +874,9 @@ contains
       ! integer :: i
 
       if (equ) then
-         call MKBBT_small(U2, p2, n2, nelem2, mixA, sprsmtrx)
+         call MKBBT_small(nelem2, U2, p2, n2, mixA, sprsmtrx)
       else
-         call MKBBT_large(U1, p1, n1, nelem1, U2, p2, n2, nelem2, mixA, mixB, mixBT, sprsmtrx)
+         call MKBBT_large(nelem2, U1, p1, n1, U2, p2, n2, mixA, mixB, mixBT, sprsmtrx)
       end if
 
    end subroutine ComputeMatrix
