@@ -7,8 +7,6 @@ contains
 ! -------------------------------------------------------------------
    subroutine initialize(n, p1, p2, continuity, ads_test, ads_trial, ads_data, mierr)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
-      use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ
-      ! use parallelism, ONLY: PRINTRANK
       use knot_vector, ONLY: PrepareKnot
       use basis, ONLY: BasisData
       use mpi
@@ -26,33 +24,47 @@ contains
       real(kind=8), allocatable, dimension(:) :: Uy
       real(kind=8), allocatable, dimension(:) :: Uz
 
-!  test
-      call PrepareKnot(n(1), p1(1), Ux, nelem(1))
-      call PrepareKnot(n(2), p1(2), Uy, nelem(2))
-      call PrepareKnot(n(3), p1(3), Uz, nelem(3))
 
-      call AllocateADS(n, nelem, p1, ads_test)
+      call initialize_setup(n, p1, continuity, ads_test, mierr)
+      call initialize_setup(n, p2, continuity, ads_trial, mierr)
 
-      call move_alloc(Ux, ads_test%Ux)
-      call move_alloc(Uy, ads_test%Uy)
-      call move_alloc(Uz, ads_test%Uz)
+      call AllocateADSdata(ads_test, ads_trial, ads_data)
 
-      ads_test%p = p1 ! order
-      ads_test%n = n ! intervals
+   end subroutine initialize
 
-!  trial
-      call PrepareKnot(n(1), p2(1), Ux, nelem(1))
-      call PrepareKnot(n(2), p2(2), Uy, nelem(2))
-      call PrepareKnot(n(3), p2(3), Uz, nelem(3))
+! -------------------------------------------------------------------
+! Initialization of clocks and MPI
+! -------------------------------------------------------------------
+   subroutine initialize_setup(n, p, continuity, ads, mierr)
+      use Setup, ONLY: ADS_Setup, ADS_compute_data
+      use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ
+      use knot_vector, ONLY: PrepareKnot
+      use basis, ONLY: BasisData
+      use mpi
+      implicit none
+      integer(kind=4), intent(in), dimension(3) :: n
+      integer(kind=4), intent(in), dimension(3) :: p
+      integer(kind=4), intent(in), dimension(3) :: continuity
+      type(ADS_setup), intent(out) :: ads
+      integer(kind=4), intent(out) :: mierr
+      integer(kind=4) :: ierr
+      integer(kind=4), dimension(3) :: nelem
+      real(kind=8), allocatable, dimension(:) :: Ux
+      real(kind=8), allocatable, dimension(:) :: Uy
+      real(kind=8), allocatable, dimension(:) :: Uz
 
-      call AllocateADS(n, nelem, p2, ads_trial)
+      call PrepareKnot(n(1), p(1), Ux, nelem(1))
+      call PrepareKnot(n(2), p(2), Uy, nelem(2))
+      call PrepareKnot(n(3), p(3), Uz, nelem(3))
 
-      call move_alloc(Ux, ads_trial%Ux)
-      call move_alloc(Uy, ads_trial%Uy)
-      call move_alloc(Uz, ads_trial%Uz)
+      call AllocateADS(n, nelem, p, ads)
 
-      ads_trial%p = p2 ! order
-      ads_trial%n = n ! intervals
+      call move_alloc(Ux, ads%Ux)
+      call move_alloc(Uy, ads%Uy)
+      call move_alloc(Uz, ads%Uz)
+
+      ads%p = p ! order
+      ads%n = n ! intervals
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
 
@@ -71,8 +83,7 @@ contains
          stop
       end if
 
-      call ComputeDecomposition(ads_trial)
-      call ComputeDecomposition(ads_test)
+      call ComputeDecomposition(ads)
 
 #ifdef IDEBUG
       call ValidateDimensions( &
@@ -90,50 +101,26 @@ contains
          ads%iend)
 #endif
 
-      ads_trial%nelem = nelem
-      ads_test%nelem = nelem
+      ads%nelem = nelem
       mierr = 0
 
-!  test
-      ads_test%m(1) = ads_test%n(1) + ads_test%p(1) + 1
-      ads_test%ng(1) = ads_test%p(1) + 1
-      ads_test%m(2) = ads_test%n(2) + ads_test%p(2) + 1
-      ads_test%ng(2) = ads_test%p(2) + 1
-      ads_test%m(3) = ads_test%n(3) + ads_test%p(3) + 1
-      ads_test%ng(3) = ads_test%p(3) + 1
+      ads%m(1) = ads%n(1) + ads%p(1) + 1
+      ads%ng(1) = ads%p(1) + 1
+      ads%m(2) = ads%n(2) + ads%p(2) + 1
+      ads%ng(2) = ads%p(2) + 1
+      ads%m(3) = ads%n(3) + ads%p(3) + 1
+      ads%ng(3) = ads%p(3) + 1
 
-!  trial
-      ads_trial%m(1) = ads_trial%n(1) + ads_trial%p(1) + 1
-      ads_trial%ng(1) = ads_trial%p(1) + 1
-      ads_trial%m(2) = ads_trial%n(2) + ads_trial%p(2) + 1
-      ads_trial%ng(2) = ads_trial%p(2) + 1
-      ads_trial%m(3) = ads_trial%n(3) + ads_trial%p(3) + 1
-      ads_trial%ng(3) = ads_trial%p(3) + 1
+      call BasisData(ads%p(1), ads%m(1), ads%Ux, 1, ads%ng(1), &
+                     ads%nelem(1), ads%Ox, ads%Jx, ads%Wx, ads%Xx, ads%NNx)
+      call BasisData(ads%p(2), ads%m(2), ads%Uy, 1, ads%ng(2), &
+                     ads%nelem(2), ads%Oy, ads%Jy, ads%Wy, ads%Xy, ads%NNy)
+      call BasisData(ads%p(3), ads%m(3), ads%Uz, 1, ads%ng(3), &
+                     ads%nelem(3), ads%Oz, ads%Jz, ads%Wz, ads%Xz, ads%NNz)
 
-!  test
-      call BasisData(ads_test%p(1), ads_test%m(1), ads_test%Ux, 1, ads_test%ng(1), &
-                     ads_test%nelem(1), ads_test%Ox, ads_test%Jx, ads_test%Wx, ads_test%Xx, ads_test%NNx)
-      call BasisData(ads_test%p(2), ads_test%m(2), ads_test%Uy, 1, ads_test%ng(2), &
-                     ads_test%nelem(2), ads_test%Oy, ads_test%Jy, ads_test%Wy, ads_test%Xy, ads_test%NNy)
-      call BasisData(ads_test%p(3), ads_test%m(3), ads_test%Uz, 1, ads_test%ng(3), &
-                     ads_test%nelem(3), ads_test%Oz, ads_test%Jz, ads_test%Wz, ads_test%Xz, ads_test%NNz)
-
-!  trial
-      call BasisData(ads_trial%p(1), ads_trial%m(1), ads_trial%Ux, 1, ads_trial%ng(1), &
-                     ads_trial%nelem(1), ads_trial%Ox, ads_trial%Jx, ads_trial%Wx, ads_trial%Xx, ads_trial%NNx)
-      call BasisData(ads_trial%p(2), ads_trial%m(2), ads_trial%Uy, 1, ads_trial%ng(2), &
-                     ads_trial%nelem(2), ads_trial%Oy, ads_trial%Jy, ads_trial%Wy, ads_trial%Xy, ads_trial%NNy)
-      call BasisData(ads_trial%p(3), ads_trial%m(3), ads_trial%Uz, 1, ads_trial%ng(3), &
-                     ads_trial%nelem(3), ads_trial%Oz, ads_trial%Jz, ads_trial%Wz, ads_trial%Xz, ads_trial%NNz)
-
-      ads_trial%lnelem(1) = ads_trial%maxe(1) - ads_trial%mine(1) + 1
-      ads_trial%lnelem(2) = ads_trial%maxe(2) - ads_trial%mine(2) + 1
-      ads_trial%lnelem(3) = ads_trial%maxe(3) - ads_trial%mine(3) + 1
-      call AllocateADSdata(ads_test, ads_trial, ads_data)
-
-      ads_test%lnelem(1) = ads_test%maxe(1) - ads_test%mine(1) + 1
-      ads_test%lnelem(2) = ads_test%maxe(2) - ads_test%mine(2) + 1
-      ads_test%lnelem(3) = ads_test%maxe(3) - ads_test%mine(3) + 1
+      ads%lnelem(1) = ads%maxe(1) - ads%mine(1) + 1
+      ads%lnelem(2) = ads%maxe(2) - ads%mine(2) + 1
+      ads%lnelem(3) = ads%maxe(3) - ads%mine(3) + 1
 
 #ifdef IPRINT
       write (*, *) PRINTRANK, 'ex:', ads%mine(1), ads%maxe(1)
@@ -144,7 +131,7 @@ contains
       write (*, *) PRINTRANK, 'ibegz,iendz', ads%ibeg(3), ads%iend(3)
 #endif
 
-   end subroutine initialize
+   end subroutine initialize_setup
 
 ! -------------------------------------------------------------------
 ! Establishes decomposition of the domain. Calculates size and location
@@ -784,7 +771,7 @@ contains
       integer(kind=4), dimension(:), allocatable :: dimensions ! Size of slices of domain in each dimension
       integer(kind=4), allocatable, dimension(:) :: shifts
       integer(kind=4) :: comm
-      real(kind=8), allocatable, dimension(:) :: U
+      real(kind=8), allocatable, dimension(:) :: U_trial, U_test
       integer(kind=4) :: myrankdim ! Integer coordinates of processor along X, Y or Z
       type(sparse_matrix), pointer :: sprsmtrx
       real(kind=8), allocatable, dimension(:, :) :: Fs ! F-solve
@@ -803,21 +790,24 @@ contains
       if (a .EQ. 1) then
          comm = COMMX
          myrankdim = MYRANKX
-         u = ads_trial%ux
+         U_trial = ads_trial%ux
+         U_test = ads_test%ux
          shifts = ads_trial%shiftsX
          dimensions = ads_trial%dimensionsX
 !  we solve in y directon
       else if (a .EQ. 2) then
          comm = COMMY
          myrankdim = MYRANKY
-         u = ads_trial%uy
+         U_trial = ads_trial%uy
+         U_test = ads_test%uy
          shifts = ads_trial%shiftsY
          dimensions = ads_trial%dimensionsY
 !  we solve in z directon
       else ! a.EQ.3
          comm = COMMZ
          myrankdim = MYRANKZ
-         u = ads_trial%uz
+         U_trial = ads_trial%uz
+         U_test = ads_test%uz
          shifts = ads_trial%shiftsZ
          dimensions = ads_trial%dimensionsZ
       end if
@@ -888,8 +878,8 @@ contains
          time1 = MPI_Wtime()
 #endif
 !     compute LHS matrix
-         call ComputeMatrix(U, ads_test%p(a), ads_test%n(a), ads_test%nelem(a), &
-                            U, ads_trial%p(a), ads_trial%n(a), ads_trial%nelem(a), &
+         call ComputeMatrix(U_test, ads_test%p(a), ads_test%n(a), ads_test%nelem(a), &
+                            U_trial, ads_trial%p(a), ads_trial%n(a), ads_trial%nelem(a), &
                             mixA, mixB, mixBT, equ, sprsmtrx)
 #ifdef PERFORMANCE
          time2 = MPI_Wtime()
