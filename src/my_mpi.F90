@@ -432,7 +432,7 @@ contains
       real (kind = 8), allocatable :: buffer(:)
       integer(kind = 4), dimension(0:NRPROCX * NRPROCY * NRPROCZ - 1) :: recvcounts
       integer(kind = 4), dimension(0:NRPROCX * NRPROCY * NRPROCZ - 1) :: displs
-      integer(kind = 4) :: offset, size
+      integer(kind = 4) :: offset, msize
       integer(kind = 4) :: ierr
       integer(kind = 4) :: array_size
       integer(kind = 4), dimension(3) :: begs, ends
@@ -465,10 +465,10 @@ contains
             do z = 0, NRPROCZ - 1
                idx = LinearIndex(x, y, z)
                tmp = (/x, y, z/)
-               size = SizeOfPiece(tmp, n, p)
-               recvcounts(idx) = size
+               msize = SizeOfPiece(tmp, n, p)
+               recvcounts(idx) = msize
                displs(idx) = offset
-               offset = offset + size
+               offset = offset + msize
             enddo
          enddo
       enddo
