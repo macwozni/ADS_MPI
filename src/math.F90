@@ -191,7 +191,7 @@ contains
    function norm2(x)
       implicit none
       intrinsic :: dot_product, sqrt
-      real(kind=8), intent(in) :: x(:)
+      real(kind=8), dimension(:), intent(in) :: x
       real(kind=8) :: norm2
       norm2 = sqrt(dot_product(x, x))
    end function norm2
