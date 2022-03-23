@@ -40,7 +40,7 @@ contains
       use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ
       use communicators, ONLY: processors
       implicit none
-      integer(kind = 4), intent(in), dimension(3) :: d
+      integer(kind = 4), dimension(:), intent(in) :: d
       integer(kind = 4) :: idx
       integer(kind = 4) :: ix, iy, iz
 
@@ -71,9 +71,9 @@ contains
    subroutine send_piece(items, dst, req, nrcpp)
       use mpi
       implicit none
-      real (kind = 8), intent(in) :: items(:)
+      real (kind = 8), dimension(:), intent(in) :: items
       integer, intent(in) :: dst
-      integer(kind = 4), intent(in), dimension(3) :: nrcpp
+      integer(kind = 4), dimension(:), intent(in) :: nrcpp
       integer, intent(out) :: req
       integer :: ierr
 
@@ -105,10 +105,10 @@ contains
    subroutine recv_piece(items, src, req, nrcpp)
       use mpi
       implicit none
-      real (kind = 8), intent(inout) :: items(:)
+      real (kind = 8), dimension(:), intent(inout) :: items
       integer(kind = 4), intent(in) :: src
       integer(kind = 4), intent(out) :: req
-      integer(kind = 4), intent(in), dimension(3) :: nrcpp
+      integer(kind = 4), dimension(:), intent(in) :: nrcpp
       integer(kind = 4) :: ierr
 
       call mpi_irecv(items, nrcpp(3) * nrcpp(1) * nrcpp(2), &
@@ -141,14 +141,15 @@ contains
       use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ, NRPROCX, NRPROCY, NRPROCZ
       use mpi
       implicit none
-      integer(kind = 4), intent(in), dimension(3) :: nrcpp
-      real (kind = 8), intent(inout) :: spline(:,:,:,:)
-      real (kind = 8), intent(inout) :: R(:,:,:,:)
+      integer(kind = 4), dimension(:), intent(in) :: nrcpp
+      real (kind = 8), dimension(:,:,:,:), intent(inout) :: spline
+      real (kind = 8), dimension(:,:,:,:), intent(inout) :: R
       integer(kind = 4) :: s, i
-      integer(kind = 4) :: request(3 * 3 * 3 * 2), stat(MPI_STATUS_SIZE)
+      integer(kind = 4), dimension(3*3*3*2) :: request
+      integer(kind = 4), dimension(MPI_STATUS_SIZE) :: stat(MPI_STATUS_SIZE)
       integer(kind = 4) :: fierr
       integer(kind = 4) :: dst, src
-      integer(kind = 4) :: temp(3)
+      integer(kind = 4), dimension(3) :: temp
 
       s = 1
 
@@ -372,9 +373,9 @@ contains
    function SizeOfPiece(point, n, p) result (s)
       use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ, ComputeEndpoints
       implicit none
-      integer(kind = 4), intent(in), dimension(3) :: point
-      integer(kind = 4), intent(in), dimension(3) :: n
-      integer(kind = 4), intent(in), dimension(3) :: p
+      integer(kind = 4), intent(in), dimension(:) :: point
+      integer(kind = 4), intent(in), dimension(:) :: n
+      integer(kind = 4), intent(in), dimension(:) :: p
       integer(kind = 4) :: s
       integer(kind = 4) :: sx, sy, sz
       integer(kind = 4) :: nrcpp, ibeg, iend
@@ -423,14 +424,14 @@ contains
       use mpi
       implicit none
       integer(kind = 4), intent(in) :: at
-      integer(kind = 4), intent(in), dimension(3) :: n
-      integer(kind = 4), intent(in), dimension(3) :: p
-      integer(kind = 4), intent(in), dimension(3) :: s
+      integer(kind = 4), dimension(:), intent(in) :: n
+      integer(kind = 4), dimension(:), intent(in) :: p
+      integer(kind = 4), dimension(:), intent(in) :: s
       real (kind = 8), intent(in) :: part(:,:)
-      real (kind = 8), intent(out), allocatable :: full(:,:,:)
+      real (kind = 8), allocatable, dimension(:,:,:), intent(out) :: full
       real (kind = 8), allocatable :: buffer(:)
-      integer(kind = 4) :: recvcounts(0:NRPROCX * NRPROCY * NRPROCZ - 1)
-      integer(kind = 4) :: displs(0:NRPROCX * NRPROCY * NRPROCZ - 1)
+      integer(kind = 4), dimension(0:NRPROCX * NRPROCY * NRPROCZ - 1) :: recvcounts
+      integer(kind = 4), dimension(0:NRPROCX * NRPROCY * NRPROCZ - 1) :: displs
       integer(kind = 4) :: offset, size
       integer(kind = 4) :: ierr
       integer(kind = 4) :: array_size
@@ -545,8 +546,8 @@ contains
    subroutine Delinearize(F_lin, F, elems, stride)
       implicit none
       integer(kind = 4), intent(in) :: elems, stride
-      real (kind = 8), intent(in), dimension(:) :: F_lin
-      real (kind = 8), intent(out), dimension(:,:) :: F
+      real (kind = 8), dimension(:), intent(in) :: F_lin
+      real (kind = 8), dimension(:,:), intent(out) :: F
       integer(kind = 4) :: i, a, b
 
       do i = 1, elems
@@ -585,11 +586,11 @@ contains
       use mpi
       implicit none
       integer(kind = 4), intent(in) :: n, elems, stride, comm
-      real (kind = 8), intent(in), dimension(:,:) :: F
-      integer(kind = 4), intent(in), dimension(:) :: dims, shifts
-      real (kind = 8), intent(out), dimension(:,:) :: F_out
+      real (kind = 8), dimension(:,:), intent(in) :: F
+      integer(kind = 4), dimension(:), intent(in) :: dims, shifts
+      real (kind = 8), dimension(:,:), intent(out) :: F_out
       integer(kind = 4), intent(out) :: ierr
-      real (kind = 8), allocatable, dimension(:) :: F_lin, F_out_lin
+      real (kind = 8), dimension(:), allocatable :: F_lin, F_out_lin
 
       allocate (F_lin(elems * stride))
       allocate (F_out_lin((n + 1) * stride))
@@ -638,9 +639,9 @@ contains
       use mpi
       implicit none
       integer(kind = 4), intent(in) :: n, elems, stride, comm
-      real (kind = 8), intent(in), dimension(:,:) :: F
-      integer(kind = 4), intent(in), dimension(:) :: dims, shifts
-      real (kind = 8), intent(out), dimension(:) :: F_out
+      real (kind = 8), dimension(:,:), intent(in) :: F
+      integer(kind = 4), dimension(:), intent(in) :: dims, shifts
+      real (kind = 8), dimension(:), intent(out) :: F_out
       integer(kind = 4), intent(out) :: ierr
       real (kind = 8), allocatable, dimension(:) :: F_lin
 
@@ -685,9 +686,9 @@ contains
    subroutine Scatter(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
       implicit none
       integer(kind = 4), intent(in) :: n, elems, stride, comm
-      real (kind = 8), intent(in), dimension(:,:) :: F
-      integer(kind = 4), intent(in), dimension(:) :: dims, shifts
-      real (kind = 8), intent(out), dimension(:,:) :: F_out
+      real (kind = 8), dimension(:,:), intent(in) :: F
+      integer(kind = 4), dimension(:), intent(in) :: dims, shifts
+      real (kind = 8), dimension(:,:), intent(out) :: F_out
       integer(kind = 4), intent(out) :: ierr
       real (kind = 8), allocatable, dimension(:) :: F_out_lin
 
@@ -725,10 +726,11 @@ contains
       use mpi
       implicit none
       integer(kind = 4), intent(in) :: n, elems, stride, comm
-      real (kind = 8), intent(in) :: F(elems, stride)
-      real (kind = 8), intent(out) :: F_out(n + 1, stride)
-      integer(kind = 4) :: dims(:), shifts(:)
-      real (kind = 8) :: F_lin(elems * stride), F_out_lin((n + 1) * stride)
+      real (kind = 8), dimension(:,:), intent(in) :: F
+      real (kind = 8), dimension(:,:), intent(out) :: F_out
+      integer(kind = 4), dimension(:) :: dims, shifts
+      real (kind = 8), dimension(elems * stride) :: F_lin
+      real (kind = 8), dimension((n + 1) * stride) :: F_out_lin
       integer(kind = 4) :: ierr
 
       call Linearize(F, F_lin, elems, stride)
@@ -779,8 +781,8 @@ contains
    subroutine Linearize(F, F_lin, elems, stride)
       implicit none
       integer(kind = 4), intent(in) :: elems, stride
-      real (kind = 8), intent(in), dimension(:,:) :: F
-      real (kind = 8), intent(out), dimension(:) :: F_lin
+      real (kind = 8), dimension(:,:), intent(in) :: F
+      real (kind = 8), dimension(:), intent(out) :: F_lin
       integer(kind = 4) :: i, a, b
 
       do i = 1, elems
