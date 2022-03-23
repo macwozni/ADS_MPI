@@ -63,10 +63,10 @@ module Interfaces
          ads_data, J, W, direction, substep, l2norm, ret)
          use Setup
          implicit none
-         real (kind = 8), intent(in) :: un
-         real (kind = 8), intent(in), dimension(3) :: du
-         real (kind = 8), intent(in), dimension(3) :: X
-         real (kind = 8) :: ret
+         real(kind=8), intent(in) :: un
+         real(kind=8), intent(in), dimension(3) :: du
+         real(kind=8), intent(in), dimension(3) :: X
+         real(kind=8) :: ret
       end function
 
    end interface

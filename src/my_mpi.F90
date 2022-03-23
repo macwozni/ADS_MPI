@@ -21,7 +21,6 @@ module my_mpi
 
 contains
 
-
 !---------------------------------------------------------------------------
 !> @author Maciej Wozniak
 !>
@@ -40,9 +39,9 @@ contains
       use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ
       use communicators, ONLY: processors
       implicit none
-      integer(kind = 4), dimension(:), intent(in) :: d
-      integer(kind = 4) :: idx
-      integer(kind = 4) :: ix, iy, iz
+      integer(kind=4), dimension(:), intent(in) :: d
+      integer(kind=4) :: idx
+      integer(kind=4) :: ix, iy, iz
 
       ix = MYRANKX + d(1) + 1
       iy = MYRANKY + d(2) + 1
@@ -50,7 +49,6 @@ contains
       idx = processors(ix, iy, iz)
 
    end function neighbour
-
 
 !---------------------------------------------------------------------------
 !> @author Maciej Wozniak
@@ -71,17 +69,16 @@ contains
    subroutine send_piece(items, dst, req, nrcpp)
       use mpi
       implicit none
-      real (kind = 8), dimension(:), intent(in) :: items
+      real(kind=8), dimension(:), intent(in) :: items
       integer, intent(in) :: dst
-      integer(kind = 4), dimension(:), intent(in) :: nrcpp
+      integer(kind=4), dimension(:), intent(in) :: nrcpp
       integer, intent(out) :: req
       integer :: ierr
 
-      call mpi_isend(items, nrcpp(3) * nrcpp(1) * nrcpp(2), &
-         MPI_DOUBLE_PRECISION, dst, 0, MPI_COMM_WORLD, req, ierr)
+      call mpi_isend(items, nrcpp(3)*nrcpp(1)*nrcpp(2), &
+                     MPI_DOUBLE_PRECISION, dst, 0, MPI_COMM_WORLD, req, ierr)
 
    end subroutine send_piece
-
 
 !---------------------------------------------------------------------------
 !> @author Maciej Wozniak
@@ -105,18 +102,16 @@ contains
    subroutine recv_piece(items, src, req, nrcpp)
       use mpi
       implicit none
-      real (kind = 8), dimension(:), intent(inout) :: items
-      integer(kind = 4), intent(in) :: src
-      integer(kind = 4), intent(out) :: req
-      integer(kind = 4), dimension(:), intent(in) :: nrcpp
-      integer(kind = 4) :: ierr
+      real(kind=8), dimension(:), intent(inout) :: items
+      integer(kind=4), intent(in) :: src
+      integer(kind=4), intent(out) :: req
+      integer(kind=4), dimension(:), intent(in) :: nrcpp
+      integer(kind=4) :: ierr
 
-      call mpi_irecv(items, nrcpp(3) * nrcpp(1) * nrcpp(2), &
-         MPI_DOUBLE_PRECISION, src, 0, MPI_COMM_WORLD, req, ierr)
+      call mpi_irecv(items, nrcpp(3)*nrcpp(1)*nrcpp(2), &
+                     MPI_DOUBLE_PRECISION, src, 0, MPI_COMM_WORLD, req, ierr)
 
    end subroutine recv_piece
-
-
 
 !---------------------------------------------------------------------------
 !> @author Maciej Wozniak
@@ -141,15 +136,15 @@ contains
       use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ, NRPROCX, NRPROCY, NRPROCZ
       use mpi
       implicit none
-      integer(kind = 4), dimension(:), intent(in) :: nrcpp
-      real (kind = 8), dimension(:,:,:,:), intent(inout) :: spline
-      real (kind = 8), dimension(:,:,:,:), intent(inout) :: R
-      integer(kind = 4) :: s, i
-      integer(kind = 4), dimension(3*3*3*2) :: request
-      integer(kind = 4), dimension(MPI_STATUS_SIZE) :: stat(MPI_STATUS_SIZE)
-      integer(kind = 4) :: fierr
-      integer(kind = 4) :: dst, src
-      integer(kind = 4), dimension(3) :: temp
+      integer(kind=4), dimension(:), intent(in) :: nrcpp
+      real(kind=8), dimension(:, :, :, :), intent(inout) :: spline
+      real(kind=8), dimension(:, :, :, :), intent(inout) :: R
+      integer(kind=4) :: s, i
+      integer(kind=4), dimension(3*3*3*2) :: request
+      integer(kind=4), dimension(MPI_STATUS_SIZE) :: stat(MPI_STATUS_SIZE)
+      integer(kind=4) :: fierr
+      integer(kind=4) :: dst, src
+      integer(kind=4), dimension(3) :: temp
 
       s = 1
 
@@ -159,17 +154,17 @@ contains
          dst = neighbour(temp)
          call send_piece(spline(:, 2, 2, 2), dst, request(s), nrcpp)
          s = s + 1
-      endif
+      end if
       if (MYRANKX > 0) then
          temp = (/-1, 0, 0/)
          src = neighbour(temp)
          call recv_piece(spline(:, 1, 2, 2), src, request(s), nrcpp)
          s = s + 1
-      endif
+      end if
 
       do i = 1, s - 1
          call mpi_wait(request(i), stat, fierr)
-      enddo
+      end do
       s = 1
 
       ! Up
@@ -180,7 +175,7 @@ contains
          s = s + 1
          call send_piece(spline(:, 1, 2, 2), dst, request(s), nrcpp)
          s = s + 1
-      endif
+      end if
       if (MYRANKY < NRPROCY - 1) then
          temp = (/0, 1, 0/)
          src = neighbour(temp)
@@ -188,11 +183,11 @@ contains
          s = s + 1
          call recv_piece(spline(:, 1, 3, 2), src, request(s), nrcpp)
          s = s + 1
-      endif
+      end if
 
       do i = 1, s - 1
          call mpi_wait(request(i), stat, fierr)
-      enddo
+      end do
       s = 1
 
 ! Left
@@ -203,7 +198,7 @@ contains
          s = s + 1
          call send_piece(R(:, 2, 3, 2), dst, request(s), nrcpp)
          s = s + 1
-      endif
+      end if
       if (MYRANKX < NRPROCX - 1) then
          temp = (/1, 0, 0/)
          src = neighbour(temp)
@@ -211,11 +206,11 @@ contains
          s = s + 1
          call recv_piece(R(:, 3, 3, 2), src, request(s), nrcpp)
          s = s + 1
-      endif
+      end if
 
       do i = 1, s - 1
          call mpi_wait(request(i), stat, fierr)
-      enddo
+      end do
       s = 1
 
 ! Above
@@ -234,7 +229,7 @@ contains
          s = s + 1
          call send_piece(spline(:, 3, 2, 2), dst, request(s), nrcpp)
          s = s + 1
-      endif
+      end if
       if (MYRANKZ > 0) then
          temp = (/0, 0, -1/)
          src = neighbour(temp)
@@ -250,11 +245,11 @@ contains
          s = s + 1
          call recv_piece(spline(:, 3, 2, 1), src, request(s), nrcpp)
          s = s + 1
-      endif
+      end if
 
       do i = 1, s - 1
          call mpi_wait(request(i), stat, fierr)
-      enddo
+      end do
       s = 1
 
 ! Down
@@ -273,7 +268,7 @@ contains
          s = s + 1
          call send_piece(spline(:, 3, 2, 1), dst, request(s), nrcpp)
          s = s + 1
-      endif
+      end if
       if (MYRANKY > 0) then
          temp = (/0, -1, 0/)
          src = neighbour(temp)
@@ -289,11 +284,11 @@ contains
          s = s + 1
          call recv_piece(spline(:, 3, 1, 1), src, request(s), nrcpp)
          s = s + 1
-      endif
+      end if
 
       do i = 1, s - 1
          call mpi_wait(request(i), stat, fierr)
-      enddo
+      end do
       s = 1
 
 ! Below
@@ -318,7 +313,7 @@ contains
          s = s + 1
          call send_piece(spline(:, 3, 3, 2), dst, request(s), nrcpp)
          s = s + 1
-      endif
+      end if
       if (MYRANKZ < NRPROCZ - 1) then
          temp = (/0, 0, 1/)
          src = neighbour(temp)
@@ -340,18 +335,16 @@ contains
          s = s + 1
          call recv_piece(spline(:, 3, 3, 3), src, request(s), nrcpp)
          s = s + 1
-      endif
+      end if
 
       do i = 1, s - 1
          call mpi_wait(request(i), stat, fierr)
-      enddo
+      end do
       s = 1
-
 
       call mpi_barrier(MPI_COMM_WORLD, fierr)
 
    end subroutine DistributeSpline
-
 
 !---------------------------------------------------------------------------
 !> @author Maciej Wozniak
@@ -370,16 +363,16 @@ contains
 ! -------
 !> @retun s         - size of piece of domain assigned to this process
 ! -------------------------------------------------------------------
-   function SizeOfPiece(point, n, p) result (s)
+   function SizeOfPiece(point, n, p) result(s)
       use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ, ComputeEndpoints
       implicit none
-      integer(kind = 4), intent(in), dimension(:) :: point
-      integer(kind = 4), intent(in), dimension(:) :: n
-      integer(kind = 4), intent(in), dimension(:) :: p
-      integer(kind = 4) :: s
-      integer(kind = 4) :: sx, sy, sz
-      integer(kind = 4) :: nrcpp, ibeg, iend
-      integer(kind = 4) :: mine, maxe
+      integer(kind=4), intent(in), dimension(:) :: point
+      integer(kind=4), intent(in), dimension(:) :: n
+      integer(kind=4), intent(in), dimension(:) :: p
+      integer(kind=4) :: s
+      integer(kind=4) :: sx, sy, sz
+      integer(kind=4) :: nrcpp, ibeg, iend
+      integer(kind=4) :: mine, maxe
 
       call ComputeEndpoints(point(1), NRPROCX, n(1), p(1), nrcpp, ibeg, iend, mine, maxe)
       sx = iend - ibeg + 1
@@ -388,10 +381,9 @@ contains
       call ComputeEndpoints(point(3), NRPROCZ, n(3), p(3), nrcpp, ibeg, iend, mine, maxe)
       sz = iend - ibeg + 1
 
-      s = sx * sy * sz
+      s = sx*sy*sz
 
    end function SizeOfPiece
-
 
 !---------------------------------------------------------------------------
 !> @author Maciej Wozniak
@@ -423,39 +415,39 @@ contains
       use parallelism, ONLY: MYRANK, LINEARINDEX, NRPROCX, NRPROCY, NRPROCZ, ComputeEndpoints
       use mpi
       implicit none
-      integer(kind = 4), intent(in) :: at
-      integer(kind = 4), dimension(:), intent(in) :: n
-      integer(kind = 4), dimension(:), intent(in) :: p
-      integer(kind = 4), dimension(:), intent(in) :: s
-      real (kind = 8), intent(in) :: part(:,:)
-      real (kind = 8), allocatable, dimension(:,:,:), intent(out) :: full
-      real (kind = 8), allocatable :: buffer(:)
-      integer(kind = 4), dimension(0:NRPROCX * NRPROCY * NRPROCZ - 1) :: recvcounts
-      integer(kind = 4), dimension(0:NRPROCX * NRPROCY * NRPROCZ - 1) :: displs
-      integer(kind = 4) :: offset, msize
-      integer(kind = 4) :: ierr
-      integer(kind = 4) :: array_size
-      integer(kind = 4), dimension(3) :: begs, ends
-      integer(kind = 4) :: mine, maxe
-      integer(kind = 4) :: nrcpp
-      integer(kind = 4), dimension(3) :: ss
-      integer(kind = 4) :: xx, yy, zz
-      integer(kind = 4) :: x, y, z
-      integer(kind = 4), dimension(3) :: i
-      integer(kind = 4) :: idx
-      integer(kind = 4), dimension(3) :: tmp
+      integer(kind=4), intent(in) :: at
+      integer(kind=4), dimension(:), intent(in) :: n
+      integer(kind=4), dimension(:), intent(in) :: p
+      integer(kind=4), dimension(:), intent(in) :: s
+      real(kind=8), intent(in) :: part(:, :)
+      real(kind=8), allocatable, dimension(:, :, :), intent(out) :: full
+      real(kind=8), allocatable :: buffer(:)
+      integer(kind=4), dimension(0:NRPROCX*NRPROCY*NRPROCZ - 1) :: recvcounts
+      integer(kind=4), dimension(0:NRPROCX*NRPROCY*NRPROCZ - 1) :: displs
+      integer(kind=4) :: offset, msize
+      integer(kind=4) :: ierr
+      integer(kind=4) :: array_size
+      integer(kind=4), dimension(3) :: begs, ends
+      integer(kind=4) :: mine, maxe
+      integer(kind=4) :: nrcpp
+      integer(kind=4), dimension(3) :: ss
+      integer(kind=4) :: xx, yy, zz
+      integer(kind=4) :: x, y, z
+      integer(kind=4), dimension(3) :: i
+      integer(kind=4) :: idx
+      integer(kind=4), dimension(3) :: tmp
 
 ! Only the root process needs buffer, but passing unallocated array
 ! is illegal in Fortran, hence we allocate it as array of size 0
 ! in other processes.
       if (MYRANK == at) then
          array_size = (n(1) + 1)*(n(2) + 1)*(n(3) + 1)
-         allocate(full(0:n(1), 0:n(2), 0:n(3)))
+         allocate (full(0:n(1), 0:n(2), 0:n(3)))
       else
          array_size = 0
-      endif
+      end if
 
-      allocate(buffer(0:array_size - 1))
+      allocate (buffer(0:array_size - 1))
 
 ! Just grab all the pieces and put it in the array one after another,
 ! reordering will be done later at the root.
@@ -469,12 +461,12 @@ contains
                recvcounts(idx) = msize
                displs(idx) = offset
                offset = offset + msize
-            enddo
-         enddo
-      enddo
+            end do
+         end do
+      end do
 
-      call mpi_gatherv(part, s(1) * s(2) * s(3), MPI_DOUBLE_PRECISION, buffer, &
-         recvcounts, displs, MPI_DOUBLE_PRECISION, at, MPI_COMM_WORLD, ierr)
+      call mpi_gatherv(part, s(1)*s(2)*s(3), MPI_DOUBLE_PRECISION, buffer, &
+                       recvcounts, displs, MPI_DOUBLE_PRECISION, at, MPI_COMM_WORLD, ierr)
 
 ! Reordering of the array at root
       if (MYRANK == at) then
@@ -495,25 +487,23 @@ contains
                            i(1) = begs(1) - 1 + xx ! beg_ starts from 1, hence -1
                            i(2) = begs(2) - 1 + yy
                            i(3) = begs(3) - 1 + zz
-                           idx = (zz * ss(2) + yy) * ss(1) + xx
+                           idx = (zz*ss(2) + yy)*ss(1) + xx
 
                            full(i(1), i(2), i(3)) = buffer(offset + idx)
-                        enddo
-                     enddo
-                  enddo
+                        end do
+                     end do
+                  end do
 
                   tmp = (/x, y, z/)
                   offset = offset + SizeOfPiece(tmp, n, p)
-               enddo
-            enddo
-         enddo
-      endif
+               end do
+            end do
+         end do
+      end if
 
-      deallocate(buffer)
+      deallocate (buffer)
 
    end subroutine GatherFullSolution
-
-
 
 !---------------------------------------------------------------------------
 !> @author Maciej Wozniak
@@ -545,20 +535,18 @@ contains
 ! -------------------------------------------------------------------
    subroutine Delinearize(F_lin, F, elems, stride)
       implicit none
-      integer(kind = 4), intent(in) :: elems, stride
-      real (kind = 8), dimension(:), intent(in) :: F_lin
-      real (kind = 8), dimension(:,:), intent(out) :: F
-      integer(kind = 4) :: i, a, b
+      integer(kind=4), intent(in) :: elems, stride
+      real(kind=8), dimension(:), intent(in) :: F_lin
+      real(kind=8), dimension(:, :), intent(out) :: F
+      integer(kind=4) :: i, a, b
 
       do i = 1, elems
-         a = (i - 1) * stride + 1
-         b = i * stride
-         F(i,:) = F_lin(a:b)
-      enddo
+         a = (i - 1)*stride + 1
+         b = i*stride
+         F(i, :) = F_lin(a:b)
+      end do
 
    end subroutine Delinearize
-
-
 
 !---------------------------------------------------------------------------
 !> @author Maciej Wozniak
@@ -585,33 +573,31 @@ contains
    subroutine Gather(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
       use mpi
       implicit none
-      integer(kind = 4), intent(in) :: n, elems, stride, comm
-      real (kind = 8), dimension(:,:), intent(in) :: F
-      integer(kind = 4), dimension(:), intent(in) :: dims, shifts
-      real (kind = 8), dimension(:,:), intent(out) :: F_out
-      integer(kind = 4), intent(out) :: ierr
-      real (kind = 8), dimension(:), allocatable :: F_lin, F_out_lin
+      integer(kind=4), intent(in) :: n, elems, stride, comm
+      real(kind=8), dimension(:, :), intent(in) :: F
+      integer(kind=4), dimension(:), intent(in) :: dims, shifts
+      real(kind=8), dimension(:, :), intent(out) :: F_out
+      integer(kind=4), intent(out) :: ierr
+      real(kind=8), dimension(:), allocatable :: F_lin, F_out_lin
 
-      allocate (F_lin(elems * stride))
-      allocate (F_out_lin((n + 1) * stride))
+      allocate (F_lin(elems*stride))
+      allocate (F_out_lin((n + 1)*stride))
       call Linearize(F, F_lin, elems, stride)
 
       call mpi_gatherv(F_lin, &
-         elems * stride, &
-         MPI_DOUBLE_PRECISION, &
-         F_out_lin, &
-         dims, shifts, &
-         MPI_DOUBLE_PRECISION, &
-         0, comm, ierr)
+                       elems*stride, &
+                       MPI_DOUBLE_PRECISION, &
+                       F_out_lin, &
+                       dims, shifts, &
+                       MPI_DOUBLE_PRECISION, &
+                       0, comm, ierr)
 
       call Delinearize(F_out_lin, F_out, n + 1, stride)
 
-      if (allocated(F_lin)) deallocate(F_lin)
-      if (allocated(F_out_lin)) deallocate(F_out_lin)
+      if (allocated(F_lin)) deallocate (F_lin)
+      if (allocated(F_out_lin)) deallocate (F_out_lin)
 
    end subroutine Gather
-
-
 
 !---------------------------------------------------------------------------
 !> @author Maciej Wozniak
@@ -638,29 +624,28 @@ contains
    subroutine Scatter2(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
       use mpi
       implicit none
-      integer(kind = 4), intent(in) :: n, elems, stride, comm
-      real (kind = 8), dimension(:,:), intent(in) :: F
-      integer(kind = 4), dimension(:), intent(in) :: dims, shifts
-      real (kind = 8), dimension(:), intent(out) :: F_out
-      integer(kind = 4), intent(out) :: ierr
-      real (kind = 8), allocatable, dimension(:) :: F_lin
+      integer(kind=4), intent(in) :: n, elems, stride, comm
+      real(kind=8), dimension(:, :), intent(in) :: F
+      integer(kind=4), dimension(:), intent(in) :: dims, shifts
+      real(kind=8), dimension(:), intent(out) :: F_out
+      integer(kind=4), intent(out) :: ierr
+      real(kind=8), allocatable, dimension(:) :: F_lin
 
-      allocate(F_lin((n + 1) * stride))
+      allocate (F_lin((n + 1)*stride))
 
       call Linearize(F, F_lin, n + 1, stride)
 
       call mpi_scatterv(F_lin, &
-         dims, shifts, &
-         MPI_DOUBLE_PRECISION, &
-         F_out, &
-         elems * stride, &
-         MPI_DOUBLE_PRECISION, &
-         0, comm, ierr)
+                        dims, shifts, &
+                        MPI_DOUBLE_PRECISION, &
+                        F_out, &
+                        elems*stride, &
+                        MPI_DOUBLE_PRECISION, &
+                        0, comm, ierr)
 
-      if (allocated(F_lin)) deallocate(F_lin)
+      if (allocated(F_lin)) deallocate (F_lin)
 
    end subroutine Scatter2
-
 
 !---------------------------------------------------------------------------
 !> @author Maciej Wozniak
@@ -685,22 +670,21 @@ contains
 ! -------------------------------------------------------------------
    subroutine Scatter(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
       implicit none
-      integer(kind = 4), intent(in) :: n, elems, stride, comm
-      real (kind = 8), dimension(:,:), intent(in) :: F
-      integer(kind = 4), dimension(:), intent(in) :: dims, shifts
-      real (kind = 8), dimension(:,:), intent(out) :: F_out
-      integer(kind = 4), intent(out) :: ierr
-      real (kind = 8), allocatable, dimension(:) :: F_out_lin
+      integer(kind=4), intent(in) :: n, elems, stride, comm
+      real(kind=8), dimension(:, :), intent(in) :: F
+      integer(kind=4), dimension(:), intent(in) :: dims, shifts
+      real(kind=8), dimension(:, :), intent(out) :: F_out
+      integer(kind=4), intent(out) :: ierr
+      real(kind=8), allocatable, dimension(:) :: F_out_lin
 
-      allocate (F_out_lin(elems * stride))
+      allocate (F_out_lin(elems*stride))
 
       call Scatter2(F, F_out_lin, n, elems, stride, dims, shifts, comm, ierr)
       call Delinearize(F_out_lin, F_out, elems, stride)
 
-      if (allocated(F_out_lin)) deallocate(F_out_lin)
+      if (allocated(F_out_lin)) deallocate (F_out_lin)
 
    end subroutine Scatter
-
 
 !---------------------------------------------------------------------------
 !> @author Maciej Wozniak
@@ -725,29 +709,27 @@ contains
    subroutine AllGather(F, F_out, n, elems, stride, dims, shifts, comm)
       use mpi
       implicit none
-      integer(kind = 4), intent(in) :: n, elems, stride, comm
-      real (kind = 8), dimension(:,:), intent(in) :: F
-      real (kind = 8), dimension(:,:), intent(out) :: F_out
-      integer(kind = 4), dimension(:) :: dims, shifts
-      real (kind = 8), dimension(elems * stride) :: F_lin
-      real (kind = 8), dimension((n + 1) * stride) :: F_out_lin
-      integer(kind = 4) :: ierr
+      integer(kind=4), intent(in) :: n, elems, stride, comm
+      real(kind=8), dimension(:, :), intent(in) :: F
+      real(kind=8), dimension(:, :), intent(out) :: F_out
+      integer(kind=4), dimension(:) :: dims, shifts
+      real(kind=8), dimension(elems*stride) :: F_lin
+      real(kind=8), dimension((n + 1)*stride) :: F_out_lin
+      integer(kind=4) :: ierr
 
       call Linearize(F, F_lin, elems, stride)
 
       call mpi_allgatherv(F_lin, &
-         elems * stride, &
-         MPI_DOUBLE_PRECISION, &
-         F_out_lin, &
-         dims, shifts, &
-         MPI_DOUBLE_PRECISION, &
-         comm, ierr)
+                          elems*stride, &
+                          MPI_DOUBLE_PRECISION, &
+                          F_out_lin, &
+                          dims, shifts, &
+                          MPI_DOUBLE_PRECISION, &
+                          comm, ierr)
 
       call Delinearize(F_out_lin, F_out, n + 1, stride)
 
    end subroutine AllGather
-
-
 
 !---------------------------------------------------------------------------
 !> @author Maciej Wozniak
@@ -780,21 +762,17 @@ contains
 ! -------------------------------------------------------------------
    subroutine Linearize(F, F_lin, elems, stride)
       implicit none
-      integer(kind = 4), intent(in) :: elems, stride
-      real (kind = 8), dimension(:,:), intent(in) :: F
-      real (kind = 8), dimension(:), intent(out) :: F_lin
-      integer(kind = 4) :: i, a, b
+      integer(kind=4), intent(in) :: elems, stride
+      real(kind=8), dimension(:, :), intent(in) :: F
+      real(kind=8), dimension(:), intent(out) :: F_lin
+      integer(kind=4) :: i, a, b
 
       do i = 1, elems
-         a = (i - 1) * stride + 1
-         b = i * stride
-         F_lin(a:b) = F(i,:)
-      enddo
+         a = (i - 1)*stride + 1
+         b = i*stride
+         F_lin(a:b) = F(i, :)
+      end do
 
    end subroutine Linearize
-
-
-
-
 
 end module my_mpi

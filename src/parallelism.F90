@@ -5,26 +5,25 @@ module parallelism
 !   save
 
    ! Rank of this processor
-   integer(kind = 4) :: MYRANK
+   integer(kind=4) :: MYRANK
 
    ! Number of processors
-   integer(kind = 4) :: NRPROC
+   integer(kind=4) :: NRPROC
 
    ! Integer coordinates of processor along X, Y and Z
-   integer(kind = 4) :: MYRANKX, MYRANKY, MYRANKZ
+   integer(kind=4) :: MYRANKX, MYRANKY, MYRANKZ
 
    ! Total number of processors along X, Y and Z
-   integer(kind = 4) :: NRPROCX
-   integer(kind = 4) :: NRPROCY
-   integer(kind = 4) :: NRPROCZ
+   integer(kind=4) :: NRPROCX
+   integer(kind=4) :: NRPROCY
+   integer(kind=4) :: NRPROCZ
 
    ! Rank of this processor converted to a string
-   character(len = 7) :: PRINTRANK
-   
+   character(len=7) :: PRINTRANK
+
    PROTECTED :: MYRANK, NRPROC, NRPROCX, NRPROCY, NRPROCZ, PRINTRANK
 
 contains
-
 
    ! -------------------------------------------------------------------
    ! Initializes MPI communicators and global variables of this module.
@@ -33,10 +32,10 @@ contains
       USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
       use mpi
       implicit none
-      integer(kind = 4), intent(in) :: procx, procy, procz
-      integer(kind = 4), intent(out) :: ierr
+      integer(kind=4), intent(in) :: procx, procy, procz
+      integer(kind=4), intent(out) :: ierr
       character(4) :: buffer
-      integer(kind = 4) :: i1, i2, i3
+      integer(kind=4) :: i1, i2, i3
 
       NRPROCX = procx
       NRPROCY = procy
@@ -48,30 +47,29 @@ contains
       call mpi_comm_rank(MPI_COMM_WORLD, MYRANK, i3)
 
       if ((i1 + i2 + i3) /= 0) then
-         write(ERROR_UNIT, *) MYRANK, ': main: error initializing MPI!'
+         write (ERROR_UNIT, *) MYRANK, ': main: error initializing MPI!'
          STOP 4
-      endif
+      end if
 
       call Decompose(MYRANK, MYRANKX, MYRANKY, MYRANKZ)
       call int2str(MYRANK, buffer)
 
       if (MYRANK < 10) then
-         PRINTRANK = "0000" // buffer
+         PRINTRANK = "0000"//buffer
       else if (MYRANK < 100) then
-         PRINTRANK = "000" // buffer
+         PRINTRANK = "000"//buffer
       else if (MYRANK < 1000) then
-         PRINTRANK = "00" // buffer
+         PRINTRANK = "00"//buffer
       else if (MYRANK < 10000) then
-         PRINTRANK = "0" // buffer
+         PRINTRANK = "0"//buffer
       else
          PRINTRANK = buffer
          stop
-      endif
+      end if
 
       ierr = 0
 
    end subroutine InitializeParallelism
-
 
    ! -------------------------------------------------------------------
    ! Based on the linear index (process rank) computes its coordinates
@@ -90,16 +88,15 @@ contains
    ! -------------------------------------------------------------------
    subroutine Decompose(rank, rankx, ranky, rankz)
       implicit none
-      integer(kind = 4), intent(in) :: rank
-      integer(kind = 4), intent(out) :: rankx, ranky, rankz
+      integer(kind=4), intent(in) :: rank
+      integer(kind=4), intent(out) :: rankx, ranky, rankz
 
-      rankz = rank / (NRPROCX * NRPROCY)
-      ranky = (rank - rankz * (NRPROCX * NRPROCY)) / NRPROCX
-      rankx = rank - rankz * (NRPROCX * NRPROCY)
-      rankx = rankx - ranky * NRPROCX
+      rankz = rank/(NRPROCX*NRPROCY)
+      ranky = (rank - rankz*(NRPROCX*NRPROCY))/NRPROCX
+      rankx = rank - rankz*(NRPROCX*NRPROCY)
+      rankx = rankx - ranky*NRPROCX
 
    end subroutine Decompose
-
 
    ! -------------------------------------------------------------------
    ! Computes global, linear index, based on coordinates in 3D cube.
@@ -111,18 +108,16 @@ contains
    ! returns: linear index based on (Z, Y, X) lexicographic order
    !          (Z changes slowest)
    ! -------------------------------------------------------------------
-   function LinearIndex(rankx, ranky, rankz) result (rank)
+   function LinearIndex(rankx, ranky, rankz) result(rank)
       implicit none
-      integer(kind = 4), intent(in) :: rankx, ranky, rankz
-      integer(kind = 4) :: rank
+      integer(kind=4), intent(in) :: rankx, ranky, rankz
+      integer(kind=4) :: rank
 
       rank = rankz
-      rank = rank * NRPROCY + ranky
-      rank = rank * NRPROCX + rankx
+      rank = rank*NRPROCY + ranky
+      rank = rank*NRPROCX + rankx
 
    end function LinearIndex
-
-
 
    ! -------------------------------------------------------------------
    ! Calculates the range of the direction that is assigned to processor
@@ -145,26 +140,24 @@ contains
    ! -------------------------------------------------------------------
    subroutine ComputeEndpoints(rank, nrproc, n, p, nrcpp, ibeg, iend, mine, maxe)
       implicit none
-      integer(kind = 4), intent(in) :: rank, nrproc, n, p
-      integer(kind = 4), intent(out) :: nrcpp, ibeg, iend, mine, maxe
-      integer(kind = 4) :: elems
+      integer(kind=4), intent(in) :: rank, nrproc, n, p
+      integer(kind=4), intent(out) :: nrcpp, ibeg, iend, mine, maxe
+      integer(kind=4) :: elems
 
       elems = n + 1 - p
-      nrcpp = (n + 1 + nrproc - 1) / nrproc
-      ibeg = nrcpp * rank + 1
+      nrcpp = (n + 1 + nrproc - 1)/nrproc
+      ibeg = nrcpp*rank + 1
 
-      if (rank == nrproc - 1)then
+      if (rank == nrproc - 1) then
          iend = n + 1
       else
-         iend = nrcpp * (rank + 1)
-      endif
+         iend = nrcpp*(rank + 1)
+      end if
 
       mine = max(ibeg - p - 1, 1)
       maxe = min(iend, elems)
 
    end subroutine ComputeEndpoints
-
-
 
    ! -------------------------------------------------------------------
    ! Calculates sizes and ranges of slices for each processor in
@@ -179,38 +172,35 @@ contains
    ! -------------------------------------------------------------------
    subroutine FillDimVector(dims, shifts, nrcpp, stride, n, nrproc)
       implicit none
-      integer(kind = 4), intent(in) :: nrcpp, stride, n, nrproc
-      integer(kind = 4), allocatable, dimension(:), intent(out) :: dims, shifts
-      integer(kind = 4) :: i
+      integer(kind=4), intent(in) :: nrcpp, stride, n, nrproc
+      integer(kind=4), allocatable, dimension(:), intent(out) :: dims, shifts
+      integer(kind=4) :: i
 
-      allocate(dims(nrproc))
-      allocate(shifts(nrproc))
+      allocate (dims(nrproc))
+      allocate (shifts(nrproc))
 
       shifts = 0
       dims = 0
 
       do i = 1, nrproc - 1
-         dims(i) = nrcpp * stride
+         dims(i) = nrcpp*stride
          if (i > 1) shifts(i) = shifts(i - 1) + dims(i - 1)
-      enddo
+      end do
 
       if (nrproc > 1) then
-         dims(nrproc) = ((n + 1) - nrcpp * (nrproc - 1)) * stride
+         dims(nrproc) = ((n + 1) - nrcpp*(nrproc - 1))*stride
          shifts(nrproc) = shifts(nrproc - 1) + dims(nrproc - 1)
       else
-         dims(1) = (n + 1) * stride
+         dims(1) = (n + 1)*stride
          shifts(1) = 0
-      endif
+      end if
 
    end subroutine FillDimVector
 
-
    subroutine CleanParallelism(ierr)
       implicit none
-      integer(kind = 4), intent(out) :: ierr
+      integer(kind=4), intent(out) :: ierr
       ierr = 0
    end subroutine CleanParallelism
-
-
 
 end module parallelism

@@ -16,7 +16,6 @@
 !
 !------------------------------------------------------------------------------
 
-
 module gauss
 
    implicit none
@@ -24,43 +23,41 @@ module gauss
 !> Checks if private varaibles are initialized
    logical :: initialized = .FALSE.
 
-   real (kind = 8), dimension(0:0) :: X1
-   real (kind = 8), dimension(0:0) :: W1
+   real(kind=8), dimension(0:0) :: X1
+   real(kind=8), dimension(0:0) :: W1
 
-   real (kind = 8), dimension(0:1) :: X2
-   real (kind = 8), dimension(0:1) :: W2
+   real(kind=8), dimension(0:1) :: X2
+   real(kind=8), dimension(0:1) :: W2
 
-   real (kind = 8), dimension(0:2) :: X3
-   real (kind = 8), dimension(0:2) :: W3
+   real(kind=8), dimension(0:2) :: X3
+   real(kind=8), dimension(0:2) :: W3
 
-   real (kind = 8), dimension(0:3) :: X4
-   real (kind = 8), dimension(0:3) :: W4
+   real(kind=8), dimension(0:3) :: X4
+   real(kind=8), dimension(0:3) :: W4
 
-   real (kind = 8), dimension(0:4) :: X5
-   real (kind = 8), dimension(0:4) :: W5
+   real(kind=8), dimension(0:4) :: X5
+   real(kind=8), dimension(0:4) :: W5
 
-   real (kind = 8), dimension(0:5) :: X6
-   real (kind = 8), dimension(0:5) :: W6
+   real(kind=8), dimension(0:5) :: X6
+   real(kind=8), dimension(0:5) :: W6
 
-   real (kind = 8), dimension(0:6) :: X7
-   real (kind = 8), dimension(0:6) :: W7
+   real(kind=8), dimension(0:6) :: X7
+   real(kind=8), dimension(0:6) :: W7
 
-   real (kind = 8), dimension(0:7) :: X8
-   real (kind = 8), dimension(0:7) :: W8
+   real(kind=8), dimension(0:7) :: X8
+   real(kind=8), dimension(0:7) :: W8
 
-   real (kind = 8), dimension(0:8) :: X9
-   real (kind = 8), dimension(0:8) :: W9
+   real(kind=8), dimension(0:8) :: X9
+   real(kind=8), dimension(0:8) :: W9
 
-   real (kind = 8), dimension(0:9) :: X10
-   real (kind = 8), dimension(0:9) :: W10
+   real(kind=8), dimension(0:9) :: X10
+   real(kind=8), dimension(0:9) :: W10
 
-
-   PRIVATE :: X1,X2,X3,X4,X5,X6,X7,X8,X9,X10
-   PRIVATE :: W1,W2,W3,W4,W5,W6,W7,W8,W9,W10
+   PRIVATE :: X1, X2, X3, X4, X5, X6, X7, X8, X9, X10
+   PRIVATE :: W1, W2, W3, W4, W5, W6, W7, W8, W9, W10
    PROTECTED :: initialized
 
 contains
-
 
 !---------------------------------------------------------------------------
 !> @author Maciej Wozniak
@@ -74,34 +71,34 @@ contains
       X1(0) = 0.0d0
       W1(0) = 2.0d0
       ! p = 3
-      X2(0) = - 1.0d0 / sqrt(3.0d0)
+      X2(0) = -1.0d0/sqrt(3.0d0)
       X2(1) = -X2(0)
       W2(0) = 1.0d0
       W2(1) = W2(0)
       ! p = 5
-      X3(0) = - sqrt(3.0d0 / 5.0d0)
+      X3(0) = -sqrt(3.0d0/5.0d0)
       X3(1) = 0.0d0
       X3(2) = -X3(0)
       W3(0) = 5.0d0/9.0d0
       W3(1) = 8.0d0/9.0d0
       W3(2) = W3(0)
       ! p = 7
-      X4(0) = -sqrt((3.0d0+2.0d0*sqrt(6.0d0/5.0d0))/7.0d0)
-      X4(1) = -sqrt((3.0d0-2.0d0*sqrt(6.0d0/5.0d0))/7.0d0)
+      X4(0) = -sqrt((3.0d0 + 2.0d0*sqrt(6.0d0/5.0d0))/7.0d0)
+      X4(1) = -sqrt((3.0d0 - 2.0d0*sqrt(6.0d0/5.0d0))/7.0d0)
       X4(2) = -X4(1)
       X4(3) = -X4(0)
-      W4(0) = (18.0d0-sqrt(30.0d0))/36.0d0
-      W4(1) = (18.0d0+sqrt(30.0d0))/36.0d0
+      W4(0) = (18.0d0 - sqrt(30.0d0))/36.0d0
+      W4(1) = (18.0d0 + sqrt(30.0d0))/36.0d0
       W4(2) = W4(1)
       W4(3) = W4(0)
       ! p = 9
-      X5(0) = -1.0d0/3.0d0*sqrt(5.0d0+2.0d0*sqrt(10.0d0/7.0d0))
-      X5(1) = -1.0d0/3.0d0*sqrt(5.0d0-2.0d0*sqrt(10.0d0/7.0d0))
+      X5(0) = -1.0d0/3.0d0*sqrt(5.0d0 + 2.0d0*sqrt(10.0d0/7.0d0))
+      X5(1) = -1.0d0/3.0d0*sqrt(5.0d0 - 2.0d0*sqrt(10.0d0/7.0d0))
       X5(2) = 0.0d0
       X5(3) = -X5(1)
       X5(4) = -X5(0)
-      W5(0) = (322.0d0-13.0d0*sqrt(70.0d0))/900.0d0
-      W5(1) = (322.0d0+13.0d0*sqrt(70.0d0))/900.0d0
+      W5(0) = (322.0d0 - 13.0d0*sqrt(70.0d0))/900.0d0
+      W5(1) = (322.0d0 + 13.0d0*sqrt(70.0d0))/900.0d0
       W5(2) = 128.0d0/225.0d0
       W5(3) = W5(1)
       W5(4) = W5(0)
@@ -212,44 +209,44 @@ contains
 ! -------------------------------------------------------------------
    subroutine GaussRule(n, X, W)
       implicit none
-      integer(kind = 4), intent(in) :: n
-      real (kind = 8), dimension(0:n - 1), intent(out) :: X
-      real (kind = 8), dimension(0:n - 1), intent(out) :: W
+      integer(kind=4), intent(in) :: n
+      real(kind=8), dimension(0:n - 1), intent(out) :: X
+      real(kind=8), dimension(0:n - 1), intent(out) :: W
 
       if (.NOT. initialized) call initialize()
 
       select case (n)
-       case (1) ! p = 1
+      case (1) ! p = 1
          X = X1
          W = W1
-       case (2) ! p = 3
+      case (2) ! p = 3
          X = X2
          W = W2
-       case (3) ! p = 5
+      case (3) ! p = 5
          X = X3
          W = W3
-       case (4) ! p = 7
+      case (4) ! p = 7
          X = X4
          W = W4
-       case (5) ! p = 9
+      case (5) ! p = 9
          X = X5
          W = W5
-       case (6)
+      case (6)
          X = X6
          W = W6
-       case (7)
+      case (7)
          X = X7
          W = W7
-       case (8)
+      case (8)
          X = X8
          W = W8
-       case (9)
+      case (9)
          X = X9
          W = W9
-       case (10)
+      case (10)
          X = X10
          W = W10
-       case default
+      case default
          X = 0.0d0
          W = 0.0d0
       end select
@@ -257,5 +254,4 @@ contains
    end subroutine GaussRule
 
 end module gauss
-
 

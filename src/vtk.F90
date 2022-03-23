@@ -4,7 +4,6 @@ module vtk
 
 contains
 
-
    ! -------------------------------------------------------------------
    ! Data output function for VTK
    !
@@ -15,67 +14,66 @@ contains
    subroutine VtkOutput(filename, vals, params)
       use plot, ONLY: PlotParams
       implicit none
-      character (len = *), intent(in) :: filename
-      type (PlotParams), intent(in) :: params
-      real (kind = 8), intent(in) :: vals(params % resx, params % resy, params % resz)
-      integer (kind = 4) :: ix, iy, iz
-      character (len = 200) :: temp, extent
+      character(len=*), intent(in) :: filename
+      type(PlotParams), intent(in) :: params
+      real(kind=8), intent(in) :: vals(params%resx, params%resy, params%resz)
+      integer(kind=4) :: ix, iy, iz
+      character(len=200) :: temp, extent
 
       integer :: outFile = 57 ! random value, Grothendieck's prime
 
 #ifdef IPRINT
-      write(*, *) 'Starting VTK output...'
+      write (*, *) 'Starting VTK output...'
 #endif
-      
-  open(unit = outFile, file = trim(filename) // '.vti', &
-      form = 'formatted', access = 'sequential', status = 'unknown')
+
+      open (unit=outFile, file=trim(filename)//'.vti', &
+            form='formatted', access='sequential', status='unknown')
 
       ! XML version/root
-      write(outFile, '(A)') '<?xml version="1.0"?>'
-      write(outFile, '(A)') '<VTKFile type="ImageData" version="0.1">'
+      write (outFile, '(A)') '<?xml version="1.0"?>'
+      write (outFile, '(A)') '<VTKFile type="ImageData" version="0.1">'
 
       ! Prepare extent (count of parts in each dimension) for later use
       ! Rormat: "x1 x2 y1 y2 z1 z2"
-      write(extent, '("0 ",(I5)," 0 ",(I5)," 0 ",(I5))') &
-      params % resx - 1, params % resy - 1, params % resz - 1
+      write (extent, '("0 ",(I5)," 0 ",(I5)," 0 ",(I5))') &
+         params%resx - 1, params%resy - 1, params%resz - 1
 
       ! Init ImageData structure for whole region
-      temp = '  <ImageData WholeExtent="' // trim(extent)
-      write(outFile, '(A)') trim(temp) // '" origin="0 0 0" spacing="1 1 1">'
+      temp = '  <ImageData WholeExtent="'//trim(extent)
+      write (outFile, '(A)') trim(temp)//'" origin="0 0 0" spacing="1 1 1">'
 
       ! Region consists of one piece in one file
-      write(outFile, '(A)') '    <Piece Extent="' // trim(extent) // '">'
-      write(outFile, '(A)') '      <PointData Scalars="Result">'
-      write(outFile, '(A)') '        <DataArray Name="Result" type="Float32">'
+      write (outFile, '(A)') '    <Piece Extent="'//trim(extent)//'">'
+      write (outFile, '(A)') '      <PointData Scalars="Result">'
+      write (outFile, '(A)') '        <DataArray Name="Result" type="Float32">'
 
       ! outFile result values by X, Y and Z axis
 #ifdef IPRINT
-      write(*, *) 'Printing data'
+      write (*, *) 'Printing data'
 #endif
-      
-  do iz = 1, params % resz
-      do iy = 1, params % resy
-         do ix = 1, params % resx
-            write(temp, '(F30.10)') vals(ix, iy, iz)
-            write(outFile, '(A)') '          ' // trim(adjustl(temp))
-         enddo
-      enddo
-   enddo
 
-   ! Close all XML nodes
-   write(outFile, '(A)') '        </DataArray>'
-   write(outFile, '(A)') '      </PointData>'
-   write(outFile, '(A)') '    </Piece>'
-   write(outFile, '(A)') '  </ImageData>'
-   write(outFile, '(A)') '</VTKFile>'
+      do iz = 1, params%resz
+         do iy = 1, params%resy
+            do ix = 1, params%resx
+               write (temp, '(F30.10)') vals(ix, iy, iz)
+               write (outFile, '(A)') '          '//trim(adjustl(temp))
+            end do
+         end do
+      end do
 
-   close(outFile)
+      ! Close all XML nodes
+      write (outFile, '(A)') '        </DataArray>'
+      write (outFile, '(A)') '      </PointData>'
+      write (outFile, '(A)') '    </Piece>'
+      write (outFile, '(A)') '  </ImageData>'
+      write (outFile, '(A)') '</VTKFile>'
+
+      close (outFile)
 #ifdef IPRINT
-   write(*, *) 'Done with output.'
+      write (*, *) 'Done with output.'
 #endif
-   
-end subroutine VtkOutput
 
+   end subroutine VtkOutput
 
    ! -------------------------------------------------------------------
    ! Data output function for VTK, version for structured grid
@@ -88,82 +86,81 @@ end subroutine VtkOutput
    subroutine VtkStructuredGridOutput(filename, vals, X, Y, Z, params)
       use plot, ONLY: PlotParams
       implicit none
-      character(len = *), intent(in) :: filename
-      type (PlotParams), intent(in) :: params
-      real (kind = 8), dimension(params % resx, params % resy, params % resz), &
-      intent(in) :: X, Y, Z, vals
-      integer(kind = 4) :: ix, iy, iz
-      character(len = 200) :: temp, extent
+      character(len=*), intent(in) :: filename
+      type(PlotParams), intent(in) :: params
+      real(kind=8), dimension(params%resx, params%resy, params%resz), &
+         intent(in) :: X, Y, Z, vals
+      integer(kind=4) :: ix, iy, iz
+      character(len=200) :: temp, extent
 
       integer :: outFile = 57 ! random value, Grothendieck's prime
 
 #ifdef IPRINT
-      write(*, *) 'Starting VTK output...'
+      write (*, *) 'Starting VTK output...'
 #endif
-      
-  open(unit = outFile, file = trim(filename) // '.vts', &
-      form = 'formatted', access = 'sequential', status = 'unknown')
+
+      open (unit=outFile, file=trim(filename)//'.vts', &
+            form='formatted', access='sequential', status='unknown')
 
       ! XML version/root
-      write(outFile, '(A)') '<?xml version="1.0"?>'
-      write(outFile, '(A)') '<VTKFile type="StructuredGrid" version="0.1">'
+      write (outFile, '(A)') '<?xml version="1.0"?>'
+      write (outFile, '(A)') '<VTKFile type="StructuredGrid" version="0.1">'
 
       ! Prepare extent (count of parts in each dimension) for later use
       ! Rormat: "x1 x2 y1 y2 z1 z2"
-      write(extent, '("0 ",(I5)," 0 ",(I5)," 0 ",(I5))') &
-      params % resx - 1, params % resy - 1, params % resz - 1
+      write (extent, '("0 ",(I5)," 0 ",(I5)," 0 ",(I5))') &
+         params%resx - 1, params%resy - 1, params%resz - 1
 
       ! Init ImageData structure for whole region
-      temp = '  <StructuredGrid WholeExtent="' // trim(extent)
-      write(outFile, '(A)') trim(temp) // '" origin="0 0 0" spacing="1 1 1">'
+      temp = '  <StructuredGrid WholeExtent="'//trim(extent)
+      write (outFile, '(A)') trim(temp)//'" origin="0 0 0" spacing="1 1 1">'
 
       ! Region consists of one piece in one file
-      write(outFile, '(A)') '    <Piece Extent="' // trim(extent) // '">'
-      write(outFile, '(A)') '      <PointData Scalars="Result">'
-      write(outFile, '(A)') '        <DataArray Name="Result" type="Float32">'
+      write (outFile, '(A)') '    <Piece Extent="'//trim(extent)//'">'
+      write (outFile, '(A)') '      <PointData Scalars="Result">'
+      write (outFile, '(A)') '        <DataArray Name="Result" type="Float32">'
 
       ! output result values by X, Y and Z axis
 #ifdef IPRINT
-      write(*, *) 'Printing data'
+      write (*, *) 'Printing data'
 #endif
-      
-  do ix = 1, params % resx
-      do iy = 1, params % resy
-         do iz = 1, params % resz
-            write(temp, '(F30.10)') vals(ix, iy, iz)
-            write(outFile, '(A)') '          ' // trim(adjustl(temp))
-         enddo
-      enddo
-   enddo
 
-   write(outFile, '(A)') '        </DataArray>'
-   write(outFile, '(A)') '      </PointData>'
-   write(outFile, '(A)') '      <Points>'
-   write(outFile, '(A)') '        <DataArray type="Float32" NumberOfComponents="3">'
+      do ix = 1, params%resx
+         do iy = 1, params%resy
+            do iz = 1, params%resz
+               write (temp, '(F30.10)') vals(ix, iy, iz)
+               write (outFile, '(A)') '          '//trim(adjustl(temp))
+            end do
+         end do
+      end do
 
-   ! outFile result values by X, Y and Z axis
-   do ix = 1, params % resx
-      do iy = 1, params % resy
-         do iz = 1, params % resz
-            write(temp, '(3F30.10)') X(ix, iy, iz), Y(ix, iy, iz), Z(ix, iy, iz)
-            write(outFile, '(A)') '          ' // trim(adjustl(temp))
-         enddo
-      enddo
-   enddo
+      write (outFile, '(A)') '        </DataArray>'
+      write (outFile, '(A)') '      </PointData>'
+      write (outFile, '(A)') '      <Points>'
+      write (outFile, '(A)') '        <DataArray type="Float32" NumberOfComponents="3">'
 
-   write(outFile, '(A)') '        </DataArray>'
-   write(outFile, '(A)') '      </Points>'
-   write(outFile, '(A)') '    </Piece>'
-   write(outFile, '(A)') '  </StructuredGrid>'
-   write(outFile, '(A)') '</VTKFile>'
+      ! outFile result values by X, Y and Z axis
+      do ix = 1, params%resx
+         do iy = 1, params%resy
+            do iz = 1, params%resz
+               write (temp, '(3F30.10)') X(ix, iy, iz), Y(ix, iy, iz), Z(ix, iy, iz)
+               write (outFile, '(A)') '          '//trim(adjustl(temp))
+            end do
+         end do
+      end do
 
-   close(outFile)
+      write (outFile, '(A)') '        </DataArray>'
+      write (outFile, '(A)') '      </Points>'
+      write (outFile, '(A)') '    </Piece>'
+      write (outFile, '(A)') '  </StructuredGrid>'
+      write (outFile, '(A)') '</VTKFile>'
+
+      close (outFile)
 #ifdef IPRINT
-   write(*, *) 'Done with output.'
+      write (*, *) 'Done with output.'
 #endif
-   
-end subroutine VtkStructuredGridOutput
 
+   end subroutine VtkStructuredGridOutput
 
 end module vtk
 
