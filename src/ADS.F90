@@ -419,9 +419,9 @@ contains
       if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
 
 
-      allocate (ads_data%Ft (ads_test%s(3), ads_trial%s(1)*ads_trial%s(2))) !x,y,z
+      allocate (ads_data%Ft (ads_trial%s(3), ads_trial%s(1)*ads_test%s(2))) !x,y,z
       allocate (ads_data%Ft2(ads_trial%s(1), ads_test%s(2)*ads_trial%s(3))) !y,x,z
-      allocate (ads_data%Ft3(ads_trial%s(2), ads_trial%s(3)*ads_test%s(1))) !z,x,y
+      allocate (ads_data%Ft3(ads_test%s(2), ads_trial%s(3)*ads_trial%s(1))) !z,x,y
 
       mmix = mix(:, 2)
       direction = (/0, 1, 0/) ! y
@@ -436,8 +436,8 @@ contains
       if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
       if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
 
-      allocate (ads_data%Ft (ads_test%s(2), ads_trial%s(1)*ads_trial%s(3))) !x,y,z
-      allocate (ads_data%Ft2(ads_trial%s(3), ads_test%s(1)*ads_trial%s(2))) !y,x,z
+      allocate (ads_data%Ft (ads_trial%s(2), ads_trial%s(1)*ads_test%s(3))) !x,y,z
+      allocate (ads_data%Ft2(ads_test%s(3), ads_trial%s(1)*ads_trial%s(2))) !y,x,z
       allocate (ads_data%Ft3(ads_trial%s(1), ads_trial%s(2)*ads_test%s(3))) !z,x,y
 
       mmix = mix(:, 3)
@@ -563,7 +563,7 @@ contains
 
       if (allocated(ads_data%F)) ads_data%F = 0.d0
       if (allocated(ads_data%Ft)) ads_data%Ft = 0.d0
-! generate the RHS vectors
+! generate the RHS vectorsc
       call Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, alpha_step, RHS_fun, igrm, l2norm)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
