@@ -28,4 +28,7 @@ test/tests
 *.xml
 doxygen/
 fort.1
+vgcore.*
+.idea
+
 
