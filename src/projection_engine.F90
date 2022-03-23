@@ -275,7 +275,6 @@ contains
       integer(kind=4) :: ng ! number of Gauss quadrature points
       integer(kind=4) :: e, i, c, d
       integer(kind=4) :: O(nelem) ! indexes of first nonzero functions on each element
-      integer(kind=4) :: all, tmp, total_size
       type(sparse_matrix), pointer, intent(out) :: sprsmtrx
       real(kind=8) :: val
       real(kind=8) :: M, K, B, BT
@@ -288,7 +287,6 @@ contains
 
       call initialize_sparse(n + 1, n + 1, sprsmtrx)
 
-      total_size = (nelem)*(ng)*(p + 1)*(p + 1)
 ! submatrix A
 ! new parallel loop
 !!$OMP PARALLEL DO &
@@ -299,32 +297,32 @@ contains
 !!$OMP REDUCTION(+:K) &
 !!$OMP REDUCTION(+:B) &
 !!$OMP REDUCTION(+:BT)
-      do all = 1, total_size
-! loop over shape functions over elements (p1+1 functions)
-         d = modulo(all - 1, p + 1)
-         tmp = (all - d)/(p + 1)
-! loop over shape functions over elements (p1+1 functions)
-         c = modulo(tmp, p + 1)
-         tmp = (tmp - c)/(p + 1)
-! loop over Gauss points
-         i = modulo(tmp, ng) + 1
 ! loop over elements
-         e = (tmp - i + 1)/(ng) + 1
-         ! O(e) + c = first dof of element + 1st local shape function index
-         ! O(e) + d = first dof of element + 2nd local shape function index
-         ! NN(0,c,i,e) = value of shape function c at Gauss point i over element e
-         ! NN(0,d,i,e) = value of shape function d at Gauss point i over element e
-         ! W(i) weight for Gauss point i
-         ! J(e) jacobian for element e
-         ia = O(e) + c
-         ib = O(e) + d
-         ! M = u*v
-         M = NN(0, c, i, e)*NN(0, d, i, e)*J(e)*W(i)
-         K = NN(1, c, i, e)*NN(1, d, i, e)*J(e)*W(i)
-         B = NN(1, c, i, e)*NN(0, d, i, e)*J(e)*W(i)
-         BT = NN(0, c, i, e)*NN(1, d, i, e)*J(e)*W(i)
-         val = mix(1)*M + mix(2)*K + mix(3)*B + mix(4)*BT
-         call add(sprsmtrx, ia, ib, val)
+      do e = 1, nelem
+! loop over Gauss points
+         do i = 1, ng
+            ! loop over shape functions over elements (p+1 functions)
+            do c = 0, p
+               ! loop over shape functions over elements (p+1 functions)
+               do d = 0, p
+                  ! O(e) + c = first dof of element + 1st local shape function index
+                  ! O(e) + d = first dof of element + 2nd local shape function index
+                  ! NN(0,c,i,e) = value of shape function c at Gauss point i over element e
+                  ! NN(0,d,i,e) = value of shape function d at Gauss point i over element e
+                  ! W(i) weight for Gauss point i
+                  ! J(e) jacobian for element e
+                  ia = O(e) + c
+                  ib = O(e) + d
+                  ! M = u*v
+                  M = NN(0, c, i, e)*NN(0, d, i, e)*J(e)*W(i)
+                  K = NN(1, c, i, e)*NN(1, d, i, e)*J(e)*W(i)
+                  B = NN(1, c, i, e)*NN(0, d, i, e)*J(e)*W(i)
+                  BT = NN(0, c, i, e)*NN(1, d, i, e)*J(e)*W(i)
+                  val = mix(1)*M + mix(2)*K + mix(3)*B + mix(4)*BT
+                  call add(sprsmtrx, ia, ib, val)
+               end do
+            end do
+         end do
       end do
 !!$OMP END PARALLEL DO
 
