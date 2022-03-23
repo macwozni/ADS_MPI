@@ -603,54 +603,6 @@ contains
 !> @author Maciej Wozniak
 !>
 !> @brief
-!> Scatters computed partial solution along one axis, but does not
-!> delinearize the output (used at the very end of computation)
-!
-! Input:
-! ------
-!> @param[in] F         - data to scatter
-!> @param[in] n         - problem size
-!> @param[in] elems     - length of received slice
-!> @param[in] stride    - total size of each slice layer
-!> @param[in] dims      - sizes of slices for all processors
-!> @param[in] shifts    - offsets (linearized) of slices for all processors
-!> @param[in] comm      - communicator of the axis
-!
-! Output:
-! ------
-!> @param[out] F_out    - buffer to receive data
-!> @param[out] ierr     - error code output
-! -------------------------------------------------------------------
-   subroutine Scatter2(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
-      use mpi
-      implicit none
-      integer(kind=4), intent(in) :: n, elems, stride, comm
-      real(kind=8), dimension(:, :), intent(in) :: F
-      integer(kind=4), dimension(:), intent(in) :: dims, shifts
-      real(kind=8), dimension(:), intent(out) :: F_out
-      integer(kind=4), intent(out) :: ierr
-      real(kind=8), allocatable, dimension(:) :: F_lin
-
-      allocate (F_lin((n + 1)*stride))
-
-      call Linearize(F, F_lin, n + 1, stride)
-
-      call mpi_scatterv(F_lin, &
-                        dims, shifts, &
-                        MPI_DOUBLE_PRECISION, &
-                        F_out, &
-                        elems*stride, &
-                        MPI_DOUBLE_PRECISION, &
-                        0, comm, ierr)
-
-      if (allocated(F_lin)) deallocate (F_lin)
-
-   end subroutine Scatter2
-
-!---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
-!> @brief
 !> Scatters computed partial solution along one axis
 !
 ! Input:
@@ -669,6 +621,7 @@ contains
 !> @param[out] ierr     - error code output
 ! -------------------------------------------------------------------
    subroutine Scatter(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
+      use mpi
       implicit none
       integer(kind=4), intent(in) :: n, elems, stride, comm
       real(kind=8), dimension(:, :), intent(in) :: F
@@ -676,12 +629,23 @@ contains
       real(kind=8), dimension(:, :), intent(out) :: F_out
       integer(kind=4), intent(out) :: ierr
       real(kind=8), allocatable, dimension(:) :: F_out_lin
+      real(kind=8), allocatable, dimension(:) :: F_lin
 
       allocate (F_out_lin(elems*stride))
+      allocate (F_lin((n + 1)*stride))
+      call Linearize(F, F_lin, n + 1, stride)
 
-      call Scatter2(F, F_out_lin, n, elems, stride, dims, shifts, comm, ierr)
+      call mpi_scatterv(F_lin, &
+                        dims, shifts, &
+                        MPI_DOUBLE_PRECISION, &
+                        F_out_lin, &
+                        (n + 1)*stride, &
+                        MPI_DOUBLE_PRECISION, &
+                        0, comm, ierr)
+
       call Delinearize(F_out_lin, F_out, elems, stride)
 
+      if (allocated(F_lin)) deallocate (F_lin)
       if (allocated(F_out_lin)) deallocate (F_out_lin)
 
    end subroutine Scatter
