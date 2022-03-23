@@ -5,13 +5,13 @@ contains
 ! -------------------------------------------------------------------
 ! Initialization of clocks and MPI
 ! -------------------------------------------------------------------
-   subroutine initialize(n, p1, p2, continuity, ads_test, ads_trial, ads_data, mierr)
+   subroutine initialize(nelem, p1, p2, continuity, ads_test, ads_trial, ads_data, mierr)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use knot_vector, ONLY: PrepareKnot
       use basis, ONLY: BasisData
       use mpi
       implicit none
-      integer(kind=4), intent(in), dimension(3) :: n
+      integer(kind=4), intent(in), dimension(3) :: nelem
       integer(kind=4), intent(in), dimension(3) :: p1, p2
       integer(kind=4), intent(in), dimension(3) :: continuity
       type(ADS_setup), intent(out) :: ads_trial
@@ -19,14 +19,13 @@ contains
       type(ADS_compute_data), intent(out) :: ads_data
       integer(kind=4), intent(out) :: mierr
       integer(kind=4) :: ierr
-      integer(kind=4), dimension(3) :: nelem
-      real(kind=8), allocatable, dimension(:) :: Ux
-      real(kind=8), allocatable, dimension(:) :: Uy
-      real(kind=8), allocatable, dimension(:) :: Uz
+      integer(kind=4), dimension(3) :: n1,n2
 
+      n1 = nelem+p1-1
+      n2 = nelem+p2-1
 
-      call initialize_setup(n, p1, continuity, ads_test, mierr)
-      call initialize_setup(n, p2, continuity, ads_trial, mierr)
+      call initialize_setup(n1, p1, continuity, ads_test, mierr)
+      call initialize_setup(n2, p2, continuity, ads_trial, mierr)
 
       call AllocateADSdata(ads_test, ads_trial, ads_data)
 
