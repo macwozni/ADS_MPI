@@ -33,5 +33,10 @@ L2 = \
 HEAT = \
     ../problems/heat/input_data.F90 \
     ../problems/heat/main.F90
+
+IGRM_L2 = \
+    ../problems/igrm_L2Projection/input_data.F90 \
+    ../problems/igrm_L2Projection/RHS_fun.F90 \
+    ../problems/igrm_L2Projection/main.F90
   
 

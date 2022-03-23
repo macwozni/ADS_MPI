@@ -25,10 +25,11 @@ METIS_DIR = /opt/libs/system/metis/5.1.0/
 ###########################################################
 
 COMPILER = mpif90
-DIALECT = -std=f2003  -fimplicit-none -cpp -fopenmp -pthread
+DIALECT = -std=f2003  -fimplicit-none -cpp -pthread -fopenmp  -pedantic
 BOUNDS = -fbounds-check
 RELEASE_OPTS = -funroll-all-loops -O3 
-DEBUG_OPTS = -O0 -g -fcheck=all $(BOUNDS)
+DEBUG_OPTS = -O0 -g -fcheck=all $(BOUNDS) -fsanitize=address
+# -fbacktrace -ffpe-trap=zero,overflow,underflow
 
 
 
