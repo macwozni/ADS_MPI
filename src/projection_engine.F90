@@ -116,17 +116,6 @@ contains
             do c = 0, p1
                ! loop over shape functions over elements (p+1 functions)
                do d = 0, p1
-!       do all = 1, total_size
-! ! loop over shape functions over elements (p1+1 functions)
-!          d = modulo(all - 1, p1 + 1)
-!          tmp = (all - d)/(p1 + 1)
-! ! loop over shape functions over elements (p1+1 functions)
-!          c = modulo(tmp, p1 + 1)
-!          tmp = (tmp - c)/(p1 + 1)
-! ! loop over Gauss points
-!          i = modulo(tmp, ng1) + 1
-! ! loop over elements
-!          e = (tmp - i + 1)/(ng1) + 1
                   ! O(e) + c = first dof of element + 1st local shape function index
                   ! O(e) + d = first dof of element + 2nd local shape function index
                   ! NN(0,c,i,e) = value of shape function c at Gauss point i over element e
@@ -167,17 +156,6 @@ contains
             do c = 0, p2
                ! loop over shape functions over elements (p+1 functions)
                do d = 0, p1
-!       do all = 1, total_size
-! ! loop over shape functions over elements (p1+1 functions)
-!          d = modulo(all - 1, p1 + 1)
-!          tmp = (all - d)/(p1 + 1)
-! ! loop over shape functions over elements (p2+1 functions)
-!          c = modulo(tmp, p2 + 1)
-!          tmp = (tmp - c)/(p2 + 1)
-! ! loop over Gauss points
-!          i = modulo(tmp, ng1) + 1
-! ! loop over elements
-!          e = (tmp - i + 1)/(ng1) + 1
                   ! O(e) + c = first dof of element + 1st local shape function index
                   ! O(e) + d = first dof of element + 2nd local shape function index
                   ! NN(0,c,i,e) = value of shape function c at Gauss point i over element e
@@ -217,17 +195,6 @@ contains
             do c = 0, p1
 ! loop over shape functions over elements (p+1 functions)
                do d = 0, p2
-!       do all = 1, total_size
-! ! loop over shape functions over elements (p2+1 functions)
-!          d = modulo(all - 1, p2 + 1)
-!          tmp = (all - d)/(p2 + 1)
-! ! loop over shape functions over elements (p1+1 functions)
-!          c = modulo(tmp, p1 + 1)
-!          tmp = (tmp - c)/(p1 + 1)
-! ! loop over Gauss points
-!          i = modulo(tmp, ng2) + 1
-! ! loop over elements
-!          e = (tmp - i + 1)/(ng2) + 1
                   ! O(e) + c = first dof of element + 1st local shape function index
                   ! O(e) + d = first dof of element + 2nd local shape function index
                   ! NN(0,c,i,e) = value of shape function c at Gauss(i) weight for Gauss point i
