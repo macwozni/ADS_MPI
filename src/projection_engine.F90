@@ -294,7 +294,6 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
 
       call initialize_sparse(n + 1, n + 1, sprsmtrx)
 
-      total_size = (nelem)*(ng)*(p + 1)*(p + 1)
 ! submatrix A
 ! new parallel loop
 !!$OMP PARALLEL DO &
