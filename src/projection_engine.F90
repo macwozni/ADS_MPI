@@ -516,9 +516,9 @@ contains
       ! do exx=1,ads % lnelem(1)
       ! do eyy=1,ads % lnelem(2)
       ! do ezz=1,ads % lnelem(3)
-      do ex = ads%mine(dira), ads%maxe(dira)
-         do ey = ads%mine(dirb), ads%maxe(dirb)
-            do ez = ads%mine(dirc), ads%maxe(dirc)
+      do ex = ads%mine(1), ads%maxe(1)
+         do ey = ads%mine(2), ads%maxe(2)
+            do ez = ads%mine(3), ads%maxe(3)
 ! fix distributed part
                ! ex = exx + ads % mine(1)
                ! ey = eyy + ads % mine(2)
