@@ -407,8 +407,8 @@ contains
       allocate (ads_data%F2(ads_trial%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,x,z
       allocate (ads_data%F3(ads_trial%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
       allocate (ads_data%Ft (ads_test%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
-      allocate (ads_data%Ft2(ads_trial%s(2), ads_test%s(3)*ads_trial%s(1))) !y,x,z
-      allocate (ads_data%Ft3(ads_trial%s(3), ads_trial%s(1)*ads_test%s(2))) !z,x,y
+      allocate (ads_data%Ft2(ads_trial%s(2), ads_trial%s(3)*ads_test%s(1))) !y,x,z
+      allocate (ads_data%Ft3(ads_trial%s(3), ads_test%s(1)*ads_trial%s(2))) !z,x,y
 
       mmix = mix(:, 1)
       direction = (/1, 0, 0/) ! x
@@ -616,6 +616,10 @@ contains
       end do
 #endif
 
+      a=abc(1, 1)
+      b=abc(2, 1)
+      c=abc(3, 1)
+
 !--------------------------------------------------------------------
 ! Solve the first problem
 !--------------------------------------------------------------------
@@ -637,15 +641,12 @@ contains
 #ifdef IINFO
       write (*, *) PRINTRANK, '3e) DISTRIBUTE SOLUTION'
 #endif
-      a=abc(1, 1)
-      b=abc(2, 1)
-      c=abc(3, 1)
 !  copy results to proper buffer
       do i = 1, ads_trial%s(b)*ads_trial%s(c)
          ads_data%R((i - 1)*ads_trial%s(a) + 1:i*ads_trial%s(a), 2, 2, 2) = ads_data%F(:, i)
       end do
 !  nrcpp - number of columns (average) per processor
-      nrcpp = (/ads_trial%nrcpp(3), ads_trial%nrcpp(1), ads_trial%nrcpp(2)/)
+      nrcpp = (/ads_trial%nrcpp(c), ads_trial%nrcpp(a), ads_trial%nrcpp(b)/)
       call DistributeSpline(ads_data%R, nrcpp, ads_data%R)
 
 #ifdef IPRINT
