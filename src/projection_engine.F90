@@ -378,6 +378,11 @@ contains
       real(kind=8) :: l2normtmp
       type(ADS_setup) :: ads
       logical, intent(out) :: igrm
+      integer(kind=4) :: dira,dirb,dirc ! direction of going throuh space
+
+      dira=1
+      dirb=2
+      dirc=3
 
 !  copy default space as trial space
       ads = ads_trial
@@ -413,6 +418,9 @@ contains
          ads%NNx = ads_test%NNx
          ads%Wx = ads_test%Wx
          igrm = .TRUE.
+         dira=1
+         dirb=2
+         dirc=3
       end if
       if (direction(2) .EQ. 1) then
          ads%n(2) = ads_test%n(2)
@@ -443,6 +451,9 @@ contains
          ads%NNy = ads_test%NNy
          ads%Wy = ads_test%Wy
          igrm = .TRUE.
+         dira=3
+         dirb=1
+         dirc=2
       end if
       if (direction(3) .EQ. 1) then
          ads%n(3) = ads_test%n(3)
@@ -473,9 +484,12 @@ contains
          ads%NNz = ads_test%NNz
          ads%Wz = ads_test%Wz
          igrm = .TRUE.
+         dira=2
+         dirb=3
+         dirc=1
       end if
 
-      allocate (elarr(0:ads%p(1), 0:ads%p(2), 0:ads%p(3)))
+      allocate (elarr(0:ads%p(dira), 0:ads%p(dirb), 0:ads%p(dirc)))
       ! total_size = ads % lnelem(1) * ads % lnelem(2) * ads % lnelem(3)
 
       l2norm = 0.d0
@@ -502,9 +516,9 @@ contains
       ! do exx=1,ads % lnelem(1)
       ! do eyy=1,ads % lnelem(2)
       ! do ezz=1,ads % lnelem(3)
-      do ex = ads%mine(1), ads%maxe(1)
-         do ey = ads%mine(2), ads%maxe(2)
-            do ez = ads%mine(3), ads%maxe(3)
+      do ex = ads%mine(dira), ads%maxe(dira)
+         do ey = ads%mine(dirb), ads%maxe(dirb)
+            do ez = ads%mine(dirc), ads%maxe(dirc)
 ! fix distributed part
                ! ex = exx + ads % mine(1)
                ! ey = eyy + ads % mine(2)
@@ -514,9 +528,9 @@ contains
                e = (/ex, ey, ez/)
                elarr = 0.d0
 ! loop over quadrature points
-               do kx = 1, ads%ng(1)
-                  do ky = 1, ads%ng(2)
-                     do kz = 1, ads%ng(3)
+               do kx = 1, ads%ng(dira)
+                  do ky = 1, ads%ng(dirb)
+                     do kz = 1, ads%ng(dirc)
                         k = (/kx, ky, kz/)
 ! weigths
                         W = ads%Wx(kx)*ads%Wy(ky)*ads%Wz(kz)
@@ -526,21 +540,21 @@ contains
                         du = ads_data%dUn(ex, ey, ez, kx, ky, kz, :)
 
 !                 loop over degrees of freedom
-                        do ax = 0, ads%p(1)
-                           do ay = 0, ads%p(2)
-                              do az = 0, ads%p(3)
+                        do ax = 0, ads%p(dira)
+                           do ay = 0, ads%p(dirb)
+                              do az = 0, ads%p(dirc)
                                  indx = (ads%Ox(ex) + ax)
                                  indy = (ads%Oy(ey) + ay)
                                  indz = (ads%Oz(ez) + az)
                                  ind = indx + (indy + indz*(ads%n(2) + 1))*(ads%n(1) + 1)
 
-                                 if ((indx < ads%ibeg(1) - 1) .or. (indx > ads%iend(1) - 1) .or. &
-                                     (indy < ads%ibeg(2) - 1) .or. (indy > ads%iend(2) - 1) .or. &
-                                     (indz < ads%ibeg(3) - 1) .or. (indz > ads%iend(3) - 1)) then
+                                 if ((indx < ads%ibeg(dira) - 1) .or. (indx > ads%iend(dira) - 1) .or. &
+                                     (indy < ads%ibeg(dirb) - 1) .or. (indy > ads%iend(dirb) - 1) .or. &
+                                     (indz < ads%ibeg(dirc) - 1) .or. (indz > ads%iend(dirc) - 1)) then
                                  else
-                                    ind1 = indx - ads%ibeg(1) + 1
-                                    ind23 = (indy - ads%ibeg(2) + 1) + &
-                                            (indz - ads%ibeg(3) + 1)*(ads%iend(2) - ads%ibeg(2) + 1)
+                                    ind1 = indx - ads%ibeg(dira) + 1
+                                    ind23 = (indy - ads%ibeg(dirb) + 1) + &
+                                            (indz - ads%ibeg(dirc) + 1)*(ads%iend(dirb) - ads%ibeg(dirb) + 1)
                                     X = (/ads%Xx(kx, ex), ads%Xy(ky, ey), ads%Xz(kz, ez)/)
                                     a = (/ax, ay, az/)
 
@@ -581,18 +595,18 @@ contains
                end do
 ! moving results from temporary array to main one
 ! !$OMP CRITICAL
-               do ax = 0, ads%p(1)
-                  do ay = 0, ads%p(2)
-                     do az = 0, ads%p(3)
+               do ax = 0, ads%p(dira)
+                  do ay = 0, ads%p(dirb)
+                     do az = 0, ads%p(dirc)
                         indx = (ads%Ox(ex) + ax)
                         indy = (ads%Oy(ey) + ay)
                         indz = (ads%Oz(ez) + az)
-                        ind1 = indx - ads%ibeg(1) + 1
-                        ind23 = (indy - ads%ibeg(2) + 1) + &
-                                (indz - ads%ibeg(3) + 1)*(ads%iend(2) - ads%ibeg(2) + 1)
-                        if ((indx < ads%ibeg(1) - 1) .or. (indx > ads%iend(1) - 1) .or. &
-                            (indy < ads%ibeg(2) - 1) .or. (indy > ads%iend(2) - 1) .or. &
-                            (indz < ads%ibeg(3) - 1) .or. (indz > ads%iend(3) - 1)) then
+                        ind1 = indx - ads%ibeg(dira) + 1
+                        ind23 = (indy - ads%ibeg(dirb) + 1) + &
+                                (indz - ads%ibeg(dirc) + 1)*(ads%iend(dirb) - ads%ibeg(dirb) + 1)
+                        if ((indx < ads%ibeg(dira) - 1) .or. (indx > ads%iend(dira) - 1) .or. &
+                            (indy < ads%ibeg(dirb) - 1) .or. (indy > ads%iend(dirb) - 1) .or. &
+                            (indz < ads%ibeg(dirc) - 1) .or. (indz > ads%iend(dirc) - 1)) then
                         else
                            if (igrm) then
                               ads_data%Ft(ind1 + 1, ind23 + 1) = &
