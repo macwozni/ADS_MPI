@@ -221,9 +221,6 @@ contains
       ! allocate( F((n+1),(sy)*(sz))) !x,y,z
       !allocate( ads_data % F_test(ads % s(1), ads % s(2) * ads % s(3))) !x,y,z
 
-      allocate (ads_data%F (ads_trial%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
-      allocate (ads_data%F2(ads_trial%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,x,z
-      allocate (ads_data%F3(ads_trial%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TODO CHANGE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       allocate (ads_data%R(ads_trial%nrcpp(3)*ads_trial%nrcpp(1)*ads_trial%nrcpp(2), 3, 3, 3))
@@ -401,6 +398,14 @@ contains
       integer(kind=4) :: substep
       integer(kind=4), dimension(3, 3) :: abc
 
+
+      if (allocated(ads_data%R)) deallocate(ads_data%R)
+      allocate (ads_data%R(ads_trial%nrcpp(3)*ads_trial%nrcpp(1)*ads_trial%nrcpp(2), 3, 3, 3))
+      ads_data%R = 0.d0
+
+      allocate (ads_data%F (ads_trial%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
+      allocate (ads_data%F2(ads_trial%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,x,z
+      allocate (ads_data%F3(ads_trial%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
       allocate (ads_data%Ft (ads_test%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
       allocate (ads_data%Ft2(ads_trial%s(2), ads_test%s(3)*ads_trial%s(1))) !y,x,z
       allocate (ads_data%Ft3(ads_trial%s(3), ads_trial%s(1)*ads_test%s(2))) !z,x,y
@@ -417,8 +422,17 @@ contains
       if (allocated(ads_data%Ft)) deallocate(ads_data%Ft)
       if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
       if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
+      if (allocated(ads_data%F)) deallocate(ads_data%F)
+      if (allocated(ads_data%F2)) deallocate(ads_data%F2)
+      if (allocated(ads_data%F3)) deallocate(ads_data%F3)
 
+      if (allocated(ads_data%R)) deallocate(ads_data%R)
+      allocate (ads_data%R(ads_trial%nrcpp(2)*ads_trial%nrcpp(3)*ads_trial%nrcpp(1), 3, 3, 3))
+      ads_data%R = 0.d0
 
+      allocate (ads_data%F (ads_trial%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
+      allocate (ads_data%F2(ads_trial%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
+      allocate (ads_data%F3(ads_trial%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,z,x
       allocate (ads_data%Ft (ads_trial%s(3), ads_trial%s(1)*ads_test%s(2))) !z,x,y
       allocate (ads_data%Ft2(ads_trial%s(1), ads_test%s(2)*ads_trial%s(3))) !x,y,z
       allocate (ads_data%Ft3(ads_test%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,z,x
@@ -435,7 +449,17 @@ contains
       if (allocated(ads_data%Ft)) deallocate(ads_data%Ft)
       if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
       if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
+      if (allocated(ads_data%F)) deallocate(ads_data%F)
+      if (allocated(ads_data%F2)) deallocate(ads_data%F2)
+      if (allocated(ads_data%F3)) deallocate(ads_data%F3)
 
+      if (allocated(ads_data%R)) deallocate(ads_data%R)
+      allocate (ads_data%R(ads_trial%nrcpp(1)*ads_trial%nrcpp(2)*ads_trial%nrcpp(3), 3, 3, 3))
+      ads_data%R = 0.d0
+
+      allocate (ads_data%F (ads_trial%s(2), ads_trial%s(1)*ads_trial%s(3))) !y,x,z
+      allocate (ads_data%F2(ads_trial%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
+      allocate (ads_data%F3(ads_trial%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
       allocate (ads_data%Ft (ads_trial%s(2), ads_trial%s(1)*ads_test%s(3))) !y,x,z
       allocate (ads_data%Ft2(ads_test%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
       allocate (ads_data%Ft3(ads_trial%s(1), ads_trial%s(2)*ads_test%s(3))) !x,y,z
@@ -452,6 +476,9 @@ contains
       if (allocated(ads_data%Ft)) deallocate(ads_data%Ft)
       if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
       if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
+      if (allocated(ads_data%F)) deallocate(ads_data%F)
+      if (allocated(ads_data%F2)) deallocate(ads_data%F2)
+      if (allocated(ads_data%F3)) deallocate(ads_data%F3)
 
    end subroutine MultiStep
 
@@ -489,9 +516,21 @@ contains
       call FormUn(1, ads, ads_data)
       alpha_step = 1.d0
 
+
+      if (allocated(ads_data%R)) deallocate(ads_data%R)
+      allocate (ads_data%R(ads%nrcpp(3)*ads%nrcpp(1)*ads%nrcpp(2), 3, 3, 3))
+      ads_data%R = 0.d0
+
+      allocate (ads_data%F (ads%s(1), ads%s(2)*ads%s(3))) !x,y,z
+      allocate (ads_data%F2(ads%s(2), ads%s(3)*ads%s(1))) !y,x,z
+      allocate (ads_data%F3(ads%s(3), ads%s(1)*ads%s(2))) !z,x,y
+
       !call Sub_Step(ads, ads, iter, mix,direction,substep,abc,RHS_fun,ads_data, l2norm, mierr)
       call Sub_Step(ads, ads, iter, mix, direction, substep, abc, &
                     1, alpha_step, RHS_fun, ads_data, l2norm, mierr)
+      if (allocated(ads_data%F)) deallocate(ads_data%F)
+      if (allocated(ads_data%F2)) deallocate(ads_data%F2)
+      if (allocated(ads_data%F3)) deallocate(ads_data%F3)
 
    end subroutine Step
 
@@ -551,7 +590,7 @@ contains
       type(ADS_compute_data), intent(inout) :: ads_data
       real(kind=8), intent(out) :: l2norm
       integer(kind=4), intent(out) :: mierr
-      integer(kind=4) :: i
+      integer(kind=4) :: i,a,b,c
       integer(kind=4) :: ierr!, iret
       integer(kind=4), dimension(3) :: nrcpp
       ! real(kind=8) :: time1, time2
@@ -598,9 +637,12 @@ contains
 #ifdef IINFO
       write (*, *) PRINTRANK, '3e) DISTRIBUTE SOLUTION'
 #endif
+      a=abc(1, 1)
+      b=abc(2, 1)
+      c=abc(3, 1)
 !  copy results to proper buffer
-      do i = 1, ads_trial%s(2)*ads_trial%s(3)
-         ads_data%R((i - 1)*ads_trial%s(1) + 1:i*ads_trial%s(1), 2, 2, 2) = ads_data%F(:, i)
+      do i = 1, ads_trial%s(b)*ads_trial%s(c)
+         ads_data%R((i - 1)*ads_trial%s(a) + 1:i*ads_trial%s(a), 2, 2, 2) = ads_data%F(:, i)
       end do
 !  nrcpp - number of columns (average) per processor
       nrcpp = (/ads_trial%nrcpp(3), ads_trial%nrcpp(1), ads_trial%nrcpp(2)/)
