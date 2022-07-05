@@ -5,14 +5,14 @@ contains
 ! -------------------------------------------------------------------
 ! Initialization of clocks and MPI
 ! -------------------------------------------------------------------
-   subroutine initialize(nelem, p1, p2, continuity, ads_test, ads_trial, ads_data, mierr)
+   subroutine initialize(nelem, p_test, p_trial, continuity, ads_test, ads_trial, ads_data, mierr)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use knot_vector, ONLY: PrepareKnot
       use basis, ONLY: BasisData
       use mpi
       implicit none
       integer(kind=4), intent(in), dimension(3) :: nelem
-      integer(kind=4), intent(in), dimension(3) :: p1, p2
+      integer(kind=4), intent(in), dimension(3) :: p_test, p_trial
       integer(kind=4), intent(in), dimension(3) :: continuity
       type(ADS_setup), intent(out) :: ads_trial
       type(ADS_setup), intent(out) :: ads_test
@@ -22,18 +22,18 @@ contains
       integer(kind=4), dimension(3) :: n1,n2
       integer(kind=4), dimension(3) :: ads_trialng, ads_testng
 
-      n1 = nelem+p1-1
-      n2 = nelem+p2-1
+      n1 = nelem+p_test-1
+      n2 = nelem+p_trial-1
 
-      ads_testng = p1+1
-      ads_trialng = p2+1
+      ads_testng = p_test+1
+      ads_trialng = p_trial+1
 
-      if (p1(1).GT.p2(1)) ads_trialng(1)=p1(1)+1
-      if (p1(2).GT.p2(2)) ads_trialng(2)=p1(2)+1
-      if (p1(3).GT.p2(3)) ads_trialng(3)=p1(3)+1
+      if (p_test(1).GT.p_trial(1)) ads_trialng(1)=p_test(1)+1
+      if (p_test(2).GT.p_trial(2)) ads_trialng(2)=p_test(2)+1
+      if (p_test(3).GT.p_trial(3)) ads_trialng(3)=p_test(3)+1
 
-      call initialize_setup(n1, p1, continuity, ads_testng, ads_test, mierr)
-      call initialize_setup(n2, p2, continuity, ads_trialng, ads_trial, mierr)
+      call initialize_setup(n1, p_test, continuity, ads_testng, ads_test, mierr)
+      call initialize_setup(n2, p_trial, continuity, ads_trialng, ads_trial, mierr)
 
       call AllocateADSdata(ads_test, ads_trial, ads_data)
 
@@ -65,7 +65,7 @@ contains
       call PrepareKnot(n(2), p(2), Uy, nelem(2))
       call PrepareKnot(n(3), p(3), Uz, nelem(3))
 
-      call AllocateADS(n, nelem, p, ads)
+      call AllocateADS(n, nelem, p, ng, ads)
 
       call move_alloc(Ux, ads%Ux)
       call move_alloc(Uy, ads%Uy)
@@ -237,12 +237,12 @@ contains
 ! -------------------------------------------------------------------
 ! Allocates most of the 'static' arrays
 ! -------------------------------------------------------------------
-   subroutine AllocateADS(n, nelem, p, ads)
+   subroutine AllocateADS(n, nelem, p, ng, ads)
       use Setup, ONLY: ADS_Setup
       use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ
       use mpi
       implicit none
-      integer(kind=4), dimension(3), intent(in) :: n, nelem, p
+      integer(kind=4), dimension(3), intent(in) :: n, nelem, p, ng
       type(ADS_setup), intent(out) :: ads
       ! integer :: ierr
 
@@ -254,17 +254,17 @@ contains
       allocate (ads%Jy(nelem(2)))
       allocate (ads%Jz(nelem(3)))
 
-      allocate (ads%Xx(p(1) + 1, nelem(1)))
-      allocate (ads%Xy(p(2) + 1, nelem(2)))
-      allocate (ads%Xz(p(3) + 1, nelem(3)))
+      allocate (ads%Xx(ng(1), nelem(1)))
+      allocate (ads%Xy(ng(2), nelem(2)))
+      allocate (ads%Xz(ng(3), nelem(3)))
 
-      allocate (ads%NNx(0:1, 0:p(1), p(1) + 1, nelem(1)))
-      allocate (ads%NNy(0:1, 0:p(2), p(2) + 1, nelem(2)))
-      allocate (ads%NNz(0:1, 0:p(3), p(3) + 1, nelem(3)))
+      allocate (ads%NNx(0:1, 0:ng(1)-1, p(1) + 1, nelem(1)))
+      allocate (ads%NNy(0:1, 0:ng(2)-1, p(2) + 1, nelem(2)))
+      allocate (ads%NNz(0:1, 0:ng(3)-1, p(3) + 1, nelem(3)))
 
-      allocate (ads%Wx(p(1) + 1))
-      allocate (ads%Wy(p(2) + 1))
-      allocate (ads%Wz(p(3) + 1))
+      allocate (ads%Wx(ng(1)))
+      allocate (ads%Wy(ng(2)))
+      allocate (ads%Wz(ng(3)))
 
       ! Processes on the border need pivot vector for LAPACK call
       if (MYRANKX == 0 .or. MYRANKY == 0 .or. MYRANKZ == 0) then
