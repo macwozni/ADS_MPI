@@ -114,7 +114,7 @@ contains
 
       ads%m = ads%n+ads%p+1
 
-      ADS%ng = ng
+      ads%ng = ng
 
       call BasisData(ads%p(1), ads%m(1), ads%Ux, 1, ads%ng(1), &
                      ads%nelem(1), ads%Ox, ads%Jx, ads%Wx, ads%Xx, ads%NNx)
@@ -437,9 +437,9 @@ contains
       allocate (ads_data%F (ads_trial%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,z,x
       allocate (ads_data%F2(ads_trial%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
       allocate (ads_data%F3(ads_trial%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
-      allocate (ads_data%Ft (ads_trial%s(2), ads_trial%s(3)*ads_test%s(1))) !y,z,x
-      allocate (ads_data%Ft2(ads_trial%s(3), ads_test%s(1)*ads_trial%s(2))) !z.x.y
-      allocate (ads_data%Ft3(ads_test%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
+      allocate (ads_data%Ft (ads_test%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,z,x
+      allocate (ads_data%Ft2(ads_trial%s(3), ads_trial%s(1)*ads_test%s(2))) !z.x.y
+      allocate (ads_data%Ft3(ads_trial%s(1), ads_test%s(2)*ads_trial%s(3))) !x,y,z
 
       mmix = mix(:, 2)
       direction = (/0, 1, 0/) ! y
@@ -461,16 +461,16 @@ contains
       allocate (ads_data%R(ads_trial%nrcpp(1)*ads_trial%nrcpp(2)*ads_trial%nrcpp(3), 3, 3, 3))
       ads_data%R = 0.d0
 
-      allocate (ads_data%F (ads_trial%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,y,x
+      allocate (ads_data%F (ads_trial%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
       allocate (ads_data%F2(ads_trial%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
       allocate (ads_data%F3(ads_trial%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,z,x
-      allocate (ads_data%Ft (ads_trial%s(2), ads_trial%s(1)*ads_test%s(2))) !z,y,x
-      allocate (ads_data%Ft2(ads_test%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
-      allocate (ads_data%Ft3(ads_trial%s(2), ads_trial%s(3)*ads_test%s(1))) !y,z,x
+      allocate (ads_data%Ft (ads_test%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
+      allocate (ads_data%Ft2(ads_trial%s(1), ads_trial%s(2)*ads_test%s(3))) !x,y,z
+      allocate (ads_data%Ft3(ads_trial%s(2), ads_test%s(3)*ads_trial%s(1))) !y,z,x
 
       mmix = mix(:, 3)
       direction = (/0, 0, 1/) ! z
-      abc(:, 1) = (/3, 1, 2/) ! z y x
+      abc(:, 1) = (/3, 1, 2/) ! z y y
       abc(:, 2) = (/1, 2, 3/) ! x y z
       abc(:, 3) = (/2, 3, 1/) ! y z x
       substep = 3

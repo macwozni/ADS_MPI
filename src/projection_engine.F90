@@ -451,9 +451,9 @@ contains
          ads%NNy = ads_test%NNy
          ads%Wy = ads_test%Wy
          igrm = .TRUE.
-         dira=3
-         dirb=1
-         dirc=2
+         dira=2
+         dirb=3
+         dirc=1
       end if
       if (direction(3) .EQ. 1) then
          ads%n(3) = ads_test%n(3)
@@ -484,9 +484,9 @@ contains
          ads%NNz = ads_test%NNz
          ads%Wz = ads_test%Wz
          igrm = .TRUE.
-         dira=2
-         dirb=3
-         dirc=1
+         dira=3
+         dirb=1
+         dirc=2
       end if
 
       allocate (elarr(0:ads%p(dira), 0:ads%p(dirb), 0:ads%p(dirc)))
