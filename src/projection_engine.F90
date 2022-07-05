@@ -555,8 +555,17 @@ contains
                                     ind1 = indx - ads%ibeg(dira) + 1
                                     ind23 = (indy - ads%ibeg(dirb) + 1) + &
                                             (indz - ads%ibeg(dirc) + 1)*(ads%iend(dirb) - ads%ibeg(dirb) + 1)
-                                    X = (/ads%Xx(kx, ex), ads%Xy(ky, ey), ads%Xz(kz, ez)/)
-                                    a = (/ax, ay, az/)
+                                    !X = (/ads%Xx(kx, ex), ads%Xy(ky, ey), ads%Xz(kz, ez)/)
+                                    !a = (/ax, ay, az/)
+
+                                    X(dira) = ads%Xx(kx, ex)
+                                    X(dirb) = ads%Xy(ky, ey)
+                                    X(dirc) = ads%Xz(kz, ez)
+
+                                    a(dira) = ax
+                                    a(dirb) = ay
+                                    a(dirc) = az
+
 
                                     ! call RHS_fun(&
                                     ! ads, &

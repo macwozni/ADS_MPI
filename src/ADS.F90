@@ -258,9 +258,9 @@ contains
       allocate (ads%Xy(ng(2), nelem(2)))
       allocate (ads%Xz(ng(3), nelem(3)))
 
-      allocate (ads%NNx(0:1, 0:ng(1)-1, p(1) + 1, nelem(1)))
-      allocate (ads%NNy(0:1, 0:ng(2)-1, p(2) + 1, nelem(2)))
-      allocate (ads%NNz(0:1, 0:ng(3)-1, p(3) + 1, nelem(3)))
+      allocate (ads%NNx(0:1, 0:p(1), ng(1), nelem(1)))
+      allocate (ads%NNy(0:1, 0:p(2), ng(2), nelem(2)))
+      allocate (ads%NNz(0:1, 0:p(3), ng(3), nelem(3)))
 
       allocate (ads%Wx(ng(1)))
       allocate (ads%Wy(ng(2)))
