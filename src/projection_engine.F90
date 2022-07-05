@@ -531,13 +531,15 @@ contains
                do kx = 1, ads%ng(dira)
                   do ky = 1, ads%ng(dirb)
                      do kz = 1, ads%ng(dirc)
-                        k = (/kx, ky, kz/)
+                        k(dira) = kx
+                        k(dirb) = ky
+                        k(dirc) = kz
 ! weigths
-                        W = ads%Wx(kx)*ads%Wy(ky)*ads%Wz(kz)
-                        Uval = ads_data%Un(ex, ey, ez, kx, ky, kz)
-                        Uval13 = ads_data%Un13(ex, ey, ez, kx, ky, kz)
-                        Uval23 = ads_data%Un23(ex, ey, ez, kx, ky, kz)
-                        du = ads_data%dUn(ex, ey, ez, kx, ky, kz, :)
+                        W = ads%Wx(k(1))*ads%Wy(k(2))*ads%Wz(k(3))
+                        Uval = ads_data%Un(ex, ey, ez, k(1), k(2), k(3))
+                        Uval13 = ads_data%Un13(ex, ey, ez, k(1), k(2), k(3))
+                        Uval23 = ads_data%Un23(ex, ey, ez, k(1), k(2), k(3))
+                        du = ads_data%dUn(ex, ey, ez, k(1), k(2), k(3), :)
 
 !                 loop over degrees of freedom
                         do ax = 0, ads%p(dira)
@@ -558,9 +560,9 @@ contains
                                     !X = (/ads%Xx(kx, ex), ads%Xy(ky, ey), ads%Xz(kz, ez)/)
                                     !a = (/ax, ay, az/)
 
-                                    X(dira) = ads%Xx(kx, ex)
-                                    X(dirb) = ads%Xy(ky, ey)
-                                    X(dirc) = ads%Xz(kz, ez)
+                                    X(dira) = ads%Xx(k(1), ex)
+                                    X(dirb) = ads%Xy(k(2), ey)
+                                    X(dirc) = ads%Xz(k(3), ez)
 
                                     a(dira) = ax
                                     a(dirb) = ay
