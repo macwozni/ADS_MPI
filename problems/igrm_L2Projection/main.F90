@@ -19,7 +19,7 @@ program main
    integer(kind = 4) :: i, j
 
    integer(kind = 4) :: ierr
-   integer(kind = 4), dimension(3) :: n, p1, p2
+   integer(kind = 4), dimension(3) :: nelem, p1, p2
    
    logical :: prnt = .FALSE.
    logical :: ok = .TRUE.
@@ -50,23 +50,28 @@ program main
 
    call InitializeParallelism(procx, procy, procz, ierr)
    call CreateCommunicators(ierr)
-   n = (/ isizex, isizey, isizez /)
-   p1 = (/ order, order, order /)
-   p2 = (/ order, order, order /)
-   call Initialize(n, p1, p2, p1-1, ads_test, ads_trial, ads_data, ierr)
+   !nelem = (/ isizex, isizey, isizez /)
+   !p1 = (/ order, order, order /)
+   !p2 = (/ order, order, order /)
+   nelem = (/ 2,2,2 /)
+   p1 = (/1,1,1/)
+   p2 = (/1,1,1/)
+   call Initialize(nelem, p1, p2, p2-1, ads_test, ads_trial, ads_data, ierr)
 
    fullnorm = 0.d0
    iter = 0
    l2norm = 0.d0
    
-   mix=1.d0
+   mix(:, 1) = (/1.d0, 0.d0, 0.d0, 0.d0/)
+   mix(:, 2) = (/1.d0, 0.d0, 0.d0, 0.d0/)
+   mix(:, 3) = (/1.d0, 0.d0, 0.d0, 0.d0/)
    alpha_step=1.d0
    nn=1.d0
-   ! call MultiStep(iter, mix, forcing, ads_test, ads_trial, ads_data,nn,alpha_step, l2norm, ierr)
+   call MultiStep(iter, mix, forcing, ads_test, ads_trial, ads_data,nn,alpha_step, ierr)
 
 
-   call Step(iter, forcing, ads_trial, ads_data, l2norm, ierr)
-   call MPI_Reduce(l2norm, fullnorm, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+   ! call Step(iter, forcing, ads_trial, ads_data, ierr)
+   ! call MPI_Reduce(l2norm, fullnorm, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
    
    ! if (MYRANK == 0) then
    !    write(*, *)'L2 norm:', fullnorm

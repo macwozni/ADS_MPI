@@ -349,10 +349,9 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
 !> @param[inout] ads_data  - data structures for ADS
 !
 ! Output:
-! -------
-!> @param[out] l2norm      -
+! --------
 ! -------------------------------------------------------------------
-   subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, alpha_step, forcing, igrm, l2norm)
+   subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, alpha_step, forcing, igrm)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       ! use parallelism, ONLY: PRINTRANK
       use Interfaces, ONLY: forcing_fun
@@ -367,7 +366,6 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
       type(ADS_compute_data), intent(inout) :: ads_data
       integer(kind=4), intent(in) :: n
       real(kind=8), intent(in), dimension(7, 3) :: alpha_step
-      real(kind=8), intent(out) :: l2norm
       integer(kind=4) :: kx, ky, kz, ax, ay, az, ex, ey, ez!, exx,eyy,ezz
       real(kind=8) :: J, W
       integer(kind=4) :: ind, ind1, ind23, indx, indy, indz
@@ -382,7 +380,6 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
       real(kind=8) :: Uval13
       real(kind=8) :: Uval23
       real(kind=8), dimension(:, :, :), allocatable :: elarr
-      real(kind=8) :: l2normtmp
       type(ADS_setup) :: ads
       logical, intent(out) :: igrm
       integer(kind=4) :: dira,dirb,dirc ! direction of going throuh space
@@ -499,7 +496,6 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
       allocate (elarr(0:ads%p(dira), 0:ads%p(dirb), 0:ads%p(dirc)))
       ! total_size = ads % lnelem(1) * ads % lnelem(2) * ads % lnelem(3)
 
-      l2norm = 0.d0
 !   if (allocated(ads_data%F)) ads_data%F = 0.d0
 !   if (allocated(ads_data%Ft)) ads_data%Ft = 0.d0
 
@@ -509,8 +505,7 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
 ! !$OMP SHARED(ads,ads_data,total_size) &
 ! !$OMP PRIVATE(tmp,ex,ey,ez,e,kx,ky,kz,k,W,ax,ay,az,a,ind,indx,indy,indz,ind1,ind23,J) &
 ! !$OMP PRIVATE(X,du,resvalue) &
-! !$OMP PRIVATE(indbx,indby,indbz,Uval,elarr,l2normtmp,Uval_m,Uval13,Uval23) &
-! !$OMP REDUCTION(+:l2norm)
+! !$OMP PRIVATE(indbx,indby,indbz,Uval,elarr,,Uval_m,Uval13,Uval23)
       ! do all = 1, total_size
 ! translate coefficients to local
       ! ez = modulo(all - 1, ads % lnelem(3))
@@ -582,7 +577,7 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
                                     ! a, &
                                     ! du, &
                                     ! 1, Uval_m, Uval13,Uval23, &
-                                    ! ads_data, J, W, direction, substep, l2normtmp, resvalue)
+                                    ! ads_data, J, W, direction, substep, resvalue)
 
                                     call ComputePointForRHS( &
                                        ads, &
@@ -598,10 +593,9 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
                                        ads_data, J, W, direction, substep, &
                                        alpha_step, &
                                        forcing, &
-                                       l2normtmp, resvalue)
+                                       resvalue)
 
                                     elarr(ax, ay, az) = elarr(ax, ay, az) + resvalue
-                                    l2norm = l2norm + l2normtmp
                                  end if
                               end do
                            end do
