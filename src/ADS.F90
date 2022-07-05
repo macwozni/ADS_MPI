@@ -20,19 +20,20 @@ contains
       integer(kind=4), intent(out) :: mierr
       integer(kind=4) :: ierr
       integer(kind=4), dimension(3) :: n1,n2
+      integer(kind=4), dimension(3) :: ads_trialng, ads_testng
 
       n1 = nelem+p1-1
       n2 = nelem+p2-1
 
-      ads_test%ng = p1+1
-      ads_trial%ng = p2+1
+      ads_testng = p1+1
+      ads_trialng = p2+1
 
-      if (p1(1).GT.p2(1)) ads_trial%ng(1)=p1(1)+1
-      if (p1(2).GT.p2(2)) ads_trial%ng(2)=p1(2)+1
-      if (p1(3).GT.p2(3)) ads_trial%ng(3)=p1(3)+1
+      if (p1(1).GT.p2(1)) ads_trialng(1)=p1(1)+1
+      if (p1(2).GT.p2(2)) ads_trialng(2)=p1(2)+1
+      if (p1(3).GT.p2(3)) ads_trialng(3)=p1(3)+1
 
-      call initialize_setup(n1, p1, continuity, ads_test, mierr)
-      call initialize_setup(n2, p2, continuity, ads_trial, mierr)
+      call initialize_setup(n1, p1, continuity, ads_testng, ads_test, mierr)
+      call initialize_setup(n2, p2, continuity, ads_trialng, ads_trial, mierr)
 
       call AllocateADSdata(ads_test, ads_trial, ads_data)
 
@@ -41,7 +42,7 @@ contains
 ! -------------------------------------------------------------------
 ! Initialization of clocks and MPI
 ! -------------------------------------------------------------------
-   subroutine initialize_setup(n, p, continuity, ads, mierr)
+   subroutine initialize_setup(n, p, continuity, ng, ads, mierr)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ
       use knot_vector, ONLY: PrepareKnot
@@ -51,6 +52,7 @@ contains
       integer(kind=4), intent(in), dimension(3) :: n
       integer(kind=4), intent(in), dimension(3) :: p
       integer(kind=4), intent(in), dimension(3) :: continuity
+      integer(kind=4), intent(in), dimension(3) :: ng
       type(ADS_setup), intent(out) :: ads
       integer(kind=4), intent(out) :: mierr
       integer(kind=4) :: ierr
@@ -111,6 +113,8 @@ contains
       mierr = 0
 
       ads%m = ads%n+ads%p+1
+
+      ADS%ng = ng
 
       call BasisData(ads%p(1), ads%m(1), ads%Ux, 1, ads%ng(1), &
                      ads%nelem(1), ads%Ox, ads%Jx, ads%Wx, ads%Xx, ads%NNx)
@@ -404,16 +408,16 @@ contains
       ads_data%R = 0.d0
 
       allocate (ads_data%F (ads_trial%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
-      allocate (ads_data%F2(ads_trial%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,x,z
+      allocate (ads_data%F2(ads_trial%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,z,x
       allocate (ads_data%F3(ads_trial%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
       allocate (ads_data%Ft (ads_test%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
-      allocate (ads_data%Ft2(ads_trial%s(2), ads_trial%s(3)*ads_test%s(1))) !y,x,z
+      allocate (ads_data%Ft2(ads_trial%s(2), ads_trial%s(3)*ads_test%s(1))) !y,z,x
       allocate (ads_data%Ft3(ads_trial%s(3), ads_test%s(1)*ads_trial%s(2))) !z,x,y
 
       mmix = mix(:, 1)
       direction = (/1, 0, 0/) ! x
       abc(:, 1) = (/1, 2, 3/) ! x y z
-      abc(:, 2) = (/2, 3, 1/) ! y x z
+      abc(:, 2) = (/2, 3, 1/) ! y z x
       abc(:, 3) = (/3, 1, 2/) ! z x y
       substep = 1
       call FormUn(substep, ads_trial, ads_data)
@@ -430,18 +434,18 @@ contains
       allocate (ads_data%R(ads_trial%nrcpp(2)*ads_trial%nrcpp(3)*ads_trial%nrcpp(1), 3, 3, 3))
       ads_data%R = 0.d0
 
-      allocate (ads_data%F (ads_trial%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
-      allocate (ads_data%F2(ads_trial%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
-      allocate (ads_data%F3(ads_trial%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,z,x
-      allocate (ads_data%Ft (ads_trial%s(3), ads_trial%s(1)*ads_test%s(2))) !z,x,y
-      allocate (ads_data%Ft2(ads_trial%s(1), ads_test%s(2)*ads_trial%s(3))) !x,y,z
-      allocate (ads_data%Ft3(ads_test%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,z,x
+      allocate (ads_data%F (ads_trial%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,z,x
+      allocate (ads_data%F2(ads_trial%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
+      allocate (ads_data%F3(ads_trial%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
+      allocate (ads_data%Ft (ads_trial%s(2), ads_trial%s(3)*ads_test%s(1))) !y,z,x
+      allocate (ads_data%Ft2(ads_trial%s(3), ads_test%s(1)*ads_trial%s(2))) !z.x.y
+      allocate (ads_data%Ft3(ads_test%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
 
       mmix = mix(:, 2)
       direction = (/0, 1, 0/) ! y
-      abc(:, 1) = (/3, 1, 2/) ! z y x
-      abc(:, 2) = (/1, 2, 3/) ! x y z
-      abc(:, 3) = (/2, 3, 1/) ! y x z
+      abc(:, 1) = (/2, 3, 1/) ! y z x
+      abc(:, 2) = (/3, 1, 2/) ! z x y
+      abc(:, 3) = (/1, 2, 3/) ! x y z
       substep = 2
       call FormUn(substep, ads_trial, ads_data)
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
@@ -457,18 +461,18 @@ contains
       allocate (ads_data%R(ads_trial%nrcpp(1)*ads_trial%nrcpp(2)*ads_trial%nrcpp(3), 3, 3, 3))
       ads_data%R = 0.d0
 
-      allocate (ads_data%F (ads_trial%s(2), ads_trial%s(1)*ads_trial%s(3))) !y,x,z
-      allocate (ads_data%F2(ads_trial%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
-      allocate (ads_data%F3(ads_trial%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
-      allocate (ads_data%Ft (ads_trial%s(2), ads_trial%s(1)*ads_test%s(3))) !y,x,z
-      allocate (ads_data%Ft2(ads_test%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
-      allocate (ads_data%Ft3(ads_trial%s(1), ads_trial%s(2)*ads_test%s(3))) !x,y,z
+      allocate (ads_data%F (ads_trial%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,y,x
+      allocate (ads_data%F2(ads_trial%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
+      allocate (ads_data%F3(ads_trial%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,z,x
+      allocate (ads_data%Ft (ads_trial%s(2), ads_trial%s(1)*ads_test%s(2))) !z,y,x
+      allocate (ads_data%Ft2(ads_test%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
+      allocate (ads_data%Ft3(ads_trial%s(2), ads_trial%s(3)*ads_test%s(1))) !y,z,x
 
       mmix = mix(:, 3)
       direction = (/0, 0, 1/) ! z
-      abc(:, 1) = (/2, 1, 3/) ! y x z
-      abc(:, 2) = (/3, 1, 2/) ! z x y
-      abc(:, 3) = (/1, 2, 3/) ! x y z
+      abc(:, 1) = (/3, 1, 2/) ! z y x
+      abc(:, 2) = (/1, 2, 3/) ! x y z
+      abc(:, 3) = (/2, 3, 1/) ! y z x
       substep = 3
       call FormUn(substep, ads_trial, ads_data)
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
@@ -1064,7 +1068,6 @@ contains
       if (a .EQ. 3) call ReorderRHSForX(ads_trial%ibeg, ads_trial%iend, F2_out, F2)
 
       if (igrm) then
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TODO reorder !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          if (a .EQ. 1) call ReorderRHSForY(ibeg, iend, Ft2_out, Ft2)
          if (a .EQ. 2) call ReorderRHSForZ(ibeg, iend, Ft2_out, Ft2)
          if (a .EQ. 3) call ReorderRHSForX(ibeg, iend, Ft2_out, Ft2)
