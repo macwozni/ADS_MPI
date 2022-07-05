@@ -383,7 +383,7 @@ contains
 ! iter - number of the iteration
 ! t    - time at the beginning of step
 ! -------------------------------------------------------------------
-   subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha_step, l2norm, mierr)
+   subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha_step, mierr)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use projection_engine, ONLY: FormUn
       use Interfaces, ONLY: forcing_fun
@@ -395,7 +395,6 @@ contains
       procedure(forcing_fun) :: RHS_fun
       type(ADS_setup), intent(in) :: ads_test, ads_trial
       type(ADS_compute_data), intent(inout) :: ads_data
-      real(kind=8), intent(out) :: l2norm
       integer(kind=4), intent(out) :: mierr
       real(kind=8) :: mmix(4)
       integer(kind=4), dimension(3) :: direction
@@ -422,7 +421,7 @@ contains
       substep = 1
       call FormUn(substep, ads_trial, ads_data)
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
-                    n, alpha_step, RHS_fun, ads_data, l2norm, mierr)
+                    n, alpha_step, RHS_fun, ads_data, mierr)
       if (allocated(ads_data%Ft)) deallocate(ads_data%Ft)
       if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
       if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
@@ -449,7 +448,7 @@ contains
       substep = 2
       call FormUn(substep, ads_trial, ads_data)
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
-                    n, alpha_step, RHS_fun, ads_data, l2norm, mierr)
+                    n, alpha_step, RHS_fun, ads_data, mierr)
       if (allocated(ads_data%Ft)) deallocate(ads_data%Ft)
       if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
       if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
@@ -476,7 +475,7 @@ contains
       substep = 3
       call FormUn(substep, ads_trial, ads_data)
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
-                    n, alpha_step, RHS_fun, ads_data, l2norm, mierr)
+                    n, alpha_step, RHS_fun, ads_data, mierr)
       if (allocated(ads_data%Ft)) deallocate(ads_data%Ft)
       if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
       if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
@@ -492,7 +491,7 @@ contains
 ! iter - number of the iteration
 ! t    - time at the beginning of step
 ! -------------------------------------------------------------------
-   subroutine Step(iter, RHS_fun, ads, ads_data, l2norm, mierr)
+   subroutine Step(iter, RHS_fun, ads, ads_data, mierr)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use projection_engine, ONLY: FormUn
       use Interfaces, ONLY: forcing_fun
@@ -501,7 +500,6 @@ contains
       procedure(forcing_fun) :: RHS_fun
       type(ADS_setup), intent(in) :: ads
       type(ADS_compute_data), intent(inout) :: ads_data
-      real(kind=8), intent(out) :: l2norm
       integer(kind=4), intent(out) :: mierr
       real(kind=8) :: mix(4)
       integer(kind=4), dimension(3) :: direction
@@ -529,9 +527,9 @@ contains
       allocate (ads_data%F2(ads%s(2), ads%s(3)*ads%s(1))) !y,x,z
       allocate (ads_data%F3(ads%s(3), ads%s(1)*ads%s(2))) !z,x,y
 
-      !call Sub_Step(ads, ads, iter, mix,direction,substep,abc,RHS_fun,ads_data, l2norm, mierr)
+      !call Sub_Step(ads, ads, iter, mix,direction,substep,abc,RHS_fun,ads_data, mierr)
       call Sub_Step(ads, ads, iter, mix, direction, substep, abc, &
-                    1, alpha_step, RHS_fun, ads_data, l2norm, mierr)
+                    1, alpha_step, RHS_fun, ads_data, mierr)
       if (allocated(ads_data%F)) deallocate(ads_data%F)
       if (allocated(ads_data%F2)) deallocate(ads_data%F2)
       if (allocated(ads_data%F3)) deallocate(ads_data%F3)
@@ -564,13 +562,12 @@ contains
 !
 ! Output:
 ! -------
-!> @param[out] l2norm
 !> @param[out] mierr
 !
 ! -------------------------------------------------------------------
    subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
                        n, alpha_step, &
-                       RHS_fun, ads_data, l2norm, mierr)
+                       RHS_fun, ads_data, mierr)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       ! use parallelism, ONLY: PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
       ! use communicators, ONLY: COMMX, COMMY, COMMZ
@@ -592,7 +589,6 @@ contains
       real(kind=8), intent(in), dimension(7, 3) :: alpha_step
       procedure(forcing_fun) :: RHS_fun
       type(ADS_compute_data), intent(inout) :: ads_data
-      real(kind=8), intent(out) :: l2norm
       integer(kind=4), intent(out) :: mierr
       integer(kind=4) :: i,a,b,c
       integer(kind=4) :: ierr!, iret
@@ -607,7 +603,7 @@ contains
       if (allocated(ads_data%F)) ads_data%F = 0.d0
       if (allocated(ads_data%Ft)) ads_data%Ft = 0.d0
 ! generate the RHS vectors
-      call Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, alpha_step, RHS_fun, igrm, l2norm)
+      call Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, alpha_step, RHS_fun, igrm)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write (*, *) "Form 3D RHS: ", time2 - time1

@@ -28,7 +28,6 @@ contains
 ! Output:
 ! -------
 ! ret             - value of RHS function at given point
-! l2norm          -
 !
 ! -------------------------------------------------------------------
 
@@ -46,7 +45,7 @@ contains
       ads_data, J, W, direction, substep, &
       alpha_step, &
       forcing, &
-      l2norm, ret)
+      ret)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use Interfaces, ONLY: forcing_fun
       implicit none
@@ -64,7 +63,6 @@ contains
       integer(kind=4), intent(in) :: substep
       procedure(forcing_fun) :: forcing
       real(kind=8), intent(in), dimension(7, 3) :: alpha_step
-      real(kind=8), intent(out) :: l2norm
       real(kind=8), intent(out) :: ret
       real(kind=8) :: fval
       real(kind=8), dimension(3) :: dv
