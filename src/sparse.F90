@@ -215,7 +215,7 @@ contains
       implicit none
       type(sparse_matrix), intent(in) :: matrix
       integer :: x, y
-      real(kind=8), dimension(0:matrix%x, 0:matrix%y), intent(out) :: dmatrix
+      real(kind=8), dimension(0:matrix%x-1, 0:matrix%y-1), intent(out) :: dmatrix
       type(sparse_matrix_line), pointer :: line
       type(sparse_matrix_entry), pointer :: entr
 
