@@ -34,7 +34,7 @@ contains
       write (outFile, '(A)') '<VTKFile type="ImageData" version="0.1">'
 
       ! Prepare extent (count of parts in each dimension) for later use
-      ! Rormat: "x1 x2 y1 y2 z1 z2"
+      ! Format: "x1 x2 y1 y2 z1 z2"
       write (extent, '("0 ",(I5)," 0 ",(I5)," 0 ",(I5))') &
          params%resx - 1, params%resy - 1, params%resz - 1
 

@@ -324,7 +324,7 @@ contains
 !  column permutation for zero-free diagonal (automatic)
 !  mumps_par%icntl(6)  = 7
 !  pivot order (automatic)
-      mumps_par%icntl(7) = 4 !1 enforce ordering, 5 metis, 0 AMD, 7 auto
+      mumps_par%icntl(7) = 7 !1 enforce ordering, 5 metis, 0 AMD, 7 auto
 !  scaling (automatic)
 !  mumps_par%icntl(8)  = 7
 !  no transpose
@@ -422,12 +422,15 @@ contains
       call FormUn(substep, ads_trial, ads_data)
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
                     n, alpha_step, RHS_fun, ads_data, mierr)
-      if (allocated(ads_data%Ft)) deallocate(ads_data%Ft)
+      if (allocated(ads_data%FFt)) deallocate(ads_data%FFt)
       if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
       if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
-      if (allocated(ads_data%F)) deallocate(ads_data%F)
+      if (allocated(ads_data%FF)) deallocate(ads_data%FF)
       if (allocated(ads_data%F2)) deallocate(ads_data%F2)
       if (allocated(ads_data%F3)) deallocate(ads_data%F3)
+
+      call move_alloc(ads_data%F,ads_data%FF)
+      call move_alloc(ads_data%Ft,ads_data%FFt)
 
       if (allocated(ads_data%R)) deallocate(ads_data%R)
       allocate (ads_data%R(ads_trial%nrcpp(2)*ads_trial%nrcpp(3)*ads_trial%nrcpp(1), 3, 3, 3))
@@ -449,12 +452,15 @@ contains
       call FormUn(substep, ads_trial, ads_data)
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
                     n, alpha_step, RHS_fun, ads_data, mierr)
-      if (allocated(ads_data%Ft)) deallocate(ads_data%Ft)
+      if (allocated(ads_data%FFt)) deallocate(ads_data%FFt)
       if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
       if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
-      if (allocated(ads_data%F)) deallocate(ads_data%F)
+      if (allocated(ads_data%FF)) deallocate(ads_data%FF)
       if (allocated(ads_data%F2)) deallocate(ads_data%F2)
       if (allocated(ads_data%F3)) deallocate(ads_data%F3)
+
+      call move_alloc(ads_data%F,ads_data%FF)
+      call move_alloc(ads_data%Ft,ads_data%FFt)
 
       if (allocated(ads_data%R)) deallocate(ads_data%R)
       allocate (ads_data%R(ads_trial%nrcpp(1)*ads_trial%nrcpp(2)*ads_trial%nrcpp(3), 3, 3, 3))
@@ -476,12 +482,15 @@ contains
       call FormUn(substep, ads_trial, ads_data)
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
                     n, alpha_step, RHS_fun, ads_data, mierr)
-      if (allocated(ads_data%Ft)) deallocate(ads_data%Ft)
+      if (allocated(ads_data%FFt)) deallocate(ads_data%FFt)
       if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
       if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
-      if (allocated(ads_data%F)) deallocate(ads_data%F)
+      if (allocated(ads_data%FF)) deallocate(ads_data%FF)
       if (allocated(ads_data%F2)) deallocate(ads_data%F2)
       if (allocated(ads_data%F3)) deallocate(ads_data%F3)
+
+      call move_alloc(ads_data%F,ads_data%FF)
+      call move_alloc(ads_data%Ft,ads_data%FFt)
 
    end subroutine MultiStep
 
@@ -530,9 +539,11 @@ contains
       !call Sub_Step(ads, ads, iter, mix,direction,substep,abc,RHS_fun,ads_data, mierr)
       call Sub_Step(ads, ads, iter, mix, direction, substep, abc, &
                     1, alpha_step, RHS_fun, ads_data, mierr)
-      if (allocated(ads_data%F)) deallocate(ads_data%F)
+      if (allocated(ads_data%FF)) deallocate(ads_data%FF)
       if (allocated(ads_data%F2)) deallocate(ads_data%F2)
       if (allocated(ads_data%F3)) deallocate(ads_data%F3)
+
+      call move_alloc(ads_data%F,ads_data%FF)
 
    end subroutine Step
 
@@ -746,22 +757,21 @@ contains
 ! -------------------------------------------------------------------
 ! Gathers full solution and plots it
 ! -------------------------------------------------------------------
-   subroutine PrintSolution(iter, t, ads, ads_data)
-      use Setup, ONLY: ADS_Setup, ADS_compute_data
+   subroutine PrintSolution(iter, ads, part)
+      use Setup, ONLY: ADS_Setup
       use parallelism, ONLY: MYRANK
       use plot, ONLY: SaveSplinePlot, PlotParams
       use vtk, ONLY: VtkOutput
       use my_mpi, ONLY: GatherFullSolution
       implicit none
-      type(ADS_compute_data), intent(in) :: ads_data
+      real(kind=8), dimension(:,:), intent(in) :: part
       type(ADS_setup), intent(in) :: ads
       integer(kind=4), intent(in) :: iter
-      real(kind=8), intent(in) :: t
       real(kind=8), allocatable :: solution(:, :, :)
       type(PlotParams) :: params
       character(len=20) :: filename
 
-      call GatherFullSolution(0, ads_data%F, solution, &
+      call GatherFullSolution(0, part, solution, &
                               ads%n, ads%p, ads%s)
 
       if (MYRANK == 0) then
