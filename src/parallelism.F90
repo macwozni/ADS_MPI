@@ -52,20 +52,20 @@ contains
       end if
 
       call Decompose(MYRANK, MYRANKX, MYRANKY, MYRANKZ)
-      call int2str(MYRANK, buffer)
+      ! call int2str(MYRANK, buffer)
 
-      if (MYRANK < 10) then
-         PRINTRANK = "0000"//buffer
-      else if (MYRANK < 100) then
-         PRINTRANK = "000"//buffer
-      else if (MYRANK < 1000) then
-         PRINTRANK = "00"//buffer
-      else if (MYRANK < 10000) then
-         PRINTRANK = "0"//buffer
-      else
-         PRINTRANK = buffer
-         stop
-      end if
+      ! if (MYRANK < 10) then
+      !    PRINTRANK = "0000"//buffer
+      ! else if (MYRANK < 100) then
+      !    PRINTRANK = "000"//buffer
+      ! else if (MYRANK < 1000) then
+      !    PRINTRANK = "00"//buffer
+      ! else if (MYRANK < 10000) then
+      !    PRINTRANK = "0"//buffer
+      ! else
+      !    PRINTRANK = buffer
+      !    stop
+      ! end if
 
       ierr = 0
 

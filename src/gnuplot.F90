@@ -21,17 +21,22 @@ contains
       real(kind=8), intent(in) :: vals(params%resx, params%resy, params%resz)
       integer :: z
 
+#ifdef IPRINT
       write (*, *) 'Starting GNUPLOT output...'
+#endif
       do z = 1, params%resz
          call OutputLayer(filename, z - 1, vals(:, :, z), params)
       end do
+#ifdef IPRINT
       write (*, *) 'Done with output.'
+#endif
 
    end subroutine GnuPlotOutput
 
    ! -------------------------------------------------------------------
    ! Auxilary function to create file name from pattern and layer number.
-   ! Created name is: pattern{layer}.plot.
+   ! Created name is:
+   ! pattern{layer}.plot
    !
    ! Input:
    ! ------
@@ -74,7 +79,9 @@ contains
       integer :: outFile = 57 ! random value, Grothendieck's prime
       integer :: ix, iy
 
+#ifdef IPRINT
       write (*, *) 'Layer', zlayer
+#endif
       call BuildFileName(pattern, zlayer, filename)
 
       open (unit=outFile, file=filename, &
