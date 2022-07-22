@@ -251,6 +251,6 @@ contains
       integer(kind=4), intent(out) :: ierr
 
       call mpi_finalize(ierr)
-   end subroutine CleanParallelism
+   end subroutine Cleanup_Parallelism
 
 end module parallelism

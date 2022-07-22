@@ -1,3 +1,12 @@
+!------------------------------------------------------------------------------
+!
+! MODULE: reorderRHS
+!
+! DESCRIPTION:
+!> This module contains 3 types of Right-Hand-Side reordering.
+!
+!------------------------------------------------------------------------------
+
 module reorderRHS
 
    implicit none
