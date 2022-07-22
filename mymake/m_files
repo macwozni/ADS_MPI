@@ -14,7 +14,6 @@ SOURCES = \
     ../src/RHS_eq.F90 \
     ../src/projection_engine.F90 \
     ../src/utils.F90 \
-    ../src/int2str.F90 \
     ../src/plot.F90 \
     ../src/gnuplot.F90 \
     ../src/vtk.F90 \
