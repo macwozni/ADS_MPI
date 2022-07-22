@@ -1,14 +1,9 @@
 !------------------------------------------------------------------------------
-! AGH University of Science and Technology, Krakow, Poland
-!------------------------------------------------------------------------------
 !
 ! MODULE: projection_engine
 !
 ! DESCRIPTION:
 !> This module contains all functionality associated to projection.
-!
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
 !
 !------------------------------------------------------------------------------
 

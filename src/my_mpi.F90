@@ -1,14 +1,9 @@
 !------------------------------------------------------------------------------
-! AGH University of Science and Technology, Krakow, Poland
-!------------------------------------------------------------------------------
 !
 ! MODULE: my_mpi
 !
 ! DESCRIPTION:
 !> This module contains mpi wrappers.
-!
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
 !
 !------------------------------------------------------------------------------
 

@@ -1,15 +1,9 @@
 !------------------------------------------------------------------------------
-! AGH University of Science and Technology, Krakow, Poland
-!------------------------------------------------------------------------------
 !
 ! MODULE: gauss
 !
 ! DESCRIPTION:
 !> This module contains all functionality associated to creating gauss integration points and weights
-!
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
-! 25.06.2019 - changed into precomputing/initializing values
 !
 !------------------------------------------------------------------------------
 

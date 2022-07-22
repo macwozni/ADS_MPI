@@ -1,14 +1,9 @@
 !------------------------------------------------------------------------------
-! AGH University of Science and Technology, Krakow, Poland
-!------------------------------------------------------------------------------
 !
 ! MODULE: communicators
 !
 ! DESCRIPTION:
 !> This module contains communicators logic.
-!
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
 !
 !------------------------------------------------------------------------------
 

@@ -1,3 +1,12 @@
+!------------------------------------------------------------------------------
+!
+! MODULE: parallelism
+!
+! DESCRIPTION
+!> This module contains all functionality associated parallelism configuration.
+!
+!------------------------------------------------------------------------------
+
 module parallelism
 
    implicit none
@@ -30,7 +39,18 @@ module parallelism
 contains
 
 ! -------------------------------------------------------------------
-! Initializes MPI communicators and global variables of this module.
+!> @brief
+!> Initializes MPI communicators and global variables of this module.
+!
+! Input:
+! ------
+!> @param[in]  procx - number of processors along X axis
+!> @param[in]  procy - number of processors along Y axis
+!> @param[in]  procz - number of processors along Z axis
+!
+! Output:
+! -------
+!> @param[out]  ierr - error code
 ! -------------------------------------------------------------------
    subroutine InitializeParallelism(procx, procy, procz, ierr)
       use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
@@ -62,19 +82,30 @@ contains
    end subroutine InitializeParallelism
 
 ! -------------------------------------------------------------------
-! Based on the linear index (process rank) computes its coordinates
-! in 3D cube (NRPROCX x NRPROCY x NRPROCZ).
+!> @brief
+!> Based on the linear index (process rank) computes its coordinates
+!> in 3D cube \f$ (\text{NRPROCX} \times \text{NRPROCY} \times \text{NRPROCZ}) \f$. 
 !
-! rank    - linear rank of the process
-! rankx   - x coordinate
-! ranky   - y coordinate
-! rankz   - z coordinate
+! Input:
+! ------
+!> @param[in]  rank    - linear rank of the process
 !
-! Order of components (from slowest changing): Z, Y, X
-!   Rank    Coords
-!    0    (0, 0, 0)
-!    1    (0, 0, 1)
-! etc.
+! Output:
+! -------
+!> @param[out]  rankx   - x coordinate
+!> @param[out]  ranky   - y coordinate
+!> @param[out]  rankz   - z coordinate
+!>
+!> Order of components (from slowest changing): Z, Y, X.
+!> An example for \f$ 1 \times 1 \times 1 \f$   
+!> Rank  | Coords
+!> ------------- | -------------
+!> \f$ 0 \f$    | \f$ (0, 0, 0) \f$
+!> \f$ 1 \f$    | \f$ (0, 0, 1) \f$
+!> \f$ 2 \f$    | \f$ (0, 1, 0) \f$
+!> \f$ 3 \f$    | \f$ (0, 1, 1) \f$
+!> \f$ 4 \f$    | \f$ (1, 0, 0) \f$
+!> etc.         | etc.
 ! -------------------------------------------------------------------
    subroutine Decompose(rank, rankx, ranky, rankz)
       implicit none
@@ -89,14 +120,18 @@ contains
    end subroutine Decompose
 
 ! -------------------------------------------------------------------
-! Computes global, linear index, based on coordinates in 3D cube.
+!> @brief
+!> Computes global, linear index, based on coordinates in 3D cube.
+!>
+! Input:
+! ------
+!> @param[in]  rankx   - x coordinate
+!> @param[in]  ranky   - y coordinate
+!> @param[in]  rankz   - z coordinate
 !
-! rankx   - x coordinate
-! ranky   - y coordinate
-! rankz   - z coordinate
-!
-! returns: linear index based on (Z, Y, X) lexicographic order
-!          (Z changes slowest)
+! Output:
+! -------
+!> @return rank - linear index based on (Z, Y, X) lexicographic order (Z changes slowest)
 ! -------------------------------------------------------------------
    function LinearIndex(rankx, ranky, rankz) result(rank)
       implicit none
@@ -110,19 +145,20 @@ contains
    end function LinearIndex
 
 ! -------------------------------------------------------------------
+!> @brief
 !> Calculates the range of the direction that is assigned to processor
 !> with specified rank.
 !
 ! Input:
 ! ------
 !> @param[in]  rank    - rank of the current process in this direction
-!> @param[in]  nrproc  - # of processors for this direction
+!> @param[in]  nrproc  - number of processors for this direction
 !> @param[in]  n       - size of the problem
 !> @param[in]  p       - order of polynomial basis
 !
 ! Output:
 ! -------
-!> @param[out]  nrcpp   - # of columns per processor
+!> @param[out]  nrcpp   - number of columns per processor
 !> @param[out]  ibeg    - index of first assigned slice
 !> @param[out]  iend    - index of last assigned slice
 !> @param[out]  mine    - index of first element corresponding to the assigned slice
@@ -152,6 +188,7 @@ contains
 
 
 ! -------------------------------------------------------------------
+!> @brief
 !> Calculates sizes and ranges of slices for each processor in
 !> given direction.
 !
@@ -198,6 +235,7 @@ contains
 
 
 ! -------------------------------------------------------------------
+!> @brief
 !> Cleans all parallelism structures, and finilizes MPI
 !
 !

@@ -1,14 +1,9 @@
 !------------------------------------------------------------------------------
-! AGH University of Science and Technology, Krakow, Poland
-!------------------------------------------------------------------------------
 !
 ! MODULE: math
 !
 ! DESCRIPTION:
 !> This module contains mathematical helpers.
-!
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
 !
 !------------------------------------------------------------------------------
 
