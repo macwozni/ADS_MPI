@@ -4,9 +4,6 @@
 !
 ! MODULE: knot_vector
 !
-!> @author
-!> Maciej Wozniak
-!
 ! DESCRIPTION:
 !> This module contains all functionality associated to creating and filling knot vectors.
 !
@@ -23,8 +20,6 @@ module knot_vector
 contains
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Allocates and fills the knot vector on \f$  [0, 1] \f$.
 !> Number of subintervals is \f$ N = n-p+1 \f$.
@@ -58,8 +53,6 @@ contains
    end subroutine PrepareKnot
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Fills knot vector on \f$ [0, 1] \f$.
 !> Number of subintervals is \f$ N = n-p+1 \f$.
@@ -90,8 +83,6 @@ contains
    end subroutine FillOpenKnot
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Calculates number of elements (nonempty subintervals) in the knot vector.
 !

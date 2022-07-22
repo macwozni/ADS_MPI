@@ -4,9 +4,6 @@
 !
 ! MODULE: gauss
 !
-!> @author
-!> Maciej Wozniak
-!
 ! DESCRIPTION:
 !> This module contains all functionality associated to creating gauss integration points and weights
 !
@@ -60,8 +57,6 @@ module gauss
 contains
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Precomputes all Gaussian quadrature points and weights
 ! -------------------------------------------------------------------
@@ -190,8 +185,6 @@ contains
    end subroutine initialize
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Fills supplied arrays with points and weights for Gauss quadrature.
 !

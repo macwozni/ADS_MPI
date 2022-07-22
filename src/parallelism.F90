@@ -2,34 +2,38 @@ module parallelism
 
    implicit none
 
-!   save
-
-   ! Rank of this processor
+!> Rank of this processor
    integer(kind=4) :: MYRANK
 
-   ! Number of processors
+!> Number of processors
    integer(kind=4) :: NRPROC
 
-   ! Integer coordinates of processor along X, Y and Z
-   integer(kind=4) :: MYRANKX, MYRANKY, MYRANKZ
+!> Integer coordinates of processor along X
+   integer(kind=4) :: MYRANKX
+!> Integer coordinates of processor along Y
+   integer(kind=4) :: MYRANKY
+!> Integer coordinates of processor along Z
+   integer(kind=4) :: MYRANKZ
 
-   ! Total number of processors along X, Y and Z
+!> Total number of processors along X
    integer(kind=4) :: NRPROCX
+!> Total number of processors along Y
    integer(kind=4) :: NRPROCY
+!> Total number of processors along Z
    integer(kind=4) :: NRPROCZ
 
-   ! Rank of this processor converted to a string
+!> Rank of this processor converted to a string
    character(len=7) :: PRINTRANK
 
    PROTECTED :: MYRANK, NRPROC, NRPROCX, NRPROCY, NRPROCZ, PRINTRANK
 
 contains
 
-   ! -------------------------------------------------------------------
-   ! Initializes MPI communicators and global variables of this module.
-   ! -------------------------------------------------------------------
+! -------------------------------------------------------------------
+! Initializes MPI communicators and global variables of this module.
+! -------------------------------------------------------------------
    subroutine InitializeParallelism(procx, procy, procz, ierr)
-      USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
+      use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
       use mpi
       implicit none
       integer(kind=4), intent(in) :: procx, procy, procz
@@ -52,40 +56,26 @@ contains
       end if
 
       call Decompose(MYRANK, MYRANKX, MYRANKY, MYRANKZ)
-      ! call int2str(MYRANK, buffer)
-
-      ! if (MYRANK < 10) then
-      !    PRINTRANK = "0000"//buffer
-      ! else if (MYRANK < 100) then
-      !    PRINTRANK = "000"//buffer
-      ! else if (MYRANK < 1000) then
-      !    PRINTRANK = "00"//buffer
-      ! else if (MYRANK < 10000) then
-      !    PRINTRANK = "0"//buffer
-      ! else
-      !    PRINTRANK = buffer
-      !    stop
-      ! end if
 
       ierr = 0
 
    end subroutine InitializeParallelism
 
-   ! -------------------------------------------------------------------
-   ! Based on the linear index (process rank) computes its coordinates
-   ! in 3D cube (NRPROCX x NRPROCY x NRPROCZ).
-   !
-   ! rank    - linear rank of the process
-   ! rankx   - x coordinate
-   ! ranky   - y coordinate
-   ! rankz   - z coordinate
-   !
-   ! Order of components (from slowest changing): Z, Y, X
-   !   Rank    Coords
-   !    0    (0, 0, 0)
-   !    1    (0, 0, 1)
-   ! etc.
-   ! -------------------------------------------------------------------
+! -------------------------------------------------------------------
+! Based on the linear index (process rank) computes its coordinates
+! in 3D cube (NRPROCX x NRPROCY x NRPROCZ).
+!
+! rank    - linear rank of the process
+! rankx   - x coordinate
+! ranky   - y coordinate
+! rankz   - z coordinate
+!
+! Order of components (from slowest changing): Z, Y, X
+!   Rank    Coords
+!    0    (0, 0, 0)
+!    1    (0, 0, 1)
+! etc.
+! -------------------------------------------------------------------
    subroutine Decompose(rank, rankx, ranky, rankz)
       implicit none
       integer(kind=4), intent(in) :: rank
@@ -98,16 +88,16 @@ contains
 
    end subroutine Decompose
 
-   ! -------------------------------------------------------------------
-   ! Computes global, linear index, based on coordinates in 3D cube.
-   !
-   ! rankx   - x coordinate
-   ! ranky   - y coordinate
-   ! rankz   - z coordinate
-   !
-   ! returns: linear index based on (Z, Y, X) lexicographic order
-   !          (Z changes slowest)
-   ! -------------------------------------------------------------------
+! -------------------------------------------------------------------
+! Computes global, linear index, based on coordinates in 3D cube.
+!
+! rankx   - x coordinate
+! ranky   - y coordinate
+! rankz   - z coordinate
+!
+! returns: linear index based on (Z, Y, X) lexicographic order
+!          (Z changes slowest)
+! -------------------------------------------------------------------
    function LinearIndex(rankx, ranky, rankz) result(rank)
       implicit none
       integer(kind=4), intent(in) :: rankx, ranky, rankz
@@ -119,25 +109,25 @@ contains
 
    end function LinearIndex
 
-   ! -------------------------------------------------------------------
-   ! Calculates the range of the direction that is assigned to processor
-   ! with specified rank.
-   !
-   ! Input:
-   ! ------
-   ! rank    - rank of the current process in this direction
-   ! nrproc  - # of processors for this direction
-   ! n       - size of the problem
-   ! p       - order of polynomial basis
-   !
-   ! Output:
-   ! -------
-   ! nrcpp   - # of columns per processor
-   ! ibeg    - index of first assigned slice
-   ! iend    - index of last assigned slice
-   ! mine    - index of first element corresponding to the assigned slice
-   ! maxe    - index of last element corresponding to the assigned slice
-   ! -------------------------------------------------------------------
+! -------------------------------------------------------------------
+!> Calculates the range of the direction that is assigned to processor
+!> with specified rank.
+!
+! Input:
+! ------
+!> @param[in]  rank    - rank of the current process in this direction
+!> @param[in]  nrproc  - # of processors for this direction
+!> @param[in]  n       - size of the problem
+!> @param[in]  p       - order of polynomial basis
+!
+! Output:
+! -------
+!> @param[out]  nrcpp   - # of columns per processor
+!> @param[out]  ibeg    - index of first assigned slice
+!> @param[out]  iend    - index of last assigned slice
+!> @param[out]  mine    - index of first element corresponding to the assigned slice
+!> @param[out]  maxe    - index of last element corresponding to the assigned slice
+! -------------------------------------------------------------------
    subroutine ComputeEndpoints(rank, nrproc, n, p, nrcpp, ibeg, iend, mine, maxe)
       implicit none
       integer(kind=4), intent(in) :: rank, nrproc, n, p
@@ -159,17 +149,26 @@ contains
 
    end subroutine ComputeEndpoints
 
-   ! -------------------------------------------------------------------
-   ! Calculates sizes and ranges of slices for each processor in
-   ! given direction.
-   !
-   ! dims     - sizes of 'slices' of dimension
-   ! shifts   - offsets of slices
-   ! nrcpp    - # of columns per processor
-   ! stride   - size of full, 3d slice
-   ! n        - size of the problem
-   ! nrproc   - # of processors for this direction
-   ! -------------------------------------------------------------------
+
+
+! -------------------------------------------------------------------
+!> Calculates sizes and ranges of slices for each processor in
+!> given direction.
+!
+!
+! Input:
+! ------
+!> @param[in] dims     - sizes of 'slices' of dimension
+!> @param[in] shifts   - offsets of slices
+!> @param[in] nrcpp    - number of columns per processor
+!> @param[in] stride   - size of full, 3d slice
+!
+!
+! Output:
+! -------
+!> @param[out] n        - size of the problem
+!> @param[out] nrproc   - number of processors for this direction
+! -------------------------------------------------------------------
    subroutine FillDimVector(dims, shifts, nrcpp, stride, n, nrproc)
       implicit none
       integer(kind=4), intent(in) :: nrcpp, stride, n, nrproc
@@ -197,10 +196,23 @@ contains
 
    end subroutine FillDimVector
 
-   subroutine CleanParallelism(ierr)
+
+! -------------------------------------------------------------------
+!> Cleans all parallelism structures, and finilizes MPI
+!
+!
+! Input:
+! ------
+!
+! Output:
+! -------
+!> @param[out] ierr    - error code
+! -------------------------------------------------------------------
+   subroutine Cleanup_Parallelism(ierr)
       implicit none
       integer(kind=4), intent(out) :: ierr
-      ierr = 0
+
+      call mpi_finalize(ierr)
    end subroutine CleanParallelism
 
 end module parallelism

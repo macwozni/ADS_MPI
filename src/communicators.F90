@@ -4,9 +4,6 @@
 !
 ! MODULE: communicators
 !
-!> @author
-!> Maciej Wozniak
-!
 ! DESCRIPTION:
 !> This module contains communicators logic.
 !
@@ -57,8 +54,6 @@ module communicators
 contains
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Creates process groups and communicators for each 'fibre' in each direction.
 !> A subroutine initializes some variables in module.
@@ -70,7 +65,7 @@ contains
    subroutine CreateCommunicators(mierr)
       use parallelism, ONLY: MYRANK, MYRANKX, MYRANKY, MYRANKZ, &
                              NRPROCX, NRPROCY, NRPROCZ
-      USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT
+      use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT
       use mpi
       implicit none
       integer(kind=4), intent(out) :: mierr

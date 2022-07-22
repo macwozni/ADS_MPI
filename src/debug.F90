@@ -119,8 +119,6 @@ contains
    end subroutine PrintDecompositionInfo
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Checks whether the index is within range.
 !
@@ -146,8 +144,6 @@ contains
    end function IndexInRange
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Prints communicators.
 !> For debug only.
@@ -175,8 +171,6 @@ contains
    end subroutine PrintCommunicators
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Prints groups used later to create communicators.
 !> For debug only.

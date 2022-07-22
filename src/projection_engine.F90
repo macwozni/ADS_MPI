@@ -4,9 +4,6 @@
 !
 ! MODULE: projection_engine
 !
-!> @author
-!> Maciej Wozniak
-!
 ! DESCRIPTION:
 !> This module contains all functionality associated to projection.
 !
@@ -22,8 +19,6 @@ module projection_engine
 contains
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Calculates matrices M, K, B and BT.
 !>
@@ -217,8 +212,6 @@ contains
    end subroutine MKBBT_large
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Calculates matrices M, K, B and BT.
 !>
@@ -332,8 +325,6 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
    end subroutine MKBBT_small
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Calculate right-hand side of the equation.
 !
@@ -355,7 +346,7 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       ! use parallelism, ONLY: PRINTRANK
       use Interfaces, ONLY: forcing_fun
-      USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
+      use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
       use omp_lib
       use RHS_eq
       implicit none
@@ -642,8 +633,6 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
    end subroutine Form3DRHS
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Calculates value of derivative from previous time step - \f$ dU_n \f$.
 !> Calculates previous solution coefficient - \f$ U_n \f$.
@@ -659,11 +648,11 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
 !> @param[out] dUn     - derivative from previous time step - \f$ dU_n \f$
 ! -------------------------------------------------------------------
    subroutine FormUn(subun, ads, ads_data)
-      USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
+      use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       ! use parallelism, ONLY: PRINTRANK
       use Interfaces, ONLY: forcing_fun
-      USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
+      use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
       use omp_lib
       implicit none
       integer(kind=4), intent(in) :: subun
@@ -805,8 +794,6 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
 
 !!!!! to nie tu
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Translates global linearized index given by
 !>
@@ -838,8 +825,6 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
    end subroutine global2local
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Calculates mass matrix M
 !
