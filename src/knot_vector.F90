@@ -1,15 +1,9 @@
 !------------------------------------------------------------------------------
-! AGH University of Science and Technology, Krakow, Poland
-!------------------------------------------------------------------------------
 !
 ! MODULE: knot_vector
 !
 ! DESCRIPTION:
 !> This module contains all functionality associated to creating and filling knot vectors.
-!
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
-! 25 06 2019 - Refactor intefaces
 !
 !------------------------------------------------------------------------------
 

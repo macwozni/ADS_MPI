@@ -1,14 +1,9 @@
 !------------------------------------------------------------------------------
-! AGH University of Science and Technology, Krakow, Poland
-!------------------------------------------------------------------------------
 !
 ! MODULE: basis
 !
 ! DESCRIPTION
-!> This module contains all functionality associated to basis functions
-!
-! REVISION HISTORY:
-! 21 11 2017 - Initial Version
+!> This module contains all functionality associated to basis functions.
 !
 !------------------------------------------------------------------------------
 

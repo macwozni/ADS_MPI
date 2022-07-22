@@ -16,31 +16,37 @@ module Setup
 !> Knot vector along Z axis
       real(kind=8), allocatable, dimension(:) :: Uz
 
-!> Number of subintervals  - currently \f$ n - p + 1 \f$
+!> Number of subintervals. Currently \f$ n - p + 1 \f$
       integer(kind=4), dimension(3) :: nelem
 
-! Size of slices of domain in each dimension
+!> Size of slices of domain in each dimension, along X axis
       integer(kind=4), allocatable, dimension(:) :: dimensionsX
+!> Size of slices of domain in each dimension, along Y axis
       integer(kind=4), allocatable, dimension(:) :: dimensionsY
+!> Size of slices of domain in each dimension, along Z axis
       integer(kind=4), allocatable, dimension(:) :: dimensionsZ
 
-! Offsets of slices of domain in each direction
+!> Offsets of slices of domain in each direction, along X axis
       integer(kind=4), allocatable, dimension(:) :: shiftsX
+!> Offsets of slices of domain in each direction, along Y axis
       integer(kind=4), allocatable, dimension(:) :: shiftsY
+!> Offsets of slices of domain in each direction, along Z axis
       integer(kind=4), allocatable, dimension(:) :: shiftsZ
 
-! Pivot array for these processes that need to solve systems
+!> Pivot array for these processes that need to solve systems, along X axis
       integer(kind=4), allocatable, dimension(:) :: IPIVx
+!> Pivot array for these processes that need to solve systems, along Y axis
       integer(kind=4), allocatable, dimension(:) :: IPIVy
+!> Pivot array for these processes that need to solve systems, along Z axis
       integer(kind=4), allocatable, dimension(:) :: IPIVz
 
-! Number of columns (average) per processor
+!> Number of columns (average) per processor
       integer(kind=4), dimension(3) :: nrcpp
 
 ! Range of piece of domain assigned to this process
       integer(kind=4), dimension(3) :: ibeg, iend
 
-! Size of piece of domain assigned to this process
+!> Size of piece of domain assigned to this process
       integer(kind=4), dimension(3) :: s
 
 ! Ranges of pieces of domain around the one assigned to this process
@@ -51,10 +57,10 @@ module Setup
 ! Range of elements associated with basis functions assigned to this process
       integer(kind=4), dimension(3) :: mine, maxe, lnelem
 
-! index of the last node in knot vector (number of nodes - 1)
+!> Index of the last node in knot vector (number of nodes - 1)
       integer(kind=4), dimension(3) :: m
 
-! number of Gauss quadrature points
+!> Number of Gauss quadrature points
       integer(kind=4), dimension(3) :: ng
 
 ! indexes of first nonzero functions on each element
@@ -72,7 +78,7 @@ module Setup
 ! weights of Gauss quadrature points
       real(kind=8), allocatable, dimension(:) :: Wx, Wy, Wz
 
-! time step length
+!> Time step length
       real(kind=8) :: tau
    end type ADS_setup
 
@@ -84,19 +90,19 @@ module Setup
 
       real(kind=8), allocatable, dimension(:, :) :: FF, FFt ! small RHS reminisants
 
-! Buffer for coefficients of solution corresponding to neighbouring
-! parts of the domain. It is (Nx*Ny*Nz) x 3 x 3 x 3 array, where
-! Nx*Ny*Nz is the size of part of solution for one fragment of domain.
+!> Buffer for coefficients of solution corresponding to neighbouring
+!> parts of the domain. It is \f$ (N_x * N_y * N_z) \times 3 \times 3 \times 3 \f$ array, where
+!> \f$ N_x * N_y * N_z \f$ is the size of part of solution for one fragment of domain.
       real(kind=8), allocatable, dimension(:, :, :, :) :: R
 
-! current time step
+!> Current time step
       real(kind=8) :: t
 
 !previous solution coefficient at given point
       real(kind=8), allocatable, dimension(:, :, :, :, :, :) :: Un
       real(kind=8), allocatable, dimension(:, :, :, :, :, :) :: Un13
       real(kind=8), allocatable, dimension(:, :, :, :, :, :) :: Un23
-!value of derivative from previous time step
+!> Value of derivative from previous time step
       real(kind=8), allocatable, dimension(:, :, :, :, :, :, :) :: dUn
    end type ADS_compute_data
 
