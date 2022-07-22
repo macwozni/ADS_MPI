@@ -703,7 +703,7 @@ contains
 
       mierr = 0
 
-   end subroutine Cleanup
+   end subroutine Cleanup_data
 
 ! -------------------------------------------------------------------
 ! Deallocates all the resources and finalizes MPI.

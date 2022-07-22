@@ -4,7 +4,7 @@ program main
 
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    use parallelism, ONLY: MYRANK
-   use parallelism, ONLY: PRINTRANK, InitializeParallelism, CleanParallelism
+   use parallelism, ONLY: PRINTRANK, InitializeParallelism, Cleanup_Parallelism
    use communicators, ONLY: CreateCommunicators
    use RHS_fun
    use ADSS
@@ -70,8 +70,10 @@ program main
    call MultiStep(iter, mix, forcing, ads_test, ads_trial, ads_data,nn,alpha_step, ierr)
    call PrintSolution(iter, ads_trial, ads_data%FF)
 
-   call Cleanup(ads_test, ads_trial, ads_data, ierr)
-   call CleanParallelism(ierr)
+   call Cleanup_ADS(ads_test, ierr)
+   call Cleanup_ADS(ads_trial, ierr)
+   call Cleanup_data(ads_data, ierr)
+   call Cleanup_Parallelism(ierr)
 
 end program main
  

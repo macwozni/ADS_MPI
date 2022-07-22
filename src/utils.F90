@@ -1,19 +1,34 @@
-module analysis
+module utils
 
    implicit none
 
 contains
 
-   !!!!!!! udostepnic uzytkownikowi
-   ! udostepnic wrapper
-   ! utils?
+
+!> @brief
+!> Calculates the Euclidean vector norm (\f$ L_2 \f$ norm) of vector x.
+!> Implementation of Fortran2008 function with the same name.
+!
+! Input:
+! ------
+!> @param[in] x   - vector
+!
+! Output:
+! -------
+!> @return norm2  - norm of vector x
+!---------------------------------------------------------------------------
+subroutine NormL2 ()
+   use Setup, ONLY: ADS_Setup, ADS_compute_data
+   implicit none
+
+end subroutine NormL2
 
    ! Ux,Uy,Uz  knots vectors
    ! px,py,py  orders
    ! nx,ny,nz  number of intervals (problems size is (nx+1)*(ny+1)*(nz+1)
    ! nelemx,nelemy,nelemz - number of elements
    ! F coefficients of the function
-   subroutine NormL2( &
+   subroutine Norm_L2( &
       Ux, Uy, Uz, &
       p, n, nelem, &
       ibeg, iend, nrank, nrp, &
@@ -107,7 +122,7 @@ contains
          end do
       end do
 
-   end subroutine NormL2
+   end subroutine Norm_L2
 
-end module analysis
+end module utils
 
