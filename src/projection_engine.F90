@@ -4,9 +4,6 @@
 !
 ! MODULE: projection_engine
 !
-!> @author
-!> Maciej Wozniak
-!
 ! DESCRIPTION:
 !> This module contains all functionality associated to projection.
 !
@@ -22,8 +19,6 @@ module projection_engine
 contains
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Calculates matrices M, K, B and BT.
 !>
@@ -217,8 +212,6 @@ contains
    end subroutine MKBBT_large
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Calculates matrices M, K, B and BT.
 !>
@@ -325,8 +318,6 @@ contains
    end subroutine MKBBT_small
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Calculate right-hand side of the equation.
 !
@@ -348,7 +339,7 @@ contains
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       ! use parallelism, ONLY: PRINTRANK
       use Interfaces, ONLY: forcing_fun
-      USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
+      use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
       use omp_lib
       use RHS_eq
       implicit none
@@ -635,8 +626,6 @@ contains
    end subroutine Form3DRHS
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Calculates value of derivative from previous time step - dUn.
 !> Calculates previous solution coefficient - Un.
@@ -652,11 +641,11 @@ contains
 !> @param[out] dUn     -
 ! -------------------------------------------------------------------
    subroutine FormUn(subun, ads, ads_data)
-      USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
+      use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       ! use parallelism, ONLY: PRINTRANK
       use Interfaces, ONLY: forcing_fun
-      USE ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
+      use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
       use omp_lib
       implicit none
       integer(kind=4), intent(in) :: subun
@@ -798,8 +787,6 @@ contains
 
 !!!!! to nie tu
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Translates global linearized index given by
 !>
@@ -831,8 +818,6 @@ contains
    end subroutine global2local
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Calculates mass matrix M
 !

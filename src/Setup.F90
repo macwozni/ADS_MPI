@@ -3,18 +3,20 @@ module Setup
    implicit none
 
    type ADS_setup
-! Number of functions in each dimension minus one
+!> Number of functions in each dimension minus one
       integer(kind=4), dimension(3) :: n
 
-! Degree of approximation
+!> Degree of approximation
       integer(kind=4), dimension(3) :: p
 
-! Knot vector
+!> Knot vector along X axis
       real(kind=8), allocatable, dimension(:) :: Ux
+!> Knot vector along Y axis
       real(kind=8), allocatable, dimension(:) :: Uy
+!> Knot vector along Z axis
       real(kind=8), allocatable, dimension(:) :: Uz
 
-! Number of subintervals (currently n - p + 1)
+!> Number of subintervals  - currently \f$ n - p + 1 \f$
       integer(kind=4), dimension(3) :: nelem
 
 ! Size of slices of domain in each dimension

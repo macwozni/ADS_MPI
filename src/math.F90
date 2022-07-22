@@ -4,9 +4,6 @@
 !
 ! MODULE: math
 !
-!> @author
-!> Maciej Wozniak
-!
 ! DESCRIPTION:
 !> This module contains mathematical helpers.
 !
@@ -25,8 +22,6 @@ module math
 contains
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Linear interpolation between two values.
 !
@@ -49,8 +44,6 @@ contains
    end function lerp
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Smoothly decaying function. \f$ C^1 \f$ on \f$ [r, Rr] \f$. Function and its 1-st derivative
 !> vanish at the endpoints.
@@ -85,8 +78,6 @@ contains
    end function falloff
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> \f$ C^1 \f$ bump function on \f$ [-1, 1] \f$. Function and its 1-st derivative
 !> vanish at the endpoints, maximum is attained for \f$ x = 0 \f$ and its
@@ -114,8 +105,6 @@ contains
    end function bump
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> \f$ C^1 \f$ bump function on \f$ [0, 1] \f$. Function and its 1st derivative
 !> vanish at the endpoints, maximum is attained for \f$ x = 0.5 \f$ and its
@@ -140,8 +129,6 @@ contains
    end function bump01
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> \f$ C^1 \f$ bump function on \f$ [r, Rr] \times [r,Rr] \times [r,Rr] \f$.
 !> Function and its 1st derivative vanish at the endpoints, maximum is attained for \f$ || x,y,x || <= r \f$ and its
@@ -174,8 +161,6 @@ contains
    end function bump3d
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Calculates the Euclidean vector norm (\f$ L_2 \f$ norm) of of vector x.
 !> Implementation of Fortran2008 function with the same name.

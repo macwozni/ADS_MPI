@@ -550,8 +550,6 @@ contains
 !!!! podzielic na wraper i czesc wlasciwa
 ! przeniesc czesc do solver
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Calculates single substep for different time integration schemes.
 !>
@@ -675,17 +673,13 @@ contains
 ! -------------------------------------------------------------------
 ! Deallocates all the resources and finalizes MPI.
 ! -------------------------------------------------------------------
-   subroutine Cleanup(ads_test, ads_trial, ads_data, mierr)
-      use Setup, ONLY: ADS_Setup, ADS_compute_data
+   subroutine Cleanup_data(ads_data, mierr)
+      use Setup, ONLY: ADS_compute_data
       ! use parallelism, ONLY: PRINTRANK
       implicit none
-      type(ADS_setup), intent(inout) :: ads_test, ads_trial
       type(ADS_compute_data), intent(inout) :: ads_data
       integer(kind=4), intent(out) :: mierr
       integer(kind=4) :: ierr
-
-      call Cleanup_ADS(ads_test, mierr)
-      call Cleanup_ADS(ads_trial, mierr)
 
       if (allocated(ads_data%F)) deallocate (ads_data%F)
       if (allocated(ads_data%FF)) deallocate (ads_data%FF)
@@ -703,8 +697,6 @@ contains
       if (allocated(ads_data%dUn)) deallocate (ads_data%dUn)
 
       if (allocated(ads_data%R)) deallocate (ads_data%R)
-      !!!!!! wyciac
-      call mpi_finalize(ierr)
 #ifdef IINFO
       write (*, *) PRINTRANK, "Exiting..."
 #endif
@@ -717,7 +709,7 @@ contains
 ! Deallocates all the resources and finalizes MPI.
 ! -------------------------------------------------------------------
    subroutine Cleanup_ADS(ads, mierr)
-      use Setup, ONLY: ADS_Setup, ADS_compute_data
+      use Setup, ONLY: ADS_Setup
       ! use parallelism, ONLY: PRINTRANK
       implicit none
       type(ADS_setup), intent(inout) :: ads
@@ -801,8 +793,6 @@ contains
    end subroutine PrintSolution
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Solves one sub-direction of single time sub-step.
 !> Works both with and without iGRM.

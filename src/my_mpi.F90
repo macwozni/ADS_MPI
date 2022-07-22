@@ -4,9 +4,6 @@
 !
 ! MODULE: my_mpi
 !
-!> @author
-!> Maciej Wozniak
-!
 ! DESCRIPTION:
 !> This module contains mpi wrappers.
 !
@@ -22,16 +19,14 @@ module my_mpi
 contains
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Computes address of neighbour CPU.
 !
-!> Input:
+! Input:
 ! ------
 !> @param[in] d  - direction of neighbour
 !
-!> Output:
+! Output:
 ! -------
 !> @return  idx  - index of neighbour CPU
 !---------------------------------------------------------------------------
@@ -51,12 +46,10 @@ contains
    end function neighbour
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Sends cube.
 !
-!> Input:
+! Input:
 ! ------
 !> @param[in] items   - items to be send
 !> @param[in] dst     - recepients of message
@@ -81,21 +74,19 @@ contains
    end subroutine send_piece
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Receives cube.
 !
-!> Input:
+! Input:
 ! ------
 !> @param[in] src     - source of message
 !> @param[in] nrcpp   - number of columns (average) per processor
 !
-!> Input/Output:
+! Input/Output:
 ! ------
 !> @param[in] items   - buffer to receive items
 !
-!> Output:
+! Output:
 ! -------
 !> @param[out] req    - communication request (handle)
 !---------------------------------------------------------------------------
@@ -114,8 +105,6 @@ contains
    end subroutine recv_piece
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Distributes spline (e.g. solution from previous timestep, or parametrization
 !> approximation for Jacobian calculation) to neighbouring processes. It is
@@ -347,8 +336,6 @@ contains
    end subroutine DistributeSpline
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Calculates size of the piece corresponding to process with
 !> specified coordinates. Concretly, number of coefficients.
@@ -386,12 +373,10 @@ contains
    end function SizeOfPiece
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Gathers full solution at the specified process. It is stored in 3D array.
 !
-!> Input:
+! Input:
 ! ------
 !> @param[in] at    - process where to gather the solution
 !> @param[in] part  - part of the solution of each process
@@ -399,7 +384,7 @@ contains
 !> @param[in] p     - order of basis functions
 !> @param[in] s     - size of piece of domain assigned to this process
 !
-!> Output:
+! Output:
 ! -------
 !> @param[out] full - full solution, combined from parts
 !>
@@ -506,8 +491,6 @@ contains
    end subroutine GatherFullSolution
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Delinearizes an array
 !
@@ -549,8 +532,6 @@ contains
    end subroutine Delinearize
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Gathers data along one axis to the processes on the corresponding
 !> face of the cube.
@@ -600,8 +581,6 @@ contains
    end subroutine Gather
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Scatters computed partial solution along one axis
 !
@@ -651,8 +630,6 @@ contains
    end subroutine Scatter
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Broadcasts computed partial solution along one axis
 !
@@ -696,8 +673,6 @@ contains
    end subroutine AllGather
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Linearizes and transposes an array.
 !

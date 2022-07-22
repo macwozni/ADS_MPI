@@ -4,9 +4,6 @@
 !
 ! MODULE: basis
 !
-!> @author
-!> Maciej Wozniak
-!
 ! DESCRIPTION
 !> This module contains all functionality associated to basis functions
 !
@@ -22,8 +19,6 @@ module basis
 contains
 
 !---------------------------------------------------------------------------
-!> @author Maciej Wozniak
-!>
 !> @brief
 !> Computes all the information about basis B-spline functions needed to perform numerical integration.
 !>
@@ -110,8 +105,6 @@ contains
    end subroutine BasisData
 
 !---------------------------------------------------------------------------
-!> @author  Maciej Wozniak
-!>
 !> @brief
 !> Computes values of basis functions and their derivatives at the
 !> specified point.
@@ -200,8 +193,6 @@ contains
    end subroutine DersBasisFuns
 
 !---------------------------------------------------------------------------
-!> @author  Maciej Wozniak
-!>
 !> @brief
 !> Finds the element that contains specified point. It is given as
 !> the index of knot u_i such that \f$  [u_i, u_{i+1}] \f$ contains the point.
@@ -256,8 +247,6 @@ contains
    end function FindSpan
 
 !---------------------------------------------------------------------------
-!> @author  Maciej Wozniak
-!>
 !> @brief
 !> Calculates number of elements (nonempty subintervals) in the knot vector.
 !
@@ -295,8 +284,6 @@ contains
    end function CountSpans
 
 !---------------------------------------------------------------------------
-!> @author  Maciej Wozniak
-!>
 !> @brief
 !> Evaluates linear combination of basis spline functions in specified point.
 !
