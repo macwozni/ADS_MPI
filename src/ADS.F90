@@ -688,13 +688,21 @@ contains
       call Cleanup_ADS(ads_trial, mierr)
 
       if (allocated(ads_data%F)) deallocate (ads_data%F)
+      if (allocated(ads_data%FF)) deallocate (ads_data%FF)
       if (allocated(ads_data%F2)) deallocate (ads_data%F2)
       if (allocated(ads_data%F3)) deallocate (ads_data%F3)
+
+      if (allocated(ads_data%Ft)) deallocate (ads_data%Ft)
+      if (allocated(ads_data%FFt)) deallocate (ads_data%FFt)
+      if (allocated(ads_data%Ft2)) deallocate (ads_data%Ft2)
+      if (allocated(ads_data%Ft3)) deallocate (ads_data%Ft3)
 
       if (allocated(ads_data%Un)) deallocate (ads_data%Un)
       if (allocated(ads_data%Un13)) deallocate (ads_data%Un13)
       if (allocated(ads_data%Un23)) deallocate (ads_data%Un23)
       if (allocated(ads_data%dUn)) deallocate (ads_data%dUn)
+
+      if (allocated(ads_data%R)) deallocate (ads_data%R)
       !!!!!! wyciac
       call mpi_finalize(ierr)
 #ifdef IINFO
@@ -716,21 +724,21 @@ contains
       integer(kind=4), intent(out) :: mierr
       ! integer(kind=4) :: ierr
 
-      if (allocated(ads%shiftsX)) deallocate (ads%shiftsX)
-      if (allocated(ads%shiftsY)) deallocate (ads%shiftsY)
-      if (allocated(ads%shiftsZ)) deallocate (ads%shiftsZ)
+      if (allocated(ads%Ux)) deallocate (ads%Ux)
+      if (allocated(ads%Uy)) deallocate (ads%Uy)
+      if (allocated(ads%Uz)) deallocate (ads%Uz)
 
       if (allocated(ads%dimensionsX)) deallocate (ads%dimensionsX)
       if (allocated(ads%dimensionsX)) deallocate (ads%dimensionsY)
       if (allocated(ads%dimensionsZ)) deallocate (ads%dimensionsZ)
 
+      if (allocated(ads%shiftsX)) deallocate (ads%shiftsX)
+      if (allocated(ads%shiftsY)) deallocate (ads%shiftsY)
+      if (allocated(ads%shiftsZ)) deallocate (ads%shiftsZ)
+
       if (allocated(ads%IPIVx)) deallocate (ads%IPIVx)
       if (allocated(ads%IPIVy)) deallocate (ads%IPIVy)
       if (allocated(ads%IPIVz)) deallocate (ads%IPIVz)
-
-      if (allocated(ads%Ux)) deallocate (ads%Ux)
-      if (allocated(ads%Uy)) deallocate (ads%Uy)
-      if (allocated(ads%Uz)) deallocate (ads%Uz)
 
       if (allocated(ads%Ox)) deallocate (ads%Ox)
       if (allocated(ads%Oy)) deallocate (ads%Oy)
