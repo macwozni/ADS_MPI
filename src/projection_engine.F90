@@ -321,7 +321,7 @@ contains
 !> @param[in] ads          - ADS setup structure
 !> @param[in] directon     - direction for the substep
 !> @param[in] substep      - number of substep
-! n               - nuber of previous time steps
+!> @param[in] n            - nuber of previous time steps
 !
 ! Input/Output:
 ! -------
@@ -329,6 +329,7 @@ contains
 !
 ! Output:
 ! --------
+!> @param[out] igrm     - indicates, if we are using iGRM
 ! -------------------------------------------------------------------
    subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, alpha_step, forcing, igrm)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
@@ -363,114 +364,8 @@ contains
       logical, intent(out) :: igrm
       integer(kind=4) :: dira,dirb,dirc ! direction of going throuh space
 
-      dira=1
-      dirb=2
-      dirc=3
-
-!  copy default space as trial space
-      ads = ads_trial
-      igrm = .FALSE.
-
-!  if we have enriched one direction, then modify default space
-      if (direction(1) .EQ. 1) then
-         ads%n(1) = ads_test%n(1)
-         ads%p(1) = ads_test%p(1)
-         ads%Ux = ads_test%Ux
-         ads%nelem(1) = ads_test%nelem(1)
-         ads%dimensionsX = ads_test%dimensionsX
-         ads%shiftsX = ads_test%shiftsX
-         ads%IPIVx = ads_test%IPIVx
-         ads%nrcpp(1) = ads_test%nrcpp(1)
-         ads%ibeg(1) = ads_test%ibeg(1)
-         ads%iend(1) = ads_test%iend(1)
-         ads%s(1) = ads_test%s(1)
-         ads%ibegsx(1) = ads_test%ibegsx(1)
-         ads%iendsx(1) = ads_test%iendsx(1)
-         ads%ibegsy(1) = ads_test%ibegsy(1)
-         ads%iendsy(1) = ads_test%iendsy(1)
-         ads%ibegsz(1) = ads_test%ibegsz(1)
-         ads%iendsz(1) = ads_test%iendsz(1)
-         ads%mine(1) = ads_test%mine(1)
-         ads%maxe(1) = ads_test%maxe(1)
-         ads%lnelem(1) = ads_test%lnelem(1)
-         ads%m(1) = ads_test%m(1)
-         ads%ng(1) = ads_test%ng(1)
-         ads%Ox = ads_test%Ox
-         ads%Jx = ads_test%Jx
-         ads%Xx = ads_test%Xx
-         ads%NNx = ads_test%NNx
-         ads%Wx = ads_test%Wx
-         igrm = .TRUE.
-         dira=1
-         dirb=2
-         dirc=3
-      end if
-      if (direction(2) .EQ. 1) then
-         ads%n(2) = ads_test%n(2)
-         ads%p(2) = ads_test%p(2)
-         ads%Uy = ads_test%Uy
-         ads%nelem(2) = ads_test%nelem(2)
-         ads%dimensionsY = ads_test%dimensionsY
-         ads%shiftsY = ads_test%shiftsY
-         ads%IPIVy = ads_test%IPIVy
-         ads%nrcpp(2) = ads_test%nrcpp(2)
-         ads%ibeg(2) = ads_test%ibeg(2)
-         ads%iend(2) = ads_test%iend(2)
-         ads%s(2) = ads_test%s(2)
-         ads%ibegsx(2) = ads_test%ibegsx(2)
-         ads%iendsx(2) = ads_test%iendsx(2)
-         ads%ibegsy(2) = ads_test%ibegsy(2)
-         ads%iendsy(2) = ads_test%iendsy(2)
-         ads%ibegsz(2) = ads_test%ibegsz(2)
-         ads%iendsz(2) = ads_test%iendsz(2)
-         ads%mine(2) = ads_test%mine(2)
-         ads%maxe(2) = ads_test%maxe(2)
-         ads%lnelem(2) = ads_test%lnelem(2)
-         ads%m(2) = ads_test%m(2)
-         ads%ng(2) = ads_test%ng(2)
-         ads%Oy = ads_test%Oy
-         ads%Jy = ads_test%Jy
-         ads%Xy = ads_test%Xy
-         ads%NNy = ads_test%NNy
-         ads%Wy = ads_test%Wy
-         igrm = .TRUE.
-         dira=2
-         dirb=3
-         dirc=1
-      end if
-      if (direction(3) .EQ. 1) then
-         ads%n(3) = ads_test%n(3)
-         ads%p(3) = ads_test%p(3)
-         ads%Uz = ads_test%Uz
-         ads%nelem(3) = ads_test%nelem(3)
-         ads%dimensionsZ = ads_test%dimensionsZ
-         ads%shiftsZ = ads_test%shiftsZ
-         ads%IPIVz = ads_test%IPIVz
-         ads%nrcpp(3) = ads_test%nrcpp(3)
-         ads%ibeg(3) = ads_test%ibeg(3)
-         ads%iend(3) = ads_test%iend(3)
-         ads%s(3) = ads_test%s(3)
-         ads%ibegsx(3) = ads_test%ibegsx(3)
-         ads%iendsx(3) = ads_test%iendsx(3)
-         ads%ibegsy(3) = ads_test%ibegsy(3)
-         ads%iendsy(3) = ads_test%iendsy(3)
-         ads%ibegsz(3) = ads_test%ibegsz(3)
-         ads%iendsz(3) = ads_test%iendsz(3)
-         ads%mine(3) = ads_test%mine(3)
-         ads%maxe(3) = ads_test%maxe(3)
-         ads%lnelem(3) = ads_test%lnelem(3)
-         ads%m(3) = ads_test%m(3)
-         ads%ng(3) = ads_test%ng(3)
-         ads%Oz = ads_test%Oz
-         ads%Jz = ads_test%Jz
-         ads%Xz = ads_test%Xz
-         ads%NNz = ads_test%NNz
-         ads%Wz = ads_test%Wz
-         igrm = .TRUE.
-         dira=3
-         dirb=1
-         dirc=2
-      end if
+      call create_mixed_space(ads_test, ads_trial, direction,&
+      ads, dira, dirb, dirc, igrm)
 
       allocate (elarr(0:ads%p(dira), 0:ads%p(dirb), 0:ads%p(dirc)))
       ! total_size = ads % lnelem(1) * ads % lnelem(2) * ads % lnelem(3)
@@ -619,6 +514,147 @@ contains
       deallocate (elarr)
 
    end subroutine Form3DRHS
+
+
+
+!---------------------------------------------------------------------------
+!> @brief
+!> Creates mixed space for iGRM with enriched space in given direction.
+!
+! Input:
+! ------
+!> @param[in] ads_test  - structure of test space
+!> @param[in] ads_trial - structure of trial space
+!> @param[in] direction - direction in which we enrich test space in current substep
+!
+! Output:
+! -------
+!> @param[out] ads      - resulting struture for mixed space
+!> @param[out] dira     - direction of going throuh space
+!> @param[out] dirb     - direction of going throuh space
+!> @param[out] dirc     - direction of going throuh space
+!> @param[out] igrm     - indicates, if we are using iGRM
+! -------------------------------------------------------------------
+   subroutine create_mixed_space(ads_test, ads_trial, direction,&
+      ads, dira, dirb, dirc, igrm)
+      use Setup, ONLY: ADS_Setup
+      implicit none
+      type(ADS_setup), intent(in) :: ads_test, ads_trial
+      integer(kind=4), dimension(3), intent(in) :: direction
+      type(ADS_setup), intent(out) :: ads
+      integer(kind=4), intent(out) :: dira,dirb,dirc ! direction of going throuh space
+      logical, intent(out) :: igrm
+
+      dira=1
+      dirb=2
+      dirc=3
+
+!  copy default space as trial space
+      ads = ads_trial
+      igrm = .FALSE.
+
+!  if we have enriched one direction, then modify default space
+      if (direction(1) .EQ. 1) then
+         ads%n(1) = ads_test%n(1)
+         ads%p(1) = ads_test%p(1)
+         ads%Ux = ads_test%Ux
+         ads%nelem(1) = ads_test%nelem(1)
+         ads%dimensionsX = ads_test%dimensionsX
+         ads%shiftsX = ads_test%shiftsX
+         ads%IPIVx = ads_test%IPIVx
+         ads%nrcpp(1) = ads_test%nrcpp(1)
+         ads%ibeg(1) = ads_test%ibeg(1)
+         ads%iend(1) = ads_test%iend(1)
+         ads%s(1) = ads_test%s(1)
+         ads%ibegsx(1) = ads_test%ibegsx(1)
+         ads%iendsx(1) = ads_test%iendsx(1)
+         ads%ibegsy(1) = ads_test%ibegsy(1)
+         ads%iendsy(1) = ads_test%iendsy(1)
+         ads%ibegsz(1) = ads_test%ibegsz(1)
+         ads%iendsz(1) = ads_test%iendsz(1)
+         ads%mine(1) = ads_test%mine(1)
+         ads%maxe(1) = ads_test%maxe(1)
+         ads%lnelem(1) = ads_test%lnelem(1)
+         ads%m(1) = ads_test%m(1)
+         ads%ng(1) = ads_test%ng(1)
+         ads%Ox = ads_test%Ox
+         ads%Jx = ads_test%Jx
+         ads%Xx = ads_test%Xx
+         ads%NNx = ads_test%NNx
+         ads%Wx = ads_test%Wx
+         igrm = .TRUE.
+         dira=1
+         dirb=2
+         dirc=3
+      end if
+      if (direction(2) .EQ. 1) then
+         ads%n(2) = ads_test%n(2)
+         ads%p(2) = ads_test%p(2)
+         ads%Uy = ads_test%Uy
+         ads%nelem(2) = ads_test%nelem(2)
+         ads%dimensionsY = ads_test%dimensionsY
+         ads%shiftsY = ads_test%shiftsY
+         ads%IPIVy = ads_test%IPIVy
+         ads%nrcpp(2) = ads_test%nrcpp(2)
+         ads%ibeg(2) = ads_test%ibeg(2)
+         ads%iend(2) = ads_test%iend(2)
+         ads%s(2) = ads_test%s(2)
+         ads%ibegsx(2) = ads_test%ibegsx(2)
+         ads%iendsx(2) = ads_test%iendsx(2)
+         ads%ibegsy(2) = ads_test%ibegsy(2)
+         ads%iendsy(2) = ads_test%iendsy(2)
+         ads%ibegsz(2) = ads_test%ibegsz(2)
+         ads%iendsz(2) = ads_test%iendsz(2)
+         ads%mine(2) = ads_test%mine(2)
+         ads%maxe(2) = ads_test%maxe(2)
+         ads%lnelem(2) = ads_test%lnelem(2)
+         ads%m(2) = ads_test%m(2)
+         ads%ng(2) = ads_test%ng(2)
+         ads%Oy = ads_test%Oy
+         ads%Jy = ads_test%Jy
+         ads%Xy = ads_test%Xy
+         ads%NNy = ads_test%NNy
+         ads%Wy = ads_test%Wy
+         igrm = .TRUE.
+         dira=2
+         dirb=3
+         dirc=1
+      end if
+      if (direction(3) .EQ. 1) then
+         ads%n(3) = ads_test%n(3)
+         ads%p(3) = ads_test%p(3)
+         ads%Uz = ads_test%Uz
+         ads%nelem(3) = ads_test%nelem(3)
+         ads%dimensionsZ = ads_test%dimensionsZ
+         ads%shiftsZ = ads_test%shiftsZ
+         ads%IPIVz = ads_test%IPIVz
+         ads%nrcpp(3) = ads_test%nrcpp(3)
+         ads%ibeg(3) = ads_test%ibeg(3)
+         ads%iend(3) = ads_test%iend(3)
+         ads%s(3) = ads_test%s(3)
+         ads%ibegsx(3) = ads_test%ibegsx(3)
+         ads%iendsx(3) = ads_test%iendsx(3)
+         ads%ibegsy(3) = ads_test%ibegsy(3)
+         ads%iendsy(3) = ads_test%iendsy(3)
+         ads%ibegsz(3) = ads_test%ibegsz(3)
+         ads%iendsz(3) = ads_test%iendsz(3)
+         ads%mine(3) = ads_test%mine(3)
+         ads%maxe(3) = ads_test%maxe(3)
+         ads%lnelem(3) = ads_test%lnelem(3)
+         ads%m(3) = ads_test%m(3)
+         ads%ng(3) = ads_test%ng(3)
+         ads%Oz = ads_test%Oz
+         ads%Jz = ads_test%Jz
+         ads%Xz = ads_test%Xz
+         ads%NNz = ads_test%NNz
+         ads%Wz = ads_test%Wz
+         igrm = .TRUE.
+         dira=3
+         dirb=1
+         dirc=2
+      end if
+
+   end subroutine create_mixed_space
 
 !---------------------------------------------------------------------------
 !> @brief
