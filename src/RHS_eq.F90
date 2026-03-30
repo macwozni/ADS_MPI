@@ -1,96 +1,240 @@
+!------------------------------------------------------------------------------
+!
+! MODULE: RHS_eq
+!
+! DESCRIPTION:
+!> @file RHS_eq.F90
+!> @brief Module providing pointwise right-hand-side evaluation for the
+!> ADS assembly workflow.
+!>
+!> @details
+!> This module contains the local integrand construction used during
+!> right-hand-side assembly in the ADS scheme.
+!>
+!> The provided functionality includes:
+!> - evaluation of a test-function value and its directional derivatives
+!>   at one quadrature point,
+!> - incorporation of previously reconstructed solution values and
+!>   derivative data,
+!> - inclusion of an external forcing term supplied through a callback,
+!> - formation of the pointwise contribution accumulated later by the
+!>   assembly layer.
+!>
+!> Within the project, this module is called from
+!> \ref projection_engine via \ref ComputePointForRHS and therefore sits
+!> on the critical path between:
+!> - quadrature-point reconstruction of state variables,
+!> - pointwise PDE residual evaluation,
+!> - elementwise accumulation into ADS right-hand-side buffers.
+!
+!------------------------------------------------------------------------------
 module RHS_eq
 
    implicit none
 
 contains
 
-! -------------------------------------------------------------------
-! Right-hand side of the equation.
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Computes the pointwise contribution to the assembled
+!> right-hand side at one quadrature point.
+!>
+!> @details
+!> This routine evaluates the contribution associated with a single
+!> quadrature point and a single local tensor-product basis function.
+!>
+!> The procedure:
+!> - selects the active time-substep coefficient vector from
+!>   \p alpha_step,
+!> - chooses the appropriate intermediate solution state depending on
+!>   \p substep,
+!> - evaluates the tensor-product test function and its directional
+!>   derivatives at the specified quadrature point,
+!> - evaluates the forcing term through the callback \p forcing,
+!> - forms a weighted combination of previous-solution values, derivative
+!>   contributions, forcing, and time-step scaling.
+!>
+!> The test-function value is denoted by
+!>
+!> \f[
+!> v = N_x N_y N_z,
+!> \f]
+!>
+!> while the directional derivatives are assembled as
+!>
+!> \f[
+!> \partial_x v,\quad \partial_y v,\quad \partial_z v.
+!> \f]
+!>
+!> These quantities are then combined with the derivative vector
+!> \p du, the forcing value, the time-step length \p ads%tau, and the
+!> selected intermediate solution value.
 !
 ! Input:
 ! ------
-! ads             - ADS setup structure
-! X_              - quadrature points
-! k_              - indexes for quadrature points
-! e_              - indexes for elements
-! a_              - indexes of basis functions
-! du_             - value of derivative from previous time step
-! n               - nuber of previous time steps
-! Un              - U_n, previous solution coefficient at given point
-! Un13            - U_n+1/3
-! Un23            - U_n+2/3
-! ads_data        - data structures for ADS
-! J               - jacobian
-! W               - weight for quadratures
-! directon        -
-! substep         -
+!> @param[in] ads
+!> ADS setup structure containing basis values, derivative tables, and
+!> time-step information.
+!>
+!> @param[in] X
+!> Physical coordinates of the current quadrature point.
+!>
+!> @param[in] k
+!> Quadrature-point indices in the three coordinate directions.
+!>
+!> @param[in] e
+!> Element indices in the three coordinate directions.
+!>
+!> @param[in] a
+!> Local basis-function indices in the three coordinate directions.
+!>
+!> @param[in] du
+!> Reconstructed directional derivatives of the previous solution at the
+!> current quadrature point.
+!>
+!> @param[in] n
+!> Time-history or step index passed through the assembly pipeline.
+!>
+!> @param[in] un11
+!> Reference previous-step solution value at the current quadrature
+!> point.
+!>
+!> @param[in] un13
+!> Intermediate solution value associated with the first fractional
+!> stage.
+!>
+!> @param[in] un23
+!> Intermediate solution value associated with the second fractional
+!> stage.
+!>
+!> @param[in] ads_data
+!> Runtime ADS data structure passed through the interface.
+!>
+!> @param[in] J
+!> Jacobian factor of the current element mapping.
+!>
+!> @param[in] W
+!> Product of quadrature weights associated with the current quadrature
+!> point.
+!>
+!> @param[in] direction
+!> Directional enrichment selector of the current substep.
+!>
+!> @param[in] substep
+!> Number of the current substep.
+!>
+!> @param[in] alpha_step
+!> Table of coefficients used by all substeps; the active column is
+!> selected according to \p substep.
+!>
+!> @param[in] forcing
+!> Callback returning the forcing value for the current state and point.
 !
 ! Output:
 ! -------
-! ret             - value of RHS function at given point
+!> @param[out] ret
+!> Pointwise contribution to be accumulated into the assembled
+!> right-hand side.
 !
-! -------------------------------------------------------------------
+! Notes:
+! ------
+!> @note
+!> The active coefficient vector is extracted as `alpha_step(:,substep)`.
+!
+!> @note
+!> The arguments \p n, \p ads_data, \p J, \p W, and \p direction are
+!> presently carried through the interface for consistency with the
+!> surrounding workflow, although not all of them are explicitly used in
+!> the current implementation.
+!
+!> @warning
+!> The procedure assumes that \p substep belongs to the set
+!> \f$\{1,2,3\}\f$.
+!
+!---------------------------------------------------------------------------
+subroutine ComputePointForRHS( &
+   ads, &
+   X, &
+   k, &
+   e, &
+   a, &
+   du, &
+   n, &
+   un11, &
+   un13, &
+   un23, &
+   ads_data, J, W, direction, substep, &
+   alpha_step, &
+   forcing, &
+   ret)
+   use Setup, ONLY: ADS_Setup, ADS_compute_data
+   use Interfaces, ONLY: forcing_fun
+   implicit none
+!> @brief ADS setup structure with basis tables and time-step data.
+   type(ADS_setup), intent(in) :: ads
+!> @brief Physical coordinates of the current quadrature point.
+   real(kind=8), intent(in), dimension(3)  :: X
+!> @brief Quadrature-point indices in the three directions.
+   integer(kind=4), intent(in), dimension(3)  :: k
+!> @brief Element indices in the three directions.
+   integer(kind=4), intent(in), dimension(3)  :: e
+!> @brief Local basis-function indices in the three directions.
+   integer(kind=4), intent(in), dimension(3)  :: a
+!> @brief Directional derivatives of the reconstructed solution.
+   real(kind=8), intent(in), dimension(3)  :: du
+!> @brief Time-history or step index.
+   integer(kind=4), intent(in) :: n
+!> @brief Previous-step and intermediate solution values.
+   real(kind=8), intent(in) :: un11, un13, un23
+!> @brief Runtime ADS data structure passed through the interface.
+   type(ADS_compute_data), intent(in) :: ads_data
+!> @brief Element Jacobian and quadrature-weight product.
+   real(kind=8), intent(in)  :: J, W
+!> @brief Directional enrichment selector.
+   integer(kind=4), dimension(3), intent(in) :: direction
+!> @brief Number of the active substep.
+   integer(kind=4), intent(in) :: substep
+!> @brief Forcing callback used in pointwise evaluation.
+   procedure(forcing_fun) :: forcing
+!> @brief Coefficient table for all substeps.
+   real(kind=8), intent(in), dimension(7, 3) :: alpha_step
+!> @brief Pointwise contribution returned to the assembly routine.
+   real(kind=8), intent(out) :: ret
+!> @brief Temporary accumulator for the pointwise value.
+   real(kind=8) :: fval
+!> @brief Directional derivatives of the local test function.
+   real(kind=8), dimension(3) :: dv
+!> @brief Forcing value, test-function value, and selected state value.
+   real(kind=8) :: rhs, v, u
+!> @brief Active coefficient vector extracted for the current substep.
+   real(kind=8), dimension(7) :: alpha
 
-   subroutine ComputePointForRHS( &
-      ads, &
-      X, &
-      k, &
-      e, &
-      a, &
-      du, &
-      n, &
-      un11, &
-      un13, &
-      un23, &
-      ads_data, J, W, direction, substep, &
-      alpha_step, &
-      forcing, &
-      ret)
-      use Setup, ONLY: ADS_Setup, ADS_compute_data
-      use Interfaces, ONLY: forcing_fun
-      implicit none
-      type(ADS_setup), intent(in) :: ads
-      real(kind=8), intent(in), dimension(3)  :: X
-      integer(kind=4), intent(in), dimension(3)  :: k
-      integer(kind=4), intent(in), dimension(3)  :: e
-      integer(kind=4), intent(in), dimension(3)  :: a
-      real(kind=8), intent(in), dimension(3)  :: du
-      integer(kind=4), intent(in) :: n
-      real(kind=8), intent(in) :: un11, un13, un23
-      type(ADS_compute_data), intent(in) :: ads_data
-      real(kind=8), intent(in)  :: J, W
-      integer(kind=4), dimension(3), intent(in) :: direction
-      integer(kind=4), intent(in) :: substep
-      procedure(forcing_fun) :: forcing
-      real(kind=8), intent(in), dimension(7, 3) :: alpha_step
-      real(kind=8), intent(out) :: ret
-      real(kind=8) :: fval
-      real(kind=8), dimension(3) :: dv
-      real(kind=8) :: rhs, v, u
-      real(kind=8), dimension(7) :: alpha
+   alpha = alpha_step(:, substep)
+   if (substep .EQ. 1) u = un11
+   if (substep .EQ. 2) u = un13
+   if (substep .EQ. 3) u = un23
 
-      alpha = alpha_step(:, substep)
-      if (substep .EQ. 1) u = un11
-      if (substep .EQ. 2) u = un13
-      if (substep .EQ. 3) u = un23
+   v = ads%NNx(0, a(1), k(1), e(1))*ads%NNy(0, a(2), k(2), e(2))*ads%NNz(0, a(3), k(3), e(3))
+   dv(1) = ads%NNx(1, a(1), k(1), e(1))*ads%NNy(0, a(2), k(2), e(2))*ads%NNz(0, a(3), k(3), e(3))
+   dv(2) = ads%NNx(0, a(1), k(1), e(1))*ads%NNy(1, a(2), k(2), e(2))*ads%NNz(0, a(3), k(3), e(3))
+   dv(3) = ads%NNx(0, a(1), k(1), e(1))*ads%NNy(0, a(2), k(2), e(2))*ads%NNz(1, a(3), k(3), e(3))
 
-      v = ads%NNx(0, a(1), k(1), e(1))*ads%NNy(0, a(2), k(2), e(2))*ads%NNz(0, a(3), k(3), e(3))
-      dv(1) = ads%NNx(1, a(1), k(1), e(1))*ads%NNy(0, a(2), k(2), e(2))*ads%NNz(0, a(3), k(3), e(3))
-      dv(2) = ads%NNx(0, a(1), k(1), e(1))*ads%NNy(1, a(2), k(2), e(2))*ads%NNz(0, a(3), k(3), e(3))
-      dv(3) = ads%NNx(0, a(1), k(1), e(1))*ads%NNy(0, a(2), k(2), e(2))*ads%NNz(1, a(3), k(3), e(3))
+   rhs = forcing(un11, du, X)
 
-      rhs = forcing(un11, du, X)
+   fval = un11*v
+   fval = fval + alpha(1)*du(1)*dv(1)
+   fval = fval + alpha(2)*du(1)*v
+   fval = fval + alpha(3)*du(2)*dv(2)
+   fval = fval + alpha(4)*du(2)*v
+   fval = fval + alpha(5)*du(3)*dv(3)
+   fval = fval + alpha(6)*du(3)*v
+   fval = fval*ads%tau
+   fval = fval + alpha(3)*rhs*v
+   fval = fval + u*v
 
-      fval = un11*v
-      fval = fval + alpha(1)*du(1)*dv(1)
-      fval = fval + alpha(2)*du(1)*v
-      fval = fval + alpha(3)*du(2)*dv(2)
-      fval = fval + alpha(4)*du(2)*v
-      fval = fval + alpha(5)*du(3)*dv(3)
-      fval = fval + alpha(6)*du(3)*v
-      fval = fval*ads%tau
-      fval = fval + alpha(3)*rhs*v
-      fval = fval + u*v
-   end subroutine ComputePointForRHS
+   ret = fval
+
+end subroutine ComputePointForRHS
 
 end module RHS_eq
