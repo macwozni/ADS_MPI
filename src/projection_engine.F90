@@ -3,10 +3,26 @@
 ! MODULE: projection_engine
 !
 ! DESCRIPTION:
-!> This module contains all functionality associated to projection.
-!
+!> @file projection_engine.F90
+!> @brief Module providing matrix-assembly and right-hand-side formation
+!> routines for projection-related operators.
+!>
+!> @details
+!> This module groups procedures used to:
+!> - assemble sparse one-dimensional operator matrices composed of mass,
+!>   stiffness, and advection-like contributions,
+!> - form three-dimensional right-hand-side arrays for ADS-based
+!>   substeps,
+!> - construct mixed test-trial spaces used by the iGRM workflow,
+!> - evaluate solution values and derivatives at quadrature points from
+!>   stored coefficient blocks,
+!> - translate linearized tensor-product indices into Cartesian
+!>   coordinates.
+!>
+!> The implementation relies on spline-basis data prepared externally
+!> and on sparse-matrix helper routines supplied by module `sparse`.
+!>
 !------------------------------------------------------------------------------
-
 module projection_engine
 
    implicit none
@@ -14,80 +30,139 @@ module projection_engine
 contains
 
 !---------------------------------------------------------------------------
-!> @brief
-!> Calculates matrices M, K, B and BT.
+!
+! DESCRIPTION:
+!> @brief Assembles a block sparse matrix composed of three mixed-space
+!> submatrices.
 !>
-!> Calculates:
+!> @details
+!> This procedure constructs a sparse matrix associated with two
+!> one-dimensional spline spaces. The resulting matrix contains:
+!> - a test-test block assembled from \p mixA,
+!> - a trial-test coupling block assembled from \p mixB,
+!> - a test-trial coupling block assembled from \p mixBT.
 !>
-!>  - the mass matrix M
-!>  - the stifness matrix K
-!>  - the advection matrix B
-!>  - the advection matrix transposed BT.
+!> For each contribution, the routine evaluates combinations of:
+!> - the mass term \f$M = u\,v\f$,
+!> - the stiffness term \f$K = u'\,v'\f$,
+!> - the advection-like term \f$B = u'\,v\f$,
+!> - the transposed advection-like term \f$B^T = u\,v'\f$.
+!>
+!> The basis values and first derivatives are computed by \ref BasisData
+!> on the test and trial spaces separately. The assembled entries are
+!> inserted into a sparse matrix through routine `add`.
+!>
+!> The total matrix size is \f$(n_1+n_2+2) \times (n_1+n_2+2)\f$.
 !
 ! Input:
 ! ------
-!> @param[in] U1      - knot vector
-!> @param[in] p1      - degree of approximation
-!> @param[in] n1      - number of control points minus one
-!> @param[in] nelem1  - number of subintervals in knot
-!> @param[in] U2      - knot vector
-!> @param[in] p2      - degree of approximation
-!> @param[in] n2      - number of control points minus one
-!> @param[in] nelem2  - number of subintervals in knot
-!> @param[in] mix     - mixing proportions of M, K, B and BT matrices
+!> @param[in] nelem
+!> Number of elements used during assembly.
+!>
+!> @param[in] U1
+!> Knot vector of the first spline space.
+!>
+!> @param[in] p1
+!> Polynomial degree of the first spline space.
+!>
+!> @param[in] n1
+!> Number of control points minus one for the first spline space.
+!>
+!> @param[in] U2
+!> Knot vector of the second spline space.
+!>
+!> @param[in] p2
+!> Polynomial degree of the second spline space.
+!>
+!> @param[in] n2
+!> Number of control points minus one for the second spline space.
+!>
+!> @param[in] mixA
+!> Mixing coefficients for the first diagonal block.
+!>
+!> @param[in] mixB
+!> Mixing coefficients for the off-diagonal coupling block.
+!>
+!> @param[in] mixBT
+!> Mixing coefficients for the transposed off-diagonal coupling block.
 !
 ! Output:
 ! -------
-!> @param[out] sprsmtrx - sparse matrix, logically \f$ (n+1) \times (n+1) \f$, combination of M, K, B and BT matrices
-!>
-!> Values in the matrix are stored in the band format, i.e. while \f$ M \f$
-!> is \f$ (n+1) \times (n+1) \f$, it is stored as \f$ (2 KL + KU + 1) \times n \f$, and the
-!> index correspondence is given by:
-!>
-!>     A(i, j) = M(KL + KU + 1 + i - j, j)
-!>
-!> \f$ M = u*v \f$
-! -------------------------------------------------------------------
-   subroutine MKBBT_large(nelem, U1, p1, n1, U2, p2, n2, mixA, mixB, mixBT, sprsmtrx)
-      use basis, ONLY: BasisData
-      use omp_lib
-      use sparse
-      implicit none
-      integer(kind=4), intent(in) :: nelem
-      integer(kind=4), intent(in) :: n1, p1
-      integer(kind=4), intent(in) :: n2, p2
-      real(kind=8), intent(in) :: U1(0:n1 + p1 + 1)
-      real(kind=8), intent(in) :: U2(0:n2 + p2 + 1)
-      real(kind=8), dimension(4), intent(in) :: mixA, mixB, mixBT
-      real(kind=8), dimension(nelem) :: J ! values of the Jacobian of elements
-      real(kind=8), dimension(p1 + 1) :: W ! weights of Gauss quadrature points
-      real(kind=8), dimension(p1 + 1, nelem) :: X ! points of Gauss quadrature
-      real(kind=8), dimension(0:1, 0:p1, p1 + 1, nelem) :: NN1 ! values of (p1+1) nonzero basis functions and their derivatives at points of Gauss quadrature
-      real(kind=8), dimension(0:1, 0:p2, p1 + 1, nelem) :: NN2 ! values of (p2+1) nonzero basis functions and their derivatives at points of Gauss quadrature
-      integer(kind=4) :: dd ! order of highest derivatives we want to compute
-      integer(kind=4) :: ia, ib
-      integer(kind=4) :: mm1, mm2
-      integer(kind=4) :: ng ! number of Gauss quadrature points
-      integer(kind=4) :: e, i, c, d
-      integer(kind=4) :: O1(nelem) ! indexes of first nonzero functions on each element
-      integer(kind=4) :: O2(nelem) ! indexes of first nonzero functions on each element
-      type(sparse_matrix), pointer, intent(out) :: sprsmtrx
-      real(kind=8) :: val
-      real(kind=8) :: M, K, B, BT
+!> @param[out] sprsmtrx
+!> Sparse matrix containing the assembled block operator.
+!
+! Notes:
+! ------
+!> @note
+!> The routine requests first derivatives only, therefore the derivative
+!> order passed to \ref BasisData is equal to one.
+!
+!> @warning
+!> The argument \p nelem is used for both spline spaces and is assumed to
+!> be consistent with both knot vectors.
+!
+!---------------------------------------------------------------------------
+subroutine MKBBT_large(nelem, U1, p1, n1, U2, p2, n2, mixA, mixB, mixBT, sprsmtrx)
+   use basis, ONLY: BasisData
+   use omp_lib
+   use sparse
+   implicit none
+   !> @brief Number of elements used during assembly.
+   integer(kind=4), intent(in) :: nelem
+   !> @brief Basis size minus one and polynomial degree for the first space.
+   integer(kind=4), intent(in) :: n1, p1
+   !> @brief Basis size minus one and polynomial degree for the second space.
+   integer(kind=4), intent(in) :: n2, p2
+   !> @brief Knot vector of the first space.
+   real(kind=8), intent(in) :: U1(0:n1 + p1 + 1)
+!> @brief Knot vector of the second space.
+   real(kind=8), intent(in) :: U2(0:n2 + p2 + 1)
+!> @brief Mixing coefficients for the assembled operator terms.
+   real(kind=8), dimension(4), intent(in) :: mixA, mixB, mixBT
+!> @brief Element Jacobians.
+   real(kind=8), dimension(nelem) :: J
+!> @brief Gauss weights for the quadrature rule.
+   real(kind=8), dimension(p1 + 1) :: W
+!> @brief Physical Gauss-point coordinates on all elements.
+   real(kind=8), dimension(p1 + 1, nelem) :: X
+!> @brief Basis values and first derivatives for the first space.
+   real(kind=8), dimension(0:1, 0:p1, p1 + 1, nelem) :: NN1
+!> @brief Basis values and first derivatives for the second space.
+   real(kind=8), dimension(0:1, 0:p2, p1 + 1, nelem) :: NN2
+!> @brief Highest derivative order requested from basis evaluation.
+   integer(kind=4) :: dd
+!> @brief Row and column indices of the assembled sparse entry.
+   integer(kind=4) :: ia, ib
+!> @brief Last valid knot indices in the two knot vectors.
+   integer(kind=4) :: mm1, mm2
+!> @brief Number of Gauss quadrature points.
+   integer(kind=4) :: ng
+!> @brief Loop counters over elements, points, and local basis indices.
+   integer(kind=4) :: e, i, c, d
+!> @brief First nonzero basis-function indices for the first space.
+   integer(kind=4) :: O1(nelem)
+!> @brief First nonzero basis-function indices for the second space.
+   integer(kind=4) :: O2(nelem)
+!> @brief Output sparse matrix.
+   type(sparse_matrix), pointer, intent(out) :: sprsmtrx
+!> @brief Assembled entry inserted into the sparse matrix.
+   real(kind=8) :: val
+!> @brief Elementary mass, stiffness, and advection-like terms.
+   real(kind=8) :: M, K, B, BT
 
-      mm1 = n1 + p1 + 1
-      ng = p1 + 1
-      dd = 1
-      mm2 = n2 + p2 + 1
+   mm1 = n1 + p1 + 1
+   ng = p1 + 1
+   dd = 1
+   mm2 = n2 + p2 + 1
 
 ! test
-      call BasisData(p1, mm1, U1, dd, ng, nelem, O1, J, W, X, NN1)
+   call BasisData(p1, mm1, U1, dd, ng, nelem, O1, J, W, X, NN1)
 ! trial
-      call BasisData(p2, mm2, U2, dd, ng, nelem, O2, J, W, X, NN2)
+   call BasisData(p2, mm2, U2, dd, ng, nelem, O2, J, W, X, NN2)
 
-      call initialize_sparse(n1 + n2 + 2, n1 + n2 + 2, sprsmtrx)
+   call initialize_sparse(n1 + n2 + 2, n1 + n2 + 2, sprsmtrx)
 
-      ! total_size = (nelem1)*(ng1)*(p1 + 1)*(p1 + 1)
+   ! total_size = (nelem1)*(ng1)*(p1 + 1)*(p1 + 1)
 ! submatrix A
 ! new parallel loop
 ! !$OMP PARALLEL DO &
@@ -99,35 +174,35 @@ contains
 ! !$OMP REDUCTION(+:B) &
 ! !$OMP REDUCTION(+:BT)
 ! loop over elements
-      do e = 1, nelem
+   do e = 1, nelem
 ! loop over Gauss points
-         do i = 1, ng
+      do i = 1, ng
 ! loop over shape functions over elements (p+1 functions)
-            do c = 0, p1
-               ! loop over shape functions over elements (p+1 functions)
-               do d = 0, p1
-                  ! O(e) + c = first dof of element + 1st local shape function index
-                  ! O(e) + d = first dof of element + 2nd local shape function index
-                  ! NN(0,c,i,e) = value of shape function c at Gauss point i over element e
-                  ! NN(0,d,i,e) = value of shape function d at Gauss point i over element e
-                  ! W(i) weight for Gauss point i
-                  ! J(e) jacobian for element e
-                  ia = O1(e) + c
-                  ib = O1(e) + d
-                  ! M = u*v
-                  M = NN1(0, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
-                  K = NN1(1, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
-                  B = NN1(1, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
-                  BT = NN1(0, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
-                  val = mixA(1)*M + mixA(2)*K + mixA(3)*B + mixA(4)*BT
-                  call add(sprsmtrx, ia, ib, val)
-               end do
+         do c = 0, p1
+            ! loop over shape functions over elements (p+1 functions)
+            do d = 0, p1
+               ! O(e) + c = first dof of element + 1st local shape function index
+               ! O(e) + d = first dof of element + 2nd local shape function index
+               ! NN(0,c,i,e) = value of shape function c at Gauss point i over element e
+               ! NN(0,d,i,e) = value of shape function d at Gauss point i over element e
+               ! W(i) weight for Gauss point i
+               ! J(e) jacobian for element e
+               ia = O1(e) + c
+               ib = O1(e) + d
+               ! M = u*v
+               M = NN1(0, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
+               K = NN1(1, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
+               B = NN1(1, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
+               BT = NN1(0, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
+               val = mixA(1)*M + mixA(2)*K + mixA(3)*B + mixA(4)*BT
+               call add(sprsmtrx, ia, ib, val)
             end do
          end do
       end do
+   end do
 ! !$OMP END PARALLEL DO
 
-      ! total_size = (nelem1)*(ng1)*(p1 + 1)*(p2 + 1)
+   ! total_size = (nelem1)*(ng1)*(p1 + 1)*(p2 + 1)
 ! submatrix B
 ! new parallel loop
 ! !$OMP PARALLEL DO &
@@ -139,35 +214,35 @@ contains
 ! !$OMP REDUCTION(+:B) &
 ! !$OMP REDUCTION(+:BT)
 ! loop over elements
-      do e = 1, nelem
+   do e = 1, nelem
 ! loop over Gauss points
-         do i = 1, ng
+      do i = 1, ng
 ! loop over shape functions over elements (p+1 functions)
-            do c = 0, p2
-               ! loop over shape functions over elements (p+1 functions)
-               do d = 0, p1
-                  ! O(e) + c = first dof of element + 1st local shape function index
-                  ! O(e) + d = first dof of element + 2nd local shape function index
-                  ! NN(0,c,i,e) = value of shape function c at Gauss point i over element e
-                  ! NN(0,d,i,e) = value of shape function d at Gauss point i over element e
-                  ! W(i) weight for Gauss point i
-                  ! J(e) jacobian for element e
-                  ia = O2(e) + c
-                  ib = O1(e) + d + n1 + 1
-                  ! M = u*v
-                  M = NN2(0, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
-                  K = NN2(1, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
-                  B = NN2(1, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
-                  BT = NN2(0, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
-                  val = mixB(1)*M + mixB(2)*K + mixB(3)*B + mixB(4)*BT
-                  call add(sprsmtrx, ia, ib, val)
-               end do
+         do c = 0, p2
+            ! loop over shape functions over elements (p+1 functions)
+            do d = 0, p1
+               ! O(e) + c = first dof of element + 1st local shape function index
+               ! O(e) + d = first dof of element + 2nd local shape function index
+               ! NN(0,c,i,e) = value of shape function c at Gauss point i over element e
+               ! NN(0,d,i,e) = value of shape function d at Gauss point i over element e
+               ! W(i) weight for Gauss point i
+               ! J(e) jacobian for element e
+               ia = O2(e) + c
+               ib = O1(e) + d + n1 + 1
+               ! M = u*v
+               M = NN2(0, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
+               K = NN2(1, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
+               B = NN2(1, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
+               BT = NN2(0, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
+               val = mixB(1)*M + mixB(2)*K + mixB(3)*B + mixB(4)*BT
+               call add(sprsmtrx, ia, ib, val)
             end do
          end do
       end do
+   end do
 ! !$OMP END PARALLEL DO
 
-      ! total_size = (nelem2)*(ng2)*(p2 + 1)*(p1 + 1)
+   ! total_size = (nelem2)*(ng2)*(p2 + 1)*(p1 + 1)
 ! submatrix BT
 ! new parallel loop
 ! !$OMP PARALLEL DO &
@@ -178,56 +253,69 @@ contains
 ! !$OMP REDUCTION(+:K) &
 ! !$OMP REDUCTION(+:B) &
 ! !$OMP REDUCTION(+:BT)
-      do e = 1, nelem
+   do e = 1, nelem
 ! loop over Gauss points
-         do i = 1, ng
+      do i = 1, ng
 ! loop over shape functions over elements (p+1 functions)
-            do c = 0, p1
+         do c = 0, p1
 ! loop over shape functions over elements (p+1 functions)
-               do d = 0, p2
-                  ! O(e) + c = first dof of element + 1st local shape function index
-                  ! O(e) + d = first dof of element + 2nd local shape function index
-                  ! NN(0,c,i,e) = value of shape function c at Gauss(i) weight for Gauss point i
-                  ! J(e) jacobian for element e
-                  ia = O1(e) + c + n2 + 1
-                  ib = O2(e) + d
-                  ! M = u*v
-                  M = NN1(0, c, i, e)*NN2(0, d, i, e)*J(e)*W(i)
-                  K = NN1(1, c, i, e)*NN2(1, d, i, e)*J(e)*W(i)
-                  B = NN1(1, c, i, e)*NN2(0, d, i, e)*J(e)*W(i)
-                  BT = NN1(0, c, i, e)*NN2(1, d, i, e)*J(e)*W(i)
-                  val = mixBT(1)*M + mixBT(2)*K + mixBT(3)*B + mixBT(4)*BT
-                  call add(sprsmtrx, ia, ib, val)
-               end do
+            do d = 0, p2
+               ! O(e) + c = first dof of element + 1st local shape function index
+               ! O(e) + d = first dof of element + 2nd local shape function index
+               ! NN(0,c,i,e) = value of shape function c at Gauss(i) weight for Gauss point i
+               ! J(e) jacobian for element e
+               ia = O1(e) + c + n2 + 1
+               ib = O2(e) + d
+               ! M = u*v
+               M = NN1(0, c, i, e)*NN2(0, d, i, e)*J(e)*W(i)
+               K = NN1(1, c, i, e)*NN2(1, d, i, e)*J(e)*W(i)
+               B = NN1(1, c, i, e)*NN2(0, d, i, e)*J(e)*W(i)
+               BT = NN1(0, c, i, e)*NN2(1, d, i, e)*J(e)*W(i)
+               val = mixBT(1)*M + mixBT(2)*K + mixBT(3)*B + mixBT(4)*BT
+               call add(sprsmtrx, ia, ib, val)
             end do
          end do
       end do
+   end do
 ! !$OMP END PARALLEL DO
 
-   end subroutine MKBBT_large
+end subroutine MKBBT_large
 
 !---------------------------------------------------------------------------
-!> @brief
-!> Calculates matrices M, K, B and BT.
+!
+! DESCRIPTION:
+!> @brief Assembles a sparse matrix on a single spline space from a
+!> weighted combination of standard bilinear-form terms.
 !>
-!> Calculates:
+!> @details
+!> This routine constructs a sparse operator matrix on one
+!> one-dimensional spline space. For each element and Gauss point it
+!> combines:
+!> - the mass term \f$M = u\,v\f$,
+!> - the stiffness term \f$K = u'\,v'\f$,
+!> - the advection-like term \f$B = u'\,v\f$,
+!> - the transposed advection-like term \f$B^T = u\,v'\f$.
 !>
-!>  - the mass matrix M
-!>  - the stifness matrix K
-!>  - the advection matrix B
-!>  - the advection matrix transposed BT.
+!> The final entry added to the sparse matrix is obtained from the
+!> mixing vector \p mix.
 !
 ! Input:
 ! ------
-!> @param[in] U1      - knot vector
-!> @param[in] p1      - degree of approximation
-!> @param[in] n1      - number of control points minus one
-!> @param[in] nelem1  - number of subintervals in knot
-!> @param[in] U2      - knot vector
-!> @param[in] p2      - degree of approximation
-!> @param[in] n2      - number of control points minus one
-!> @param[in] nelem2  - number of subintervals in knot
-!> @param[in] mix     - mixing proportions of M, K, B and BT matrices
+!> @param[in] nelem
+!> Number of elements used during assembly.
+!>
+!> @param[in] U
+!> Knot vector of the spline space.
+!>
+!> @param[in] p
+!> Polynomial degree of the spline basis.
+!>
+!> @param[in] n
+!> Number of control points minus one.
+!>
+!> @param[in] mix
+!> Mixing coefficients for the elementary terms \f$M\f$, \f$K\f$,
+!> \f$B\f$, and \f$B^T\f$.
 !
 ! Output:
 ! -------
@@ -276,7 +364,7 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
    call BasisData(p1, mm1, U1, dd1, ng1, nelem1, O1, J1, W1, X1, NN1)
    call BasisData(p2, mm2, U2, dd2, ng2, nelem2, O2, J2, W2, X2, NN2)
 
-      call initialize_sparse(n + 1, n + 1, sprsmtrx)
+   call initialize_sparse(n + 1, n + 1, sprsmtrx)
 
 ! submatrix A
 ! new parallel loop
@@ -317,65 +405,134 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
    enddo
 !$OMP END PARALLEL DO
 
-   end subroutine MKBBT_small
+end subroutine MKBBT_small
 
 !---------------------------------------------------------------------------
-!> @brief
-!> Calculate right-hand side of the equation.
+!
+! DESCRIPTION:
+!> @brief Forms the local three-dimensional right-hand-side array for an
+!> ADS substep.
+!>
+!> @details
+!> This procedure assembles contributions to the right-hand side of a
+!> three-dimensional tensor-product problem. Depending on the enrichment
+!> encoded in \p direction, the routine first constructs a mixed test-
+!> trial space by calling \ref create_mixed_space.
+!>
+!> The assembly then proceeds by:
+!> - iterating over local elements and quadrature points,
+!> - extracting solution values and derivatives from previously computed
+!>   buffers,
+!> - evaluating the pointwise contribution through
+!>   `ComputePointForRHS`,
+!> - accumulating the result into a temporary element-local array,
+!> - scattering the local contributions into either \p ads_data%F or
+!>   \p ads_data%Ft depending on whether iGRM mode is active.
+!>
+!> The routine uses the quadrature and basis tables already stored in
+!> the setup structure and assumes they are allocated consistently.
 !
 ! Input:
 ! ------
-!> @param[in] ads          - ADS setup structure
-!> @param[in] directon     - direction for the substep
-!> @param[in] substep      - number of substep
-!> @param[in] n            - nuber of previous time steps
-!
-! Input/Output:
-! -------
-!> @param[inout] ads_data  - data structures for ADS
+!> @param[in] ads_test
+!> Setup structure describing the test space.
+!>
+!> @param[in] ads_trial
+!> Setup structure describing the trial space.
+!>
+!> @param[in,out] ads_data
+!> Working data structure holding buffers used during assembly.
+!>
+!> @param[in] direction
+!> Directional indicator of the currently enriched dimension.
+!>
+!> @param[in] n
+!> Index or number associated with previous time-step data.
+!>
+!> @param[in] substep
+!> Number of the current substep.
+!>
+!> @param[in] alpha_step
+!> Coefficient table used by the substep formula.
+!>
+!> @param[in] forcing
+!> External forcing callback used during pointwise evaluation.
 !
 ! Output:
-! --------
-!> @param[out] igrm     - indicates, if we are using iGRM
-! -------------------------------------------------------------------
-   subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, alpha_step, forcing, igrm)
-      use Setup, ONLY: ADS_Setup, ADS_compute_data
-      ! use parallelism, ONLY: PRINTRANK
-      use Interfaces, ONLY: forcing_fun
-      use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
-      use omp_lib
-      use RHS_eq
-      implicit none
-      procedure(forcing_fun) :: forcing
-      type(ADS_setup), intent(in) :: ads_test, ads_trial
-      integer(kind=4), dimension(3), intent(in) :: direction
-      integer(kind=4), intent(in) :: substep
-      type(ADS_compute_data), intent(inout) :: ads_data
-      integer(kind=4), intent(in) :: n
-      real(kind=8), intent(in), dimension(7, 3) :: alpha_step
-      integer(kind=4) :: kx, ky, kz, ax, ay, az, ex, ey, ez!, exx,eyy,ezz
-      real(kind=8) :: J, W
-      integer(kind=4) :: ind, ind1, ind23, indx, indy, indz
-      real(kind=8) :: resvalue
-      real(kind=8), dimension(3) :: X
-      integer(kind=4), dimension(3) :: k, e, a
-      ! integer (kind = 4) :: tmp, all
-      ! integer (kind = 4) :: total_size
-      real(kind=8), dimension(3)  :: du
-      ! integer(kind = 4) :: indbx, indby, indbz
-      real(kind=8) :: Uval
-      real(kind=8) :: Uval13
-      real(kind=8) :: Uval23
-      real(kind=8), dimension(:, :, :), allocatable :: elarr
-      type(ADS_setup) :: ads
-      logical, intent(out) :: igrm
-      integer(kind=4) :: dira,dirb,dirc ! direction of going throuh space
+! -------
+!> @param[out] igrm
+!> Logical flag indicating whether the current substep uses iGRM.
+!
+! Notes:
+! ------
+!> @note
+!> The routine allocates a temporary array `elarr` storing the
+!> element-local accumulated contributions.
+!
+!> @warning
+!> The procedure assumes that all arrays inside \p ads_test,
+!> \p ads_trial, and \p ads_data are dimensionally consistent.
+!
+!---------------------------------------------------------------------------
+subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, alpha_step, forcing, igrm)
+   use Setup, ONLY: ADS_Setup, ADS_compute_data
+   ! use parallelism, ONLY: PRINTRANK
+   use Interfaces, ONLY: forcing_fun
+   use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
+   use omp_lib
+   use RHS_eq
+   implicit none
+!> @brief Forcing term callback used in pointwise RHS evaluation.
+   procedure(forcing_fun) :: forcing
+!> @brief Setup structures of the test and trial spaces.
+   type(ADS_setup), intent(in) :: ads_test, ads_trial
+!> @brief Enrichment indicator for the current substep.
+   integer(kind=4), dimension(3), intent(in) :: direction
+!> @brief Current substep number.
+   integer(kind=4), intent(in) :: substep
+!> @brief Working data buffers updated during assembly.
+   type(ADS_compute_data), intent(inout) :: ads_data
+!> @brief Index associated with previous time-step data.
+   integer(kind=4), intent(in) :: n
+!> @brief Coefficients of the time-stepping substep formula.
+   real(kind=8), intent(in), dimension(7, 3) :: alpha_step
+!> @brief Loop counters over quadrature points, local basis indices, and elements.
+   integer(kind=4) :: kx, ky, kz, ax, ay, az, ex, ey, ez!, exx,eyy,ezz
+!> @brief Element Jacobian product and quadrature weight product.
+   real(kind=8) :: J, W
+!> @brief Global and local index variables.
+   integer(kind=4) :: ind, ind1, ind23, indx, indy, indz
+!> @brief Pointwise contribution returned by `ComputePointForRHS`.
+   real(kind=8) :: resvalue
+!> @brief Physical coordinates of the current quadrature point.
+   real(kind=8), dimension(3) :: X
+!> @brief Direction-dependent quadrature, element, and local basis indices.
+   integer(kind=4), dimension(3) :: k, e, a
+   ! integer (kind = 4) :: tmp, all
+   ! integer (kind = 4) :: total_size
+!> @brief Values of the gradient-like quantity from the previous step.
+   real(kind=8), dimension(3)  :: du
+   ! integer(kind = 4) :: indbx, indby, indbz
+!> @brief Solution value at the current quadrature point.
+   real(kind=8) :: Uval
+!> @brief Auxiliary intermediate solution value.
+   real(kind=8) :: Uval13
+!> @brief Auxiliary intermediate solution value.
+   real(kind=8) :: Uval23
+!> @brief Element-local temporary accumulation array.
+   real(kind=8), dimension(:, :, :), allocatable :: elarr
+!> @brief Mixed-space setup used for the current assembly pass.
+   type(ADS_setup) :: ads
+!> @brief Flag indicating use of the iGRM path.
+   logical, intent(out) :: igrm
+!> @brief Permutation of coordinate directions used internally.
+   integer(kind=4) :: dira,dirb,dirc
 
-      call create_mixed_space(ads_test, ads_trial, direction,&
-      ads, dira, dirb, dirc, igrm)
+   call create_mixed_space(ads_test, ads_trial, direction,&
+   ads, dira, dirb, dirc, igrm)
 
-      allocate (elarr(0:ads%p(dira), 0:ads%p(dirb), 0:ads%p(dirc)))
-      ! total_size = ads % lnelem(1) * ads % lnelem(2) * ads % lnelem(3)
+   allocate (elarr(0:ads%p(dira), 0:ads%p(dirb), 0:ads%p(dirc)))
+   ! total_size = ads % lnelem(1) * ads % lnelem(2) * ads % lnelem(3)
 
 !   if (allocated(ads_data%F)) ads_data%F = 0.d0
 !   if (allocated(ads_data%Ft)) ads_data%Ft = 0.d0
@@ -387,281 +544,316 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
 ! !$OMP PRIVATE(tmp,ex,ey,ez,e,kx,ky,kz,k,W,ax,ay,az,a,ind,indx,indy,indz,ind1,ind23,J) &
 ! !$OMP PRIVATE(X,du,resvalue) &
 ! !$OMP PRIVATE(indbx,indby,indbz,Uval,elarr,,Uval_m,Uval13,Uval23)
-      ! do all = 1, total_size
+   ! do all = 1, total_size
 ! translate coefficients to local
-      ! ez = modulo(all - 1, ads % lnelem(3))
-      ! tmp = (all - ez)/ads % lnelem(3) + 1
-      ! ey = modulo(tmp - 1, ads % lnelem(2))
-      ! ex = (tmp - ey)/ads % lnelem(2)
-      ! write(*,*) size(ads%Jx) , ads % lnelem(1), ads % mine(1)
-      ! write(*,*) size(ads%Jy) , ads % lnelem(2), ads % mine(2)
-      ! write(*,*) size(ads%Jz) , ads % lnelem(3), ads % mine(3)
-      ! do exx=1,ads % lnelem(1)
-      ! do eyy=1,ads % lnelem(2)
-      ! do ezz=1,ads % lnelem(3)
-      do ex = ads%mine(1), ads%maxe(1)
-         do ey = ads%mine(2), ads%maxe(2)
-            do ez = ads%mine(3), ads%maxe(3)
+   ! ez = modulo(all - 1, ads % lnelem(3))
+   ! tmp = (all - ez)/ads % lnelem(3) + 1
+   ! ey = modulo(tmp - 1, ads % lnelem(2))
+   ! ex = (tmp - ey)/ads % lnelem(2)
+   ! write(*,*) size(ads%Jx) , ads % lnelem(1), ads % mine(1)
+   ! write(*,*) size(ads%Jy) , ads % lnelem(2), ads % mine(2)
+   ! write(*,*) size(ads%Jz) , ads % lnelem(3), ads % mine(3)
+   ! do exx=1,ads % lnelem(1)
+   ! do eyy=1,ads % lnelem(2)
+   ! do ezz=1,ads % lnelem(3)
+   do ex = ads%mine(1), ads%maxe(1)
+      do ey = ads%mine(2), ads%maxe(2)
+         do ez = ads%mine(3), ads%maxe(3)
 ! fix distributed part
-               ! ex = exx + ads % mine(1)
-               ! ey = eyy + ads % mine(2)
-               ! ez = ezz + ads % mine(3)
+            ! ex = exx + ads % mine(1)
+            ! ey = eyy + ads % mine(2)
+            ! ez = ezz + ads % mine(3)
 ! Jacobian
-               J = ads%Jx(ex)*ads%Jy(ey)*ads%Jz(ez)
-               e = (/ex, ey, ez/)
-               elarr = 0.d0
+            J = ads%Jx(ex)*ads%Jy(ey)*ads%Jz(ez)
+            e = (/ex, ey, ez/)
+            elarr = 0.d0
 ! loop over quadrature points
-               do kx = 1, ads%ng(dira)
-                  do ky = 1, ads%ng(dirb)
-                     do kz = 1, ads%ng(dirc)
-                        k(dira) = kx
-                        k(dirb) = ky
-                        k(dirc) = kz
+            do kx = 1, ads%ng(dira)
+               do ky = 1, ads%ng(dirb)
+                  do kz = 1, ads%ng(dirc)
+                     k(dira) = kx
+                     k(dirb) = ky
+                     k(dirc) = kz
 ! weigths
-                        W = ads%Wx(k(1))*ads%Wy(k(2))*ads%Wz(k(3))
-                        Uval = ads_data%Un(ex, ey, ez, k(1), k(2), k(3))
-                        Uval13 = ads_data%Un13(ex, ey, ez, k(1), k(2), k(3))
-                        Uval23 = ads_data%Un23(ex, ey, ez, k(1), k(2), k(3))
-                        du = ads_data%dUn(ex, ey, ez, k(1), k(2), k(3), :)
+                     W = ads%Wx(k(1))*ads%Wy(k(2))*ads%Wz(k(3))
+                     Uval = ads_data%Un(ex, ey, ez, k(1), k(2), k(3))
+                     Uval13 = ads_data%Un13(ex, ey, ez, k(1), k(2), k(3))
+                     Uval23 = ads_data%Un23(ex, ey, ez, k(1), k(2), k(3))
+                     du = ads_data%dUn(ex, ey, ez, k(1), k(2), k(3), :)
 
 !                 loop over degrees of freedom
-                        do ax = 0, ads%p(dira)
-                           do ay = 0, ads%p(dirb)
-                              do az = 0, ads%p(dirc)
-                                 indx = (ads%Ox(ex) + ax)
-                                 indy = (ads%Oy(ey) + ay)
-                                 indz = (ads%Oz(ez) + az)
-                                 ind = indx + (indy + indz*(ads%n(2) + 1))*(ads%n(1) + 1)
+                     do ax = 0, ads%p(dira)
+                        do ay = 0, ads%p(dirb)
+                           do az = 0, ads%p(dirc)
+                              indx = (ads%Ox(ex) + ax)
+                              indy = (ads%Oy(ey) + ay)
+                              indz = (ads%Oz(ez) + az)
+                              ind = indx + (indy + indz*(ads%n(2) + 1))*(ads%n(1) + 1)
 
-                                 if ((indx < ads%ibeg(dira) - 1) .or. (indx > ads%iend(dira) - 1) .or. &
-                                    (indy < ads%ibeg(dirb) - 1) .or. (indy > ads%iend(dirb) - 1) .or. &
-                                    (indz < ads%ibeg(dirc) - 1) .or. (indz > ads%iend(dirc) - 1)) then
-                                 else
-                                    ind1 = indx - ads%ibeg(dira) + 1
-                                    ind23 = (indy - ads%ibeg(dirb) + 1) + &
-                                       (indz - ads%ibeg(dirc) + 1)*(ads%iend(dirb) - ads%ibeg(dirb) + 1)
+                              if ((indx < ads%ibeg(dira) - 1) .or. (indx > ads%iend(dira) - 1) .or. &
+                                 (indy < ads%ibeg(dirb) - 1) .or. (indy > ads%iend(dirb) - 1) .or. &
+                                 (indz < ads%ibeg(dirc) - 1) .or. (indz > ads%iend(dirc) - 1)) then
+                              else
+                                 ind1 = indx - ads%ibeg(dira) + 1
+                                 ind23 = (indy - ads%ibeg(dirb) + 1) + &
+                                    (indz - ads%ibeg(dirc) + 1)*(ads%iend(dirb) - ads%ibeg(dirb) + 1)
 
-                                    X(dira) = ads%Xx(k(1), ex)
-                                    X(dirb) = ads%Xy(k(2), ey)
-                                    X(dirc) = ads%Xz(k(3), ez)
+                                 X(dira) = ads%Xx(k(1), ex)
+                                 X(dirb) = ads%Xy(k(2), ey)
+                                 X(dirc) = ads%Xz(k(3), ez)
 
-                                    a(dira) = ax
-                                    a(dirb) = ay
-                                    a(dirc) = az
+                                 a(dira) = ax
+                                 a(dirb) = ay
+                                 a(dirc) = az
 
 
-                                    ! call RHS_fun(&
-                                    ! ads, &
-                                    ! X, &
-                                    ! k, &
-                                    ! e, &
-                                    ! a, &
-                                    ! du, &
-                                    ! 1, Uval_m, Uval13,Uval23, &
-                                    ! ads_data, J, W, direction, substep, resvalue)
+                                 ! call RHS_fun(&
+                                 ! ads, &
+                                 ! X, &
+                                 ! k, &
+                                 ! e, &
+                                 ! a, &
+                                 ! du, &
+                                 ! 1, Uval_m, Uval13,Uval23, &
+                                 ! ads_data, J, W, direction, substep, resvalue)
 
-                                    call ComputePointForRHS( &
-                                       ads, &
-                                       X, &
-                                       k, &
-                                       e, &
-                                       a, &
-                                       du, &
-                                       n, &
-                                       Uval, &
-                                       Uval13, &
-                                       Uval23, &
-                                       ads_data, J, W, direction, substep, &
-                                       alpha_step, &
-                                       forcing, &
-                                       resvalue)
+                                 call ComputePointForRHS( &
+                                    ads, &
+                                    X, &
+                                    k, &
+                                    e, &
+                                    a, &
+                                    du, &
+                                    n, &
+                                    Uval, &
+                                    Uval13, &
+                                    Uval23, &
+                                    ads_data, J, W, direction, substep, &
+                                    alpha_step, &
+                                    forcing, &
+                                    resvalue)
 
-                                    elarr(ax, ay, az) = elarr(ax, ay, az) + resvalue
-                                 end if
-                              end do
+                                 elarr(ax, ay, az) = elarr(ax, ay, az) + resvalue
+                              end if
                            end do
                         end do
                      end do
                   end do
                end do
+            end do
 ! moving results from temporary array to main one
 ! !$OMP CRITICAL
-               do ax = 0, ads%p(dira)
-                  do ay = 0, ads%p(dirb)
-                     do az = 0, ads%p(dirc)
-                        indx = (ads%Ox(ex) + ax)
-                        indy = (ads%Oy(ey) + ay)
-                        indz = (ads%Oz(ez) + az)
-                        ind1 = indx - ads%ibeg(dira) + 1
-                        ind23 = (indy - ads%ibeg(dirb) + 1) + &
-                           (indz - ads%ibeg(dirc) + 1)*(ads%iend(dirb) - ads%ibeg(dirb) + 1)
-                        if ((indx < ads%ibeg(dira) - 1) .or. (indx > ads%iend(dira) - 1) .or. &
-                           (indy < ads%ibeg(dirb) - 1) .or. (indy > ads%iend(dirb) - 1) .or. &
-                           (indz < ads%ibeg(dirc) - 1) .or. (indz > ads%iend(dirc) - 1)) then
+            do ax = 0, ads%p(dira)
+               do ay = 0, ads%p(dirb)
+                  do az = 0, ads%p(dirc)
+                     indx = (ads%Ox(ex) + ax)
+                     indy = (ads%Oy(ey) + ay)
+                     indz = (ads%Oz(ez) + az)
+                     ind1 = indx - ads%ibeg(dira) + 1
+                     ind23 = (indy - ads%ibeg(dirb) + 1) + &
+                        (indz - ads%ibeg(dirc) + 1)*(ads%iend(dirb) - ads%ibeg(dirb) + 1)
+                     if ((indx < ads%ibeg(dira) - 1) .or. (indx > ads%iend(dira) - 1) .or. &
+                        (indy < ads%ibeg(dirb) - 1) .or. (indy > ads%iend(dirb) - 1) .or. &
+                        (indz < ads%ibeg(dirc) - 1) .or. (indz > ads%iend(dirc) - 1)) then
+                     else
+                        if (igrm) then
+                           ads_data%Ft(ind1 + 1, ind23 + 1) = &
+                              ads_data%Ft(ind1 + 1, ind23 + 1) &
+                              + elarr(ax, ay, az)
                         else
-                           if (igrm) then
-                              ads_data%Ft(ind1 + 1, ind23 + 1) = &
-                                 ads_data%Ft(ind1 + 1, ind23 + 1) &
-                                 + elarr(ax, ay, az)
-                           else
-                              ads_data%F(ind1 + 1, ind23 + 1) = &
-                                 ads_data%F(ind1 + 1, ind23 + 1) &
-                                 + elarr(ax, ay, az)
-                           end if
+                           ads_data%F(ind1 + 1, ind23 + 1) = &
+                              ads_data%F(ind1 + 1, ind23 + 1) &
+                              + elarr(ax, ay, az)
                         end if
-                     end do
+                     end if
                   end do
                end do
-! !$OMP END CRITICAL
             end do
+! !$OMP END CRITICAL
          end do
       end do
+   end do
 ! !$OMP END PARALLEL DO
 
-      deallocate (elarr)
+   deallocate (elarr)
 
-   end subroutine Form3DRHS
+end subroutine Form3DRHS
 
 
 
 !---------------------------------------------------------------------------
-!> @brief
-!> Creates mixed space for iGRM with enriched space in given direction.
+!
+! DESCRIPTION:
+!> @brief Creates the mixed space used for a directional iGRM substep.
+!>
+!> @details
+!> This routine starts from the trial-space setup and selectively
+!> replaces one coordinate direction by the corresponding data from the
+!> test-space setup. The selected direction is identified by the vector
+!> \p direction.
+!>
+!> Depending on the enriched direction, the routine also sets:
+!> - the permutation \p dira, \p dirb, \p dirc controlling the ordering
+!>   of tensor loops,
+!> - the flag \p igrm indicating whether an iGRM configuration is active.
+!>
+!> If no direction is marked for enrichment, the output setup remains
+!> identical to the trial space and \p igrm is returned as `.FALSE.`.
 !
 ! Input:
 ! ------
-!> @param[in] ads_test  - structure of test space
-!> @param[in] ads_trial - structure of trial space
-!> @param[in] direction - direction in which we enrich test space in current substep
+!> @param[in] ads_test
+!> Setup structure of the test space.
+!>
+!> @param[in] ads_trial
+!> Setup structure of the trial space.
+!>
+!> @param[in] direction
+!> Directional enrichment selector.
 !
 ! Output:
 ! -------
-!> @param[out] ads      - resulting struture for mixed space
-!> @param[out] dira     - direction of going throuh space
-!> @param[out] dirb     - direction of going throuh space
-!> @param[out] dirc     - direction of going throuh space
-!> @param[out] igrm     - indicates, if we are using iGRM
-! -------------------------------------------------------------------
-   subroutine create_mixed_space(ads_test, ads_trial, direction,&
-      ads, dira, dirb, dirc, igrm)
-      use Setup, ONLY: ADS_Setup
-      implicit none
-      type(ADS_setup), intent(in) :: ads_test, ads_trial
-      integer(kind=4), dimension(3), intent(in) :: direction
-      type(ADS_setup), intent(out) :: ads
-      integer(kind=4), intent(out) :: dira,dirb,dirc ! direction of going throuh space
-      logical, intent(out) :: igrm
+!> @param[out] ads
+!> Resulting mixed-space setup.
+!>
+!> @param[out] dira
+!> First direction used in tensor traversal.
+!>
+!> @param[out] dirb
+!> Second direction used in tensor traversal.
+!>
+!> @param[out] dirc
+!> Third direction used in tensor traversal.
+!>
+!> @param[out] igrm
+!> Logical flag indicating whether iGRM is active.
+!
+!---------------------------------------------------------------------------
+subroutine create_mixed_space(ads_test, ads_trial, direction,&
+   ads, dira, dirb, dirc, igrm)
+   use Setup, ONLY: ADS_Setup
+   implicit none
+!> @brief Setup structures of the test and trial spaces.
+   type(ADS_setup), intent(in) :: ads_test, ads_trial
+!> @brief Directional enrichment selector.
+   integer(kind=4), dimension(3), intent(in) :: direction
+!> @brief Output mixed-space setup.
+   type(ADS_setup), intent(out) :: ads
+!> @brief Internal permutation of traversal directions.
+   integer(kind=4), intent(out) :: dira,dirb,dirc
+!> @brief Flag indicating use of the iGRM configuration.
+   logical, intent(out) :: igrm
 
+   dira=1
+   dirb=2
+   dirc=3
+
+!  copy default space as trial space
+   ads = ads_trial
+   igrm = .FALSE.
+
+!  if we have enriched one direction, then modify default space
+   if (direction(1) .EQ. 1) then
+      ads%n(1) = ads_test%n(1)
+      ads%p(1) = ads_test%p(1)
+      ads%Ux = ads_test%Ux
+      ads%nelem(1) = ads_test%nelem(1)
+      ads%dimensionsX = ads_test%dimensionsX
+      ads%shiftsX = ads_test%shiftsX
+      ads%IPIVx = ads_test%IPIVx
+      ads%nrcpp(1) = ads_test%nrcpp(1)
+      ads%ibeg(1) = ads_test%ibeg(1)
+      ads%iend(1) = ads_test%iend(1)
+      ads%s(1) = ads_test%s(1)
+      ads%ibegsx(1) = ads_test%ibegsx(1)
+      ads%iendsx(1) = ads_test%iendsx(1)
+      ads%ibegsy(1) = ads_test%ibegsy(1)
+      ads%iendsy(1) = ads_test%iendsy(1)
+      ads%ibegsz(1) = ads_test%ibegsz(1)
+      ads%iendsz(1) = ads_test%iendsz(1)
+      ads%mine(1) = ads_test%mine(1)
+      ads%maxe(1) = ads_test%maxe(1)
+      ads%lnelem(1) = ads_test%lnelem(1)
+      ads%m(1) = ads_test%m(1)
+      ads%ng(1) = ads_test%ng(1)
+      ads%Ox = ads_test%Ox
+      ads%Jx = ads_test%Jx
+      ads%Xx = ads_test%Xx
+      ads%NNx = ads_test%NNx
+      ads%Wx = ads_test%Wx
+      igrm = .TRUE.
       dira=1
       dirb=2
       dirc=3
+   end if
+   if (direction(2) .EQ. 1) then
+      ads%n(2) = ads_test%n(2)
+      ads%p(2) = ads_test%p(2)
+      ads%Uy = ads_test%Uy
+      ads%nelem(2) = ads_test%nelem(2)
+      ads%dimensionsY = ads_test%dimensionsY
+      ads%shiftsY = ads_test%shiftsY
+      ads%IPIVy = ads_test%IPIVy
+      ads%nrcpp(2) = ads_test%nrcpp(2)
+      ads%ibeg(2) = ads_test%ibeg(2)
+      ads%iend(2) = ads_test%iend(2)
+      ads%s(2) = ads_test%s(2)
+      ads%ibegsx(2) = ads_test%ibegsx(2)
+      ads%iendsx(2) = ads_test%iendsx(2)
+      ads%ibegsy(2) = ads_test%ibegsy(2)
+      ads%iendsy(2) = ads_test%iendsy(2)
+      ads%ibegsz(2) = ads_test%ibegsz(2)
+      ads%iendsz(2) = ads_test%iendsz(2)
+      ads%mine(2) = ads_test%mine(2)
+      ads%maxe(2) = ads_test%maxe(2)
+      ads%lnelem(2) = ads_test%lnelem(2)
+      ads%m(2) = ads_test%m(2)
+      ads%ng(2) = ads_test%ng(2)
+      ads%Oy = ads_test%Oy
+      ads%Jy = ads_test%Jy
+      ads%Xy = ads_test%Xy
+      ads%NNy = ads_test%NNy
+      ads%Wy = ads_test%Wy
+      igrm = .TRUE.
+      dira=2
+      dirb=3
+      dirc=1
+   end if
+   if (direction(3) .EQ. 1) then
+      ads%n(3) = ads_test%n(3)
+      ads%p(3) = ads_test%p(3)
+      ads%Uz = ads_test%Uz
+      ads%nelem(3) = ads_test%nelem(3)
+      ads%dimensionsZ = ads_test%dimensionsZ
+      ads%shiftsZ = ads_test%shiftsZ
+      ads%IPIVz = ads_test%IPIVz
+      ads%nrcpp(3) = ads_test%nrcpp(3)
+      ads%ibeg(3) = ads_test%ibeg(3)
+      ads%iend(3) = ads_test%iend(3)
+      ads%s(3) = ads_test%s(3)
+      ads%ibegsx(3) = ads_test%ibegsx(3)
+      ads%iendsx(3) = ads_test%iendsx(3)
+      ads%ibegsy(3) = ads_test%ibegsy(3)
+      ads%iendsy(3) = ads_test%iendsy(3)
+      ads%ibegsz(3) = ads_test%ibegsz(3)
+      ads%iendsz(3) = ads_test%iendsz(3)
+      ads%mine(3) = ads_test%mine(3)
+      ads%maxe(3) = ads_test%maxe(3)
+      ads%lnelem(3) = ads_test%lnelem(3)
+      ads%m(3) = ads_test%m(3)
+      ads%ng(3) = ads_test%ng(3)
+      ads%Oz = ads_test%Oz
+      ads%Jz = ads_test%Jz
+      ads%Xz = ads_test%Xz
+      ads%NNz = ads_test%NNz
+      ads%Wz = ads_test%Wz
+      igrm = .TRUE.
+      dira=3
+      dirb=1
+      dirc=2
+   end if
 
-!  copy default space as trial space
-      ads = ads_trial
-      igrm = .FALSE.
-
-!  if we have enriched one direction, then modify default space
-      if (direction(1) .EQ. 1) then
-         ads%n(1) = ads_test%n(1)
-         ads%p(1) = ads_test%p(1)
-         ads%Ux = ads_test%Ux
-         ads%nelem(1) = ads_test%nelem(1)
-         ads%dimensionsX = ads_test%dimensionsX
-         ads%shiftsX = ads_test%shiftsX
-         ads%IPIVx = ads_test%IPIVx
-         ads%nrcpp(1) = ads_test%nrcpp(1)
-         ads%ibeg(1) = ads_test%ibeg(1)
-         ads%iend(1) = ads_test%iend(1)
-         ads%s(1) = ads_test%s(1)
-         ads%ibegsx(1) = ads_test%ibegsx(1)
-         ads%iendsx(1) = ads_test%iendsx(1)
-         ads%ibegsy(1) = ads_test%ibegsy(1)
-         ads%iendsy(1) = ads_test%iendsy(1)
-         ads%ibegsz(1) = ads_test%ibegsz(1)
-         ads%iendsz(1) = ads_test%iendsz(1)
-         ads%mine(1) = ads_test%mine(1)
-         ads%maxe(1) = ads_test%maxe(1)
-         ads%lnelem(1) = ads_test%lnelem(1)
-         ads%m(1) = ads_test%m(1)
-         ads%ng(1) = ads_test%ng(1)
-         ads%Ox = ads_test%Ox
-         ads%Jx = ads_test%Jx
-         ads%Xx = ads_test%Xx
-         ads%NNx = ads_test%NNx
-         ads%Wx = ads_test%Wx
-         igrm = .TRUE.
-         dira=1
-         dirb=2
-         dirc=3
-      end if
-      if (direction(2) .EQ. 1) then
-         ads%n(2) = ads_test%n(2)
-         ads%p(2) = ads_test%p(2)
-         ads%Uy = ads_test%Uy
-         ads%nelem(2) = ads_test%nelem(2)
-         ads%dimensionsY = ads_test%dimensionsY
-         ads%shiftsY = ads_test%shiftsY
-         ads%IPIVy = ads_test%IPIVy
-         ads%nrcpp(2) = ads_test%nrcpp(2)
-         ads%ibeg(2) = ads_test%ibeg(2)
-         ads%iend(2) = ads_test%iend(2)
-         ads%s(2) = ads_test%s(2)
-         ads%ibegsx(2) = ads_test%ibegsx(2)
-         ads%iendsx(2) = ads_test%iendsx(2)
-         ads%ibegsy(2) = ads_test%ibegsy(2)
-         ads%iendsy(2) = ads_test%iendsy(2)
-         ads%ibegsz(2) = ads_test%ibegsz(2)
-         ads%iendsz(2) = ads_test%iendsz(2)
-         ads%mine(2) = ads_test%mine(2)
-         ads%maxe(2) = ads_test%maxe(2)
-         ads%lnelem(2) = ads_test%lnelem(2)
-         ads%m(2) = ads_test%m(2)
-         ads%ng(2) = ads_test%ng(2)
-         ads%Oy = ads_test%Oy
-         ads%Jy = ads_test%Jy
-         ads%Xy = ads_test%Xy
-         ads%NNy = ads_test%NNy
-         ads%Wy = ads_test%Wy
-         igrm = .TRUE.
-         dira=2
-         dirb=3
-         dirc=1
-      end if
-      if (direction(3) .EQ. 1) then
-         ads%n(3) = ads_test%n(3)
-         ads%p(3) = ads_test%p(3)
-         ads%Uz = ads_test%Uz
-         ads%nelem(3) = ads_test%nelem(3)
-         ads%dimensionsZ = ads_test%dimensionsZ
-         ads%shiftsZ = ads_test%shiftsZ
-         ads%IPIVz = ads_test%IPIVz
-         ads%nrcpp(3) = ads_test%nrcpp(3)
-         ads%ibeg(3) = ads_test%ibeg(3)
-         ads%iend(3) = ads_test%iend(3)
-         ads%s(3) = ads_test%s(3)
-         ads%ibegsx(3) = ads_test%ibegsx(3)
-         ads%iendsx(3) = ads_test%iendsx(3)
-         ads%ibegsy(3) = ads_test%ibegsy(3)
-         ads%iendsy(3) = ads_test%iendsy(3)
-         ads%ibegsz(3) = ads_test%ibegsz(3)
-         ads%iendsz(3) = ads_test%iendsz(3)
-         ads%mine(3) = ads_test%mine(3)
-         ads%maxe(3) = ads_test%maxe(3)
-         ads%lnelem(3) = ads_test%lnelem(3)
-         ads%m(3) = ads_test%m(3)
-         ads%ng(3) = ads_test%ng(3)
-         ads%Oz = ads_test%Oz
-         ads%Jz = ads_test%Jz
-         ads%Xz = ads_test%Xz
-         ads%NNz = ads_test%NNz
-         ads%Wz = ads_test%Wz
-         igrm = .TRUE.
-         dira=3
-         dirb=1
-         dirc=2
-      end if
-
-   end subroutine create_mixed_space
+end subroutine create_mixed_space
 
 !---------------------------------------------------------------------------
 !> @brief
@@ -670,8 +862,15 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
 !
 ! Input:
 ! ------
-!> @param[in] ads      - ADS setup structure
-!> @param[in] ads_data - data structures for ADS
+!> @param[in] subun
+!> Selector identifying which solution buffer is updated.
+!>
+!> @param[in] ads
+!> ADS setup structure containing basis tables and ownership metadata.
+!>
+!> @param[in,out] ads_data
+!> Working data structure containing coefficient blocks and output
+!> arrays.
 !
 ! Output:
 ! -------
@@ -701,21 +900,21 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
       real(kind=8) :: Uval, ucoeff
       real(kind=8) :: dvx, dvy, dvz, v
 
-      ads_data%un = 0.d0
-      ads_data%un13 = 0.d0
-      ads_data%un23 = 0.d0
+   ads_data%un = 0.d0
+   ads_data%un13 = 0.d0
+   ads_data%un23 = 0.d0
 
-      if (subun .EQ. 1) then
-         ads_data%Un = 0.d0
-      else if (subun .EQ. 2) then
-         ads_data%Un13 = 0.d0
-      else if (subun .EQ. 3) then
-         ads_data%Un23 = 0.d0
-      else
-         write (ERROR_UNIT, *) "wrong substep"
-      end if
-      ads_data%dUn = 0.d0
-      !total_size = ads%lnelem(1)*ads%lnelem(2)*ads%lnelem(3)
+   if (subun .EQ. 1) then
+      ads_data%Un = 0.d0
+   else if (subun .EQ. 2) then
+      ads_data%Un13 = 0.d0
+   else if (subun .EQ. 3) then
+      ads_data%Un23 = 0.d0
+   else
+      write (ERROR_UNIT, *) "wrong substep"
+   end if
+   ads_data%dUn = 0.d0
+   !total_size = ads%lnelem(1)*ads%lnelem(2)*ads%lnelem(3)
 
 !      loop over points
 ! !$OMP PARALLEL DO &
@@ -724,174 +923,247 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
 ! !$OMP PRIVATE(tmp,ex,ey,ez,kx,ky,kz,ind) &
 ! !$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz,du) &
 ! !$OMP PRIVATE(indbx,indby,indbz,Uval,dux,duy,duz,v)
-      !do all = 1, total_size
+   !do all = 1, total_size
 !        translate coefficients to local
-      !ez = modulo(all - 1, ads%lnelem(3))
-      !tmp = (all - ez)/ads%lnelem(3) + 1
-      !ey = modulo(tmp - 1, ads%lnelem(2))
-      !ex = (tmp - ey)/ads%lnelem(2)
-      do exx=1,ads%lnelem(1)
-         do eyy=1,ads%lnelem(2)
-            do ezz=1,ads%lnelem(3)
+   !ez = modulo(all - 1, ads%lnelem(3))
+   !tmp = (all - ez)/ads%lnelem(3) + 1
+   !ey = modulo(tmp - 1, ads%lnelem(2))
+   !ex = (tmp - ey)/ads%lnelem(2)
+   do exx=1,ads%lnelem(1)
+      do eyy=1,ads%lnelem(2)
+         do ezz=1,ads%lnelem(3)
 !        fix distributed part
-               ex = exx + ads%mine(1)-1
-               ey = eyy + ads%mine(2)-1
-               ez = ezz + ads%mine(3)-1
+            ex = exx + ads%mine(1)-1
+            ey = eyy + ads%mine(2)-1
+            ez = ezz + ads%mine(3)-1
 !        loop over quadrature points
-               do kx = 1, ads%ng(1)
-                  do ky = 1, ads%ng(2)
-                     do kz = 1, ads%ng(3)
-                        Uval = 0.d0
-                        dux = 0.d0
-                        duy = 0.d0
-                        duz = 0.d0
+            do kx = 1, ads%ng(1)
+               do ky = 1, ads%ng(2)
+                  do kz = 1, ads%ng(3)
+                     Uval = 0.d0
+                     dux = 0.d0
+                     duy = 0.d0
+                     duz = 0.d0
 !                 compute value of derivative from previous time step - du
 !                 compute previous solution coefficient at given point - Uval
-                        do bx = 0, ads%p(1)
-                           do by = 0, ads%p(2)
-                              do bz = 0, ads%p(3)
-                                 indbx = (ads%Ox(ex) + bx)
-                                 indby = (ads%Oy(ey) + by)
-                                 indbz = (ads%Oz(ez) + bz)
-                                 ind = indbx + (indby + indbz*(ads%n(2) + 1))*(ads%n(1) + 1)
+                     do bx = 0, ads%p(1)
+                        do by = 0, ads%p(2)
+                           do bz = 0, ads%p(3)
+                              indbx = (ads%Ox(ex) + bx)
+                              indby = (ads%Oy(ey) + by)
+                              indbz = (ads%Oz(ez) + bz)
+                              ind = indbx + (indby + indbz*(ads%n(2) + 1))*(ads%n(1) + 1)
 
-                                 rx = 2
-                                 ry = 2
-                                 rz = 2
-                                 if (indbx < ads%ibeg(1) - 1) rx = 1
-                                 if (indbx > ads%iend(1) - 1) rx = 3
-                                 if (indby < ads%ibeg(2) - 1) ry = 1
-                                 if (indby > ads%iend(2) - 1) ry = 3
-                                 if (indbz < ads%ibeg(3) - 1) rz = 1
-                                 if (indbz > ads%iend(3) - 1) rz = 3
+                              rx = 2
+                              ry = 2
+                              rz = 2
+                              if (indbx < ads%ibeg(1) - 1) rx = 1
+                              if (indbx > ads%iend(1) - 1) rx = 3
+                              if (indby < ads%ibeg(2) - 1) ry = 1
+                              if (indby > ads%iend(2) - 1) ry = 3
+                              if (indbz < ads%ibeg(3) - 1) rz = 1
+                              if (indbz > ads%iend(3) - 1) rz = 3
 
-                                 ix = indbx - ads%ibegsx(rx) + 1
-                                 iy = indby - ads%ibegsy(ry) + 1
-                                 iz = indbz - ads%ibegsz(rz) + 1
-                                 sx = ads%iendsx(rx) - ads%ibegsx(rx) + 1
-                                 sy = ads%iendsy(ry) - ads%ibegsy(ry) + 1
-                                 sz = ads%iendsz(rz) - ads%ibegsz(rz) + 1
-                                 ind = ix + sx*(iy + sy*iz)
+                              ix = indbx - ads%ibegsx(rx) + 1
+                              iy = indby - ads%ibegsy(ry) + 1
+                              iz = indbz - ads%ibegsz(rz) + 1
+                              sx = ads%iendsx(rx) - ads%ibegsx(rx) + 1
+                              sy = ads%iendsy(ry) - ads%ibegsy(ry) + 1
+                              sz = ads%iendsz(rz) - ads%ibegsz(rz) + 1
+                              ind = ix + sx*(iy + sy*iz)
 
 #ifdef IDEBUG
-                                 if (ind < 0 .or. ind > ads%nrcpp(3)*ads%nrcpp(1)*ads%nrcpp(2) - 1) then
-                                    write (ERROR_UNIT, *) PRINTRANK, 'Oh crap', ix, iy, iz
-                                    write (ERROR_UNIT, *) PRINTRANK, 'r', rx, ry, rz
-                                    write (ERROR_UNIT, *) PRINTRANK, 'x', ads%ibeg(1), ads%iend(1)
-                                    write (ERROR_UNIT, *) PRINTRANK, 'y', ads%ibeg(2), ads%iend(2)
-                                    write (ERROR_UNIT, *) PRINTRANK, 'z', ads%ibeg(3), ads%iend(3)
-                                    write (ERROR_UNIT, *) PRINTRANK, 'sizes=', sx, sy, sz
-                                    write (ERROR_UNIT, *) PRINTRANK, 'begsx=', ads%ibegsx
-                                    write (ERROR_UNIT, *) PRINTRANK, 'endsx=', ads%iendsx
-                                    write (ERROR_UNIT, *) PRINTRANK, 'begsy=', ads%ibegsy
-                                    write (ERROR_UNIT, *) PRINTRANK, 'endsy=', ads%iendsy
-                                    write (ERROR_UNIT, *) PRINTRANK, 'begsz=', ads%ibegsz
-                                    write (ERROR_UNIT, *) PRINTRANK, 'endsz=', ads%iendsz
-                                 end if
+                              if (ind < 0 .or. ind > ads%nrcpp(3)*ads%nrcpp(1)*ads%nrcpp(2) - 1) then
+                                 write (ERROR_UNIT, *) PRINTRANK, 'Oh crap', ix, iy, iz
+                                 write (ERROR_UNIT, *) PRINTRANK, 'r', rx, ry, rz
+                                 write (ERROR_UNIT, *) PRINTRANK, 'x', ads%ibeg(1), ads%iend(1)
+                                 write (ERROR_UNIT, *) PRINTRANK, 'y', ads%ibeg(2), ads%iend(2)
+                                 write (ERROR_UNIT, *) PRINTRANK, 'z', ads%ibeg(3), ads%iend(3)
+                                 write (ERROR_UNIT, *) PRINTRANK, 'sizes=', sx, sy, sz
+                                 write (ERROR_UNIT, *) PRINTRANK, 'begsx=', ads%ibegsx
+                                 write (ERROR_UNIT, *) PRINTRANK, 'endsx=', ads%iendsx
+                                 write (ERROR_UNIT, *) PRINTRANK, 'begsy=', ads%ibegsy
+                                 write (ERROR_UNIT, *) PRINTRANK, 'endsy=', ads%iendsy
+                                 write (ERROR_UNIT, *) PRINTRANK, 'begsz=', ads%ibegsz
+                                 write (ERROR_UNIT, *) PRINTRANK, 'endsz=', ads%iendsz
+                              end if
 #endif
 
-                                 Ucoeff = ads_data%R(ind + 1, rx, ry, rz)
-                                 v = ads%NNx(0, bx, kx, ex)*ads%NNy(0, by, ky, ey)*ads%NNz(0, bz, kz, ez)
-                                 dvx = ads%NNx(1, bx, kx, ex)*ads%NNy(0, by, ky, ey)*ads%NNz(0, bz, kz, ez)
-                                 dvy = ads%NNx(0, bx, kx, ex)*ads%NNy(1, by, ky, ey)*ads%NNz(0, bz, kz, ez)
-                                 dvz = ads%NNx(0, bx, kx, ex)*ads%NNy(0, by, ky, ey)*ads%NNz(1, bz, kz, ez)
+                              Ucoeff = ads_data%R(ind + 1, rx, ry, rz)
+                              v = ads%NNx(0, bx, kx, ex)*ads%NNy(0, by, ky, ey)*ads%NNz(0, bz, kz, ez)
+                              dvx = ads%NNx(1, bx, kx, ex)*ads%NNy(0, by, ky, ey)*ads%NNz(0, bz, kz, ez)
+                              dvy = ads%NNx(0, bx, kx, ex)*ads%NNy(1, by, ky, ey)*ads%NNz(0, bz, kz, ez)
+                              dvz = ads%NNx(0, bx, kx, ex)*ads%NNy(0, by, ky, ey)*ads%NNz(1, bz, kz, ez)
 
-                                 Uval = Uval + Ucoeff*v
-                                 dux = dux + Ucoeff*dvx
-                                 duy = duy + Ucoeff*dvy
-                                 duz = duz + Ucoeff*dvz
-                              end do
+                              Uval = Uval + Ucoeff*v
+                              dux = dux + Ucoeff*dvx
+                              duy = duy + Ucoeff*dvy
+                              duz = duz + Ucoeff*dvz
                            end do
                         end do
-                        ads_data%dUn(ex, ey, ez, kx, ky, kz, :) = (/dux, duy, duz/)
-                        if (subun .EQ. 1) then
-                           ads_data%Un(ex, ey, ez, kx, ky, kz) = Uval
-                        else if (subun .EQ. 2) then
-                           ads_data%Un13(ex, ey, ez, kx, ky, kz) = Uval
-                        else if (subun .EQ. 3) then
-                           ads_data%Un23(ex, ey, ez, kx, ky, kz) = Uval
-                        else
-                           write (ERROR_UNIT, *) "wrong substep"
-                        end if
                      end do
+                     ads_data%dUn(ex, ey, ez, kx, ky, kz, :) = (/dux, duy, duz/)
+                     if (subun .EQ. 1) then
+                        ads_data%Un(ex, ey, ez, kx, ky, kz) = Uval
+                     else if (subun .EQ. 2) then
+                        ads_data%Un13(ex, ey, ez, kx, ky, kz) = Uval
+                     else if (subun .EQ. 3) then
+                        ads_data%Un23(ex, ey, ez, kx, ky, kz) = Uval
+                     else
+                        write (ERROR_UNIT, *) "wrong substep"
+                     end if
                   end do
                end do
             end do
          end do
       end do
+   end do
 ! !$OMP END PARALLEL DO
 
-   end subroutine FormUn
+end subroutine FormUn
 
 !!!!! to nie tu
 !---------------------------------------------------------------------------
-!> @brief
-!> Translates global linearized index given by
+!
+! DESCRIPTION:
+!> @brief Converts a linearized tensor-product index into Cartesian
+!> coordinates.
 !>
-!>     ind = (z * (ny+1) + y) * (nx+1) + x
+!> @details
+!> This routine maps the one-dimensional index
 !>
-!> to triple \f$ (x,y,z) \f$.
+!> \f[
+!> \text{ind} = (z\,(n_y+1) + y)\,(n_x+1) + x
+!> \f]
+!>
+!> to the corresponding coordinate triple \f$(x,y,z)\f$ in a structured
+!> tensor-product grid of logical size
+!> \f$(n_x+1) \times (n_y+1) \times (n_z+1)\f$.
 !
 ! Input:
 ! ------
-!> @param[in] ind        - linearized index
-!> @param[in] nx,ny,nz   - sizes of the solution cube minus one
+!> @param[in] ind
+!> Linearized global index.
+!>
+!> @param[in] n
+!> Sizes of the structured grid minus one in the three directions.
 !
 ! Output:
 ! -------
-!> @param[out] x,y,z      - output coordinates
-! -------------------------------------------------------------------
-   subroutine global2local(ind, n, x, y, z)
-      implicit none
-      integer(kind=4), intent(in) :: ind
-      integer(kind=4), dimension(3), intent(in) :: n
-      integer(kind=4), intent(out) :: x, y, z
-      integer(kind=4) :: tmp
+!> @param[out] x
+!> Coordinate in the first direction.
+!>
+!> @param[out] y
+!> Coordinate in the second direction.
+!>
+!> @param[out] z
+!> Coordinate in the third direction.
+!
+!---------------------------------------------------------------------------
+subroutine global2local(ind, n, x, y, z)
+   implicit none
+!> @brief Linearized tensor-product index.
+   integer(kind=4), intent(in) :: ind
+!> @brief Grid sizes minus one in the three directions.
+   integer(kind=4), dimension(3), intent(in) :: n
+!> @brief Output Cartesian coordinates.
+   integer(kind=4), intent(out) :: x, y, z
+!> @brief Auxiliary remainder used during index splitting.
+   integer(kind=4) :: tmp
 
-      z = ind/((n(1) + 1)*(n(2) + 1))
-      tmp = ind - z*(n(1) + 1)*(n(2) + 1)
-      y = tmp/(n(1) + 1)
-      x = tmp - y*(n(1) + 1)
+   z = ind/((n(1) + 1)*(n(2) + 1))
+   tmp = ind - z*(n(1) + 1)*(n(2) + 1)
+   y = tmp/(n(1) + 1)
+   x = tmp - y*(n(1) + 1)
 
-   end subroutine global2local
+end subroutine global2local
 
 !---------------------------------------------------------------------------
-!> @brief
-!> Calculates mass matrix M
+!
+! DESCRIPTION:
+!> @brief Selects and assembles the appropriate sparse operator matrix.
+!>
+!> @details
+!> This routine dispatches matrix assembly to one of two lower-level
+!> procedures:
+!> - \ref MKBBT_small for the equal-space case,
+!> - \ref MKBBT_large for the mixed-space case.
+!>
+!> The choice is controlled by the logical flag \p equ. In the equal-space
+!> case, only one spline space and the mixing vector \p mixA are used.
+!> Otherwise, a mixed block matrix is assembled from the two spline
+!> spaces and the three mixing vectors \p mixA, \p mixB, and \p mixBT.
 !
 ! Input:
 ! ------
-!> @param[in] U      - knot vector
-!> @param[in] p      - degree of approximation
-!> @param[in] n      - number of control points minus one
-!> @param[in] nelem  - number of subintervals in knot
-!> @param[in] mix    - mixing values for MKBBT matrices
+!> @param[in] U1
+!> Knot vector of the first spline space.
+!>
+!> @param[in] p1
+!> Polynomial degree of the first spline space.
+!>
+!> @param[in] n1
+!> Number of control points minus one for the first spline space.
+!>
+!> @param[in] nelem1
+!> Number of elements in the first spline space.
+!>
+!> @param[in] U2
+!> Knot vector of the second spline space.
+!>
+!> @param[in] p2
+!> Polynomial degree of the second spline space.
+!>
+!> @param[in] n2
+!> Number of control points minus one for the second spline space.
+!>
+!> @param[in] nelem2
+!> Number of elements in the second spline space.
+!>
+!> @param[in] mixA
+!> Mixing coefficients for the diagonal block or the equal-space case.
+!>
+!> @param[in] mixB
+!> Mixing coefficients for one mixed off-diagonal block.
+!>
+!> @param[in] mixBT
+!> Mixing coefficients for the transposed mixed off-diagonal block.
+!>
+!> @param[in] equ
+!> Logical flag indicating whether both spaces are treated as equal.
 !
 ! Output:
 ! -------
-!> @param[out] sprsmtrx     - sparse matrix, logically \f$ (n+1) \times (n+1) \f$
+!> @param[out] sprsmtrx
+!> Sparse matrix returned by the selected assembly routine.
 !
-! -------------------------------------------------------------------
-   subroutine ComputeMatrix(U1, p1, n1, nelem1, U2, p2, n2, nelem2, mixA, mixB, mixBT, equ, sprsmtrx)
-      ! use parallelism, ONLY: PRINTRANK
-      use sparse
-      implicit none
-      integer(kind=4), intent(in) :: n1, p1, nelem1
-      real(kind=8), dimension(0:n1 + p1 + 1), intent(in) :: U1
-      integer(kind=4), intent(in) :: n2, p2, nelem2
-      real(kind=8), dimension(0:n2 + p2 + 1), intent(in) :: U2
-      real(kind=8), dimension(4), intent(in) :: mixA, mixB, mixBT
-      logical, intent(in) :: equ
-      type(sparse_matrix), pointer, intent(out) :: sprsmtrx
-      ! integer :: i
+!---------------------------------------------------------------------------
+subroutine ComputeMatrix(U1, p1, n1, nelem1, U2, p2, n2, nelem2, mixA, mixB, mixBT, equ, sprsmtrx)
+   ! use parallelism, ONLY: PRINTRANK
+   use sparse
+   implicit none
+!> @brief Basis size minus one, polynomial degree, and element count for the first space.
+   integer(kind=4), intent(in) :: n1, p1, nelem1
+!> @brief Knot vector of the first space.
+   real(kind=8), dimension(0:n1 + p1 + 1), intent(in) :: U1
+!> @brief Knot vector of the second space.
+   integer(kind=4), intent(in) :: n2, p2, nelem2
+!> @brief Knot vector of the second space.
+   real(kind=8), dimension(0:n2 + p2 + 1), intent(in) :: U2
+!> @brief Mixing coefficients used by the selected assembly routine.
+   real(kind=8), dimension(4), intent(in) :: mixA, mixB, mixBT
+!> @brief Equality flag selecting equal-space or mixed-space assembly.
+   logical, intent(in) :: equ
+!> @brief Output sparse matrix.
+   type(sparse_matrix), pointer, intent(out) :: sprsmtrx
+   ! integer :: i
 
-      if (equ) then
-         call MKBBT_small(nelem2, U2, p2, n2, mixA, sprsmtrx)
-      else
-         call MKBBT_large(nelem2, U1, p1, n1, U2, p2, n2, mixA, mixB, mixBT, sprsmtrx)
-      end if
+   if (equ) then
+      call MKBBT_small(nelem2, U2, p2, n2, mixA, sprsmtrx)
+   else
+      call MKBBT_large(nelem2, U1, p1, n1, U2, p2, n2, mixA, mixB, mixBT, sprsmtrx)
+   end if
 
-   end subroutine ComputeMatrix
+end subroutine ComputeMatrix
 
 end module projection_engine
-
