@@ -351,6 +351,98 @@ subroutine CreateCommunicators(mierr)
 
 end subroutine CreateCommunicators
 
-!!!!! dodac czyszczenie komunikatorow
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Releases MPI communicators and groups created for the logical
+!> process-grid fibres.
+!>
+!> @details
+!> This routine frees all communicator and group objects created by
+!> \ref CreateCommunicators for the active logical process grid:
+!> - communicators parallel to the first direction,
+!> - communicators parallel to the second direction,
+!> - communicators parallel to the third direction,
+!> - the corresponding MPI groups.
+!>
+!> After release, the local communicator handles \ref COMMX,
+!> \ref COMMY, and \ref COMMZ are reset to `MPI_COMM_NULL`.
+!>
+!> The routine assumes that \ref CreateCommunicators has already been
+!> called and that the active communicator/group tables are populated
+!> over the ranges `1:NRPROCX`, `1:NRPROCY`, and `1:NRPROCZ`.
+!
+! Output:
+! -------
+!> @param[out] mierr
+!> Returned status code. Zero means that all cleanup calls completed
+!> without MPI errors. If one or more MPI calls fail, the first nonzero
+!> code is returned.
+!
+! Notes:
+! ------
+!> @note
+!> The local communicator variables \ref COMMX, \ref COMMY, and
+!> \ref COMMZ are aliases of entries stored in the communicator tables.
+!> Therefore, only the table entries are explicitly freed.
+!
+!---------------------------------------------------------------------------
+subroutine Cleanup_Communicators(mierr)
+   use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ
+   use mpi
+   implicit none
+!> @brief Returned status code.
+   integer(kind=4), intent(out) :: mierr
+!> @brief Loop counters over process-grid coordinates.
+   integer(kind=4) :: i, j, k
+!> @brief MPI return code from communicator/group release.
+   integer(kind=4) :: ierr
+
+   mierr = 0
+
+   do i = 1, NRPROCX
+      do j = 1, NRPROCY
+         if (COMMZALL(i, j) /= MPI_COMM_NULL) then
+            call mpi_comm_free(COMMZALL(i, j), ierr)
+            if (mierr == 0 .and. ierr /= 0) mierr = ierr
+         end if
+         if (GROUPZ(i, j) /= MPI_GROUP_NULL) then
+            call mpi_group_free(GROUPZ(i, j), ierr)
+            if (mierr == 0 .and. ierr /= 0) mierr = ierr
+         end if
+      end do
+   end do
+
+   do i = 1, NRPROCX
+      do k = 1, NRPROCZ
+         if (COMMYALL(i, k) /= MPI_COMM_NULL) then
+            call mpi_comm_free(COMMYALL(i, k), ierr)
+            if (mierr == 0 .and. ierr /= 0) mierr = ierr
+         end if
+         if (GROUPY(i, k) /= MPI_GROUP_NULL) then
+            call mpi_group_free(GROUPY(i, k), ierr)
+            if (mierr == 0 .and. ierr /= 0) mierr = ierr
+         end if
+      end do
+   end do
+
+   do j = 1, NRPROCY
+      do k = 1, NRPROCZ
+         if (COMMXALL(j, k) /= MPI_COMM_NULL) then
+            call mpi_comm_free(COMMXALL(j, k), ierr)
+            if (mierr == 0 .and. ierr /= 0) mierr = ierr
+         end if
+         if (GROUPX(j, k) /= MPI_GROUP_NULL) then
+            call mpi_group_free(GROUPX(j, k), ierr)
+            if (mierr == 0 .and. ierr /= 0) mierr = ierr
+         end if
+      end do
+   end do
+
+   COMMX = MPI_COMM_NULL
+   COMMY = MPI_COMM_NULL
+   COMMZ = MPI_COMM_NULL
+
+end subroutine Cleanup_Communicators
 
 end module communicators
