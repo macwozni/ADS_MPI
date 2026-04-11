@@ -5,7 +5,7 @@ program main
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    use parallelism, ONLY: MYRANK
    use parallelism, ONLY: PRINTRANK, InitializeParallelism, Cleanup_Parallelism
-   use communicators, ONLY: CreateCommunicators
+   use communicators, ONLY: CreateCommunicators, Cleanup_Communicators
    use RHS_fun
    use ADSS
    use input_data
@@ -73,6 +73,7 @@ program main
    call Cleanup_ADS(ads_test, ierr)
    call Cleanup_ADS(ads_trial, ierr)
    call Cleanup_data(ads_data, ierr)
+   call Cleanup_Communicators(ierr)
    call Cleanup_Parallelism(ierr)
 
 end program main
