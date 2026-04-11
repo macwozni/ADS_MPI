@@ -69,7 +69,6 @@ contains
 !---------------------------------------------------------------------------
 subroutine GnuPlotOutput(filename, vals, params)
    use plot, ONLY: PlotParams
-   character(len=*), intent(in) :: filename
    implicit none
    character(len=*), intent(in) :: filename
 !> @brief Plot parameters defining the grid resolution.
