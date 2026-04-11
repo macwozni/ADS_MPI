@@ -372,4 +372,136 @@ subroutine repeatedKnot(n, p, iblock, U, nelem)
    !<- rIGA
 end subroutine repeatedKnot
 
+
+!> @brief Builds an open uniform knot vector with repeated internal knots
+!!        at block interfaces.
+!!
+!! This routine constructs a knot vector on the interval [0,1] for a
+!! B-spline space of degree @p p. Starting from the standard open uniform
+!! knot vector, it increases the multiplicity of internal knots located at
+!! block interfaces, i.e. after every @p iblock elements.
+!!
+!! The target continuity at each block interface is given by
+!! @p c_continuity. For a B-spline of degree @p p and an internal knot
+!! multiplicity @f$m@f$, the continuity is
+!! @f[
+!!   C^{p-m}.
+!! @f]
+!! Therefore the multiplicity required to obtain continuity
+!! @p c_continuity is
+!! @f[
+!!   m = p - c\_continuity.
+!! @f]
+!!
+!! In particular:
+!! - `c_continuity = p-1` gives the standard open knot vector,
+!! - `c_continuity = 0` gives `C^0` continuity at block interfaces,
+!! - `c_continuity = -1` gives a fully discontinuous interface (`C^{-1}`).
+!!
+!! On output, @p n is updated consistently with the new knot vector size.
+!!
+!! @param[in,out] n
+!!   Number of basis functions minus one. On input, it defines the base
+!!   open uniform space. On output, it is updated to reflect the enlarged
+!!   space after knot repetitions have been inserted.
+!!
+!! @param[in] p
+!!   Polynomial degree of the B-spline basis.
+!!
+!! @param[in] iblock
+!!   Block length measured in elements. A repeated knot is inserted after
+!!   every `iblock` elements, then after `2*iblock`, etc.
+!!
+!! @param[in] c_continuity
+!!   Desired continuity at block interfaces.
+!!
+!! @param[out] U
+!!   Allocated knot vector with repeated knots at block interfaces.
+!!
+!! @param[out] nelem
+!!   Number of nonzero knot spans of the base open uniform discretization,
+!!   equal to `n_old - p + 1`, where `n_old` is the input value of @p n.
+!!
+!! @note
+!!   This routine assumes an open uniform parametrization on [0,1].
+!!
+!! @warning
+!!   For `c_continuity = -1`, the resulting spline space is discontinuous
+!!   across block interfaces. Any downstream assembly or connectivity logic
+!!   must be compatible with this.
+!!
+subroutine repeatedKnot2(n, p, iblock, c_continuity, U, nelem)
+
+   implicit none
+
+   integer(kind=4), intent(inout)         :: n
+   integer(kind=4), intent(in)            :: p
+   integer(kind=4), intent(in)            :: iblock
+   integer(kind=4), intent(in)            :: c_continuity
+   real(kind=8), allocatable, intent(out) :: U(:)
+   integer(kind=4), intent(out)           :: nelem
+
+   integer(kind=4) :: n_old
+   integer(kind=4) :: mult_target
+   integer(kind=4) :: extra_mult
+   integer(kind=4) :: nbreaks
+   integer(kind=4) :: n_new
+   integer(kind=4) :: e
+   integer(kind=4) :: k
+   integer(kind=4) :: pos
+   real(kind=8)    :: xi
+
+   n_old = n
+
+   nelem = n_old - p + 1
+
+   ! continuity = p - multiplicity  =>  multiplicity = p - continuity
+   mult_target = p - c_continuity
+
+   ! additional copies relative to the standard open knot vector
+   extra_mult = mult_target - 1
+
+   ! number of block interfaces: iblock, 2*iblock, ...
+   nbreaks = (nelem - 1) / iblock
+
+   ! updated number of basis functions minus one
+   n_new = n_old + nbreaks * extra_mult
+
+   allocate(U(n_new + p + 2))
+
+   pos = 1
+
+   ! left boundary: p+1 zeros
+   do k = 1, p + 1
+      U(pos) = 0.0d0
+      pos = pos + 1
+   end do
+
+   ! internal knots
+   do e = 1, nelem - 1
+
+      xi = real(e, kind=8) / real(nelem, kind=8)
+
+      if (mod(e, iblock) == 0) then
+         do k = 1, mult_target
+            U(pos) = xi
+            pos = pos + 1
+         end do
+      else
+         U(pos) = xi
+         pos = pos + 1
+      end if
+
+   end do
+
+   ! right boundary: p+1 ones
+   do k = 1, p + 1
+      U(pos) = 1.0d0
+      pos = pos + 1
+   end do
+
+   n = n_new
+
+end subroutine repeatedKnot2
+
 end module knot_vector
