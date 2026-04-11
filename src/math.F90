@@ -17,7 +17,7 @@
 !> - a smooth radial falloff function through \ref falloff,
 !> - one-dimensional bump functions through \ref bump and \ref bump01,
 !> - a three-dimensional compact-support profile through \ref bump3d,
-!> - Euclidean norm evaluation through \ref norm2.
+!> - Euclidean norm evaluation through \ref norm_2.
 !>
 !> These routines are used primarily by plotting, test-function
 !> construction, and auxiliary numerical workflows.
@@ -297,7 +297,7 @@ end function bump01
 ! ------
 !> @note
 !> The radial distance is evaluated with the local helper function
-!> \ref norm2.
+!> \ref norm_2.
 !
 !---------------------------------------------------------------------------
 function bump3d(r, Rr, x, y, z) result(val)
@@ -307,7 +307,7 @@ function bump3d(r, Rr, x, y, z) result(val)
 !> @brief Function value and radial distance from the cube center.
    real(kind=8) :: val, t
 
-   t = norm2((/x, y, z/) - 0.5d0)
+   t = norm_2((/x, y, z/) - 0.5d0)
    val = falloff(r/2.d0, Rr/2.d0, t)
 
 end function bump3d
@@ -336,19 +336,19 @@ end function bump3d
 !
 ! Output:
 ! -------
-!> @return norm2
+!> @return norm_2
 !> Euclidean norm of the vector \p x.
 !
 !---------------------------------------------------------------------------
-function norm2(x)
+function norm_2(x)
    implicit none
    intrinsic :: dot_product, sqrt
 !> @brief Input vector.
    real(kind=8), dimension(:), intent(in) :: x
 !> @brief Euclidean norm of the input vector.
-   real(kind=8) :: norm2
+   real(kind=8) :: norm_2
 
-   norm2 = sqrt(dot_product(x, x))
-end function norm2
+   norm_2 = sqrt(dot_product(x, x))
+end function norm_2
 
 end module math
