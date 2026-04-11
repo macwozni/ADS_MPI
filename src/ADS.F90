@@ -323,12 +323,12 @@ subroutine ComputeDecomposition(ads)
       ads%s(2) = ads%iend(2) - ads%ibeg(2) + 1
       ads%s(3) = ads%iend(3) - ads%ibeg(3) + 1
 
-      #ifdef IINFO
+#ifdef IINFO
       write (*, *) PRINTRANK, 'Number of cols per processor:', ads%nrcpp(1), ads%nrcpp(2), ads%nrcpp(3)
       write (*, *) PRINTRANK, 'ibegx,iendx', ads%ibeg(1), ads%iend(1)
       write (*, *) PRINTRANK, 'ibegy,iendy', ads%ibeg(2), ads%iend(2)
       write (*, *) PRINTRANK, 'ibegz,iendz', ads%ibeg(3), ads%iend(3)
-      #endif
+#endif
 
       ! prepare dimensions vectors
       call FillDimVector(ads%dimensionsX, ads%shiftsX, ads%nrcpp(1), ads%s(2)*ads%s(3), ads%n(1), NRPROCX)
@@ -493,12 +493,10 @@ subroutine AllocateADS(n, nelem, p, ng, ads)
       allocate (ads%Wy(ng(2)))
       allocate (ads%Wz(ng(3)))
 
-      ! Processes on the border need pivot vector for LAPACK call
-      if (MYRANKX == 0 .or. MYRANKY == 0 .or. MYRANKZ == 0) then
-            allocate (ads%IPIVx(n(1) + 1))
-            allocate (ads%IPIVy(n(2) + 1))
-            allocate (ads%IPIVz(n(3) + 1))
-      end if
+      allocate (ads%IPIVx(n(1) + 1))
+      allocate (ads%IPIVy(n(2) + 1))
+      allocate (ads%IPIVz(n(3) + 1))
+      
 end subroutine AllocateADS
 
 !!!! przeniesc do solver
@@ -1434,7 +1432,8 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
             dimensions_trial = ads_trial%dimensionsX
             dimensions_test = ads_test%dimensionsX
             ! prepare dimensions vectors
-            call FillDimVector(dimensions_test, shifts_test,ads_test%nrcpp(1),&
+            call FillDimVector(dimensions_test, shifts_test,&
+            (1-direction(1))*ads_trial%nrcpp(1) + direction(1)*ads_test%nrcpp(1),&
             (direction(2)*ads_test%s(2)+(1-direction(2))*ads_trial%s(2))*&
             (direction(3)*ads_test%s(3)+(1-direction(3))*ads_trial%s(3)),&
             (direction(1)*ads_test%n(1)+(1-direction(1))*ads_trial%n(1)),&
@@ -1450,7 +1449,8 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
             dimensions_trial = ads_trial%dimensionsY
             dimensions_test = ads_test%dimensionsY
             ! prepare dimensions vectors
-            call FillDimVector(dimensions_test, shifts_test,ads_test%nrcpp(2),&
+            call FillDimVector(dimensions_test, shifts_test,&
+            (1-direction(2))*ads_trial%nrcpp(2) + direction(2)*ads_test%nrcpp(2),&
             (direction(1)*ads_test%s(1)+(1-direction(1))*ads_trial%s(1))*&
             (direction(3)*ads_test%s(3)+(1-direction(3))*ads_trial%s(3)),&
             (direction(2)*ads_test%n(2)+(1-direction(2))*ads_trial%n(2)),&
@@ -1466,7 +1466,8 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
             dimensions_trial = ads_trial%dimensionsZ
             dimensions_test = ads_test%dimensionsZ
             ! prepare dimensions vectors
-            call FillDimVector(dimensions_test, shifts_test,ads_test%nrcpp(3),&
+            call FillDimVector(dimensions_test, shifts_test,&
+            (1-direction(3))*ads_trial%nrcpp(3) + direction(3)*ads_test%nrcpp(3),&
             (direction(1)*ads_test%s(1)+(1-direction(1))*ads_trial%s(1))*&
             (direction(2)*ads_test%s(2)+(1-direction(2))*ads_trial%s(2)),&
             (direction(3)*ads_test%n(3)+(1-direction(3))*ads_trial%n(3)),&
@@ -1527,7 +1528,7 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
                   (ads_trial%s(b)*ads_trial%s(c))))
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
-      #endif
+#endif
       !  gather onto the face of processors
       call Gather(F, F_out, ads_trial%n(a), &
                   ads_trial%s(a), &
@@ -1540,7 +1541,7 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
 
       if (igrm) then
       !  allocate result buffer
-            allocate (Ft_out(((1 - direction(a))*ads_trial%s(a) + direction(a)*ads_test%s(a)), &
+            allocate (Ft_out(((1 - direction(a))*ads_trial%n(a) + direction(a)*ads_test%n(a) + 1), &
                               ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
                         ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c))))
 #ifdef PERFORMANCE
@@ -1615,7 +1616,7 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
             Ft_out = Fs(ads_trial%n(a) + 2:ads_trial%n(a) + 1 + direction(a)*(ads_test%n(a) + 1), :)
             end if
       !  allocate buffers
-            allocate (Ft2_out(((1 - direction(a))*ads_trial%s(a) + direction(a)*ads_test%s(a)), &
+            allocate (Ft2_out(((1 - direction(a))*ads_trial%nrcpp(a) + direction(a)*ads_test%nrcpp(a)), &
                         ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
                         ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c))))
 #ifdef PERFORMANCE
@@ -1623,7 +1624,7 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
 #endif
       !  scatter back onto the cube of processors
             call Scatter(Ft_out, Ft2_out, (1 - direction(a))*ads_trial%n(a) + direction(a)*ads_test%n(a), &
-                        (1 - direction(a))*ads_trial%s(a) + direction(a)*ads_test%s(a), &
+                        (1 - direction(a))*ads_trial%nrcpp(a) + direction(a)*ads_test%nrcpp(a), &
                         ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
                         ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c)), &
                   dimensions_test, shifts_test, comm, ierr)
@@ -1636,14 +1637,14 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
       end if
 
       !  allocate buffers
-      allocate (F2_out(ads_trial%n(a) + 1, &
+      allocate (F2_out(ads_trial%nrcpp(a), &
                         ads_trial%s(b)*ads_trial%s(c)))
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
       !  scatter back onto the cube of processors
       call Scatter(F_out, F2_out, ads_trial%n(a), &
-                        ads_trial%s(a), &
+                        ads_trial%nrcpp(a), &
                   ads_trial%s(b)*ads_trial%s(c), &
                   dimensions_trial, shifts_trial, comm, ierr)
 #ifdef PERFORMANCE

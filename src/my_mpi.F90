@@ -620,7 +620,7 @@ subroutine GatherFullSolution(at, part, full, n, p, s)
    !> @brief Logical process-grid coordinates.
    integer(kind=4) :: x, y, z
    !> @brief Logical process-grid coordinates.
-   integer(kind=4), dimension(3) :: ix
+   integer(kind=4), dimension(3) :: i
    !> @brief Linear rank or local linearized index.
    integer(kind=4) :: idx
    !> @brief Temporary process-grid coordinate triplet.
@@ -899,7 +899,7 @@ subroutine Scatter(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
                      dims, shifts, &
                      MPI_DOUBLE_PRECISION, &
                      F_out_lin, &
-                     (n + 1)*stride, &
+                     elems*stride, &
                      MPI_DOUBLE_PRECISION, &
                      0, comm, ierr)
 
@@ -982,7 +982,7 @@ subroutine AllGather(F, F_out, n, elems, stride, dims, shifts, comm)
                         MPI_DOUBLE_PRECISION, &
                         comm, ierr)
 
-   call Delinearize(F_out_lin, F_out, n + 1, stride)
+   call Delinearize(F_out_lin, F_out, elems, stride)
 
 end subroutine AllGather
 
