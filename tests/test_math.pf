@@ -1,0 +1,191 @@
+
+module test_math
+   use pfunit
+   use math, only: PI, lerp, falloff, bump, bump01, bump3d, norm_2
+   implicit none
+contains
+
+   @test
+   subroutine test_PI()
+      real(kind=8), parameter :: tol = 1.0d-15
+      @assertTrue(abs(PI - 4.0d0*atan(1.0d0)) < tol)
+   end subroutine test_PI
+
+
+   @test
+   subroutine test_lerp_endpoints()
+      real(kind=8), parameter :: tol = 1.0d-15
+
+      @assertTrue(abs(lerp(0.0d0, 2.0d0, 5.0d0) - 2.0d0) < tol)
+      @assertTrue(abs(lerp(1.0d0, 2.0d0, 5.0d0) - 5.0d0) < tol)
+   end subroutine test_lerp_endpoints
+
+
+   @test
+   subroutine test_lerp_midpoint()
+      real(kind=8), parameter :: tol = 1.0d-15
+
+      @assertTrue(abs(lerp(0.5d0, 2.0d0, 6.0d0) - 4.0d0) < tol)
+      @assertTrue(abs(lerp(0.25d0, 2.0d0, 6.0d0) - 3.0d0) < tol)
+   end subroutine test_lerp_midpoint
+
+
+   @test
+   subroutine test_falloff_left_region()
+      real(kind=8), parameter :: tol = 1.0d-15
+
+      @assertTrue(abs(falloff(1.0d0, 3.0d0, 0.5d0) - 1.0d0) < tol)
+      @assertTrue(abs(falloff(1.0d0, 3.0d0, 1.0d0) - 1.0d0) < tol)
+   end subroutine test_falloff_left_region
+
+
+   @test
+   subroutine test_falloff_right_region()
+      real(kind=8), parameter :: tol = 1.0d-15
+
+      @assertTrue(abs(falloff(1.0d0, 3.0d0, 3.0d0) - 0.0d0) < tol)
+      @assertTrue(abs(falloff(1.0d0, 3.0d0, 4.0d0) - 0.0d0) < tol)
+   end subroutine test_falloff_right_region
+
+
+   @test
+   subroutine test_falloff_transition_value()
+      real(kind=8), parameter :: tol = 1.0d-15
+      real(kind=8) :: r, Rr, t, h, ref
+
+      r  = 1.0d0
+      Rr = 3.0d0
+      t  = 2.0d0
+
+      h   = (t - r) / (Rr - r)
+      ref = ((h - 1.0d0) * (h + 1.0d0))**2
+
+      @assertTrue(abs(falloff(r, Rr, t) - ref) < tol)
+   end subroutine test_falloff_transition_value
+
+
+   @test
+   subroutine test_bump_outside_support()
+      real(kind=8), parameter :: tol = 1.0d-15
+
+      @assertTrue(abs(bump(-1.5d0) - 0.0d0) < tol)
+      @assertTrue(abs(bump( 1.5d0) - 0.0d0) < tol)
+      @assertTrue(abs(bump(-1.0d0) - 0.0d0) < tol)
+      @assertTrue(abs(bump( 1.0d0) - 0.0d0) < tol)
+   end subroutine test_bump_outside_support
+
+
+   @test
+   subroutine test_bump_inside_support()
+      real(kind=8), parameter :: tol = 1.0d-15
+      real(kind=8) :: x, ref
+
+      x   = 0.5d0
+      ref = (x + 1.0d0)**2 * (x - 1.0d0)**2
+
+      @assertTrue(abs(bump(x) - ref) < tol)
+      @assertTrue(abs(bump(0.0d0) - 1.0d0) < tol)
+   end subroutine test_bump_inside_support
+
+
+   @test
+   subroutine test_bump_symmetry()
+      real(kind=8), parameter :: tol = 1.0d-15
+
+      @assertTrue(abs(bump(-0.3d0) - bump(0.3d0)) < tol)
+      @assertTrue(abs(bump(-0.8d0) - bump(0.8d0)) < tol)
+   end subroutine test_bump_symmetry
+
+
+   @test
+   subroutine test_bump01_endpoints_and_center()
+      real(kind=8), parameter :: tol = 1.0d-15
+
+      @assertTrue(abs(bump01(0.0d0) - 0.0d0) < tol)
+      @assertTrue(abs(bump01(1.0d0) - 0.0d0) < tol)
+      @assertTrue(abs(bump01(0.5d0) - 1.0d0) < tol)
+   end subroutine test_bump01_endpoints_and_center
+
+
+   @test
+   subroutine test_bump01_matches_scaled_bump()
+      real(kind=8), parameter :: tol = 1.0d-15
+      real(kind=8) :: x
+
+      x = 0.25d0
+      @assertTrue(abs(bump01(x) - bump(2.0d0*(x - 0.5d0))) < tol)
+
+      x = 0.75d0
+      @assertTrue(abs(bump01(x) - bump(2.0d0*(x - 0.5d0))) < tol)
+   end subroutine test_bump01_matches_scaled_bump
+
+
+   @test
+   subroutine test_norm_2_zero_vector()
+      real(kind=8), parameter :: tol = 1.0d-15
+      real(kind=8) :: x(3)
+
+      x = (/ 0.0d0, 0.0d0, 0.0d0 /)
+
+      @assertTrue(abs(norm_2(x) - 0.0d0) < tol)
+   end subroutine test_norm_2_zero_vector
+
+
+   @test
+   subroutine test_norm_2_basic_vector()
+      real(kind=8), parameter :: tol = 1.0d-15
+      real(kind=8) :: x(3)
+
+      x = (/ 3.0d0, 4.0d0, 12.0d0 /)
+
+      @assertTrue(abs(norm_2(x) - 13.0d0) < tol)
+   end subroutine test_norm_2_basic_vector
+
+
+   @test
+   subroutine test_bump3d_center_and_far_field()
+      real(kind=8), parameter :: tol = 1.0d-15
+      real(kind=8) :: r, Rr
+
+      r  = 0.2d0
+      Rr = 0.6d0
+
+      @assertTrue(abs(bump3d(r, Rr, 0.5d0, 0.5d0, 0.5d0) - 1.0d0) < tol)
+      @assertTrue(abs(bump3d(r, Rr, 0.0d0, 0.0d0, 0.0d0) - 0.0d0) < tol)
+   end subroutine test_bump3d_center_and_far_field
+
+
+   @test
+   subroutine test_bump3d_radial_symmetry()
+      real(kind=8), parameter :: tol = 1.0d-15
+      real(kind=8) :: r, Rr, v1, v2
+
+      r  = 0.2d0
+      Rr = 0.8d0
+
+      v1 = bump3d(r, Rr, 0.6d0, 0.5d0, 0.5d0)
+      v2 = bump3d(r, Rr, 0.5d0, 0.6d0, 0.5d0)
+
+      @assertTrue(abs(v1 - v2) < tol)
+   end subroutine test_bump3d_radial_symmetry
+
+
+   @test
+   subroutine test_bump3d_transition_value()
+      real(kind=8), parameter :: tol = 1.0d-15
+      real(kind=8) :: r, Rr, x, y, z, t, ref, h
+
+      r  = 0.2d0
+      Rr = 0.6d0
+      x  = 0.7d0
+      y  = 0.5d0
+      z  = 0.5d0
+
+      t = sqrt((x - 0.5d0)**2 + (y - 0.5d0)**2 + (z - 0.5d0)**2)
+      h = (t - r/2.0d0) / (Rr/2.0d0 - r/2.0d0)
+      ref = ((h - 1.0d0) * (h + 1.0d0))**2
+
+      @assertTrue(abs(bump3d(r, Rr, x, y, z) - ref) < tol)
+   end subroutine test_bump3d_transition_value
+
+end module test_math

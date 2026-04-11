@@ -1,7 +1,11 @@
+module test_knot
+   use pfunit
+   implicit none
+contains
+
 @test
 subroutine test_knot1()
    use knot_vector, only: FillOpenKnot
-   use pfunit_mod
    implicit none
    integer(kind = 4) :: n, p
    real (kind = 8), allocatable, dimension(:) :: U
@@ -78,7 +82,6 @@ end subroutine test_knot1
 @test
 subroutine test_knot2()
    use knot_vector, only: CountSpans
-   use pfunit_mod
    implicit none
    integer(kind = 4) :: n, p
    integer(kind = 4) :: res
@@ -135,7 +138,6 @@ end subroutine test_knot2
 @test
 subroutine test_knot3()
    use knot_vector, only: PrepareKnot
-   use pfunit_mod
    implicit none
    integer(kind = 4) :: n, p
    real (kind = 8), allocatable, dimension(:) :: res
@@ -152,9 +154,8 @@ subroutine test_knot3()
    p = 0
    call PrepareKnot(n, p, res, nelem)
    @assertEqual(n - p + 1, nelem)
-   U = (/ 0.0, 0.0 /)
-   !@assertEqual(U, res)
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! FIX THIS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   U = (/ 1.0d0 /)
+   @assertEqual(U, res)
    deallocate(res)
    
    n = 0
@@ -216,3 +217,142 @@ end subroutine test_knot3
 
 
 
+@test
+subroutine test_repeatedKnot2_standard_continuity()
+   use knot_vector, only: repeatedKnot2
+   implicit none
+
+   integer(kind=4) :: n, p, iblock, c_continuity, nelem
+   integer(kind=4) :: n_old
+   real(kind=8), allocatable :: U(:)
+   real(kind=8), allocatable :: Uref(:)
+
+   n = 7
+   p = 2
+   iblock = 2
+   c_continuity = 1   ! C^(p-1) = C^1 for p=2
+   n_old = n
+
+   call repeatedKnot2(n, p, iblock, c_continuity, U, nelem)
+
+   Uref = (/ 0.0d0, 0.0d0, 0.0d0, &
+             1.0d0/6.0d0, 2.0d0/6.0d0, 3.0d0/6.0d0, 4.0d0/6.0d0, 5.0d0/6.0d0, &
+             1.0d0, 1.0d0, 1.0d0 /)
+
+   @assertEqual(n_old - p + 1, nelem)
+   @assertEqual(7, n)
+   @assertEqual(Uref, U)
+
+   deallocate(U)
+end subroutine test_repeatedKnot2_standard_continuity
+
+
+@test
+subroutine test_repeatedKnot2_C0()
+   use knot_vector, only: repeatedKnot2
+   implicit none
+
+   integer(kind=4) :: n, p, iblock, c_continuity, nelem
+   integer(kind=4) :: n_old
+   real(kind=8), allocatable :: U(:)
+   real(kind=8), allocatable :: Uref(:)
+
+   n = 7
+   p = 2
+   iblock = 2
+   c_continuity = 0
+   n_old = n
+
+   call repeatedKnot2(n, p, iblock, c_continuity, U, nelem)
+
+   ! nelem = 7 - 2 + 1 = 6
+   ! block interfaces after elements 2 and 4
+   ! xi = 2/6 and 4/6 repeated twice
+   Uref = (/ 0.0d0, 0.0d0, 0.0d0, &
+             1.0d0/6.0d0, &
+             2.0d0/6.0d0, 2.0d0/6.0d0, &
+             3.0d0/6.0d0, &
+             4.0d0/6.0d0, 4.0d0/6.0d0, &
+             5.0d0/6.0d0, &
+             1.0d0, 1.0d0, 1.0d0 /)
+
+   @assertEqual(n_old - p + 1, nelem)
+   @assertEqual(9, n)
+   @assertEqual(Uref, U)
+
+   deallocate(U)
+end subroutine test_repeatedKnot2_C0
+
+
+@test
+subroutine test_repeatedKnot2_Cminus1()
+   use knot_vector, only: repeatedKnot2
+   implicit none
+
+   integer(kind=4) :: n, p, iblock, c_continuity, nelem
+   integer(kind=4) :: n_old
+   real(kind=8), allocatable :: U(:)
+   real(kind=8), allocatable :: Uref(:)
+
+   n = 7
+   p = 2
+   iblock = 2
+   c_continuity = -1
+   n_old = n
+
+   call repeatedKnot2(n, p, iblock, c_continuity, U, nelem)
+
+   ! multiplicity = p - c = 2 - (-1) = 3
+   Uref = (/ 0.0d0, 0.0d0, 0.0d0, &
+             1.0d0/6.0d0, &
+             2.0d0/6.0d0, 2.0d0/6.0d0, 2.0d0/6.0d0, &
+             3.0d0/6.0d0, &
+             4.0d0/6.0d0, 4.0d0/6.0d0, 4.0d0/6.0d0, &
+             5.0d0/6.0d0, &
+             1.0d0, 1.0d0, 1.0d0 /)
+
+   @assertEqual(n_old - p + 1, nelem)
+   @assertEqual(11, n)
+   @assertEqual(Uref, U)
+
+   deallocate(U)
+end subroutine test_repeatedKnot2_Cminus1
+
+
+@test
+subroutine test_repeatedKnot2_p4_C0()
+   use knot_vector, only: repeatedKnot2
+   implicit none
+
+   integer(kind=4) :: n, p, iblock, c_continuity, nelem
+   integer(kind=4) :: n_old
+   real(kind=8), allocatable :: U(:)
+   real(kind=8), allocatable :: Uref(:)
+
+   n = 8
+   p = 4
+   iblock = 2
+   c_continuity = 0
+   n_old = n
+
+   call repeatedKnot2(n, p, iblock, c_continuity, U, nelem)
+
+   ! nelem = 8 - 4 + 1 = 5
+   ! interfaces after elements 2 and 4
+   ! multiplicity = p - c = 4
+   Uref = (/ 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, &
+             1.0d0/5.0d0, &
+             2.0d0/5.0d0, 2.0d0/5.0d0, 2.0d0/5.0d0, 2.0d0/5.0d0, &
+             3.0d0/5.0d0, &
+             4.0d0/5.0d0, 4.0d0/5.0d0, 4.0d0/5.0d0, 4.0d0/5.0d0, &
+             1.0d0, 1.0d0, 1.0d0, 1.0d0, 1.0d0 /)
+
+   @assertEqual(n_old - p + 1, nelem)
+   @assertEqual(14, n)
+   @assertEqual(Uref, U)
+
+   deallocate(U)
+end subroutine test_repeatedKnot2_p4_C0
+
+
+end module test_knot

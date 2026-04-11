@@ -1,0 +1,315 @@
+module test_gauss
+   use pfunit
+   use gauss, only: GaussRule
+   implicit none
+contains
+
+   subroutine assert_vec_near(a, b, tol)
+      real(kind=8), intent(in) :: a(:), b(:)
+      real(kind=8), intent(in) :: tol
+
+      @assertEqual(size(a), size(b))
+      @assertTrue(all(abs(a - b) < tol))
+   end subroutine assert_vec_near
+
+
+   @test
+   subroutine test_gauss_rule_1()
+      real(kind=8) :: X(0:0), W(0:0)
+      real(kind=8) :: Xref(0:0), Wref(0:0)
+      real(kind=8), parameter :: tol = 1.0d-14
+
+      call GaussRule(1, X, W)
+
+      Xref = (/ &
+         0.0000000000000000d0 &
+      /)
+
+      Wref = (/ &
+         2.0000000000000000d0 &
+      /)
+
+      call assert_vec_near(X, Xref, tol)
+      call assert_vec_near(W, Wref, tol)
+   end subroutine test_gauss_rule_1
+
+
+   @test
+   subroutine test_gauss_rule_2()
+      real(kind=8) :: X(0:1), W(0:1)
+      real(kind=8) :: Xref(0:1), Wref(0:1)
+      real(kind=8), parameter :: tol = 1.0d-14
+
+      call GaussRule(2, X, W)
+
+      Xref = (/ &
+        -0.57735026918962576451d0, &
+         0.57735026918962576451d0 &
+      /)
+
+      Wref = (/ &
+         1.00000000000000000000d0, &
+         1.00000000000000000000d0 &
+      /)
+
+      call assert_vec_near(X, Xref, tol)
+      call assert_vec_near(W, Wref, tol)
+   end subroutine test_gauss_rule_2
+
+
+   @test
+   subroutine test_gauss_rule_3()
+      real(kind=8) :: X(0:2), W(0:2)
+      real(kind=8) :: Xref(0:2), Wref(0:2)
+      real(kind=8), parameter :: tol = 1.0d-14
+
+      call GaussRule(3, X, W)
+
+      Xref = (/ &
+        -0.77459666924148337704d0, &
+         0.00000000000000000000d0, &
+         0.77459666924148337704d0 &
+      /)
+
+      Wref = (/ &
+         0.55555555555555555556d0, &
+         0.88888888888888888889d0, &
+         0.55555555555555555556d0 &
+      /)
+
+      call assert_vec_near(X, Xref, tol)
+      call assert_vec_near(W, Wref, tol)
+   end subroutine test_gauss_rule_3
+
+
+   @test
+   subroutine test_gauss_rule_4()
+      real(kind=8) :: X(0:3), W(0:3)
+      real(kind=8) :: Xref(0:3), Wref(0:3)
+      real(kind=8), parameter :: tol = 1.0d-14
+
+      call GaussRule(4, X, W)
+
+      Xref = (/ &
+        -0.86113631159405257522d0, &
+        -0.33998104358485626480d0, &
+         0.33998104358485626480d0, &
+         0.86113631159405257522d0 &
+      /)
+
+      Wref = (/ &
+         0.34785484513745385737d0, &
+         0.65214515486254614263d0, &
+         0.65214515486254614263d0, &
+         0.34785484513745385737d0 &
+      /)
+
+      call assert_vec_near(X, Xref, tol)
+      call assert_vec_near(W, Wref, tol)
+   end subroutine test_gauss_rule_4
+
+
+   @test
+   subroutine test_gauss_rule_5()
+      real(kind=8) :: X(0:4), W(0:4)
+      real(kind=8) :: Xref(0:4), Wref(0:4)
+      real(kind=8), parameter :: tol = 1.0d-14
+
+      call GaussRule(5, X, W)
+
+      Xref = (/ &
+        -0.90617984593866399280d0, &
+        -0.53846931010568309104d0, &
+         0.00000000000000000000d0, &
+         0.53846931010568309104d0, &
+         0.90617984593866399280d0 &
+      /)
+
+      Wref = (/ &
+         0.23692688505618908751d0, &
+         0.47862867049936646804d0, &
+         0.56888888888888888889d0, &
+         0.47862867049936646804d0, &
+         0.23692688505618908751d0 &
+      /)
+
+      call assert_vec_near(X, Xref, tol)
+      call assert_vec_near(W, Wref, tol)
+   end subroutine test_gauss_rule_5
+
+
+   @test
+   subroutine test_gauss_rule_6()
+      real(kind=8) :: X(0:5), W(0:5)
+      real(kind=8) :: Xref(0:5), Wref(0:5)
+      real(kind=8), parameter :: tol = 1.0d-14
+
+      call GaussRule(6, X, W)
+
+      Xref = (/ &
+        -0.93246951420315202781d0, &
+        -0.66120938646626451366d0, &
+        -0.23861918608319690863d0, &
+         0.23861918608319690863d0, &
+         0.66120938646626451366d0, &
+         0.93246951420315202781d0 &
+      /)
+
+      Wref = (/ &
+         0.17132449237917034504d0, &
+         0.36076157304813860757d0, &
+         0.46791393457269104739d0, &
+         0.46791393457269104739d0, &
+         0.36076157304813860757d0, &
+         0.17132449237917034504d0 &
+      /)
+
+      call assert_vec_near(X, Xref, tol)
+      call assert_vec_near(W, Wref, tol)
+   end subroutine test_gauss_rule_6
+
+
+   @test
+   subroutine test_gauss_rule_7()
+      real(kind=8) :: X(0:6), W(0:6)
+      real(kind=8) :: Xref(0:6), Wref(0:6)
+      real(kind=8), parameter :: tol = 1.0d-14
+
+      call GaussRule(7, X, W)
+
+      Xref = (/ &
+        -0.94910791234275852453d0, &
+        -0.74153118559939443986d0, &
+        -0.40584515137739716691d0, &
+         0.00000000000000000000d0, &
+         0.40584515137739716691d0, &
+         0.74153118559939443986d0, &
+         0.94910791234275852453d0 &
+      /)
+
+      Wref = (/ &
+         0.12948496616886969327d0, &
+         0.27970539148927666790d0, &
+         0.38183005050511894495d0, &
+         0.41795918367346938776d0, &
+         0.38183005050511894495d0, &
+         0.27970539148927666790d0, &
+         0.12948496616886969327d0 &
+      /)
+
+      call assert_vec_near(X, Xref, tol)
+      call assert_vec_near(W, Wref, tol)
+   end subroutine test_gauss_rule_7
+
+
+   @test
+   subroutine test_gauss_rule_8()
+      real(kind=8) :: X(0:7), W(0:7)
+      real(kind=8) :: Xref(0:7), Wref(0:7)
+      real(kind=8), parameter :: tol = 1.0d-14
+
+      call GaussRule(8, X, W)
+
+      Xref = (/ &
+        -0.96028985649753623168d0, &
+        -0.79666647741362673959d0, &
+        -0.52553240991632898582d0, &
+        -0.18343464249564980494d0, &
+         0.18343464249564980494d0, &
+         0.52553240991632898582d0, &
+         0.79666647741362673959d0, &
+         0.96028985649753623168d0 &
+      /)
+
+      Wref = (/ &
+         0.10122853629037625915d0, &
+         0.22238103445337447054d0, &
+         0.31370664587788728734d0, &
+         0.36268378337836198297d0, &
+         0.36268378337836198297d0, &
+         0.31370664587788728734d0, &
+         0.22238103445337447054d0, &
+         0.10122853629037625915d0 &
+      /)
+
+      call assert_vec_near(X, Xref, tol)
+      call assert_vec_near(W, Wref, tol)
+   end subroutine test_gauss_rule_8
+
+
+   @test
+   subroutine test_gauss_rule_9()
+      real(kind=8) :: X(0:8), W(0:8)
+      real(kind=8) :: Xref(0:8), Wref(0:8)
+      real(kind=8), parameter :: tol = 1.0d-14
+
+      call GaussRule(9, X, W)
+
+      Xref = (/ &
+        -0.96816023950762608984d0, &
+        -0.83603110732663579430d0, &
+        -0.61337143270059039731d0, &
+        -0.32425342340380892904d0, &
+         0.00000000000000000000d0, &
+         0.32425342340380892904d0, &
+         0.61337143270059039731d0, &
+         0.83603110732663579430d0, &
+         0.96816023950762608984d0 &
+      /)
+
+      Wref = (/ &
+         0.08127438836157441197d0, &
+         0.18064816069485740406d0, &
+         0.26061069640293546232d0, &
+         0.31234707704000284007d0, &
+         0.33023935500125976316d0, &
+         0.31234707704000284007d0, &
+         0.26061069640293546232d0, &
+         0.18064816069485740406d0, &
+         0.08127438836157441197d0 &
+      /)
+
+      call assert_vec_near(X, Xref, tol)
+      call assert_vec_near(W, Wref, tol)
+   end subroutine test_gauss_rule_9
+
+
+   @test
+   subroutine test_gauss_rule_10()
+      real(kind=8) :: X(0:9), W(0:9)
+      real(kind=8) :: Xref(0:9), Wref(0:9)
+      real(kind=8), parameter :: tol = 1.0d-14
+
+      call GaussRule(10, X, W)
+
+      Xref = (/ &
+        -0.97390652851717172008d0, &
+        -0.86506336668898451073d0, &
+        -0.67940956829902440623d0, &
+        -0.43339539412924719080d0, &
+        -0.14887433898163121088d0, &
+         0.14887433898163121088d0, &
+         0.43339539412924719080d0, &
+         0.67940956829902440623d0, &
+         0.86506336668898451073d0, &
+         0.97390652851717172008d0 &
+      /)
+
+      Wref = (/ &
+         0.06667134430868813759d0, &
+         0.14945134915058059315d0, &
+         0.21908636251598204399d0, &
+         0.26926671930999635509d0, &
+         0.29552422471475287017d0, &
+         0.29552422471475287017d0, &
+         0.26926671930999635509d0, &
+         0.21908636251598204399d0, &
+         0.14945134915058059315d0, &
+         0.06667134430868813759d0 &
+      /)
+
+      call assert_vec_near(X, Xref, tol)
+      call assert_vec_near(W, Wref, tol)
+   end subroutine test_gauss_rule_10
+
+end module test_gauss
