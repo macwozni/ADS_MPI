@@ -213,6 +213,7 @@ subroutine initialize_setup(n, p, continuity, ng, ads, mierr)
 
       ads%p = p ! order
       ads%n = n ! intervals
+      ads%tau = 0.d0
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
 

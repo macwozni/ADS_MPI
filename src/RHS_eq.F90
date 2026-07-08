@@ -211,29 +211,32 @@ subroutine ComputePointForRHS( &
    real(kind=8), dimension(7) :: alpha
 
    alpha = alpha_step(:, substep)
-   if (substep .EQ. 1) u = un11
-   if (substep .EQ. 2) u = un13
-   if (substep .EQ. 3) u = un23
+   select case (substep)
+   case (1)
+      u = un11
+   case (2)
+      u = un13
+   case (3)
+      u = un23
+   case default
+      stop "wrong substep"
+   end select
 
    v = ads%NNx(0, a(1), k(1), e(1))*ads%NNy(0, a(2), k(2), e(2))*ads%NNz(0, a(3), k(3), e(3))
    dv(1) = ads%NNx(1, a(1), k(1), e(1))*ads%NNy(0, a(2), k(2), e(2))*ads%NNz(0, a(3), k(3), e(3))
    dv(2) = ads%NNx(0, a(1), k(1), e(1))*ads%NNy(1, a(2), k(2), e(2))*ads%NNz(0, a(3), k(3), e(3))
    dv(3) = ads%NNx(0, a(1), k(1), e(1))*ads%NNy(0, a(2), k(2), e(2))*ads%NNz(1, a(3), k(3), e(3))
 
-   rhs = forcing(un11, du, X)
+   rhs = forcing(u, du, X)
 
-   fval = un11*v
-   fval = fval + alpha(1)*du(1)*dv(1)
-   fval = fval + alpha(2)*du(1)*v
-   fval = fval + alpha(3)*du(2)*dv(2)
-   fval = fval + alpha(4)*du(2)*v
-   fval = fval + alpha(5)*du(3)*dv(3)
-   fval = fval + alpha(6)*du(3)*v
-   fval = fval*ads%tau
-   fval = fval + alpha(3)*rhs*v
-   fval = fval + u*v
+   fval = u*v
+   fval = fval + ads%tau*( &
+      alpha(1)*du(1)*dv(1) + alpha(2)*du(1)*v + &
+      alpha(3)*du(2)*dv(2) + alpha(4)*du(2)*v + &
+      alpha(5)*du(3)*dv(3) + alpha(6)*du(3)*v + &
+      alpha(7)*rhs*v)
 
-   ret = fval
+   ret = J*W*fval
 
 end subroutine ComputePointForRHS
 

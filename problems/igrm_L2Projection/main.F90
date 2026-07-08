@@ -33,6 +33,7 @@ program main
 
    real(kind=8) :: mix(4,3)
    real (kind=8), dimension(7,3) :: alpha_step
+   real (kind=8) :: tau
    integer (kind = 4) :: nn
 
 #ifdef DEBUG
@@ -57,6 +58,9 @@ program main
    p1 = (/3,3,3/)
    p2 = (/1,1,1/)
    call Initialize(nelem, p1, p2, p2-1, ads_test, ads_trial, ads_data, ierr)
+   tau = 1.d0
+   ads_test%tau = tau
+   ads_trial%tau = tau
 
    fullnorm = 0.d0
    iter = 0
@@ -65,8 +69,9 @@ program main
    mix(:, 1) = (/1.d0, 0.d0, 0.d0, 0.d0/)
    mix(:, 2) = (/1.d0, 0.d0, 0.d0, 0.d0/)
    mix(:, 3) = (/1.d0, 0.d0, 0.d0, 0.d0/)
-   alpha_step=1.d0
-   nn=1.d0
+   alpha_step = 0.d0
+   alpha_step(7, :) = 1.d0
+   nn = 1
    call MultiStep(iter, mix, forcing, ads_test, ads_trial, ads_data,nn,alpha_step, ierr)
    call PrintSolution(iter, ads_trial, ads_data%FF)
 
