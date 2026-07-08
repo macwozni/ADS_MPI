@@ -1374,6 +1374,7 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
       real(kind=8), allocatable, dimension(:, :) :: F_out, F2_out ! F-trial
       real(kind=8), allocatable, dimension(:, :) :: Ft_out, Ft2_out ! F-test
       integer(kind=4), dimension(3) :: ibeg, iend
+      integer(kind=4) :: system_n
       ! real(kind=8) :: time1, time2
       logical :: equ
 
@@ -1526,10 +1527,12 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
             time1 = MPI_Wtime()
 #endif
       !     perform real solver
-            call SolveOneDirection(Fs, (ads_trial%s(b) + direction(b)*ads_test%s(b)) &
-                                    *(ads_trial%s(c) + direction(c)*ads_test%s(c)), &
-                                    (ads_trial%n(a) + direction(a)*ads_test%n(a)), &
-                                    (ads_trial%n(a) + direction(a)*ads_test%n(a)), sprsmtrx)
+            system_n = size(Fs, 1) - 1
+            if (sprsmtrx%x /= size(Fs, 1) .or. sprsmtrx%y /= size(Fs, 1)) then
+                  write (*, *) 'matrix/Fs size mismatch', sprsmtrx%x, sprsmtrx%y, size(Fs, 1)
+                  stop 1
+            end if
+            call SolveOneDirection(Fs, size(Fs, 2), system_n, system_n, sprsmtrx)
       !     clean buffers
             call clear_matrix(sprsmtrx)
 #ifdef PERFORMANCE

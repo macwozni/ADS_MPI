@@ -163,7 +163,7 @@ subroutine MKBBT_large(nelem, U1, p1, n1, U2, p2, n2, mixA, mixB, mixBT, sprsmtr
    call initialize_sparse(n1 + n2 + 2, n1 + n2 + 2, sprsmtrx)
 
    ! total_size = (nelem1)*(ng1)*(p1 + 1)*(p1 + 1)
-! submatrix A
+! submatrix A: trial-trial block matching the leading rows of Fs
 ! new parallel loop
 ! !$OMP PARALLEL DO &
 ! !$OMP DEFAULT(PRIVATE) &
@@ -178,22 +178,22 @@ subroutine MKBBT_large(nelem, U1, p1, n1, U2, p2, n2, mixA, mixB, mixBT, sprsmtr
 ! loop over Gauss points
       do i = 1, ng
 ! loop over shape functions over elements (p+1 functions)
-         do c = 0, p1
+         do c = 0, p2
             ! loop over shape functions over elements (p+1 functions)
-            do d = 0, p1
+            do d = 0, p2
                ! O(e) + c = first dof of element + 1st local shape function index
                ! O(e) + d = first dof of element + 2nd local shape function index
                ! NN(0,c,i,e) = value of shape function c at Gauss point i over element e
                ! NN(0,d,i,e) = value of shape function d at Gauss point i over element e
                ! W(i) weight for Gauss point i
                ! J(e) jacobian for element e
-               ia = O1(e) + c
-               ib = O1(e) + d
+               ia = O2(e) + c
+               ib = O2(e) + d
                ! M = u*v
-               M = NN1(0, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
-               K = NN1(1, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
-               B = NN1(1, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
-               BT = NN1(0, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
+               M = NN2(0, c, i, e)*NN2(0, d, i, e)*J(e)*W(i)
+               K = NN2(1, c, i, e)*NN2(1, d, i, e)*J(e)*W(i)
+               B = NN2(1, c, i, e)*NN2(0, d, i, e)*J(e)*W(i)
+               BT = NN2(0, c, i, e)*NN2(1, d, i, e)*J(e)*W(i)
                val = mixA(1)*M + mixA(2)*K + mixA(3)*B + mixA(4)*BT
                call add(sprsmtrx, ia, ib, val)
             end do
@@ -228,7 +228,7 @@ subroutine MKBBT_large(nelem, U1, p1, n1, U2, p2, n2, mixA, mixB, mixBT, sprsmtr
                ! W(i) weight for Gauss point i
                ! J(e) jacobian for element e
                ia = O2(e) + c
-               ib = O1(e) + d + n1 + 1
+               ib = O1(e) + d + n2 + 1
                ! M = u*v
                M = NN2(0, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
                K = NN2(1, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
