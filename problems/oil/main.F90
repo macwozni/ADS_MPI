@@ -4,9 +4,8 @@ program main
 
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    use parallelism, ONLY: MYRANK
-   use parallelism, ONLY: PRINTRANK, InitializeParallelism, CleanParallelism
-   use communicators, ONLY: CreateCommunicators
-   use RHS_eq
+   use parallelism, ONLY: PRINTRANK, InitializeParallelism, Cleanup_Parallelism
+   use communicators, ONLY: CreateCommunicators, Cleanup_Communicators
    use ADSS
    use input_data
    use mpi
@@ -18,16 +17,15 @@ program main
    integer :: iter = 0
 
    integer(kind = 4) :: ierr
-   integer(kind = 4), dimension(3) :: p1, p2
+   integer(kind = 4), dimension(3) :: nelem, p
 
-   type (ADS_setup) :: ads
+   type (ADS_setup) :: ads_test, ads_trial
    type (ADS_compute_data) :: ads_data
 
 
    integer :: values(1:8), k
    integer, dimension(:), allocatable :: seed
    real(8) :: r
-   real (kind = 8) :: l2norm, fullnorm
 
    !call date_and_time(values = values)
    !values = (/ 0.d8, 0.d7, 0.d6, 0.d5, 0.d4, 0.d3, 0.d2, 0.d1 /)
@@ -53,31 +51,36 @@ program main
 
    call InitializeParallelism(procx, procy, procz, ierr)
    call CreateCommunicators(ierr)
-   p1 = (/ SIZE, SIZE, SIZE /)
-   p2 = (/ ORDER, ORDER, ORDER /)
-   call Initialize(p1, p2, ads, ads_data, ierr)
-   allocate(Kqvals(ads % p(1) + 1, ads % p(2) + 1, ads % p(3) + 1, ads % maxe(1) - ads % mine(1) + 1, &
-   ads % maxe(2) - ads % mine(2) + 1, ads % maxe(3) - ads % mine(3) + 1))
+   nelem = (/ SIZE, SIZE, SIZE /)
+   p = (/ ORDER, ORDER, ORDER /)
+   call Initialize(nelem, p, p, p - 1, ads_test, ads_trial, ads_data, ierr)
+   allocate(Kqvals(ads_trial % p(1) + 1, ads_trial % p(2) + 1, ads_trial % p(3) + 1, &
+   ads_trial % maxe(1) - ads_trial % mine(1) + 1, &
+   ads_trial % maxe(2) - ads_trial % mine(2) + 1, ads_trial % maxe(3) - ads_trial % mine(3) + 1))
    call InitInputData
-   call PrecomputeKq(ads)
+   call PrecomputeKq(ads_trial)
 
    ! Iterations
    do iter = 0, steps
 
-      l2norm = 0.d0
-      call Step(iter, ComputePointForRHS, ads, ads_data, l2norm, ierr)
-      call MPI_Reduce(l2norm, fullnorm, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+      if (t > 0.d0) then
+         ads_trial%tau = Dt
+      else
+         ads_trial%tau = 1.d0
+      endif
+      call Step(iter, forcing, ads_trial, ads_data, ierr)
       if (MYRANK == 0) then
          write(*, *) iter
-         write(*, *) fullnorm
-         write(*, *) iter, 'L2 norm:', fullnorm
       endif
       t = t + Dt
 
    enddo
 
    call ComputeResults
-   call Cleanup(ads, ads_data, ierr)
-   call CleanParallelism(ierr)
+   call Cleanup_ADS(ads_test, ierr)
+   call Cleanup_ADS(ads_trial, ierr)
+   call Cleanup_data(ads_data, ierr)
+   call Cleanup_Communicators(ierr)
+   call Cleanup_Parallelism(ierr)
 
 end program main

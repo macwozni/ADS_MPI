@@ -241,11 +241,19 @@ contains
 
    ! Pumping
    ! x, y, z - point in space
+   function norm2(x) result (fval)
+      implicit none
+      intrinsic :: dot_product, sqrt
+      real (kind = 8), intent(in), dimension(:) :: x
+      real (kind = 8) :: fval
+
+      fval = sqrt(dot_product(x, x))
+
+   end function norm2
+
+
    function pumping(x, y, z) result (fval)
       use math, ONLY: falloff
-#ifdef PGI
-      use math, ONLY: norm2
-#endif
       implicit none
       real (kind = 8) :: x, y, z
       real (kind = 8) :: fval
@@ -268,9 +276,6 @@ contains
    ! x, y, z - point in space
    function draining(u, x, y, z) result (fval)
       use math, ONLY: falloff
-#ifdef PGI
-      use math, ONLY: norm2
-#endif
       implicit none
       real (kind = 8) :: u, x, y, z
       real (kind = 8) :: fval
@@ -327,6 +332,23 @@ contains
       val = 0.1d0 * lerp(falloff(0.d0, 0.1d0, dist), 0.d0, 1.d0) * bump3d(0.2d0, 0.6d0, x, y, z)
 
    end function initial_state
+
+
+   function forcing(un, du, X) result(ret)
+      implicit none
+      real(kind = 8), intent(in) :: un
+      real(kind = 8), intent(in), dimension(3) :: du
+      real(kind = 8), intent(in), dimension(3) :: X
+      real(kind = 8) :: ret
+
+      if (t > 0.d0) then
+         ret = pumping(X(1), X(2), X(3)) - &
+               max(0.d0, draining(un, X(1), X(2), X(3)))
+      else
+         ret = initial_state(X(1), X(2), X(3))
+      endif
+
+   end function forcing
 
 
 

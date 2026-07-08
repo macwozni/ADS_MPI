@@ -76,12 +76,14 @@ contains
 
 
 
-   ! forcing
-   ! x, y, z - point in space
-   function forcing(x, y, z) result (fval)
+   function forcing(un, du, X) result (fval)
       implicit none
-      real (kind = 8) :: x, y, z
+      real(kind = 8), intent(in) :: un
+      real(kind = 8), intent(in), dimension(3) :: du
+      real(kind = 8), intent(in), dimension(3) :: X
       real (kind = 8) :: fval
+
+      fval = 0.d0
 
    end function forcing
 
@@ -93,6 +95,8 @@ contains
       implicit none
       real (kind = 8) :: x, y, z
       real (kind = 8) :: fval
+
+      fval = 0.d0
 
    end function g
 
@@ -106,6 +110,8 @@ contains
       real (kind = 8) :: x, y, z
       real (kind = 8) :: fval
 
+      fval = 0.d0
+
    end function b
 
 
@@ -117,6 +123,8 @@ contains
       implicit none
       real (kind = 8) :: x, y, z
       real (kind = 8) :: fval
+
+      fval = 0.d0
 
    end function n
 

@@ -50,5 +50,15 @@ contains
    end subroutine InitializeParameters
 
 
+   function forcing(un, du, X) result(ret)
+      implicit none
+      real(kind = 8), intent(in) :: un
+      real(kind = 8), intent(in), dimension(3) :: du
+      real(kind = 8), intent(in), dimension(3) :: X
+      real(kind = 8) :: ret
+
+      ret = 1.d0
+
+   end function forcing
 
 end module input_data

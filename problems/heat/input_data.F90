@@ -70,4 +70,20 @@ contains
    end function initial_state
 
 
+   function forcing(un, du, X) result(ret)
+      implicit none
+      real(kind = 8), intent(in) :: un
+      real(kind = 8), intent(in), dimension(3) :: du
+      real(kind = 8), intent(in), dimension(3) :: X
+      real(kind = 8) :: ret
+
+      if (t > 0.d0) then
+         ret = 0.d0
+      else
+         ret = initial_state(X(1), X(2), X(3))
+      endif
+
+   end function forcing
+
+
 end module input_data
