@@ -516,7 +516,7 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, alpha
 !> @brief Physical coordinates of the current quadrature point.
    real(kind=8), dimension(3) :: X
 !> @brief Direction-dependent quadrature, element, and local basis indices.
-   integer(kind=4), dimension(3) :: k, e, a
+   integer(kind=4), dimension(3) :: k, e, a, indb
    ! integer (kind = 4) :: tmp, all
    ! integer (kind = 4) :: total_size
 !> @brief Values of the gradient-like quantity from the previous step.
@@ -594,26 +594,30 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, alpha
                      do ax = 0, ads%p(dira)
                         do ay = 0, ads%p(dirb)
                            do az = 0, ads%p(dirc)
-                              indx = (ads%Ox(ex) + ax)
-                              indy = (ads%Oy(ey) + ay)
-                              indz = (ads%Oz(ez) + az)
+                              a(dira) = ax
+                              a(dirb) = ay
+                              a(dirc) = az
+
+                              indb(1) = ads%Ox(ex) + a(1)
+                              indb(2) = ads%Oy(ey) + a(2)
+                              indb(3) = ads%Oz(ez) + a(3)
+
+                              indx = indb(1)
+                              indy = indb(2)
+                              indz = indb(3)
                               ind = indx + (indy + indz*(ads%n(2) + 1))*(ads%n(1) + 1)
 
-                              if ((indx < ads%ibeg(dira) - 1) .or. (indx > ads%iend(dira) - 1) .or. &
-                                 (indy < ads%ibeg(dirb) - 1) .or. (indy > ads%iend(dirb) - 1) .or. &
-                                 (indz < ads%ibeg(dirc) - 1) .or. (indz > ads%iend(dirc) - 1)) then
+                              if ((indb(1) < ads%ibeg(1) - 1) .or. (indb(1) > ads%iend(1) - 1) .or. &
+                                 (indb(2) < ads%ibeg(2) - 1) .or. (indb(2) > ads%iend(2) - 1) .or. &
+                                 (indb(3) < ads%ibeg(3) - 1) .or. (indb(3) > ads%iend(3) - 1)) then
                               else
-                                 ind1 = indx - ads%ibeg(dira) + 1
-                                 ind23 = (indy - ads%ibeg(dirb) + 1) + &
-                                    (indz - ads%ibeg(dirc) + 1)*(ads%iend(dirb) - ads%ibeg(dirb) + 1)
+                                 ind1 = indb(dira) - ads%ibeg(dira) + 1
+                                 ind23 = (indb(dirb) - ads%ibeg(dirb) + 1) + &
+                                    (indb(dirc) - ads%ibeg(dirc) + 1)*(ads%iend(dirb) - ads%ibeg(dirb) + 1)
 
-                                 X(dira) = ads%Xx(k(1), ex)
-                                 X(dirb) = ads%Xy(k(2), ey)
-                                 X(dirc) = ads%Xz(k(3), ez)
-
-                                 a(dira) = ax
-                                 a(dirb) = ay
-                                 a(dirc) = az
+                                 X(1) = ads%Xx(k(1), ex)
+                                 X(2) = ads%Xy(k(2), ey)
+                                 X(3) = ads%Xz(k(3), ez)
 
 
                                  ! call RHS_fun(&
@@ -655,16 +659,22 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, alpha
             do ax = 0, ads%p(dira)
                do ay = 0, ads%p(dirb)
                   do az = 0, ads%p(dirc)
-                     indx = (ads%Ox(ex) + ax)
-                     indy = (ads%Oy(ey) + ay)
-                     indz = (ads%Oz(ez) + az)
-                     ind1 = indx - ads%ibeg(dira) + 1
-                     ind23 = (indy - ads%ibeg(dirb) + 1) + &
-                        (indz - ads%ibeg(dirc) + 1)*(ads%iend(dirb) - ads%ibeg(dirb) + 1)
-                     if ((indx < ads%ibeg(dira) - 1) .or. (indx > ads%iend(dira) - 1) .or. &
-                        (indy < ads%ibeg(dirb) - 1) .or. (indy > ads%iend(dirb) - 1) .or. &
-                        (indz < ads%ibeg(dirc) - 1) .or. (indz > ads%iend(dirc) - 1)) then
+                     a(dira) = ax
+                     a(dirb) = ay
+                     a(dirc) = az
+
+                     indb(1) = ads%Ox(ex) + a(1)
+                     indb(2) = ads%Oy(ey) + a(2)
+                     indb(3) = ads%Oz(ez) + a(3)
+
+                     if ((indb(1) < ads%ibeg(1) - 1) .or. (indb(1) > ads%iend(1) - 1) .or. &
+                        (indb(2) < ads%ibeg(2) - 1) .or. (indb(2) > ads%iend(2) - 1) .or. &
+                        (indb(3) < ads%ibeg(3) - 1) .or. (indb(3) > ads%iend(3) - 1)) then
                      else
+                        ind1 = indb(dira) - ads%ibeg(dira) + 1
+                        ind23 = (indb(dirb) - ads%ibeg(dirb) + 1) + &
+                           (indb(dirc) - ads%ibeg(dirc) + 1)*(ads%iend(dirb) - ads%ibeg(dirb) + 1)
+
                         if (igrm) then
                            ads_data%Ft(ind1 + 1, ind23 + 1) = &
                               ads_data%Ft(ind1 + 1, ind23 + 1) &
