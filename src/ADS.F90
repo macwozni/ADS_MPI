@@ -415,6 +415,10 @@ subroutine AllocateADSdata(ads_test, ads_trial, ads_data)
                               ads_trial%ng(1), ads_trial%ng(2), ads_trial%ng(3)))
       allocate (ads_data%dUn(ads_trial%lnelem(1), ads_trial%lnelem(2), ads_trial%lnelem(3), &
                               ads_trial%ng(1), ads_trial%ng(2), ads_trial%ng(3), 3))
+      ads_data%Un = 0.d0
+      ads_data%Un13 = 0.d0
+      ads_data%Un23 = 0.d0
+      ads_data%dUn = 0.d0
 
       ! OLD: MP start with system fully generated along X
       ! allocate( F((n+1),(sy)*(sz))) !x,y,z

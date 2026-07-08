@@ -949,19 +949,17 @@ subroutine FormUn(subun, ads, ads_data)
 !> @brief Basis products for value and directional derivatives.
    real(kind=8) :: dvx, dvy, dvz, v
 
-   ads_data%un = 0.d0
-   ads_data%un13 = 0.d0
-   ads_data%un23 = 0.d0
-
-   if (subun .EQ. 1) then
+   select case (subun)
+   case (1)
       ads_data%Un = 0.d0
-   else if (subun .EQ. 2) then
+   case (2)
       ads_data%Un13 = 0.d0
-   else if (subun .EQ. 3) then
+   case (3)
       ads_data%Un23 = 0.d0
-   else
+   case default
       write (ERROR_UNIT, *) "wrong substep"
-   end if
+      stop 1
+   end select
    ads_data%dUn = 0.d0
    !total_size = ads%lnelem(1)*ads%lnelem(2)*ads%lnelem(3)
 
