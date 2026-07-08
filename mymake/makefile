@@ -2,7 +2,7 @@ include m_options
 include ./m_files
 
 obj_path = _OBJ
-FFLAGS		+= -I./$(obj_path)
+FFLAGS		+= -J. -I. -I./$(obj_path)
 
 
 EXEC = l2
@@ -32,5 +32,3 @@ $(obj_path)/%$(dot_o): %.F90
 clean:
 	@rm -f $(OBJECT_ALL) $(dep_files) EXEC/$(EXEC)
 	rm -f *.o *.mod */*.o */*.mod fort.1
-
-
