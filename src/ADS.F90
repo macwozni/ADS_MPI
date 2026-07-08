@@ -1161,42 +1161,9 @@ subroutine Cleanup_ADS(ads, mierr)
       integer(kind=4), intent(out) :: mierr
       ! integer(kind=4) :: ierr
 
-   call Cleanup_ADS(ads_test, mierr)
-   call Cleanup_ADS(ads_trial, mierr)
-
-   if (allocated(ads_data % F)) deallocate(ads_data % F)
-   if (allocated(ads_data % F2)) deallocate(ads_data % F2)
-   if (allocated(ads_data % F3)) deallocate(ads_data % F3)
-
-   if (allocated(ads_data % Un)) deallocate(ads_data % Un)
-   if (allocated(ads_data % Un13)) deallocate(ads_data % Un13)
-   if (allocated(ads_data % Un23)) deallocate(ads_data % Un23)
-   if (allocated(ads_data % dUn)) deallocate(ads_data % dUn)
-   !!!!!! wyciac
-   call mpi_finalize(ierr)
-#ifdef IINFO
-   write(*, *) PRINTRANK, "Exiting..."
-#endif
-
-   mierr = 0
-
-end subroutine Cleanup
-
-
-! -------------------------------------------------------------------
-! Deallocates all the resources and finalizes MPI.
-! -------------------------------------------------------------------
-subroutine Cleanup_ADS(ads, mierr)
-   use Setup, ONLY: ADS_Setup, ADS_compute_data
-   use parallelism, ONLY: PRINTRANK
-   implicit none
-   type (ADS_setup), intent(inout) :: ads
-   integer(kind = 4), intent(out) :: mierr
-   integer(kind = 4) :: ierr
-
-   if (allocated(ads % shiftsX)) deallocate(ads % shiftsX)
-   if (allocated(ads % shiftsY)) deallocate(ads % shiftsY)
-   if (allocated(ads % shiftsZ)) deallocate(ads % shiftsZ)
+      if (allocated(ads%Ux)) deallocate (ads%Ux)
+      if (allocated(ads%Uy)) deallocate (ads%Uy)
+      if (allocated(ads%Uz)) deallocate (ads%Uz)
 
       if (allocated(ads%dimensionsX)) deallocate (ads%dimensionsX)
       if (allocated(ads%dimensionsX)) deallocate (ads%dimensionsY)
@@ -1490,31 +1457,6 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
       endif
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
-
-   equ = .TRUE.
-   if (direction(a) .EQ. 1) equ = .FALSE.
-   
-   if (a.EQ.1) then
-     comm = COMMX
-     myrankdim = MYRANKX
-     u = ads_trial % ux
-     shifts = ads_trial % shiftsX
-     dimensions = ads_trial % dimensionsX
-   else if (a .EQ. 2) then
-     comm = COMMY
-     myrankdim = MYRANKY
-     u = ads_trial % uy
-     shifts = ads_trial % shiftsY
-     dimensions = ads_trial % dimensionsY
-   else
-     comm = COMMZ
-     myrankdim = MYRANKZ
-     u = ads_trial % uz
-     shifts = ads_trial % shiftsZ
-     dimensions = ads_trial % dimensionsZ
-   endif
-
-   call mpi_barrier(MPI_COMM_WORLD, ierr)
 
 #ifdef IINFO
       write (*, *) PRINTRANK, a, 'a) GATHER'

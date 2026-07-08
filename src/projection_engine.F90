@@ -319,50 +319,59 @@ end subroutine MKBBT_large
 !
 ! Output:
 ! -------
-!> @param[out] sprsmtrx - sparse matrix, logically \f$ (n+1) \times (n+1) \f$, combination of M, K, B and BT matrices
-!>
-!> Values in the matrix are stored in the band format, i.e. while \f$ M \f$
-!> is \f$ (n+1) \times (n+1) \f$, it is stored as \f$ (2 KL + KU + 1) \times n \f$, and the
-!> index correspondence is given by:
-!>
-!>     A(i, j) = M(KL + KU + 1 + i - j, j)
-!>
-!> \f$ M = u*v \f$
-! -------------------------------------------------------------------
-subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
+!> @param[out] sprsmtrx
+!> Sparse matrix containing the assembled one-space operator.
+!
+! Notes:
+! ------
+!> @note
+!> The output matrix is initialized with logical dimensions
+!> \f$(n+1) \times (n+1)\f$.
+!
+!---------------------------------------------------------------------------
+subroutine MKBBT_small(nelem, U, p, n, mix, sprsmtrx)
    use basis, ONLY: BasisData
    use omp_lib
    use sparse
    implicit none
-   integer(kind = 4), intent(in) :: n1, p1, nelem1
-   integer(kind = 4), intent(in) :: n2, p2, nelem2
-   real (kind = 8), intent(in) :: U1(0:n1 + p1 + 1)
-   real (kind = 8), intent(in) :: U2(0:n2 + p2 + 1)
-   real (kind = 8), dimension(4), intent(in) :: mix
-   real (kind = 8), dimension(nelem) :: J ! values of the Jacobian of elements
-   real (kind = 8), dimension(p + 1) :: W ! weights of Gauss quadrature points
-   real (kind = 8), dimension(p + 1, nelem) :: X ! points of Gauss quadrature
-   real (kind = 8), dimension(0:1, 0:p, p + 1, nelem) :: NN ! values of (p1+1) nonzero basis functions and their derivatives at points of Gauss quadrature
-   integer(kind = 4) :: dd ! order of highest derivatives we want to compute
-   integer(kind = 4) :: ia, ib
-   integer(kind = 4) :: mm
-   integer(kind = 4) :: ng ! number of Gauss quadrature points
-   integer(kind = 4) :: e, i, c, d
-   integer(kind = 4) :: O(nelem) ! indexes of first nonzero functions on each element
-   integer(kind = 4) :: all, tmp, total_size
+!> @brief Basis size minus one, polynomial degree, and number of elements.
+   integer(kind=4), intent(in) :: n, p, nelem
+!> @brief Knot vector of the spline space.
+   real(kind=8), intent(in) :: U(0:n + p + 1)
+!> @brief Mixing coefficients for the elementary bilinear forms.
+   real(kind=8), dimension(4), intent(in) :: mix
+!> @brief Element Jacobians.
+   real(kind=8), dimension(nelem) :: J
+!> @brief Gauss quadrature weights.
+   real(kind=8), dimension(p + 1) :: W
+!> @brief Physical Gauss-point coordinates.
+   real(kind=8), dimension(p + 1, nelem) :: X
+!> @brief Basis values and first derivatives at quadrature points.
+   real(kind=8), dimension(0:1, 0:p, p + 1, nelem) :: NN
+!> @brief Highest derivative order requested from basis evaluation.
+   integer(kind=4) :: dd
+!> @brief Row and column indices of the assembled sparse entry.
+   integer(kind=4) :: ia, ib
+!> @brief Last valid knot index.
+   integer(kind=4) :: mm
+!> @brief Number of Gauss points.
+   integer(kind=4) :: ng
+!> @brief Loop counters.
+   integer(kind=4) :: e, i, c, d
+!> @brief First nonzero basis-function index on each element.
+   integer(kind=4) :: O(nelem)
+!> @brief Output sparse matrix.
    type(sparse_matrix), pointer, intent(out) :: sprsmtrx
+!> @brief Assembled matrix entry.
    real(kind=8) :: val
-   real (kind = 8) :: M,K,B,BT
+!> @brief Elementary mass, stiffness, and advection-like terms.
+   real(kind=8) :: M, K, B, BT
 
-   mm1 = n1 + p1 + 1
-   ng1 = p1 + 1
-   dd1 = 1
-   mm2 = n2 + p2 + 1
-   ng2 = p2 + 1
-   dd2 = 1
+   mm = n + p + 1
+   ng = p + 1
+   dd = 1
 
-   call BasisData(p1, mm1, U1, dd1, ng1, nelem1, O1, J1, W1, X1, NN1)
-   call BasisData(p2, mm2, U2, dd2, ng2, nelem2, O2, J2, W2, X2, NN2)
+   call BasisData(p, mm, U, dd, ng, nelem, O, J, W, X, NN)
 
    call initialize_sparse(n + 1, n + 1, sprsmtrx)
 
@@ -376,34 +385,34 @@ subroutine MKBBT_small(U, p, n, nelem, mix, sprsmtrx)
 !!$OMP REDUCTION(+:K) &
 !!$OMP REDUCTION(+:B) &
 !!$OMP REDUCTION(+:BT)
-      do all = 1, total_size
-! loop over shape functions over elements (p1+1 functions)
-         d = modulo(all - 1, p + 1)
-         tmp = (all - d)/(p + 1)
-! loop over shape functions over elements (p1+1 functions)
-         c = modulo(tmp, p + 1)
-         tmp = (tmp - c)/(p + 1)
-! loop over Gauss points
-      i = modulo(tmp, ng1) + 1
 ! loop over elements
-      e = (tmp - i + 1) / (ng) + 1
-      ! O(e) + c = first dof of element + 1st local shape function index
-      ! O(e) + d = first dof of element + 2nd local shape function index
-      ! NN(0,c,i,e) = value of shape function c at Gauss point i over element e
-      ! NN(0,d,i,e) = value of shape function d at Gauss point i over element e
-      ! W(i) weight for Gauss point i
-      ! J(e) jacobian for element e
-      ia = O1(e) + c
-      ib = O1(e) + d
-      ! M = u*v
-      M = NN1(0, c, i, e) * NN1(0, d, i, e) * J1(e) * W1(i)
-      K = NN1(1, c, i, e) * NN1(1, d, i, e) * J1(e) * W1(i)
-      B = NN1(1, c, i, e) * NN1(0, d, i, e) * J1(e) * W1(i)
-      BT = NN1(0, c, i, e) * NN1(1, d, i, e) * J1(e) * W1(i)
-      val =  mix(1)*M + mix(2)*K + mix(3)*B + mix(4)*BT
-      call add(sprsmtrx,ia,ib,val)
-   enddo
-!$OMP END PARALLEL DO
+   do e = 1, nelem
+! loop over Gauss points
+      do i = 1, ng
+         ! loop over shape functions over elements (p+1 functions)
+         do c = 0, p
+            ! loop over shape functions over elements (p+1 functions)
+            do d = 0, p
+               ! O(e) + c = first dof of element + 1st local shape function index
+               ! O(e) + d = first dof of element + 2nd local shape function index
+               ! NN(0,c,i,e) = value of shape function c at Gauss point i over element e
+               ! NN(0,d,i,e) = value of shape function d at Gauss point i over element e
+               ! W(i) weight for Gauss point i
+               ! J(e) jacobian for element e
+               ia = O(e) + c
+               ib = O(e) + d
+               ! M = u*v
+               M = NN(0, c, i, e)*NN(0, d, i, e)*J(e)*W(i)
+               K = NN(1, c, i, e)*NN(1, d, i, e)*J(e)*W(i)
+               B = NN(1, c, i, e)*NN(0, d, i, e)*J(e)*W(i)
+               BT = NN(0, c, i, e)*NN(1, d, i, e)*J(e)*W(i)
+               val = mix(1)*M + mix(2)*K + mix(3)*B + mix(4)*BT
+               call add(sprsmtrx, ia, ib, val)
+            end do
+         end do
+      end do
+   end do
+!!$OMP END PARALLEL DO
 
 end subroutine MKBBT_small
 
@@ -856,9 +865,31 @@ subroutine create_mixed_space(ads_test, ads_trial, direction,&
 end subroutine create_mixed_space
 
 !---------------------------------------------------------------------------
-!> @brief
-!> Calculates value of derivative from previous time step - \f$ dU_n \f$.
-!> Calculates previous solution coefficient - \f$ U_n \f$.
+!
+! DESCRIPTION:
+!> @brief Reconstructs solution values and first derivatives at
+!> quadrature points from neighbouring-domain coefficient blocks.
+!>
+!> @details
+!> This routine evaluates:
+!> - the scalar solution value at each quadrature point,
+!> - the first derivatives with respect to the three coordinates,
+!> - the corresponding storage buffers in \p ads_data for one of the
+!>   solution states selected by \p subun.
+!>
+!> For each local element and quadrature point, the procedure loops over
+!> the locally supported tensor-product basis functions, retrieves the
+!> appropriate coefficient from the neighbouring-domain block array
+!> \p ads_data%R, and forms the value and derivatives using the basis
+!> tables stored in \p ads.
+!>
+!> The computed value is written to one of:
+!> - \p ads_data%Un,
+!> - \p ads_data%Un13,
+!> - \p ads_data%Un23,
+!>
+!> according to the selector \p subun. The derivative vector is written
+!> to \p ads_data%dUn.
 !
 ! Input:
 ! ------
@@ -872,33 +903,53 @@ end subroutine create_mixed_space
 !> Working data structure containing coefficient blocks and output
 !> arrays.
 !
-! Output:
-! -------
-!> @param[out] Un      - previous solution coefficient - \f$ U_n \f$
-!> @param[out] dUn     - derivative from previous time step - \f$ dU_n \f$
-! -------------------------------------------------------------------
-   subroutine FormUn(subun, ads, ads_data)
-      use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
-      use Setup, ONLY: ADS_Setup, ADS_compute_data
-      ! use parallelism, ONLY: PRINTRANK
-      use Interfaces, ONLY: forcing_fun
-      use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
-      use omp_lib
-      implicit none
-      integer(kind=4), intent(in) :: subun
-      type(ADS_setup), intent(in) :: ads
-      type(ADS_compute_data), intent(inout) :: ads_data
-      integer(kind=4) :: kx, ky, kz, ex, ey, ez, exx, eyy, ezz
-      integer(kind=4) :: ind
-      integer(kind=4) :: tmp, all
-      integer(kind=4) :: total_size
-      integer(kind=4) :: rx, ry, rz, ix, iy, iz, sx, sy, sz
-      integer(kind=4) :: bx, by, bz
-      real(kind=8) :: dux, duy, duz
-      ! real   (kind=8), dimension(3)  :: du
-      integer(kind=4) :: indbx, indby, indbz
-      real(kind=8) :: Uval, ucoeff
-      real(kind=8) :: dvx, dvy, dvz, v
+! Notes:
+! ------
+!> @note
+!> The neighbouring-domain block indices are encoded by the triplet
+!> \f$(r_x,r_y,r_z)\f$ taking values in \f$\{1,2,3\}\f$ for each
+!> direction.
+!
+!> @warning
+!> The procedure assumes that \p ads_data%R and all output arrays have
+!> been allocated consistently with the setup structure.
+!
+!---------------------------------------------------------------------------
+subroutine FormUn(subun, ads, ads_data)
+   use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
+   use Setup, ONLY: ADS_Setup, ADS_compute_data
+   ! use parallelism, ONLY: PRINTRANK
+   use Interfaces, ONLY: forcing_fun
+   use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
+   use omp_lib
+   implicit none
+!> @brief Selector of the solution buffer to be updated.
+   integer(kind=4), intent(in) :: subun
+!> @brief Setup structure with basis tables and decomposition data.
+   type(ADS_setup), intent(in) :: ads
+!> @brief Working data structure updated in place.
+   type(ADS_compute_data), intent(inout) :: ads_data
+!> @brief Loop counters over quadrature points and elements.
+   integer(kind=4) :: kx, ky, kz, ex, ey, ez, exx, eyy, ezz
+!> @brief Linearized global or local index.
+   integer(kind=4) :: ind
+!> @brief Auxiliary index variables retained for alternate traversal strategies.
+   integer(kind=4) :: tmp, all
+!> @brief Total number of element blocks in the local partition.
+   integer(kind=4) :: total_size
+!> @brief Neighbour-block selectors and local coordinates within these blocks.
+   integer(kind=4) :: rx, ry, rz, ix, iy, iz, sx, sy, sz
+!> @brief Local basis-function indices in the tensor-product basis.
+   integer(kind=4) :: bx, by, bz
+!> @brief Reconstructed first derivatives of the solution.
+   real(kind=8) :: dux, duy, duz
+   ! real   (kind=8), dimension(3)  :: du
+!> @brief Global basis-function coordinates in the three directions.
+   integer(kind=4) :: indbx, indby, indbz
+!> @brief Solution value and current coefficient value.
+   real(kind=8) :: Uval, ucoeff
+!> @brief Basis products for value and directional derivatives.
+   real(kind=8) :: dvx, dvy, dvz, v
 
    ads_data%un = 0.d0
    ads_data%un13 = 0.d0
