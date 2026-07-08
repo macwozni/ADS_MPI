@@ -719,11 +719,6 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
       integer(kind=4) :: substep
       integer(kind=4), dimension(3, 3) :: abc
 
-
-      if (allocated(ads_data%R)) deallocate(ads_data%R)
-      allocate (ads_data%R(ads_trial%nrcpp(3)*ads_trial%nrcpp(1)*ads_trial%nrcpp(2), 3, 3, 3))
-      ads_data%R = 0.d0
-
       allocate (ads_data%F (ads_trial%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
       allocate (ads_data%F2(ads_trial%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,z,x
       allocate (ads_data%F3(ads_trial%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
@@ -738,6 +733,9 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
       abc(:, 3) = (/3, 1, 2/) ! z x y
       substep = 1
       call FormUn(substep, ads_trial, ads_data)
+      if (allocated(ads_data%R)) deallocate(ads_data%R)
+      allocate (ads_data%R(ads_trial%nrcpp(3)*ads_trial%nrcpp(1)*ads_trial%nrcpp(2), 3, 3, 3))
+      ads_data%R = 0.d0
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
                   n, alpha_step, RHS_fun, ads_data, mierr)
       if (allocated(ads_data%FFt)) deallocate(ads_data%FFt)
@@ -749,11 +747,6 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
 
       call move_alloc(ads_data%F,ads_data%FF)
       call move_alloc(ads_data%Ft,ads_data%FFt)
-
-      if (allocated(ads_data%R)) deallocate(ads_data%R)
-      allocate (ads_data%R(ads_trial%nrcpp(2)*ads_trial%nrcpp(3)*ads_trial%nrcpp(1), 3, 3, 3))
-      ads_data%R = 0.d0
-
       allocate (ads_data%F (ads_trial%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,z,x
       allocate (ads_data%F2(ads_trial%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
       allocate (ads_data%F3(ads_trial%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
@@ -768,6 +761,9 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
       abc(:, 3) = (/1, 2, 3/) ! x y z
       substep = 2
       call FormUn(substep, ads_trial, ads_data)
+      if (allocated(ads_data%R)) deallocate(ads_data%R)
+      allocate (ads_data%R(ads_trial%nrcpp(2)*ads_trial%nrcpp(3)*ads_trial%nrcpp(1), 3, 3, 3))
+      ads_data%R = 0.d0
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
                   n, alpha_step, RHS_fun, ads_data, mierr)
       if (allocated(ads_data%FFt)) deallocate(ads_data%FFt)
@@ -779,11 +775,6 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
 
       call move_alloc(ads_data%F,ads_data%FF)
       call move_alloc(ads_data%Ft,ads_data%FFt)
-
-      if (allocated(ads_data%R)) deallocate(ads_data%R)
-      allocate (ads_data%R(ads_trial%nrcpp(1)*ads_trial%nrcpp(2)*ads_trial%nrcpp(3), 3, 3, 3))
-      ads_data%R = 0.d0
-
       allocate (ads_data%F (ads_trial%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
       allocate (ads_data%F2(ads_trial%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
       allocate (ads_data%F3(ads_trial%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,z,x
@@ -798,6 +789,9 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
       abc(:, 3) = (/2, 3, 1/) ! y z x
       substep = 3
       call FormUn(substep, ads_trial, ads_data)
+      if (allocated(ads_data%R)) deallocate(ads_data%R)
+      allocate (ads_data%R(ads_trial%nrcpp(1)*ads_trial%nrcpp(2)*ads_trial%nrcpp(3), 3, 3, 3))
+      ads_data%R = 0.d0
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
                   n, alpha_step, RHS_fun, ads_data, mierr)
       if (allocated(ads_data%FFt)) deallocate(ads_data%FFt)
