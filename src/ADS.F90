@@ -734,7 +734,7 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
       mmix = mix(:, 1)
       direction = (/1, 0, 0/) ! x
       abc(:, 1) = (/1, 2, 3/) ! x y z
-      abc(:, 2) = (/2, 3, 1/) ! y z x
+      abc(:, 2) = (/2, 1, 3/) ! y x z
       abc(:, 3) = (/3, 1, 2/) ! z x y
       substep = 1
       call FormUn(substep, ads_trial, ads_data)
@@ -752,16 +752,16 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
 
       call move_alloc(ads_data%F,ads_data%FF)
       call move_alloc(ads_data%Ft,ads_data%FFt)
-      allocate (ads_data%F (ads_trial%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,z,x
+      allocate (ads_data%F (ads_trial%s(2), ads_trial%s(1)*ads_trial%s(3))) !y,x,z
       allocate (ads_data%F2(ads_trial%s(3), ads_trial%s(1)*ads_trial%s(2))) !z,x,y
       allocate (ads_data%F3(ads_trial%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
-      allocate (ads_data%Ft (ads_test%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,z,x
+      allocate (ads_data%Ft (ads_test%s(2), ads_trial%s(1)*ads_trial%s(3))) !y,x,z
       allocate (ads_data%Ft2(ads_trial%s(3), ads_trial%s(1)*ads_test%s(2))) !z.x.y
       allocate (ads_data%Ft3(ads_trial%s(1), ads_test%s(2)*ads_trial%s(3))) !x,y,z
 
       mmix = mix(:, 2)
       direction = (/0, 1, 0/) ! y
-      abc(:, 1) = (/2, 3, 1/) ! y z x
+      abc(:, 1) = (/2, 1, 3/) ! y x z
       abc(:, 2) = (/3, 1, 2/) ! z x y
       abc(:, 3) = (/1, 2, 3/) ! x y z
       substep = 2
@@ -789,9 +789,9 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
 
       mmix = mix(:, 3)
       direction = (/0, 0, 1/) ! z
-      abc(:, 1) = (/3, 1, 2/) ! z y y
+      abc(:, 1) = (/3, 1, 2/) ! z x y
       abc(:, 2) = (/1, 2, 3/) ! x y z
-      abc(:, 3) = (/2, 3, 1/) ! y z x
+      abc(:, 3) = (/2, 1, 3/) ! y x z
       substep = 3
       call FormUn(substep, ads_trial, ads_data)
       if (allocated(ads_data%R)) deallocate(ads_data%R)
@@ -900,6 +900,50 @@ subroutine Step(iter, RHS_fun, ads, ads_data, mierr)
       call move_alloc(ads_data%F,ads_data%FF)
 
 end subroutine Step
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Converts a local trial-space buffer back to canonical x-y-z
+!> storage.
+!>
+!> @details
+!> Multi-step ADS substeps may start from y-x-z or z-x-y storage so that
+!> the existing directional reorder kernels can be reused. This helper
+!> rewrites the final two-dimensional buffer to the canonical
+!> `(x, y + z*s_y)` layout expected by history reconstruction and output.
+!
+!---------------------------------------------------------------------------
+subroutine NormalizeTrialBufferToXYZ(ads, order, F)
+      use Setup, ONLY: ADS_Setup
+      implicit none
+      type(ADS_setup), intent(in) :: ads
+      integer(kind=4), dimension(3), intent(in) :: order
+      real(kind=8), allocatable, dimension(:, :), intent(inout) :: F
+      real(kind=8), allocatable, dimension(:, :) :: Fxyz
+      integer(kind=4), dimension(3) :: idx
+      integer(kind=4) :: ix, iy, iz
+      integer(kind=4) :: in1, in23, out23
+
+      if (order(1) == 1 .and. order(2) == 2 .and. order(3) == 3) return
+
+      allocate (Fxyz(ads%s(1), ads%s(2)*ads%s(3)))
+
+      do ix = 0, ads%s(1) - 1
+         do iy = 0, ads%s(2) - 1
+            do iz = 0, ads%s(3) - 1
+               idx = (/ix, iy, iz/)
+               in1 = idx(order(1)) + 1
+               in23 = idx(order(2)) + 1 + idx(order(3))*ads%s(order(2))
+               out23 = iy + 1 + iz*ads%s(2)
+               Fxyz(ix + 1, out23) = F(in1, in23)
+            end do
+         end do
+      end do
+
+      call move_alloc(Fxyz, F)
+
+end subroutine NormalizeTrialBufferToXYZ
 
 !!!! podzielic na wraper i czesc wlasciwa
 ! przeniesc czesc do solver
@@ -1054,6 +1098,11 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
 #ifdef IINFO
       write (*, *) PRINTRANK, '3e) DISTRIBUTE SOLUTION'
 #endif
+      call NormalizeTrialBufferToXYZ(ads_trial, abc(:, 1), ads_data%F)
+      a = 1
+      b = 2
+      c = 3
+
       !  copy results to proper buffer
       do i = 1, ads_trial%s(b)*ads_trial%s(c)
             ads_data%R((i - 1)*ads_trial%s(a) + 1:i*ads_trial%s(a), 2, 2, 2) = ads_data%F(:, i)

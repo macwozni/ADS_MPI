@@ -827,8 +827,8 @@ subroutine create_mixed_space(ads_test, ads_trial, direction,&
       ads%Wy = ads_test%Wy
       igrm = .TRUE.
       dira=2
-      dirb=3
-      dirc=1
+      dirb=1
+      dirc=3
    end if
    if (direction(3) .EQ. 1) then
       ads%n(3) = ads_test%n(3)
