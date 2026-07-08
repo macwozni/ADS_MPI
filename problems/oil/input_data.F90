@@ -348,35 +348,6 @@ contains
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
-!> @brief Computes the Euclidean norm of a vector.
-!>
-!> @details
-!> This local helper preserves the original problem notation \c norm2 while
-!> avoiding dependence on compiler-specific intrinsic availability.
-!
-! Input:
-! ------
-!> @param[in] x
-!> Input vector.
-!
-! Output:
-! -------
-!> @return fval
-!> Euclidean norm of \p x.
-!
-!---------------------------------------------------------------------------
-   function norm2(x) result (fval)
-      implicit none
-      intrinsic :: dot_product, sqrt
-      real (kind = 8), intent(in), dimension(:) :: x
-      real (kind = 8) :: fval
-
-      fval = sqrt(dot_product(x, x))
-
-   end function norm2
-!---------------------------------------------------------------------------
-!
-! DESCRIPTION:
 !> @brief Evaluates the pump source contribution at a point.
 !>
 !> @details
@@ -401,7 +372,7 @@ contains
 !
 !---------------------------------------------------------------------------
    function pumping(x, y, z) result (fval)
-      use math, ONLY: falloff
+      use math, ONLY: falloff, norm_2
       implicit none
       real (kind = 8) :: x, y, z
       real (kind = 8) :: fval
@@ -412,7 +383,7 @@ contains
       fval = 0.d0
       do i = 1, npumps
          p1 = (/ x, y, z/)
-         fval = fval + pumping_strength * falloff(0.d0, radius, norm2(pumps(:, i) - p1))
+         fval = fval + pumping_strength * falloff(0.d0, radius, norm_2(pumps(:, i) - p1))
       enddo
 
    end function pumping
@@ -447,7 +418,7 @@ contains
 !
 !---------------------------------------------------------------------------
    function draining(u, x, y, z) result (fval)
-      use math, ONLY: falloff
+      use math, ONLY: falloff, norm_2
       implicit none
       real (kind = 8) :: u, x, y, z
       real (kind = 8) :: fval
@@ -457,7 +428,7 @@ contains
       fval = 0.d0
       do i = 1, ndrains
          p1 = (/ x, y, z/)
-         fval = fval + draining_strength * falloff(0.d0, radius, norm2(drains(:, i) - p1))
+         fval = fval + draining_strength * falloff(0.d0, radius, norm_2(drains(:, i) - p1))
       enddo
       fval = fval * u
 
