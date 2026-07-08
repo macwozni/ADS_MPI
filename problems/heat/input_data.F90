@@ -1,32 +1,54 @@
+!------------------------------------------------------------------------------
+!
+! MODULE: input_data
+!
+! DESCRIPTION:
+!> @file input_data.F90
+!> @brief Input data and source callback for the heat example.
+!>
+!> @details
+!> This module stores the spatial discretization, time-step parameters,
+!> and MPI process-grid dimensions used by the heat driver. It also
+!> defines the compactly supported initial state and the pointwise forcing
+!> callback expected by the current ADS API.
+!
+!------------------------------------------------------------------------------
 module input_data
 
    implicit none
 
-   ! Current time
+!> @brief Current physical time.
    real (kind = 8) :: t
 
-   ! Time and timestep
+!> @brief Time-step size.
    real (kind = 8) :: Dt
 
-   ! Number of iterations
+!> @brief Number of time iterations.
    integer :: steps
 
-   ! order of approximations
+!> @brief Polynomial order of the approximation space.
    integer(kind = 4) :: ORDER
 
-   ! number of elements in one dimension
+!> @brief Number of elements in each parametric direction.
    integer(kind = 4) :: SIZE
 
+!> @brief Numbers of MPI processes in the three process-grid directions.
    integer(kind = 4) :: procx, procy, procz
 
 
 
 contains
 
-
-   ! -------------------------------------------------------------------
-   ! Sets values of parameters (order and size)
-   ! -------------------------------------------------------------------
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Reads discretization, time, and process-grid parameters.
+!>
+!> @details
+!> The expected argument list is:
+!> `<size> <order> <steps> <dt> <procx> <procy> <procz>`.
+!
+!---------------------------------------------------------------------------
    subroutine InitializeParameters
       implicit none
       character(100) :: input
@@ -52,8 +74,32 @@ contains
 
    end subroutine InitializeParameters
 
-
-   ! Initial state of the system - u(0)
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Evaluates the initial state \f$u(0)\f$.
+!>
+!> @details
+!> The current profile is a scaled compact-support bump centered inside
+!> the unit cube.
+!
+! Input:
+! ------
+!> @param[in] x
+!> First physical coordinate.
+!>
+!> @param[in] y
+!> Second physical coordinate.
+!>
+!> @param[in] z
+!> Third physical coordinate.
+!
+! Output:
+! -------
+!> @return val
+!> Initial-state value at the supplied point.
+!
+!---------------------------------------------------------------------------
    function initial_state(x, y, z) result (val)
       use math, ONLY: falloff, bump3d, lerp
       implicit none
@@ -70,6 +116,32 @@ contains
    end function initial_state
 
 
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Evaluates the pointwise forcing for the heat example.
+!>
+!> @details
+!> At the initial pseudo-step the callback injects the initial state. For
+!> later time steps it returns zero.
+!
+! Input:
+! ------
+!> @param[in] un
+!> Previous solution value at the quadrature point.
+!>
+!> @param[in] du
+!> Previous solution gradient at the quadrature point.
+!>
+!> @param[in] X
+!> Physical coordinates of the quadrature point.
+!
+! Output:
+! -------
+!> @return ret
+!> Pointwise forcing value.
+!
+!---------------------------------------------------------------------------
    function forcing(un, du, X) result(ret)
       implicit none
       real(kind = 8), intent(in) :: un

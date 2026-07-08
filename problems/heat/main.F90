@@ -1,5 +1,17 @@
-
-
+!------------------------------------------------------------------------------
+!
+! PROGRAM: main
+!
+! DESCRIPTION:
+!> @file main.F90
+!> @brief Driver for the heat transient example.
+!>
+!> @details
+!> The program initializes the ADS runtime, advances the solution for the
+!> requested number of steps using the forcing from \ref input_data, prints
+!> iteration numbers on rank zero, and exports the solution after each step.
+!
+!------------------------------------------------------------------------------
 program main
 
    use Setup, ONLY: ADS_Setup, ADS_compute_data

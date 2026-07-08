@@ -1,22 +1,45 @@
+!------------------------------------------------------------------------------
+!
+! MODULE: input_data
+!
+! DESCRIPTION:
+!> @file input_data.F90
+!> @brief Input data and pointwise forcing for the scalar L2 projection
+!> problem.
+!>
+!> @details
+!> This module stores command-line parameters describing the tensor-product
+!> grid, spline order, and MPI process grid used by the L2 projection test.
+!> It also provides the forcing callback consumed by the current ADS API.
+!
+!------------------------------------------------------------------------------
 module input_data
 
    implicit none
 
-   ! order of approximations
+!> @brief Polynomial order of the approximation space.
    integer(kind = 4) :: order
 
-   ! number of elements in one dimension
+!> @brief Numbers of elements in the three parametric directions.
    integer(kind = 4) :: isizex, isizey, isizez
 
+!> @brief Numbers of MPI processes in the three process-grid directions.
    integer(kind = 4) :: procx, procy, procz
 
 
 contains
 
-
-   ! -------------------------------------------------------------------
-   ! Sets values of parameters (order and size)
-   ! -------------------------------------------------------------------
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Reads the L2 projection parameters from command-line arguments.
+!>
+!> @details
+!> The expected argument list is:
+!> `<isizex> <isizey> <isizez> <order> <procx> <procy> <procz>`.
+!> The values are stored in module variables used by the program driver.
+!
+!---------------------------------------------------------------------------
    subroutine InitializeParameters
       implicit none
       character(100) :: input
@@ -50,6 +73,34 @@ contains
    end subroutine InitializeParameters
 
 
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Returns the constant source term used by the L2 projection test.
+!>
+!> @details
+!> The callback follows the pointwise forcing interface expected by
+!> \ref ADSS. The current test projects the constant value one, so the
+!> previous solution, its gradient, and the physical point are accepted
+!> only to match the interface.
+!
+! Input:
+! ------
+!> @param[in] un
+!> Solution value from the previous state at the quadrature point.
+!>
+!> @param[in] du
+!> Gradient of the previous solution at the quadrature point.
+!>
+!> @param[in] X
+!> Physical coordinates of the quadrature point.
+!
+! Output:
+! -------
+!> @return ret
+!> Constant forcing value.
+!
+!---------------------------------------------------------------------------
    function forcing(un, du, X) result(ret)
       implicit none
       real(kind = 8), intent(in) :: un

@@ -1,22 +1,43 @@
+!------------------------------------------------------------------------------
+!
+! MODULE: input_data
+!
+! DESCRIPTION:
+!> @file input_data.F90
+!> @brief Input parameters for the iGRM L2 projection example.
+!>
+!> @details
+!> The module stores the command-line grid dimensions, polynomial order,
+!> and MPI process-grid dimensions used by the iGRM L2 projection driver.
+!> The actual forcing callback is defined in \ref RHS_fun for this example.
+!
+!------------------------------------------------------------------------------
 module input_data
 
    implicit none
 
-   ! order of approximations
+!> @brief Polynomial order requested from the command line.
    integer(kind = 4) :: order
 
-   ! number of elements in one dimension
+!> @brief Numbers of elements in the three parametric directions.
    integer(kind = 4) :: isizex, isizey, isizez
 
+!> @brief Numbers of MPI processes in the three process-grid directions.
    integer(kind = 4) :: procx, procy, procz
 
 
 contains
 
-
-   ! -------------------------------------------------------------------
-   ! Sets values of parameters (order and size)
-   ! -------------------------------------------------------------------
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Reads iGRM L2 projection parameters from command-line arguments.
+!>
+!> @details
+!> The expected argument list is:
+!> `<isizex> <isizey> <isizez> <order> <procx> <procy> <procz>`.
+!
+!---------------------------------------------------------------------------
    subroutine InitializeParameters
       implicit none
       character(100) :: input

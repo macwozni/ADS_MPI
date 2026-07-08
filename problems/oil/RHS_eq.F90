@@ -1,36 +1,92 @@
+!------------------------------------------------------------------------------
+!
+! MODULE: RHS_eq
+!
+! DESCRIPTION:
+!> @file RHS_eq.F90
+!> @brief Legacy quadrature-level RHS callback for the oil transport
+!> example.
+!>
+!> @details
+!> This module preserves the historical ADS RHS interface for the oil
+!> problem. The current migrated driver uses the pointwise forcing callback
+!> from \ref input_data.
+!
+!------------------------------------------------------------------------------
 module RHS_eq
 
 implicit none
 
 contains
 
-! -------------------------------------------------------------------
-! Right-hand side of the equation.
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Forms the legacy local oil RHS contribution at one quadrature
+!> point.
+!>
+!> @details
+!> The routine combines pump injection, drain removal, permeability,
+!> nonlinear mobility, and derivative terms into the historical ADS RHS
+!> formulation. It also accumulates the drained quantity and local L2 norm
+!> contribution.
 !
 ! Input:
 ! ------
-! ads             - ADS setup structure
-! X_              - quadrature points
-! k_              - indexes for quadrature points
-! e_              - indexes for elements
-! a_              - indexes of basis functions
-! du_             - value of derivative from previous time step
-! n               - nuber of previous time steps
-! Un              - U_n, previous solution coefficient at given point
-! Un13            - U_n+1/3
-! Un23            - U_n+2/3
-! ads_data        - data structures for ADS
-! J               - jacobian
-! W               - weight for quadratures
-! directon        -
-! substep         - 
+!> @param[in] ads
+!> ADS setup structure containing basis values and element bounds.
+!>
+!> @param[in] X
+!> Physical quadrature-point coordinates.
+!>
+!> @param[in] k
+!> Quadrature-point indices in the three directions.
+!>
+!> @param[in] e
+!> Element indices in the three directions.
+!>
+!> @param[in] a
+!> Local basis-function indices in the three directions.
+!>
+!> @param[in] du
+!> Previous-solution gradient at the quadrature point.
+!>
+!> @param[in] n
+!> Number of stored previous states.
+!>
+!> @param[in] un
+!> Previous solution values at the quadrature point.
+!>
+!> @param[in] un13
+!> Intermediate one-third state value.
+!>
+!> @param[in] un23
+!> Intermediate two-third state value.
+!>
+!> @param[in] ads_data
+!> ADS runtime-data structure.
+!>
+!> @param[in] J
+!> Element Jacobian factor.
+!>
+!> @param[in] W
+!> Quadrature weight.
+!>
+!> @param[in] direction
+!> Directional substep selector.
+!>
+!> @param[in] substep
+!> Substep number in the legacy ADS workflow.
 !
 ! Output:
 ! -------
-! ret             - value of RHS function at given point
-! l2norm          -
+!> @param[out] l2norm
+!> Local contribution to the squared L2 norm.
+!>
+!> @param[out] ret
+!> Local right-hand-side contribution.
 !
-! -------------------------------------------------------------------
+!---------------------------------------------------------------------------
 
 subroutine ComputePointForRHS( &
 ads, &

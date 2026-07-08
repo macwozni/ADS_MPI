@@ -1,5 +1,17 @@
-
-
+!------------------------------------------------------------------------------
+!
+! PROGRAM: main
+!
+! DESCRIPTION:
+!> @file main.F90
+!> @brief Driver for the iGRM L2 projection example.
+!>
+!> @details
+!> The program initializes separate test and trial ADS spaces, configures
+!> a single-step iGRM workflow through \ref MultiStep, and prints the
+!> resulting trial-space solution.
+!
+!------------------------------------------------------------------------------
 program main
 
    use Setup, ONLY: ADS_Setup, ADS_compute_data

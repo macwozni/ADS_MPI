@@ -1,5 +1,17 @@
-
-
+!------------------------------------------------------------------------------
+!
+! PROGRAM: main
+!
+! DESCRIPTION:
+!> @file main.F90
+!> @brief Driver for the pure-diffusion iGRM example.
+!>
+!> @details
+!> The program initializes the ADS runtime, advances the zero-forcing
+!> pure-diffusion example for the requested number of steps, and cleans up
+!> the ADS, communicator, and MPI resources.
+!
+!------------------------------------------------------------------------------
 program main
 
    use Setup, ONLY: ADS_Setup, ADS_compute_data

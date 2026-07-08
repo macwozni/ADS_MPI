@@ -1,51 +1,82 @@
+!------------------------------------------------------------------------------
+!
+! MODULE: input_data
+!
+! DESCRIPTION:
+!> @file input_data.F90
+!> @brief Input data, material coefficients, and forcing callback for the
+!> oil transport example.
+!>
+!> @details
+!> This module stores the oil-problem configuration, including randomly
+!> generated channel curves, pump and drain locations, time-step data, and
+!> precomputed permeability samples. It also provides the pointwise forcing
+!> callback used by the current ADS API.
+!
+!------------------------------------------------------------------------------
 module input_data
 
    implicit none
 
-   ! Curve number and lentgh
+!> @brief Number of generated curves and number of segments per curve.
    integer(kind = 4), parameter :: cN = 30, cL = 16
+!> @brief Pump/drain support radius and source/sink strengths.
    real (kind = 8), parameter :: radius = 0.15, pumping_strength = 1, draining_strength = 1
 
-   !!! krzywe dane przez segmenty
+!> @brief Coordinates of piecewise-linear channel curves.
    real (kind = 8) :: cx(cN * cL), cy(cN * cL), cz(cN * cL)
+!> @brief Nonlinear mobility exponent used by the legacy oil model.
    real (kind = 8) :: mi = 10.d0
+!> @brief Ground-level parameter retained from the original problem data.
    real (kind = 8) :: GROUND = 0.2
+!> @brief Minimum and maximum permeability values.
    real (kind = 8), parameter :: Kqmin = 1.d0, Kqmax = 1000.d0
+!> @brief Numbers of pump and drain points.
    integer(kind = 4) :: npumps, ndrains
+!> @brief Pump and drain coordinates stored by column.
    real (kind = 8), allocatable, dimension(:,:) :: pumps, drains
 
-   ! Buffer for values of permeability function
+!> @brief Cached permeability values at local quadrature points.
    real (kind = 8), allocatable :: Kqvals(:,:,:,:,:,:)
 
-   ! Current time
+!> @brief Current physical time.
    real (kind = 8) :: t
 
-   ! Time and timestep
+!> @brief Time-step size.
    real (kind = 8) :: Dt
 
-   ! Number of iterations
+!> @brief Number of time iterations.
    integer :: steps
 
-   ! Statistics computed during the simulation
+!> @brief Accumulated pollution statistic retained for the problem model.
    real (kind = 8) :: pollution = 0
 
-   ! order of approximations
+!> @brief Polynomial order of the approximation space.
    integer(kind = 4) :: ORDER
 
-   ! number of elements in one dimension
+!> @brief Number of elements in each parametric direction.
    integer(kind = 4) :: SIZE
 
+!> @brief Numbers of MPI processes in the three process-grid directions.
    integer(kind = 4) :: procx, procy, procz
 
+!> @brief Amount of material drained over the simulation.
    real (kind = 8) :: drained = 0
 
 
 contains
 
-
-   ! -------------------------------------------------------------------
-   ! Sets values of parameters (order and size)
-   ! -------------------------------------------------------------------
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Reads the oil-problem discretization and time parameters.
+!>
+!> @details
+!> The expected leading argument list is:
+!> `<size> <order> <procx> <procy> <procz> <steps> <dt>`.
+!> Pump and drain coordinates are read later by \ref InitPumps.
+!
+!---------------------------------------------------------------------------
    subroutine InitializeParameters
       implicit none
       character(100) :: input
@@ -72,11 +103,16 @@ contains
 
    end subroutine InitializeParameters
 
-
-
-
-
-
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Reduces and prints the total drained quantity.
+!>
+!> @details
+!> The process-local value \ref drained is summed over `MPI_COMM_WORLD`.
+!> Rank zero writes the global value to standard output.
+!
+!---------------------------------------------------------------------------
    subroutine ComputeResults()
       use parallelism, ONLY: MYRANK
       use mpi
@@ -93,9 +129,19 @@ contains
 
    end subroutine ComputeResults
 
-
-
-
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Reads pump and drain coordinates from command-line arguments.
+!>
+!> @details
+!> After the seven technical arguments consumed by
+!> \ref InitializeParameters, the routine expects the number of pumps,
+!> three coordinates per pump, the number of drains, and three coordinates
+!> per drain. Coordinates are stored column-wise in \ref pumps and
+!> \ref drains.
+!
+!---------------------------------------------------------------------------
    subroutine InitPumps()
       implicit none
       character(100) :: input
@@ -135,7 +181,16 @@ contains
 
    end subroutine InitPumps
 
-
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Generates random channel curves and initializes pumps/drains.
+!>
+!> @details
+!> The routine fills the global curve coordinate arrays with short random
+!> walks and then calls \ref InitPumps to read external source/sink data.
+!
+!---------------------------------------------------------------------------
    subroutine InitInputData()
       implicit none
       integer(kind = 4) :: i, j
@@ -164,10 +219,33 @@ contains
 
    end subroutine InitInputData
 
-
-
-   !!!! liczy odleglosc punktu od odcinka
-   !!!!! przeniesc gdzies indziej
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Computes the squared distance from a point to a segment.
+!>
+!> @details
+!> The point is orthogonally projected onto the segment whenever the
+!> projection lies inside the segment interval. Otherwise the nearest
+!> endpoint is used.
+!
+! Input:
+! ------
+!> @param[in] point
+!> Point whose distance from the segment is evaluated.
+!>
+!> @param[in] ibeg
+!> First segment endpoint.
+!>
+!> @param[in] iend
+!> Second segment endpoint.
+!
+! Output:
+! -------
+!> @return d
+!> Squared Euclidean distance from \p point to the segment.
+!
+!---------------------------------------------------------------------------
    function dist_from_segment(point, ibeg, iend) result (d)
       implicit none
       real (kind = 8), intent(in), dimension(3) :: point, ibeg, iend
@@ -204,11 +282,42 @@ contains
 
    end function dist_from_segment
 
-
-
-   !!!!! liczy odleglosc punktu od krzywych
-   !!!!! krzywe jako zmienne globalne
-   !!!!! przeniesc do gdziesc indziej
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Computes the squared distance from a point to a set of curves.
+!>
+!> @details
+!> Each curve is represented as consecutive line segments. The returned
+!> value is the minimum squared point-to-segment distance over all curve
+!> segments.
+!
+! Input:
+! ------
+!> @param[in] point
+!> Point whose distance from the curve set is evaluated.
+!>
+!> @param[in] cx
+!> First coordinates of all curve nodes.
+!>
+!> @param[in] cy
+!> Second coordinates of all curve nodes.
+!>
+!> @param[in] cz
+!> Third coordinates of all curve nodes.
+!>
+!> @param[in] cN
+!> Number of curves.
+!>
+!> @param[in] cL
+!> Number of nodes stored per curve.
+!
+! Output:
+! -------
+!> @return fval
+!> Minimum squared distance from \p point to the curve set.
+!
+!---------------------------------------------------------------------------
    function dist_from_curves(point, cx, cy, cz, cN, cL) result (fval)
       implicit none
       real (kind = 8), intent(in), dimension(3) :: point
@@ -236,11 +345,26 @@ contains
       end do
 
    end function dist_from_curves
-
-
-
-   ! Pumping
-   ! x, y, z - point in space
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Computes the Euclidean norm of a vector.
+!>
+!> @details
+!> This local helper preserves the original problem notation \c norm2 while
+!> avoiding dependence on compiler-specific intrinsic availability.
+!
+! Input:
+! ------
+!> @param[in] x
+!> Input vector.
+!
+! Output:
+! -------
+!> @return fval
+!> Euclidean norm of \p x.
+!
+!---------------------------------------------------------------------------
    function norm2(x) result (fval)
       implicit none
       intrinsic :: dot_product, sqrt
@@ -250,8 +374,32 @@ contains
       fval = sqrt(dot_product(x, x))
 
    end function norm2
-
-
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Evaluates the pump source contribution at a point.
+!>
+!> @details
+!> The value is the sum of compactly supported radial falloff profiles
+!> centered at all configured pump points.
+!
+! Input:
+! ------
+!> @param[in] x
+!> First physical coordinate.
+!>
+!> @param[in] y
+!> Second physical coordinate.
+!>
+!> @param[in] z
+!> Third physical coordinate.
+!
+! Output:
+! -------
+!> @return fval
+!> Pumping source value at the supplied point.
+!
+!---------------------------------------------------------------------------
    function pumping(x, y, z) result (fval)
       use math, ONLY: falloff
       implicit none
@@ -268,12 +416,36 @@ contains
       enddo
 
    end function pumping
-
-
-
-
-   ! Draining
-   ! x, y, z - point in space
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Evaluates the drain sink contribution at a point.
+!>
+!> @details
+!> The value is the sum of compactly supported radial falloff profiles
+!> centered at all drain points, multiplied by the current solution value
+!> \p u.
+!
+! Input:
+! ------
+!> @param[in] u
+!> Local solution value multiplying the drain strength.
+!>
+!> @param[in] x
+!> First physical coordinate.
+!>
+!> @param[in] y
+!> Second physical coordinate.
+!>
+!> @param[in] z
+!> Third physical coordinate.
+!
+! Output:
+! -------
+!> @return fval
+!> Draining sink value at the supplied point.
+!
+!---------------------------------------------------------------------------
    function draining(u, x, y, z) result (fval)
       use math, ONLY: falloff
       implicit none
@@ -291,7 +463,32 @@ contains
 
    end function draining
 
-
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Evaluates the spatial permeability coefficient.
+!>
+!> @details
+!> The coefficient interpolates between \ref Kqmin and \ref Kqmax according
+!> to the distance from the generated channel curves.
+!
+! Input:
+! ------
+!> @param[in] x
+!> First physical coordinate.
+!>
+!> @param[in] y
+!> Second physical coordinate.
+!>
+!> @param[in] z
+!> Third physical coordinate.
+!
+! Output:
+! -------
+!> @return val
+!> Permeability value at the supplied point.
+!
+!---------------------------------------------------------------------------
    function kq(x, y, z) result (val)
       use math, ONLY: falloff, lerp
       implicit none
@@ -307,7 +504,34 @@ contains
 
    end function kq
 
-
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Evaluates the nonlinear mobility factor.
+!>
+!> @details
+!> The current oil model uses an exponential response \f$\exp(\mu u)\f$.
+!
+! Input:
+! ------
+!> @param[in] x
+!> First physical coordinate, retained for interface symmetry.
+!>
+!> @param[in] y
+!> Second physical coordinate, retained for interface symmetry.
+!>
+!> @param[in] z
+!> Third physical coordinate, retained for interface symmetry.
+!>
+!> @param[in] u
+!> Local solution value.
+!
+! Output:
+! -------
+!> @return val
+!> Nonlinear mobility value.
+!
+!---------------------------------------------------------------------------
    function bq(x, y, z, u) result (val)
       real (kind = 8) :: x, y, z, u
       real (kind = 8) :: val
@@ -315,10 +539,32 @@ contains
       val = exp(mi * u)
  
    end function bq
-
-
-
-   ! Initial state of the system - u(0)
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Evaluates the initial oil concentration profile.
+!>
+!> @details
+!> The profile is localized by a compact-support bump and modulated by the
+!> distance from the generated channel curves.
+!
+! Input:
+! ------
+!> @param[in] x
+!> First physical coordinate.
+!>
+!> @param[in] y
+!> Second physical coordinate.
+!>
+!> @param[in] z
+!> Third physical coordinate.
+!
+! Output:
+! -------
+!> @return val
+!> Initial concentration value.
+!
+!---------------------------------------------------------------------------
    function initial_state(x, y, z) result (val)
       use math, ONLY: falloff, bump3d, lerp
       implicit none
@@ -334,6 +580,33 @@ contains
    end function initial_state
 
 
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Evaluates the pointwise source term for the current ADS API.
+!>
+!> @details
+!> At the initial pseudo-step the callback returns the initial state. For
+!> later time steps it returns pump injection minus the nonnegative drain
+!> contribution.
+!
+! Input:
+! ------
+!> @param[in] un
+!> Previous solution value at the quadrature point.
+!>
+!> @param[in] du
+!> Previous solution gradient at the quadrature point.
+!>
+!> @param[in] X
+!> Physical coordinates of the quadrature point.
+!
+! Output:
+! -------
+!> @return ret
+!> Pointwise source value.
+!
+!---------------------------------------------------------------------------
    function forcing(un, du, X) result(ret)
       implicit none
       real(kind = 8), intent(in) :: un
@@ -351,7 +624,78 @@ contains
    end function forcing
 
 
-
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Samples the permeability coefficient at local quadrature points.
+!>
+!> @details
+!> The routine reconstructs one-dimensional quadrature data for the three
+!> spline directions and fills \p Kq_vals for the locally owned element
+!> range.
+!
+! Input:
+! ------
+!> @param[in] Ux
+!> Knot vector in the first direction.
+!>
+!> @param[in] px
+!> Polynomial degree in the first direction.
+!>
+!> @param[in] nx
+!> Number of basis functions minus one in the first direction.
+!>
+!> @param[in] minex
+!> First local element in the first direction.
+!>
+!> @param[in] maxex
+!> Last local element in the first direction.
+!>
+!> @param[in] nelemx
+!> Number of elements in the first direction.
+!>
+!> @param[in] Uy
+!> Knot vector in the second direction.
+!>
+!> @param[in] py
+!> Polynomial degree in the second direction.
+!>
+!> @param[in] ny
+!> Number of basis functions minus one in the second direction.
+!>
+!> @param[in] miney
+!> First local element in the second direction.
+!>
+!> @param[in] maxey
+!> Last local element in the second direction.
+!>
+!> @param[in] nelemy
+!> Number of elements in the second direction.
+!>
+!> @param[in] Uz
+!> Knot vector in the third direction.
+!>
+!> @param[in] pz
+!> Polynomial degree in the third direction.
+!>
+!> @param[in] nz
+!> Number of basis functions minus one in the third direction.
+!>
+!> @param[in] minez
+!> First local element in the third direction.
+!>
+!> @param[in] maxez
+!> Last local element in the third direction.
+!>
+!> @param[in] nelemz
+!> Number of elements in the third direction.
+!
+! Output:
+! -------
+!> @param[out] Kq_vals
+!> Permeability values sampled at local quadrature points.
+!
+!---------------------------------------------------------------------------
    subroutine CacheKqValues(Ux, px, nx, minex, maxex, nelemx, Uy, py, ny, miney, maxey, nelemy, Uz, pz, nz, minez, &
       maxez, nelemz, Kq_vals)
       use basis, ONLY: BasisData
@@ -400,9 +744,22 @@ contains
       end do
 
    end subroutine CacheKqValues
-
-
-
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Fills the module-level permeability cache for an ADS setup.
+!>
+!> @details
+!> The routine extracts knot vectors, polynomial degrees, basis sizes, and
+!> local element ranges from \p ads, then delegates the sampling work to
+!> \ref CacheKqValues.
+!
+! Input:
+! ------
+!> @param[in] ads
+!> ADS setup structure defining the local spline space.
+!
+!---------------------------------------------------------------------------
    subroutine PrecomputeKq(ads)
       use Setup, ONLY: ADS_Setup
       implicit none

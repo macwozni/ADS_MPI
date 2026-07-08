@@ -1,51 +1,86 @@
+!------------------------------------------------------------------------------
+!
+! MODULE: input_data
+!
+! DESCRIPTION:
+!> @file input_data.F90
+!> @brief Input data and placeholder coefficients for the pure-diffusion
+!> iGRM example.
+!>
+!> @details
+!> This module stores discretization, time-step, and process-grid
+!> parameters for the pure-diffusion iGRM driver. It also provides the
+!> pointwise forcing callback required by the current ADS API and placeholder
+!> functions for boundary/source data retained from the older problem
+!> formulation.
+!
+!------------------------------------------------------------------------------
 module input_data
 
    implicit none
 
-   ! Curve number and lentgh
+!> @brief Number of generated curves and number of segments per curve
+!> retained from the template.
    integer(kind = 4), parameter :: cN = 30, cL = 16
+!> @brief Radius and source/sink strengths retained from the template
+!> problem.
    real (kind = 8), parameter :: radius = 0.15, pumping_strength = 1, draining_strength = 1
 
-   !!! krzywe dane przez segmenty
+!> @brief Curve-coordinate buffers retained from the template problem.
    real (kind = 8) :: cx(cN * cL), cy(cN * cL), cz(cN * cL)
+!> @brief Nonlinear coefficient retained from the template problem.
    real (kind = 8) :: mi = 10.d0
+!> @brief Ground-level parameter retained from the template problem.
    real (kind = 8) :: GROUND = 0.2
+!> @brief Minimum and maximum coefficient values retained from the template.
    real (kind = 8), parameter :: Kqmin = 1.d0, Kqmax = 1000.d0
+!> @brief Numbers of pump and drain points retained from the template
+!> problem.
    integer(kind = 4) :: npumps, ndrains
+!> @brief Pump and drain coordinate buffers retained from the template
+!> problem.
    real (kind = 8), allocatable, dimension(:,:) :: pumps, drains
 
-   ! Buffer for values of permeability function
+!> @brief Permeability cache retained from the template problem.
    real (kind = 8), allocatable :: Kqvals(:,:,:,:,:,:)
 
-   ! Current time
+!> @brief Current physical time.
    real (kind = 8) :: t
 
-   ! Time and timestep
+!> @brief Time-step size.
    real (kind = 8) :: Dt
 
-   ! Number of iterations
+!> @brief Number of time iterations.
    integer :: steps
 
-   ! Statistics computed during the simulation
+!> @brief Accumulated statistic retained from the template problem.
    real (kind = 8) :: pollution = 0
 
-   ! order of approximations
+!> @brief Polynomial order of the approximation space.
    integer(kind = 4) :: ORDER
 
-   ! number of elements in one dimension
+!> @brief Number of elements in each parametric direction.
    integer(kind = 4) :: SIZE
 
+!> @brief Numbers of MPI processes in the three process-grid directions.
    integer(kind = 4) :: procx, procy, procz
 
+!> @brief Drained quantity retained from the template problem.
    real (kind = 8) :: drained = 0
 
 
 contains
 
-
-   ! -------------------------------------------------------------------
-   ! Sets values of parameters (order and size)
-   ! -------------------------------------------------------------------
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Reads discretization, process-grid, and time parameters.
+!>
+!> @details
+!> The expected argument list is:
+!> `<size> <order> <procx> <procy> <procz> <steps> <dt>`.
+!
+!---------------------------------------------------------------------------
    subroutine InitializeParameters
       implicit none
       character(100) :: input
@@ -73,9 +108,33 @@ contains
    end subroutine InitializeParameters
 
 
-
-
-
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Evaluates the pure-diffusion volume forcing.
+!>
+!> @details
+!> The migrated pure-diffusion example currently uses zero volume forcing.
+!> Arguments are accepted to match the current ADS pointwise forcing
+!> interface.
+!
+! Input:
+! ------
+!> @param[in] un
+!> Previous solution value at the quadrature point.
+!>
+!> @param[in] du
+!> Previous solution gradient at the quadrature point.
+!>
+!> @param[in] X
+!> Physical coordinates of the quadrature point.
+!
+! Output:
+! -------
+!> @return fval
+!> Volume forcing value.
+!
+!---------------------------------------------------------------------------
    function forcing(un, du, X) result (fval)
       implicit none
       real(kind = 8), intent(in) :: un
@@ -87,10 +146,28 @@ contains
 
    end function forcing
 
-
-
-   ! 
-   ! x, y, z - point in space
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Placeholder boundary source function.
+!>
+! Input:
+! ------
+!> @param[in] x
+!> First physical coordinate.
+!>
+!> @param[in] y
+!> Second physical coordinate.
+!>
+!> @param[in] z
+!> Third physical coordinate.
+!
+! Output:
+! -------
+!> @return fval
+!> Boundary source value.
+!
+!---------------------------------------------------------------------------
    function g(x, y, z) result (fval)
       implicit none
       real (kind = 8) :: x, y, z
@@ -100,11 +177,28 @@ contains
 
    end function g
 
-
-
-
-   ! 
-   ! x, y, z - point in space
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Placeholder advective boundary coefficient.
+!
+! Input:
+! ------
+!> @param[in] x
+!> First physical coordinate.
+!>
+!> @param[in] y
+!> Second physical coordinate.
+!>
+!> @param[in] z
+!> Third physical coordinate.
+!
+! Output:
+! -------
+!> @return fval
+!> Boundary coefficient value.
+!
+!---------------------------------------------------------------------------
    function b(x, y, z) result (fval)
       implicit none
       real (kind = 8) :: x, y, z
@@ -114,11 +208,28 @@ contains
 
    end function b
 
-
-
-
-   ! normal to boundary
-   ! x, y, z - point in space
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Placeholder boundary normal factor.
+!
+! Input:
+! ------
+!> @param[in] x
+!> First physical coordinate.
+!>
+!> @param[in] y
+!> Second physical coordinate.
+!>
+!> @param[in] z
+!> Third physical coordinate.
+!
+! Output:
+! -------
+!> @return fval
+!> Boundary normal factor.
+!
+!---------------------------------------------------------------------------
    function n(x, y, z) result (fval)
       implicit none
       real (kind = 8) :: x, y, z

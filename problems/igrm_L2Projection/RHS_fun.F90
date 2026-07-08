@@ -1,3 +1,17 @@
+!------------------------------------------------------------------------------
+!
+! MODULE: RHS_fun
+!
+! DESCRIPTION:
+!> @file RHS_fun.F90
+!> @brief Pointwise forcing callback for the iGRM L2 projection example.
+!>
+!> @details
+!> This module provides the forcing function passed to \ref MultiStep.
+!> The commented block above the active function preserves the older
+!> quadrature-level RHS interface for reference.
+!
+!------------------------------------------------------------------------------
 module RHS_fun
 
 implicit none
@@ -71,10 +85,33 @@ contains
 ! end subroutine ComputePointForRHS
 
 
-
-
-
-
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Evaluates the pointwise forcing used by the iGRM L2 projection.
+!>
+!> @details
+!> The callback returns the product of the physical coordinates multiplied
+!> by a constant source value. The previous solution and gradient are
+!> accepted to satisfy the current ADS forcing interface.
+!
+! Input:
+! ------
+!> @param[in] un
+!> Previous solution value at the quadrature point.
+!>
+!> @param[in] du
+!> Previous solution gradient at the quadrature point.
+!>
+!> @param[in] X
+!> Physical coordinates of the quadrature point.
+!
+! Output:
+! -------
+!> @return ret
+!> Pointwise forcing value.
+!
+!---------------------------------------------------------------------------
 function forcing (un,du,X) result (ret)
     implicit none
     real (kind = 8), intent(in) :: un

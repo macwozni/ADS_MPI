@@ -1,5 +1,17 @@
-
-
+!------------------------------------------------------------------------------
+!
+! PROGRAM: main
+!
+! DESCRIPTION:
+!> @file main.F90
+!> @brief Driver for the scalar L2 projection regression problem.
+!>
+!> @details
+!> The program initializes the ADS runtime, projects the constant forcing
+!> supplied by \ref input_data, and checks on rank zero that the resulting
+!> coefficient field remains equal to one within a small tolerance.
+!
+!------------------------------------------------------------------------------
 program main
 
    use Setup, ONLY: ADS_Setup, ADS_compute_data

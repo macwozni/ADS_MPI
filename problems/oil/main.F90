@@ -1,5 +1,17 @@
-
-
+!------------------------------------------------------------------------------
+!
+! PROGRAM: main
+!
+! DESCRIPTION:
+!> @file main.F90
+!> @brief Driver for the oil transport example.
+!>
+!> @details
+!> The program initializes the ADS runtime, prepares the oil-problem input
+!> data and permeability cache, advances the solution for the requested
+!> number of steps, and prints the accumulated drained quantity.
+!
+!------------------------------------------------------------------------------
 program main
 
    use Setup, ONLY: ADS_Setup, ADS_compute_data
