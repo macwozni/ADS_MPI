@@ -124,8 +124,9 @@ contains
 !> \ref NRPROCX, \ref NRPROCY, and \ref NRPROCZ. The global rank and
 !> communicator size are stored in \ref MYRANK and \ref NRPROC.
 !>
-!> If any of the MPI initialization calls fails, the routine writes an
-!> error message to `ERROR_UNIT` and terminates execution.
+!> If any MPI initialization call fails, or if the requested process grid
+!> is inconsistent with `MPI_COMM_WORLD`, the routine writes an error
+!> message to `ERROR_UNIT` and terminates execution.
 !
 ! Input:
 ! ------
@@ -150,8 +151,8 @@ contains
 !> variables `i1`, `i2`, and `i3`.
 !
 !> @warning
-!> The routine does not verify that
-!> \f$\text{procx}\cdot\text{procy}\cdot\text{procz}=\text{NRPROC}\f$.
+!> The routine terminates execution when
+!> \f$\text{procx}\cdot\text{procy}\cdot\text{procz}\ne\text{NRPROC}\f$.
 !
 !---------------------------------------------------------------------------
 subroutine InitializeParallelism(procx, procy, procz, ierr)
@@ -166,6 +167,8 @@ subroutine InitializeParallelism(procx, procy, procz, ierr)
    character(4) :: buffer
 !> @brief MPI return codes from initialization and rank/size queries.
    integer(kind=4) :: i1, i2, i3
+!> @brief Number of MPI ranks requested by the process-grid dimensions.
+   integer(kind=4) :: requested_proc
 
    NRPROCX = procx
    NRPROCY = procy
@@ -178,6 +181,23 @@ subroutine InitializeParallelism(procx, procy, procz, ierr)
 
    if ((i1 + i2 + i3) /= 0) then
       write (ERROR_UNIT, *) MYRANK, ': main: error initializing MPI!'
+      STOP 4
+   end if
+
+   if (procx <= 0 .or. procy <= 0 .or. procz <= 0) then
+      if (MYRANK == 0) then
+         write (ERROR_UNIT, *) 'Process-grid dimensions must be positive:', &
+            procx, procy, procz
+      end if
+      STOP 4
+   end if
+
+   requested_proc = procx*procy*procz
+   if (requested_proc /= NRPROC) then
+      if (MYRANK == 0) then
+         write (ERROR_UNIT, *) 'Process-grid size mismatch:', &
+            'procx*procy*procz =', requested_proc, 'MPI ranks =', NRPROC
+      end if
       STOP 4
    end if
 
