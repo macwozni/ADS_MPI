@@ -81,7 +81,7 @@ program main
       else
          ads_trial%tau = 1.d0
       endif
-      call Step(iter, forcing, ads_trial, ads_data, ierr)
+      call Step(iter, forcing, ads_trial, ads_data, ierr, oil_rhs_point)
       if (MYRANK == 0) then
          write(*, *) iter
       endif

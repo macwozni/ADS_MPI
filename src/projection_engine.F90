@@ -569,16 +569,19 @@ end subroutine MKBBT_small
 !> \p ads_trial, and \p ads_data are dimensionally consistent.
 !
 !---------------------------------------------------------------------------
-subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, alpha_step, forcing, igrm)
+subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
+   alpha_step, forcing, igrm, rhs_point)
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    ! use parallelism, ONLY: PRINTRANK
-   use Interfaces, ONLY: forcing_fun
+   use Interfaces, ONLY: forcing_fun, rhs_point_fun
    use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
    use omp_lib
    use RHS_eq
    implicit none
 !> @brief Forcing term callback used in pointwise RHS evaluation.
    procedure(forcing_fun) :: forcing
+!> @brief Optional callback overriding the default pointwise RHS integrand.
+   procedure(rhs_point_fun), optional :: rhs_point
 !> @brief Setup structures of the test and trial spaces.
    type(ADS_setup), intent(in) :: ads_test, ads_trial
 !> @brief Enrichment indicator for the current substep.
@@ -716,21 +719,39 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, alpha
                                  ! 1, Uval_m, Uval13,Uval23, &
                                  ! ads_data, J, W, direction, substep, resvalue)
 
-                                 call ComputePointForRHS( &
-                                    ads, &
-                                    X, &
-                                    k, &
-                                    e, &
-                                    a, &
-                                    du, &
-                                    n, &
-                                    Uval, &
-                                    Uval13, &
-                                    Uval23, &
-                                    ads_data, J, W, direction, substep, &
-                                    alpha_step, &
-                                    forcing, &
-                                    resvalue)
+                                 if (present(rhs_point)) then
+                                    call rhs_point( &
+                                       ads, &
+                                       X, &
+                                       k, &
+                                       e, &
+                                       a, &
+                                       du, &
+                                       n, &
+                                       Uval, &
+                                       Uval13, &
+                                       Uval23, &
+                                       ads_data, J, W, direction, substep, &
+                                       alpha_step, &
+                                       forcing, &
+                                       resvalue)
+                                 else
+                                    call ComputePointForRHS( &
+                                       ads, &
+                                       X, &
+                                       k, &
+                                       e, &
+                                       a, &
+                                       du, &
+                                       n, &
+                                       Uval, &
+                                       Uval13, &
+                                       Uval23, &
+                                       ads_data, J, W, direction, substep, &
+                                       alpha_step, &
+                                       forcing, &
+                                       resvalue)
+                                 end if
 
                                  elarr(ax, ay, az) = elarr(ax, ay, az) + resvalue
                               end if

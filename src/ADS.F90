@@ -698,10 +698,10 @@ end subroutine SolveOneDirection
 !> Returned status code.
 !
 !---------------------------------------------------------------------------
-subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha_step, mierr)
+subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha_step, mierr, RHS_point)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use projection_engine, ONLY: FormUn
-      use Interfaces, ONLY: forcing_fun
+      use Interfaces, ONLY: forcing_fun, rhs_point_fun
       implicit none
 !> @brief Outer iteration index.
       integer(kind=4), intent(in) :: iter
@@ -713,6 +713,8 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
       real(kind=8), intent(in), dimension(7, 3) :: alpha_step
 !> @brief Callback used for pointwise RHS evaluation.
       procedure(forcing_fun) :: RHS_fun
+!> @brief Optional callback overriding the default pointwise RHS integrand.
+      procedure(rhs_point_fun), optional :: RHS_point
 !> @brief Test and trial setup structures.
       type(ADS_setup), intent(in) :: ads_test, ads_trial
 !> @brief Runtime data updated in place.
@@ -742,7 +744,7 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
       allocate (ads_data%R(ads_trial%nrcpp(3)*ads_trial%nrcpp(1)*ads_trial%nrcpp(2), 3, 3, 3))
       ads_data%R = 0.d0
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
-                  n, alpha_step, RHS_fun, ads_data, mierr)
+                  n, alpha_step, RHS_fun, ads_data, mierr, RHS_point)
       if (allocated(ads_data%FFt)) deallocate(ads_data%FFt)
       if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
       if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
@@ -770,7 +772,7 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
       allocate (ads_data%R(ads_trial%nrcpp(2)*ads_trial%nrcpp(3)*ads_trial%nrcpp(1), 3, 3, 3))
       ads_data%R = 0.d0
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
-                  n, alpha_step, RHS_fun, ads_data, mierr)
+                  n, alpha_step, RHS_fun, ads_data, mierr, RHS_point)
       if (allocated(ads_data%FFt)) deallocate(ads_data%FFt)
       if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
       if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
@@ -798,7 +800,7 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
       allocate (ads_data%R(ads_trial%nrcpp(1)*ads_trial%nrcpp(2)*ads_trial%nrcpp(3), 3, 3, 3))
       ads_data%R = 0.d0
       call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
-                  n, alpha_step, RHS_fun, ads_data, mierr)
+                  n, alpha_step, RHS_fun, ads_data, mierr, RHS_point)
       if (allocated(ads_data%FFt)) deallocate(ads_data%FFt)
       if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
       if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
@@ -849,15 +851,17 @@ end subroutine MultiStep
 !> Returned status code.
 !
 !---------------------------------------------------------------------------
-subroutine Step(iter, RHS_fun, ads, ads_data, mierr)
+subroutine Step(iter, RHS_fun, ads, ads_data, mierr, RHS_point)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use projection_engine, ONLY: FormUn
-      use Interfaces, ONLY: forcing_fun
+      use Interfaces, ONLY: forcing_fun, rhs_point_fun
       implicit none
 !> @brief Outer iteration index.
       integer(kind=4), intent(in) :: iter
 !> @brief Callback used for pointwise RHS evaluation.
       procedure(forcing_fun) :: RHS_fun
+!> @brief Optional callback overriding the default pointwise RHS integrand.
+      procedure(rhs_point_fun), optional :: RHS_point
 !> @brief Setup structure used as both test and trial space.
       type(ADS_setup), intent(in) :: ads
 !> @brief Runtime data updated during the solve.
@@ -892,7 +896,7 @@ subroutine Step(iter, RHS_fun, ads, ads_data, mierr)
 
       !call Sub_Step(ads, ads, iter, mix,direction,substep,abc,RHS_fun,ads_data, mierr)
       call Sub_Step(ads, ads, iter, mix, direction, substep, abc, &
-                        1, alpha_step, RHS_fun, ads_data, mierr)
+                        1, alpha_step, RHS_fun, ads_data, mierr, RHS_point)
       if (allocated(ads_data%FF)) deallocate(ads_data%FF)
       if (allocated(ads_data%F2)) deallocate(ads_data%F2)
       if (allocated(ads_data%F3)) deallocate(ads_data%F3)
@@ -1012,14 +1016,14 @@ end subroutine NormalizeTrialBufferToXYZ
 !---------------------------------------------------------------------------
 subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
                   n, alpha_step, &
-                  RHS_fun, ads_data, mierr)
+                  RHS_fun, ads_data, mierr, RHS_point)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       ! use parallelism, ONLY: PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
       ! use communicators, ONLY: COMMX, COMMY, COMMZ
       use reorderRHS, ONLY: ReorderRHSForX, ReorderRHSForY, ReorderRHSForZ
       use projection_engine, ONLY: Form3DRHS, ComputeMatrix
       use my_mpi, ONLY: DistributeSpline, Gather, Scatter
-      use Interfaces, ONLY: forcing_fun
+      use Interfaces, ONLY: forcing_fun, rhs_point_fun
       use mpi
       use sparse
       implicit none
@@ -1043,6 +1047,8 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
       real(kind=8), intent(in), dimension(7, 3) :: alpha_step
 !> @brief Callback used for pointwise RHS evaluation.
       procedure(forcing_fun) :: RHS_fun
+!> @brief Optional callback overriding the default pointwise RHS integrand.
+      procedure(rhs_point_fun), optional :: RHS_point
 !> @brief Runtime data updated in place.
       type(ADS_compute_data), intent(inout) :: ads_data
 !> @brief Returned status code.
@@ -1060,7 +1066,8 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
       if (allocated(ads_data%F)) ads_data%F = 0.d0
       if (allocated(ads_data%Ft)) ads_data%Ft = 0.d0
       ! generate the RHS vectors
-      call Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, alpha_step, RHS_fun, igrm)
+      call Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
+                     alpha_step, RHS_fun, igrm, RHS_point)
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write (*, *) "Form 3D RHS: ", time2 - time1
@@ -1214,7 +1221,7 @@ subroutine Cleanup_ADS(ads, mierr)
       if (allocated(ads%Uz)) deallocate (ads%Uz)
 
       if (allocated(ads%dimensionsX)) deallocate (ads%dimensionsX)
-      if (allocated(ads%dimensionsX)) deallocate (ads%dimensionsY)
+      if (allocated(ads%dimensionsY)) deallocate (ads%dimensionsY)
       if (allocated(ads%dimensionsZ)) deallocate (ads%dimensionsZ)
 
       if (allocated(ads%shiftsX)) deallocate (ads%shiftsX)
