@@ -600,6 +600,8 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
    real(kind=8) :: J, W
 !> @brief Global and local index variables.
    integer(kind=4) :: ind, ind1, ind23, indx, indy, indz
+!> @brief Local indices into the state buffers stored in ads_data.
+   integer(kind=4) :: statex, statey, statez
 !> @brief Pointwise contribution returned by `ComputePointForRHS`.
    real(kind=8) :: resvalue
 !> @brief Physical coordinates of the current quadrature point.
@@ -674,10 +676,13 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
                      k(dirc) = kz
 ! weigths
                      W = ads%Wx(k(1))*ads%Wy(k(2))*ads%Wz(k(3))
-                     Uval = ads_data%Un(ex, ey, ez, k(1), k(2), k(3))
-                     Uval13 = ads_data%Un13(ex, ey, ez, k(1), k(2), k(3))
-                     Uval23 = ads_data%Un23(ex, ey, ez, k(1), k(2), k(3))
-                     du = ads_data%dUn(ex, ey, ez, k(1), k(2), k(3), :)
+                     statex = ex - ads_data%state_mine(1) + 1
+                     statey = ey - ads_data%state_mine(2) + 1
+                     statez = ez - ads_data%state_mine(3) + 1
+                     Uval = ads_data%Un(statex, statey, statez, k(1), k(2), k(3))
+                     Uval13 = ads_data%Un13(statex, statey, statez, k(1), k(2), k(3))
+                     Uval23 = ads_data%Un23(statex, statey, statez, k(1), k(2), k(3))
+                     du = ads_data%dUn(statex, statey, statez, k(1), k(2), k(3), :)
 
 !                 loop over degrees of freedom
                      do ax = 0, ads%p(dira)
@@ -1055,6 +1060,8 @@ subroutine FormUn(subun, ads, ads_data)
    real(kind=8) :: Uval, ucoeff
 !> @brief Basis products for value and directional derivatives.
    real(kind=8) :: dvx, dvy, dvz, v
+!> @brief Local indices into the state buffers stored in ads_data.
+   integer(kind=4) :: statex, statey, statez
 
    select case (subun)
    case (1)
@@ -1083,13 +1090,12 @@ subroutine FormUn(subun, ads, ads_data)
    !tmp = (all - ez)/ads%lnelem(3) + 1
    !ey = modulo(tmp - 1, ads%lnelem(2))
    !ex = (tmp - ey)/ads%lnelem(2)
-   do exx=1,ads%lnelem(1)
-      do eyy=1,ads%lnelem(2)
-         do ezz=1,ads%lnelem(3)
-!        fix distributed part
-            ex = exx + ads%mine(1)-1
-            ey = eyy + ads%mine(2)-1
-            ez = ezz + ads%mine(3)-1
+   do ex = ads_data%state_mine(1), ads_data%state_maxe(1)
+      do ey = ads_data%state_mine(2), ads_data%state_maxe(2)
+         do ez = ads_data%state_mine(3), ads_data%state_maxe(3)
+            statex = ex - ads_data%state_mine(1) + 1
+            statey = ey - ads_data%state_mine(2) + 1
+            statez = ez - ads_data%state_mine(3) + 1
 !        loop over quadrature points
             do kx = 1, ads%ng(1)
                do ky = 1, ads%ng(2)
@@ -1156,13 +1162,13 @@ subroutine FormUn(subun, ads, ads_data)
                            end do
                         end do
                      end do
-                     ads_data%dUn(ex, ey, ez, kx, ky, kz, :) = (/dux, duy, duz/)
+                     ads_data%dUn(statex, statey, statez, kx, ky, kz, :) = (/dux, duy, duz/)
                      if (subun .EQ. 1) then
-                        ads_data%Un(ex, ey, ez, kx, ky, kz) = Uval
+                        ads_data%Un(statex, statey, statez, kx, ky, kz) = Uval
                      else if (subun .EQ. 2) then
-                        ads_data%Un13(ex, ey, ez, kx, ky, kz) = Uval
+                        ads_data%Un13(statex, statey, statez, kx, ky, kz) = Uval
                      else if (subun .EQ. 3) then
-                        ads_data%Un23(ex, ey, ez, kx, ky, kz) = Uval
+                        ads_data%Un23(statex, statey, statez, kx, ky, kz) = Uval
                      else
                         write (ERROR_UNIT, *) "wrong substep"
                      end if

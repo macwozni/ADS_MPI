@@ -228,6 +228,9 @@ type ADS_compute_data
 !> @brief Current time value or time-step position.
       real(kind=8) :: t
 
+!> @brief Global element range covered by the solution-value buffers.
+      integer(kind=4), dimension(3) :: state_mine, state_maxe, state_lnelem
+
 !> @brief Solution coefficients from the previous time level.
       real(kind=8), allocatable, dimension(:, :, :, :, :, :) :: Un
 

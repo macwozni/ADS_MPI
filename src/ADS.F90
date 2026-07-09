@@ -540,15 +540,21 @@ subroutine AllocateADSdata(ads_test, ads_trial, ads_data)
 !> @brief Output runtime-data container.
       type(ADS_compute_data), intent(out) :: ads_data
       integer :: ierr
+      integer(kind=4), dimension(3) :: state_ng
 
-      allocate (ads_data%Un(ads_trial%lnelem(1), ads_trial%lnelem(2), ads_trial%lnelem(3), &
-                              ads_trial%ng(1), ads_trial%ng(2), ads_trial%ng(3)))
-      allocate (ads_data%Un13(ads_trial%lnelem(1), ads_trial%lnelem(2), ads_trial%lnelem(3), &
-                              ads_trial%ng(1), ads_trial%ng(2), ads_trial%ng(3)))
-      allocate (ads_data%Un23(ads_trial%lnelem(1), ads_trial%lnelem(2), ads_trial%lnelem(3), &
-                              ads_trial%ng(1), ads_trial%ng(2), ads_trial%ng(3)))
-      allocate (ads_data%dUn(ads_trial%lnelem(1), ads_trial%lnelem(2), ads_trial%lnelem(3), &
-                              ads_trial%ng(1), ads_trial%ng(2), ads_trial%ng(3), 3))
+      ads_data%state_mine = min(ads_test%mine, ads_trial%mine)
+      ads_data%state_maxe = max(ads_test%maxe, ads_trial%maxe)
+      ads_data%state_lnelem = ads_data%state_maxe - ads_data%state_mine + 1
+      state_ng = max(ads_test%ng, ads_trial%ng)
+
+      allocate (ads_data%Un(ads_data%state_lnelem(1), ads_data%state_lnelem(2), ads_data%state_lnelem(3), &
+                              state_ng(1), state_ng(2), state_ng(3)))
+      allocate (ads_data%Un13(ads_data%state_lnelem(1), ads_data%state_lnelem(2), ads_data%state_lnelem(3), &
+                              state_ng(1), state_ng(2), state_ng(3)))
+      allocate (ads_data%Un23(ads_data%state_lnelem(1), ads_data%state_lnelem(2), ads_data%state_lnelem(3), &
+                              state_ng(1), state_ng(2), state_ng(3)))
+      allocate (ads_data%dUn(ads_data%state_lnelem(1), ads_data%state_lnelem(2), ads_data%state_lnelem(3), &
+                              state_ng(1), state_ng(2), state_ng(3), 3))
       ads_data%Un = 0.d0
       ads_data%Un13 = 0.d0
       ads_data%Un23 = 0.d0
