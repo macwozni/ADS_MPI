@@ -37,6 +37,140 @@ contains
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
+!> @brief Builds coefficient tables for the Douglas-Gunn iGRM multi-step
+!> time scheme.
+!>
+!> @details
+!> The routine only prepares the coefficients consumed by \ref MultiStep.
+!> It does not call \ref Step, because \ref Step is the Forward Euler path
+!> and intentionally keeps `alpha_step = 1`.
+!>
+!> The matrix mixing convention is:
+!> - `mix(1,:)` for mass matrices,
+!> - `mix(2,:)` for stiffness matrices,
+!> - `mix(3,:)` and `mix(4,:)` for first-derivative blocks.
+!>
+!> The RHS coefficient convention is:
+!> - rows 1,3,5 for diffusion-like derivative terms,
+!> - rows 2,4,6 for transport-like first-derivative terms,
+!> - row 7 for the scalar forcing callback.
+!>
+!> This Douglas-Gunn configuration uses mass projections in the iGRM
+!> \ref MultiStep path. The time-discretization terms are kept on the RHS
+!> through `alpha_step`, matching the historical Douglas-Gunn interface in
+!> this codebase and avoiding singular mixed iGRM stiffness blocks.
+!
+! Input:
+! ------
+!> @param[in] tau
+!> Time-step length retained in the interface for future schemes.
+!
+! Output:
+! -------
+!> @param[out] mix
+!> Matrix mixing coefficients for the three iGRM substeps.
+!>
+!> @param[out] alpha_step
+!> RHS coefficients for the three iGRM substeps.
+!
+!---------------------------------------------------------------------------
+subroutine ConfigureDouglasGunn(tau, mix, alpha_step)
+      implicit none
+!> @brief Time-step length.
+      real(kind=8), intent(in) :: tau
+!> @brief Matrix mixing coefficients for \ref MultiStep.
+      real(kind=8), intent(out), dimension(4, 3) :: mix
+!> @brief RHS coefficient table for \ref MultiStep.
+      real(kind=8), intent(out), dimension(7, 3) :: alpha_step
+
+      mix = 0.d0
+      mix(1, :) = 1.d0
+      alpha_step = 1.d0
+
+end subroutine ConfigureDouglasGunn
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Advances one Douglas-Gunn iGRM time step through \ref MultiStep.
+!>
+!> @details
+!> This is the scheme-level wrapper for Douglas-Gunn. It keeps the
+!> scheme out of \ref Step, prepares the Douglas-Gunn coefficient tables
+!> with \ref ConfigureDouglasGunn, and delegates the actual three
+!> directional iGRM solves to \ref MultiStep.
+!>
+!> The wrapper validates the iGRM mesh assumptions before the step is
+!> executed. The detailed knot comparison is delegated to
+!> `ValidateIGRMMesh`, which compares distinct knot locations and
+!> therefore accepts repeated knots representing reduced continuity on
+!> the same mesh.
+!
+! Input:
+! ------
+!> @param[in] iter
+!> Outer iteration index.
+!>
+!> @param[in] RHS_fun
+!> Callback used for pointwise RHS evaluation.
+!>
+!> @param[in] ads_test
+!> Enriched iGRM test-space setup.
+!>
+!> @param[in] ads_trial
+!> Trial-space setup.
+!>
+!> @param[in] n
+!> Time-integration or history index passed to lower-level routines.
+!
+! Input/Output:
+! -------------
+!> @param[inout] ads_data
+!> Runtime data structure updated throughout all substeps.
+!
+! Output:
+! -------
+!> @param[out] mierr
+!> Returned status code.
+!
+!---------------------------------------------------------------------------
+subroutine DouglasGunnStep(iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, RHS_point)
+      use Setup, ONLY: ADS_Setup, ADS_compute_data
+      use Interfaces, ONLY: forcing_fun, rhs_point_fun
+      use projection_engine, ONLY: ValidateIGRMMesh
+      implicit none
+!> @brief Outer iteration index.
+      integer(kind=4), intent(in) :: iter
+!> @brief Time-integration or history index.
+      integer(kind=4), intent(in) :: n
+!> @brief Callback used for pointwise RHS evaluation.
+      procedure(forcing_fun) :: RHS_fun
+!> @brief Optional callback overriding the default pointwise RHS integrand.
+      procedure(rhs_point_fun), optional :: RHS_point
+!> @brief Test and trial setup structures.
+      type(ADS_setup), intent(in) :: ads_test, ads_trial
+!> @brief Runtime data updated in place.
+      type(ADS_compute_data), intent(inout) :: ads_data
+!> @brief Returned status code.
+      integer(kind=4), intent(out) :: mierr
+      real(kind=8) :: mix(4, 3)
+      real(kind=8), dimension(7, 3) :: alpha_step
+
+      call ValidateIGRMMesh(ads_test%Ux, ads_test%p(1), ads_test%n(1), ads_test%nelem(1), &
+                            ads_trial%Ux, ads_trial%p(1), ads_trial%n(1), ads_trial%nelem(1))
+      call ValidateIGRMMesh(ads_test%Uy, ads_test%p(2), ads_test%n(2), ads_test%nelem(2), &
+                            ads_trial%Uy, ads_trial%p(2), ads_trial%n(2), ads_trial%nelem(2))
+      call ValidateIGRMMesh(ads_test%Uz, ads_test%p(3), ads_test%n(3), ads_test%nelem(3), &
+                            ads_trial%Uz, ads_trial%p(3), ads_trial%n(3), ads_trial%nelem(3))
+
+      call ConfigureDouglasGunn(ads_trial%tau, mix, alpha_step)
+      call MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha_step, mierr, RHS_point)
+
+end subroutine DouglasGunnStep
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
 !> @brief Initializes test and trial ADS spaces together with runtime
 !> working buffers.
 !>
@@ -816,12 +950,13 @@ end subroutine MultiStep
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
-!> @brief Performs a simplified single-step solve without directional
+!> @brief Performs a Forward Euler single-step solve without directional
 !> enrichment.
 !>
 !> @details
 !> This routine executes one single-substep workflow in which:
 !> - the mixing vector is fixed to a pure mass contribution,
+!> - `alpha_step` is intentionally fixed to one for the Forward Euler RHS,
 !> - no enriched direction is activated,
 !> - the current solution is reconstructed through \ref FormUn,
 !> - \ref Sub_Step is called once with identical test and trial spaces.

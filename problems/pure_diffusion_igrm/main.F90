@@ -30,7 +30,8 @@ program main
    integer :: iter = 0
 
    integer(kind = 4) :: ierr
-   integer(kind = 4), dimension(3) :: nelem, p
+   integer(kind = 4), dimension(3) :: nelem, p_test, p_trial
+   integer(kind = 4) :: nn
 
    type (ADS_setup) :: ads_test, ads_trial
    type (ADS_compute_data) :: ads_data
@@ -65,17 +66,21 @@ program main
    call InitializeParallelism(procx, procy, procz, ierr)
    call CreateCommunicators(ierr)
    nelem = (/ SIZE, SIZE, SIZE /)
-   p = (/ ORDER, ORDER, ORDER /)
-   call Initialize(nelem, p, p, p - 1, ads_test, ads_trial, ads_data, ierr)
+   p_trial = (/ ORDER, ORDER, ORDER /)
+   p_test = p_trial + 1
+   call Initialize(nelem, p_test, p_trial, p_trial - 1, ads_test, ads_trial, ads_data, ierr)
+   nn = 1
    ! Iterations
    do iter = 0, steps
 
       if (t > 0.d0) then
          ads_trial%tau = Dt
+         ads_test%tau = Dt
       else
          ads_trial%tau = 1.d0
+         ads_test%tau = 1.d0
       endif
-      call Step(iter, forcing, ads_trial, ads_data, ierr)
+      call DouglasGunnStep(iter, forcing, ads_test, ads_trial, ads_data, nn, ierr)
       if (MYRANK == 0) then
          write(*, *) iter
       endif
