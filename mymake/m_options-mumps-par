@@ -11,10 +11,11 @@
 #     select directories
 ###########################################################
 
-MUMPS_DIR = /opt/lib/MUMPS_5.8.2_seq/
+MUMPS_DIR = /opt/lib/MUMPS_5.8.2/
 LAPACK_DIR = /opt/lib/lapack-3.12.1/lib64
+SCALAPACK_DIR = /opt/lib/scalapack-2.3.2/lib64
 BLAS_DIR = /opt/lib/lapack-3.12.1/lib64
-PARMETIS_DIR = /opt/lib/metis/lib
+PARMETIS_DIR = /opt/lib/parmetis/lib
 METIS_DIR = /opt/lib/metis/lib
 GKLIB_DIR = /opt/lib/GKlib/lib64
 
@@ -47,8 +48,10 @@ FPP		= fpp -O3
 
 BLAS_LIB      = $(BLAS_DIR)/libblas.a
 LAPACK_LIB    = $(LAPACK_DIR)/liblapack.a
+SCALAPACK_LIB = $(SCALAPACK_DIR)/libscalapack.a
 METIS_LIB     = $(METIS_DIR)/libmetis.a $(GKLIB_DIR)/libGKlib.a
-MUMPS_LIB     = $(MUMPS_DIR)/lib/libdmumps.a $(MUMPS_DIR)/lib/libmumps_common.a $(MUMPS_DIR)/lib/libpord.a $(MUMPS_DIR)/libseq/libmpiseq.a
+PARMETIS_LIB  = $(PARMETIS_DIR)/libparmetis.a
+MUMPS_LIB     = $(MUMPS_DIR)/lib/libdmumps.a $(MUMPS_DIR)/lib/libmumps_common.a $(MUMPS_DIR)/lib/libpord.a
 
 
 
