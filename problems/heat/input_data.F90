@@ -4,13 +4,13 @@
 !
 ! DESCRIPTION:
 !> @file input_data.F90
-!> @brief Input data and source callback for the heat example.
+!> @brief Input data for the heat example.
 !>
 !> @details
 !> This module stores the spatial discretization, time-step parameters,
 !> and MPI process-grid dimensions used by the heat driver. It also
-!> defines the compactly supported initial state and the pointwise forcing
-!> callback expected by the current ADS API.
+!> defines the compactly supported initial state. The pointwise forcing
+!> callback expected by the current ADS API is defined in \ref RHS_fun.
 !
 !------------------------------------------------------------------------------
 module input_data
@@ -114,48 +114,5 @@ contains
       val = 2.d0  * bump3d(0.05d0, 0.4d0, x, y, z)
 
    end function initial_state
-
-
-!---------------------------------------------------------------------------
-!
-! DESCRIPTION:
-!> @brief Evaluates the pointwise forcing for the heat example.
-!>
-!> @details
-!> At the initial pseudo-step the callback injects the initial state. For
-!> later time steps it returns zero.
-!
-! Input:
-! ------
-!> @param[in] un
-!> Previous solution value at the quadrature point.
-!>
-!> @param[in] du
-!> Previous solution gradient at the quadrature point.
-!>
-!> @param[in] X
-!> Physical coordinates of the quadrature point.
-!
-! Output:
-! -------
-!> @return ret
-!> Pointwise forcing value.
-!
-!---------------------------------------------------------------------------
-   function forcing(un, du, X) result(ret)
-      implicit none
-      real(kind = 8), intent(in) :: un
-      real(kind = 8), intent(in), dimension(3) :: du
-      real(kind = 8), intent(in), dimension(3) :: X
-      real(kind = 8) :: ret
-
-      if (t > 0.d0) then
-         ret = 0.d0
-      else
-         ret = initial_state(X(1), X(2), X(3))
-      endif
-
-   end function forcing
-
 
 end module input_data

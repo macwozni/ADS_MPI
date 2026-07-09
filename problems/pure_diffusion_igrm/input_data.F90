@@ -9,10 +9,10 @@
 !>
 !> @details
 !> This module stores discretization, time-step, and process-grid
-!> parameters for the pure-diffusion iGRM driver. It also provides the
-!> pointwise forcing callback required by the current ADS API and placeholder
-!> functions for boundary/source data retained from the older problem
-!> formulation.
+!> parameters for the pure-diffusion iGRM driver. The pointwise forcing
+!> callback required by the current ADS API is defined in \ref RHS_fun.
+!> Placeholder functions for boundary/source data are retained from the older
+!> problem formulation.
 !
 !------------------------------------------------------------------------------
 module input_data
@@ -106,45 +106,6 @@ contains
       read(input, *) Dt
 
    end subroutine InitializeParameters
-
-
-!---------------------------------------------------------------------------
-!
-! DESCRIPTION:
-!> @brief Evaluates the pure-diffusion volume forcing.
-!>
-!> @details
-!> The migrated pure-diffusion example currently uses zero volume forcing.
-!> Arguments are accepted to match the current ADS pointwise forcing
-!> interface.
-!
-! Input:
-! ------
-!> @param[in] un
-!> Previous solution value at the quadrature point.
-!>
-!> @param[in] du
-!> Previous solution gradient at the quadrature point.
-!>
-!> @param[in] X
-!> Physical coordinates of the quadrature point.
-!
-! Output:
-! -------
-!> @return fval
-!> Volume forcing value.
-!
-!---------------------------------------------------------------------------
-   function forcing(un, du, X) result (fval)
-      implicit none
-      real(kind = 8), intent(in) :: un
-      real(kind = 8), intent(in), dimension(3) :: du
-      real(kind = 8), intent(in), dimension(3) :: X
-      real (kind = 8) :: fval
-
-      fval = 0.d0
-
-   end function forcing
 
 !---------------------------------------------------------------------------
 !

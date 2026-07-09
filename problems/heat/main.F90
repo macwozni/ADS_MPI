@@ -19,6 +19,7 @@ program main
    use parallelism, ONLY: PRINTRANK, InitializeParallelism, Cleanup_Parallelism
    use communicators, ONLY: CreateCommunicators, Cleanup_Communicators
    use ADSS
+   use RHS_fun
    use input_data
    use mpi
    use plot

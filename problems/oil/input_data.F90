@@ -4,14 +4,13 @@
 !
 ! DESCRIPTION:
 !> @file input_data.F90
-!> @brief Input data, material coefficients, and forcing callback for the
-!> oil transport example.
+!> @brief Input data and material coefficients for the oil transport example.
 !>
 !> @details
 !> This module stores the oil-problem configuration, including randomly
 !> generated channel curves, pump and drain locations, time-step data, and
-!> precomputed permeability samples. It also provides the pointwise forcing
-!> callback used by the current ADS API.
+!> precomputed permeability samples. The pointwise forcing callback used by
+!> the current ADS API is defined in \ref RHS_fun.
 !
 !------------------------------------------------------------------------------
 module input_data
@@ -549,51 +548,6 @@ contains
       val = 0.1d0 * lerp(falloff(0.d0, 0.1d0, dist), 0.d0, 1.d0) * bump3d(0.2d0, 0.6d0, x, y, z)
 
    end function initial_state
-
-
-!---------------------------------------------------------------------------
-!
-! DESCRIPTION:
-!> @brief Evaluates the pointwise source term for the current ADS API.
-!>
-!> @details
-!> At the initial pseudo-step the callback returns the initial state. For
-!> later time steps it returns pump injection minus the nonnegative drain
-!> contribution.
-!
-! Input:
-! ------
-!> @param[in] un
-!> Previous solution value at the quadrature point.
-!>
-!> @param[in] du
-!> Previous solution gradient at the quadrature point.
-!>
-!> @param[in] X
-!> Physical coordinates of the quadrature point.
-!
-! Output:
-! -------
-!> @return ret
-!> Pointwise source value.
-!
-!---------------------------------------------------------------------------
-   function forcing(un, du, X) result(ret)
-      implicit none
-      real(kind = 8), intent(in) :: un
-      real(kind = 8), intent(in), dimension(3) :: du
-      real(kind = 8), intent(in), dimension(3) :: X
-      real(kind = 8) :: ret
-
-      if (t > 0.d0) then
-         ret = pumping(X(1), X(2), X(3)) - &
-               max(0.d0, draining(un, X(1), X(2), X(3)))
-      else
-         ret = initial_state(X(1), X(2), X(3))
-      endif
-
-   end function forcing
-
 
 !---------------------------------------------------------------------------
 !

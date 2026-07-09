@@ -4,13 +4,13 @@
 !
 ! DESCRIPTION:
 !> @file input_data.F90
-!> @brief Input data and pointwise forcing for the scalar L2 projection
-!> problem.
+!> @brief Input data for the scalar L2 projection problem.
 !>
 !> @details
 !> This module stores command-line parameters describing the tensor-product
 !> grid, spline order, and MPI process grid used by the L2 projection test.
-!> It also provides the forcing callback consumed by the current ADS API.
+!> The forcing callback consumed by the current ADS API is defined in
+!> \ref RHS_fun.
 !
 !------------------------------------------------------------------------------
 module input_data
@@ -71,45 +71,5 @@ contains
       read(input, *) procz
       
    end subroutine InitializeParameters
-
-
-!---------------------------------------------------------------------------
-!
-! DESCRIPTION:
-!> @brief Returns the constant source term used by the L2 projection test.
-!>
-!> @details
-!> The callback follows the pointwise forcing interface expected by
-!> \ref ADSS. The current test projects the constant value one, so the
-!> previous solution, its gradient, and the physical point are accepted
-!> only to match the interface.
-!
-! Input:
-! ------
-!> @param[in] un
-!> Solution value from the previous state at the quadrature point.
-!>
-!> @param[in] du
-!> Gradient of the previous solution at the quadrature point.
-!>
-!> @param[in] X
-!> Physical coordinates of the quadrature point.
-!
-! Output:
-! -------
-!> @return ret
-!> Constant forcing value.
-!
-!---------------------------------------------------------------------------
-   function forcing(un, du, X) result(ret)
-      implicit none
-      real(kind = 8), intent(in) :: un
-      real(kind = 8), intent(in), dimension(3) :: du
-      real(kind = 8), intent(in), dimension(3) :: X
-      real(kind = 8) :: ret
-
-      ret = 1.d0
-
-   end function forcing
 
 end module input_data
