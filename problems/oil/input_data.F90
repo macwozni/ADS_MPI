@@ -79,26 +79,45 @@ contains
    subroutine InitializeParameters
       implicit none
       character(100) :: input
-      integer(kind = 4) :: length
-      integer(kind = 4) :: status
 
       ! ./l2 <size> <procx> <procy> <procz> <nsteps> <dt>
       ORDER = 2
 
-      call GET_COMMAND_ARGUMENT(1, input, length, status)
+      if (COMMAND_ARGUMENT_COUNT() .LT. 7) then
+         call PrintUsage()
+         STOP 5
+      end if
+
+      call ReadArgument(1, input)
       read(input, *) SIZE
-      call GET_COMMAND_ARGUMENT(2, input, length, status)
+      call ReadArgument(2, input)
       read(input, *) ORDER
-      call GET_COMMAND_ARGUMENT(3, input, length, status)
+      call ReadArgument(3, input)
       read(input, *) procx
-      call GET_COMMAND_ARGUMENT(4, input, length, status)
+      call ReadArgument(4, input)
       read(input, *) procy
-      call GET_COMMAND_ARGUMENT(5, input, length, status)
+      call ReadArgument(5, input)
       read(input, *) procz
-      call GET_COMMAND_ARGUMENT(6, input, length, status)
+      call ReadArgument(6, input)
       read(input, *) steps
-      call GET_COMMAND_ARGUMENT(7, input, length, status)
+      call ReadArgument(7, input)
       read(input, *) Dt
+
+   contains
+
+      subroutine ReadArgument(arg, input)
+         implicit none
+         integer(kind = 4), intent(in) :: arg
+         character(*), intent(out) :: input
+         integer(kind = 4) :: length
+         integer(kind = 4) :: status
+
+         call GET_COMMAND_ARGUMENT(arg, input, length, status)
+         if (status /= 0) then
+            write(*,*) "invalid command argument: ", arg
+            STOP 5
+         end if
+      end subroutine ReadArgument
 
    end subroutine InitializeParameters
 
@@ -145,40 +164,96 @@ contains
       implicit none
       character(100) :: input
       integer(kind = 4) :: i, arg = 8 ! First argument after "technical" ones
-      integer(kind = 4) :: length
-      integer(kind = 4) :: status
+      integer(kind = 4) :: expected
+      integer(kind = 4) :: arg_count
 
-      call GET_COMMAND_ARGUMENT(arg, input, length, status)
+      arg_count = COMMAND_ARGUMENT_COUNT()
+      if (arg_count < 9) then
+         call PrintUsage()
+         STOP 5
+      end if
+
+      call ReadArgument(arg, input)
       read(input, *) npumps
+      if (npumps < 0) then
+         write(*,*) "number of pumps must be non-negative"
+         STOP 5
+      end if
       arg = arg + 1
       allocate(pumps(3, npumps))
 
+      expected = 9 + 3*npumps
+      if (arg_count < expected) then
+         call PrintUsage()
+         STOP 5
+      end if
+
       do i = 1, npumps
-         call GET_COMMAND_ARGUMENT(arg, input, length, status)
+         call ReadArgument(arg, input)
          read(input, *) pumps(1, i)
-         call GET_COMMAND_ARGUMENT(arg + 1, input, length, status)
+         call ReadArgument(arg + 1, input)
          read(input, *) pumps(2, i)
-         call GET_COMMAND_ARGUMENT(arg + 2, input, length, status)
+         call ReadArgument(arg + 2, input)
          read(input, *) pumps(3, i)
          arg = arg + 3
       enddo
 
-      call GET_COMMAND_ARGUMENT(arg, input, length, status)
+      call ReadArgument(arg, input)
       read(input, *) ndrains
+      if (ndrains < 0) then
+         write(*,*) "number of drains must be non-negative"
+         STOP 5
+      end if
+      expected = 9 + 3*npumps + 3*ndrains
+      if (arg_count .NE. expected) then
+         call PrintUsage()
+         STOP 5
+      end if
       arg = arg + 1
       allocate(drains(3, ndrains))
 
       do i = 1, ndrains
-         call GET_COMMAND_ARGUMENT(arg, input, length, status)
+         call ReadArgument(arg, input)
          read(input, *) drains(1, i)
-         call GET_COMMAND_ARGUMENT(arg + 1, input, length, status)
+         call ReadArgument(arg + 1, input)
          read(input, *) drains(2, i)
-         call GET_COMMAND_ARGUMENT(arg + 2, input, length, status)
+         call ReadArgument(arg + 2, input)
          read(input, *) drains(3, i)
          arg = arg + 3
       enddo
 
+   contains
+
+      subroutine ReadArgument(arg, input)
+         implicit none
+         integer(kind = 4), intent(in) :: arg
+         character(*), intent(out) :: input
+         integer(kind = 4) :: length
+         integer(kind = 4) :: status
+
+         call GET_COMMAND_ARGUMENT(arg, input, length, status)
+         if (status /= 0) then
+            write(*,*) "invalid command argument: ", arg
+            STOP 5
+         end if
+      end subroutine ReadArgument
+
    end subroutine InitPumps
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Prints command-line usage for the oil problem.
+!
+!---------------------------------------------------------------------------
+   subroutine PrintUsage()
+      implicit none
+
+      write(*,*) "proper usage with arguments: ", &
+      "<size> <order> <procx> <procy> <procz> <steps> <dt> ", &
+      "<npumps> <pump xyz...> <ndrains> <drain xyz...>"
+
+   end subroutine PrintUsage
 
 !---------------------------------------------------------------------------
 !

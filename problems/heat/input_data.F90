@@ -52,25 +52,45 @@ contains
    subroutine InitializeParameters
       implicit none
       character(100) :: input
-      integer(kind = 4) :: length
-      integer(kind = 4) :: status
 
       ! ./l2 <size> <order> <procx> <procy> <procz>
 
-      call GET_COMMAND_ARGUMENT(1, input, length, status)
+      if (COMMAND_ARGUMENT_COUNT() .NE. 7) then
+         write(*,*) "proper usage with arguments: ", &
+         "<size> <order> <steps> <dt> <procx> <procy> <procz>"
+         STOP 5
+      end if
+
+      call ReadArgument(1, input)
       read(input, *) SIZE
-      call GET_COMMAND_ARGUMENT(2, input, length, status)
+      call ReadArgument(2, input)
       read(input, *) ORDER
-      call GET_COMMAND_ARGUMENT(3, input, length, status)
+      call ReadArgument(3, input)
       read(input, *) steps
-      call GET_COMMAND_ARGUMENT(4, input, length, status)
+      call ReadArgument(4, input)
       read(input, *) Dt
-      call GET_COMMAND_ARGUMENT(5, input, length, status)
+      call ReadArgument(5, input)
       read(input, *) procx
-      call GET_COMMAND_ARGUMENT(6, input, length, status)
+      call ReadArgument(6, input)
       read(input, *) procy
-      call GET_COMMAND_ARGUMENT(7, input, length, status)
+      call ReadArgument(7, input)
       read(input, *) procz
+
+   contains
+
+      subroutine ReadArgument(arg, input)
+         implicit none
+         integer(kind = 4), intent(in) :: arg
+         character(*), intent(out) :: input
+         integer(kind = 4) :: length
+         integer(kind = 4) :: status
+
+         call GET_COMMAND_ARGUMENT(arg, input, length, status)
+         if (status /= 0) then
+            write(*,*) "invalid command argument: ", arg
+            STOP 5
+         end if
+      end subroutine ReadArgument
 
    end subroutine InitializeParameters
 
