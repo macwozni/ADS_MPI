@@ -209,173 +209,6 @@ end function CountSpans
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
-!> @brief Constructs a knot vector with repeated internal knots grouped
-!> by blocks.
-!>
-!> @details
-!> This routine first builds a reference open knot vector, determines
-!> the number of nonempty spans, and then reallocates the knot vector so
-!> that selected internal knots are repeated according to the block size
-!> \p iblock and polynomial degree \p p.
-!>
-!> The procedure currently provides specialized logic for the cases
-!> \f$p=2\f$, \f$p=3\f$, and \f$p=4\f$. For each supported degree, the
-!> routine modifies both the size of the knot vector and the value of
-!> \p n so that the resulting spline space reflects the introduced knot
-!> repetitions.
-!>
-!> This type of construction is intended for block-wise repeated-knot
-!> layouts, for example in reduced-continuity spline spaces.
-!
-! Input:
-! ------
-!> @param[in,out] n
-!> Number of basis functions minus one. On exit, this value is updated
-!> to reflect the modified knot-vector structure.
-!>
-!> @param[in] p
-!> Polynomial degree of the spline basis.
-!>
-!> @param[in] iblock
-!> Block length controlling the placement of repeated internal knots.
-!
-! Output:
-! -------
-!> @param[out] U
-!> Allocated knot vector with repeated internal knots.
-!>
-!> @param[out] nelem
-!> Number of nonempty spans in the initially constructed open knot
-!> vector used as a reference for the repeated-knot layout.
-!
-! Notes:
-! ------
-!> @note
-!> The implementation currently handles only degrees \f$p=2\f$,
-!> \f$p=3\f$, and \f$p=4\f$.
-!
-!> @warning
-!> No fallback branch is provided for unsupported polynomial degrees.
-!>
-!> @warning
-!> The routine assumes that \p iblock is compatible with the chosen
-!> degree and element count.
-!
-!---------------------------------------------------------------------------
-subroutine repeatedKnot(n, p, iblock, U, nelem)
-   implicit none
-   integer(kind=4), intent(inout) :: n
-!> @brief Number of basis functions minus one, updated on exit.
-   integer(kind=4), intent(in) :: p, iblock
-!> @brief Polynomial degree and block size controlling repetitions.
-   real(kind=8), allocatable, dimension(:), intent(out) :: U
-!> @brief Allocated knot vector with repeated internal knots.
-   integer(kind=4), intent(out) :: nelem
-!> @brief Number of nonempty spans of the initial open knot vector.
-   integer(kind=4) :: i, j, k, l
-!> @brief Loop counters and auxiliary indexing variables.
-
-   !---------------------------------------------------------------------------
-   if (p .EQ. 2) then
-
-      allocate (U(n + p + 2)) !knot vector
-      U(1:p + 1) = 0.d0
-      U(n + 2:n + p + 2) = 1.d0
-      do i = p + 2, n + 1
-         U(i) = real(i - p - 1)/real(n - 1)
-      end do
-
-      nelem = CountSpans(n, p, U)
-
-      deallocate (U)
-      allocate (U(n + p + 2 + (nelem/iblock)*(p - 1) - 1))
-      n = n + (nelem/iblock)*(p - 1) - 1
-      U(1:p + 1) = 0.d0
-      i = p + 2; l = 1
-      do j = 1, nelem/IBLOCK
-         do k = 0, IBLOCK - p
-            U(i + k) = real(l + k)/real(nelem)
-         end do
-         if (j .lt. nelem/IBLOCK) then
-            do k = IBLOCK - p + 1, IBLOCK
-               U(i + k) = real(l + IBLOCK - p + 1)/real(nelem)
-            end do
-            i = i + IBLOCK + 1; l = l + IBLOCK - p + 2
-         else
-            i = i + IBLOCK + 1 - p
-         end if
-      end do
-      U(i:i + p) = 1.d0
-   end if
-   !-------------------------------------------------------------------------
-   if (p .EQ. 3) then
-      allocate (U(n + p + 2)) !knot vector
-      U(1:p + 1) = 0.d0
-      U(n + 2:n + p + 2) = 1.d0
-      do i = p + 2, n + 1
-         U(i) = real(i - p - 1)/real(n - p + 1)
-      end do
-      !
-      nelem = CountSpans(n, p, U)
-
-      deallocate (U)
-      allocate (U(n + p + 2 + (nelem/iblock)*(p - 1) - 2))
-      n = n + (nelem/iblock)*(p - 1) - 2
-      U(1:p + 1) = 0.d0
-      i = p + 2; l = 1
-      do j = 1, nelem/IBLOCK
-         do k = 0, IBLOCK - p + 1
-            U(i + k) = real(l + k)/real(nelem)
-         end do
-         if (j .lt. nelem/IBLOCK) then
-            do k = IBLOCK - p + 1, IBLOCK
-               U(i + k + 1) = real(l + IBLOCK - p + 2)/real(nelem)
-            end do
-            i = i + IBLOCK + 1 - p + 4; l = l + IBLOCK - p + 3
-         else
-            i = i + IBLOCK + 1 - p + 1
-         end if
-      end do
-      U(i:i + p) = 1.d0
-   end if
-   !----------------------------------------------------------------------
-   if (p .EQ. 4) then
-      allocate (U(n + p + 2)) !knot vector
-      U(1:p + 1) = 0.d0
-      U(n + 2:n + p + 2) = 1.d0
-      do i = p + 2, n + 1
-         U(i) = real(i - p - 1)/real(n - p + 1)
-      end do
-
-      nelem = CountSpans(n, p, U)
-
-      deallocate (U)
-      allocate (U(n + p + 2 + (nelem/iblock)*(p - 1) - 3))
-      n = n + (nelem/iblock)*(p - 1) - 3
-      U(1:p + 1) = 0.d0
-      i = p + 2; l = 1
-      do j = 1, nelem/IBLOCK
-         do k = 0, IBLOCK - p + 2
-            U(i + k) = real(l + k)/real(nelem)
-         end do
-         if (j .lt. nelem/IBLOCK) then
-            do k = IBLOCK - p + 1, IBLOCK
-               U(i + k + 2) = real(l + IBLOCK - p + 3)/real(nelem)
-            end do
-            i = i + IBLOCK + 1 - p + 6; l = l + IBLOCK - p + 4
-         else
-            i = i + IBLOCK + 1 - p + 2
-         end if
-      end do
-   end if
-
-   !<- rIGA
-end subroutine repeatedKnot
-
-
-!---------------------------------------------------------------------------
-!
-! DESCRIPTION:
 !> @brief Constructs an open knot vector with repeated internal knots
 !> at block interfaces.
 !>
@@ -438,7 +271,7 @@ end subroutine repeatedKnot
 !> and that \p iblock is compatible with the element partition.
 !
 !---------------------------------------------------------------------------
-subroutine repeatedKnot2(n, p, iblock, c_continuity, U, nelem)
+subroutine repeatedKnot(n, p, iblock, c_continuity, U, nelem)
 
    implicit none
 
@@ -508,6 +341,6 @@ subroutine repeatedKnot2(n, p, iblock, c_continuity, U, nelem)
 
    n = n_new
 
-end subroutine repeatedKnot2
+end subroutine repeatedKnot
 
 end module knot_vector
