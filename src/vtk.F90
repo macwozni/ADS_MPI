@@ -46,8 +46,8 @@ contains
 !>   array name `Result`,
 !> - closes all XML nodes and the file handle.
 !>
-!> The coordinate origin and spacing are currently hard-coded as
-!> \f$(0,0,0)\f$ and \f$(1,1,1)\f$, respectively.
+!> The coordinate origin and spacing are derived from the sampling bounds
+!> and resolution stored in \p params.
 !
 ! Input:
 ! ------
@@ -82,7 +82,9 @@ subroutine VtkOutput(filename, vals, params)
 !> @brief Loop counters over the grid directions.
    integer(kind=4) :: ix, iy, iz
 !> @brief Temporary buffers for formatted numeric and extent strings.
-   character(len=200) :: temp, extent
+   character(len=200) :: temp, extent, origin, spacing
+!> @brief Physical grid spacing in each coordinate direction.
+   real(kind=8) :: hx, hy, hz
 
 !> @brief Output unit number used for file writing.
    integer :: outFile = 57
@@ -103,10 +105,28 @@ subroutine VtkOutput(filename, vals, params)
    ! Format: "x1 x2 y1 y2 z1 z2"
    write (extent, '("0 ",(I5)," 0 ",(I5)," 0 ",(I5))') &
       params%resx - 1, params%resy - 1, params%resz - 1
+   if (params%resx > 1) then
+      hx = (params%endx - params%startx)/dble(params%resx - 1)
+   else
+      hx = 0.d0
+   end if
+   if (params%resy > 1) then
+      hy = (params%endy - params%starty)/dble(params%resy - 1)
+   else
+      hy = 0.d0
+   end if
+   if (params%resz > 1) then
+      hz = (params%endz - params%startz)/dble(params%resz - 1)
+   else
+      hz = 0.d0
+   end if
+   write (origin, '(3(ES24.16,1X))') params%startx, params%starty, params%startz
+   write (spacing, '(3(ES24.16,1X))') hx, hy, hz
 
    ! Init ImageData structure for whole region
    temp = '  <ImageData WholeExtent="'//trim(extent)
-   write (outFile, '(A)') trim(temp)//'" Origin="0 0 0" Spacing="1 1 1">'
+   write (outFile, '(A)') trim(temp)//'" Origin="'//trim(adjustl(origin))// &
+      '" Spacing="'//trim(adjustl(spacing))//'">'
 
    ! Region consists of one piece in one file
    write (outFile, '(A)') '    <Piece Extent="'//trim(extent)//'">'
