@@ -1592,6 +1592,7 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
       real(kind=8), allocatable, dimension(:, :) :: Ft_out, Ft2_out ! F-test
       integer(kind=4), dimension(3) :: ibeg, iend
       integer(kind=4) :: system_n
+      integer(kind=4) :: trial_owned_a, mixed_owned_a
       ! real(kind=8) :: time1, time2
       logical :: equ
 
@@ -1668,6 +1669,8 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
             ibeg(3) = ads_test%ibeg(3)
             iend(3) = ads_test%iend(3)
       endif
+      trial_owned_a = ads_trial%s(a)
+      mixed_owned_a = (1 - direction(a))*ads_trial%s(a) + direction(a)*ads_test%s(a)
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
 
@@ -1773,7 +1776,7 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
             Ft_out = Fs(ads_trial%n(a) + 2:ads_trial%n(a) + 1 + direction(a)*(ads_test%n(a) + 1), :)
             end if
       !  allocate buffers
-            allocate (Ft2_out(((1 - direction(a))*ads_trial%nrcpp(a) + direction(a)*ads_test%nrcpp(a)), &
+            allocate (Ft2_out(mixed_owned_a, &
                         ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
                         ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c))))
 #ifdef PERFORMANCE
@@ -1781,7 +1784,7 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
 #endif
       !  scatter back onto the cube of processors
             call Scatter(Ft_out, Ft2_out, (1 - direction(a))*ads_trial%n(a) + direction(a)*ads_test%n(a), &
-                        (1 - direction(a))*ads_trial%nrcpp(a) + direction(a)*ads_test%nrcpp(a), &
+                        mixed_owned_a, &
                         ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
                         ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c)), &
                   dimensions_test, shifts_test, comm, ierr)
@@ -1794,14 +1797,14 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
       end if
 
       !  allocate buffers
-      allocate (F2_out(ads_trial%nrcpp(a), &
+      allocate (F2_out(trial_owned_a, &
                         ads_trial%s(b)*ads_trial%s(c)))
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
 #endif
       !  scatter back onto the cube of processors
       call Scatter(F_out, F2_out, ads_trial%n(a), &
-                        ads_trial%nrcpp(a), &
+                        trial_owned_a, &
                   ads_trial%s(b)*ads_trial%s(c), &
                   dimensions_trial, shifts_trial, comm, ierr)
 #ifdef PERFORMANCE
