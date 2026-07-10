@@ -707,6 +707,7 @@ use sparse
       type(dmumps_struc) :: mumps_par
 
       !  initialize MUMPS
+      mumps_par%sym = 0
       mumps_par%comm = MPI_COMM_SELF
       mumps_par%job = -1
       mumps_par%par = 1
