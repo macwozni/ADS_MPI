@@ -35,9 +35,6 @@ program main
    integer(kind = 4) :: i, j
 
    integer(kind = 4) :: ierr
-   integer(kind = 4), dimension(3) :: nelem, p1, p2
-   integer(kind = 4), parameter :: SCHEME_DG = 1, SCHEME_PR = 2, SCHEME_BE = 3
-   integer(kind = 4) :: selected_scheme
 
    logical :: prnt = .FALSE.
    logical :: ok = .TRUE.
@@ -68,33 +65,18 @@ program main
 
    call InitializeParallelism(procx, procy, procz, ierr)
    call CreateCommunicators(ierr)
-   !nelem = (/ isizex, isizey, isizez /)
-   !p1 = (/ order, order, order /)
-   !p2 = (/ order, order, order /)
-   nelem = (/ 2,2,2 /)
-   p1 = (/3,3,3/)
-   p2 = (/1,1,1/)
-   call Initialize(nelem, p1, p2, p2-1, ads_test, ads_trial, ads_data, ierr)
+   call Initialize(nelem, p_test, p_trial, p_trial-1, ads_test, ads_trial, ads_data, ierr)
    call ValidateIGRMTimeSchemeSpaces(ads_test, ads_trial)
    tau = scheme_tau
    ads_test%tau = tau
    ads_trial%tau = tau
-   select case (trim(time_scheme))
-   case ("dg", "douglas-gunn", "douglas_gunn")
-      selected_scheme = SCHEME_DG
+   select case (selected_time_scheme)
+   case (TIME_SCHEME_DG)
       call ConfigureDouglasGunn3DTimeScheme(tau, scheme, include_transport=.false.)
-   case ("pr", "peaceman-rachford", "peaceman_rachford")
-      selected_scheme = SCHEME_PR
+   case (TIME_SCHEME_PR)
       call ConfigurePeacemanRachford3DTimeScheme(tau, scheme, include_transport=.false.)
-   case ("be", "backward-euler", "backward_euler", "backwardeuler")
-      selected_scheme = SCHEME_BE
+   case (TIME_SCHEME_BE)
       call ConfigureBackwardEuler3DTimeScheme(tau, scheme, include_transport=.false.)
-   case ("fe", "forward-euler", "forward_euler", "forwardeuler")
-      if (MYRANK == 0) write(*, *) "forward euler is not an iGRM L2 time-scheme option"
-      stop 5
-   case default
-      if (MYRANK == 0) write(*, *) "unknown time scheme: ", trim(time_scheme)
-      stop 5
    end select
 
    fullnorm = 0.d0
@@ -102,12 +84,12 @@ program main
    l2norm = 0.d0
 
    nn = 1
-   select case (selected_scheme)
-   case (SCHEME_DG)
+   select case (selected_time_scheme)
+   case (TIME_SCHEME_DG)
       call DouglasGunn3DStep(scheme, iter, forcing, ads_test, ads_trial, ads_data, nn, ierr)
-   case (SCHEME_PR)
+   case (TIME_SCHEME_PR)
       call PeacemanRachford3DStep(scheme, iter, forcing, ads_test, ads_trial, ads_data, nn, ierr)
-   case (SCHEME_BE)
+   case (TIME_SCHEME_BE)
       call BackwardEuler3DStep(scheme, iter, forcing, ads_test, ads_trial, ads_data, nn, ierr)
    end select
    call PrintSolution(iter, ads_trial, ads_data%FF)

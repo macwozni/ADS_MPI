@@ -299,14 +299,13 @@ Example with one pump and one drain:
 Arguments expected by the parser:
 
 ```text
-<isizex> <isizey> <isizez> <order> <procx> <procy> <procz>
-<isizex> <isizey> <isizez> <order> <procx> <procy> <procz> <scheme>
-<isizex> <isizey> <isizez> <order> <procx> <procy> <procz> <tau> <scheme>
+<nelem_x> <nelem_y> <nelem_z> <ptest_x> <ptest_y> <ptest_z> <ptrial_x> <ptrial_y> <ptrial_z> <procx> <procy> <procz>
+<nelem_x> <nelem_y> <nelem_z> <ptest_x> <ptest_y> <ptest_z> <ptrial_x> <ptrial_y> <ptrial_z> <procx> <procy> <procz> <scheme>
+<nelem_x> <nelem_y> <nelem_z> <ptest_x> <ptest_y> <ptest_z> <ptrial_x> <ptrial_y> <ptrial_z> <procx> <procy> <procz> <tau> <scheme>
 ```
 
-The current driver is a fixed small iGRM demonstration: it parses these
-arguments but uses a hard-coded `2 x 2 x 2` mesh with `p_test = 3` and
-`p_trial = 1`.
+The three `ptest_*` values configure the enriched iGRM test-space degrees.
+The three `ptrial_*` values configure the trial-space degrees.
 
 The optional `scheme` argument selects the iGRM time scheme. Forward Euler is
 not accepted here because this driver exercises the `MultiStep` iGRM schemes:
@@ -320,8 +319,8 @@ be    Backward Euler
 Example:
 
 ```bash
-/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/igrm_l2 2 2 2 1 1 1 1 pr
-/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/igrm_l2 2 2 2 1 1 1 1 1.0 be
+/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/igrm_l2 2 2 2 3 3 3 1 1 1 1 1 1 pr
+/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/igrm_l2 2 2 2 3 3 3 1 1 1 1 1 1 1.0 be
 ```
 
 ## iGRM Mesh Assumptions
