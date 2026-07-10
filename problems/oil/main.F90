@@ -18,6 +18,7 @@ program main
    use parallelism, ONLY: MYRANK
    use parallelism, ONLY: PRINTRANK, InitializeParallelism, Cleanup_Parallelism
    use communicators, ONLY: CreateCommunicators, Cleanup_Communicators
+   use time_scheme, ONLY: ForwardEuler3DStep
    use ADSS
    use RHS_fun
    use input_data
@@ -81,7 +82,7 @@ program main
       else
          ads_trial%tau = 1.d0
       endif
-      call Step(iter, forcing, ads_trial, ads_data, ierr, oil_rhs_point)
+      call ForwardEuler3DStep(iter, forcing, ads_trial, ads_data, ierr, oil_rhs_point)
       if (MYRANK == 0) then
          write(*, *) iter
       endif

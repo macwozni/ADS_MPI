@@ -90,15 +90,17 @@ There are two ADS time-advancement paths:
   intentional and should not be treated as a Douglas-Gunn or ADI scheme.
 - `MultiStep` is the three-substep directional path used by iGRM time schemes.
 
-The implemented iGRM scheme wrappers are:
+The implemented time-scheme wrappers are:
 
 ```text
-DouglasGunnStep         3D Douglas-Gunn wrapper
-PeacemanRachfordStep    3D cyclic Peaceman-Rachford wrapper
-BackwardEulerStep       3D split Backward Euler wrapper
+ForwardEuler3DStep          3D Forward Euler wrapper
+DouglasGunn3DStep           3D Douglas-Gunn wrapper
+PeacemanRachford3DStep      3D cyclic Peaceman-Rachford wrapper
+BackwardEuler3DStep         3D split Backward Euler wrapper
 ```
 
-The wrappers configure `MultiStep` through `src/time_scheme.F90`:
+`ForwardEuler3DStep` delegates to `Step`. The iGRM/ADI wrappers configure
+`MultiStep` through `src/time_scheme.F90`:
 
 - `ConfigureDouglasGunn3D`
 - `ConfigurePeacemanRachford3D`
@@ -114,8 +116,8 @@ iGRM space compatibility is checked once during problem setup with
 `ValidateIGRMTimeSchemeSpaces`; it is not repeated inside each time-step
 wrapper.
 
-The default wrappers are diffusion-oriented. They accept an optional
-`include_transport` flag for first-derivative transport terms; the
+The iGRM/ADI wrappers are diffusion-oriented by default. They accept an
+optional `include_transport` flag for first-derivative transport terms; the
 `pure_diffusion_igrm` driver calls them with `include_transport=.false.`.
 
 ## Building

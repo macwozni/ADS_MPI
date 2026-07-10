@@ -18,7 +18,8 @@ program main
    use parallelism, ONLY: MYRANK
    use parallelism, ONLY: PRINTRANK, InitializeParallelism, Cleanup_Parallelism
    use communicators, ONLY: CreateCommunicators, Cleanup_Communicators
-   use time_scheme, ONLY: ValidateIGRMTimeSchemeSpaces
+   use time_scheme, ONLY: BackwardEuler3DStep, DouglasGunn3DStep, PeacemanRachford3DStep, &
+                          ValidateIGRMTimeSchemeSpaces
    use ADSS
    use RHS_fun
    use input_data
@@ -84,14 +85,14 @@ program main
       endif
       select case (trim(time_scheme))
       case ("dg", "douglas-gunn", "douglas_gunn")
-         call DouglasGunnStep(iter, forcing, ads_test, ads_trial, ads_data, nn, ierr, &
-                              include_transport=.false.)
-      case ("pr", "peaceman-rachford", "peaceman_rachford")
-         call PeacemanRachfordStep(iter, forcing, ads_test, ads_trial, ads_data, nn, ierr, &
-                                   include_transport=.false.)
-      case ("be", "backward-euler", "backward_euler", "backwardeuler")
-         call BackwardEulerStep(iter, forcing, ads_test, ads_trial, ads_data, nn, ierr, &
+         call DouglasGunn3DStep(iter, forcing, ads_test, ads_trial, ads_data, nn, ierr, &
                                 include_transport=.false.)
+      case ("pr", "peaceman-rachford", "peaceman_rachford")
+         call PeacemanRachford3DStep(iter, forcing, ads_test, ads_trial, ads_data, nn, ierr, &
+                                     include_transport=.false.)
+      case ("be", "backward-euler", "backward_euler", "backwardeuler")
+         call BackwardEuler3DStep(iter, forcing, ads_test, ads_trial, ads_data, nn, ierr, &
+                                  include_transport=.false.)
       case default
          if (MYRANK == 0) write(*, *) "unknown time scheme: ", trim(time_scheme)
          stop 5
