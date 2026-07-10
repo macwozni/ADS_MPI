@@ -22,7 +22,6 @@ module time_scheme
    public :: TimeScheme3D
    public :: ValidateIGRMTimeSchemeSpaces
    public :: ForwardEuler3DStep
-   public :: TimeScheme3DStep
    public :: DouglasGunn3DStep
    public :: PeacemanRachford3DStep
    public :: BackwardEuler3DStep
@@ -30,7 +29,6 @@ module time_scheme
    public :: ConfigureDouglasGunn3DTimeScheme
    public :: ConfigurePeacemanRachford3DTimeScheme
    public :: ConfigureBackwardEuler3DTimeScheme
-   public :: ConfigureDouglasGunn
    public :: ConfigureDouglasGunn3D
    public :: ConfigurePeacemanRachford3D
    public :: ConfigureBackwardEuler3D
@@ -39,8 +37,8 @@ module time_scheme
    !>
    !> @details
    !> Configurators fill this object once during problem setup. Time loops
-   !> should then pass the same object to \ref TimeScheme3DStep instead of
-   !> rebuilding coefficient tables at every step.
+   !> should then pass the same object to the named 3D step wrappers
+   !> instead of rebuilding coefficient tables at every step.
    type TimeScheme3D
       !> Legacy substep matrix-mixing table.
       real(kind=8) :: mix(4, 3) = 0.d0
@@ -491,7 +489,7 @@ end subroutine ConfigureBackwardEuler3D
 ! Output:
 ! -------
 !> @param[out] scheme
-!> Persistent time-scheme configuration consumed by \ref TimeScheme3DStep.
+!> Persistent time-scheme configuration consumed by the 3D step wrappers.
 !
 !---------------------------------------------------------------------------
 subroutine ConfigureMassOnly3DTimeScheme(scheme)
@@ -513,7 +511,7 @@ end subroutine ConfigureMassOnly3DTimeScheme
 !>
 !> @details
 !> Call this once after the final time-step length is known, then reuse
-!> the returned \p scheme for every call to \ref TimeScheme3DStep.
+!> the returned \p scheme for every call to \ref DouglasGunn3DStep.
 !
 ! Input:
 ! ------
@@ -526,7 +524,7 @@ end subroutine ConfigureMassOnly3DTimeScheme
 ! Output:
 ! -------
 !> @param[out] scheme
-!> Persistent time-scheme configuration consumed by \ref TimeScheme3DStep.
+!> Persistent time-scheme configuration consumed by \ref DouglasGunn3DStep.
 !
 !---------------------------------------------------------------------------
 subroutine ConfigureDouglasGunn3DTimeScheme(tau, scheme, include_transport)
@@ -550,7 +548,7 @@ end subroutine ConfigureDouglasGunn3DTimeScheme
 !>
 !> @details
 !> Call this once after the final time-step length is known, then reuse
-!> the returned \p scheme for every call to \ref TimeScheme3DStep.
+!> the returned \p scheme for every call to \ref PeacemanRachford3DStep.
 !
 ! Input:
 ! ------
@@ -563,7 +561,7 @@ end subroutine ConfigureDouglasGunn3DTimeScheme
 ! Output:
 ! -------
 !> @param[out] scheme
-!> Persistent time-scheme configuration consumed by \ref TimeScheme3DStep.
+!> Persistent time-scheme configuration consumed by \ref PeacemanRachford3DStep.
 !
 !---------------------------------------------------------------------------
 subroutine ConfigurePeacemanRachford3DTimeScheme(tau, scheme, include_transport)
@@ -587,7 +585,7 @@ end subroutine ConfigurePeacemanRachford3DTimeScheme
 !>
 !> @details
 !> Call this once after the final time-step length is known, then reuse
-!> the returned \p scheme for every call to \ref TimeScheme3DStep.
+!> the returned \p scheme for every call to \ref BackwardEuler3DStep.
 !
 ! Input:
 ! ------
@@ -600,7 +598,7 @@ end subroutine ConfigurePeacemanRachford3DTimeScheme
 ! Output:
 ! -------
 !> @param[out] scheme
-!> Persistent time-scheme configuration consumed by \ref TimeScheme3DStep.
+!> Persistent time-scheme configuration consumed by \ref BackwardEuler3DStep.
 !
 !---------------------------------------------------------------------------
 subroutine ConfigureBackwardEuler3DTimeScheme(tau, scheme, include_transport)
@@ -617,61 +615,6 @@ subroutine ConfigureBackwardEuler3DTimeScheme(tau, scheme, include_transport)
 
 end subroutine ConfigureBackwardEuler3DTimeScheme
 
-!---------------------------------------------------------------------------
-!
-! DESCRIPTION:
-!> @brief Builds legacy mass-only coefficient tables for iGRM multi-step.
-!>
-!> @details
-!> The routine only prepares the coefficients consumed by \ref MultiStep.
-!> It does not call \ref Step, because \ref Step is the Forward Euler path
-!> and intentionally keeps `alpha_step = 1`.
-!>
-!> The matrix mixing convention is:
-!> - `mix(1,:)` for mass matrices,
-!> - `mix(2,:)` for stiffness matrices,
-!> - `mix(3,:)` and `mix(4,:)` for first-derivative blocks.
-!>
-!> The RHS coefficient convention is:
-!> - rows 1,3,5 for diffusion-like derivative terms,
-!> - rows 2,4,6 for transport-like first-derivative terms,
-!> - row 7 for the scalar forcing callback.
-!>
-!> This routine is retained for older callers. The actual Douglas-Gunn
-!> wrapper uses \ref ConfigureDouglasGunn3D so it can pass directional LHS
-!> matrices and RHS derivative-state selectors into \ref MultiStep.
-!
-! Input:
-! ------
-!> @param[in] tau
-!> Time-step length retained in the interface for future schemes.
-!
-! Output:
-! -------
-!> @param[out] mix
-!> Matrix mixing coefficients for the three iGRM substeps.
-!>
-!> @param[out] alpha_step
-!> RHS coefficients for the three iGRM substeps.
-!
-!---------------------------------------------------------------------------
-subroutine ConfigureDouglasGunn(tau, mix, alpha_step)
-      implicit none
-!> @brief Time-step length.
-      real(kind=8), intent(in) :: tau
-!> @brief Matrix mixing coefficients for \ref MultiStep.
-      real(kind=8), intent(out), dimension(4, 3) :: mix
-!> @brief RHS coefficient table for \ref MultiStep.
-      real(kind=8), intent(out), dimension(7, 3) :: alpha_step
-
-      mix = 0.d0
-      mix(1, :) = 1.d0
-      alpha_step = 1.d0
-
-end subroutine ConfigureDouglasGunn
-
-!---------------------------------------------------------------------------
-!
 ! DESCRIPTION:
 !> @brief Advances one 3D Forward Euler ADS time step through \ref Step.
 !>
@@ -735,13 +678,13 @@ end subroutine ForwardEuler3DStep
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
-!> @brief Advances one preconfigured 3D iGRM time-scheme step.
+!> @brief Runs one internal preconfigured 3D iGRM step.
 !>
 !> @details
-!> The caller owns the one-time setup of \p scheme. This wrapper only
+!> The public named wrappers own the scheme semantics. This helper only
 !> delegates the already prepared coefficient tables to \ref MultiStep,
-!> so time loops can reuse a persistent configuration without rebuilding
-!> it every iteration.
+!> so time loops can reuse a persistent configuration through those named
+!> wrappers without rebuilding it every iteration.
 !>
 !> iGRM space compatibility is expected to be checked once during
 !> problem setup by \ref ValidateIGRMTimeSchemeSpaces.
@@ -780,7 +723,7 @@ end subroutine ForwardEuler3DStep
 !> Returned status code.
 !
 !---------------------------------------------------------------------------
-subroutine TimeScheme3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, RHS_point)
+subroutine RunConfigured3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, RHS_point)
       use ADSS, ONLY: MultiStep
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use Interfaces, ONLY: forcing_fun, rhs_point_fun
@@ -810,7 +753,7 @@ subroutine TimeScheme3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data
                            mierr, lhs_mix=scheme%lhs_mix, rhs_du_state=scheme%rhs_du_state)
       end if
 
-end subroutine TimeScheme3DStep
+end subroutine RunConfigured3DStep
 
 !---------------------------------------------------------------------------
 !
@@ -820,7 +763,7 @@ end subroutine TimeScheme3DStep
 !> @details
 !> Build \p scheme once with \ref ConfigureDouglasGunn3DTimeScheme before
 !> the time loop. This named wrapper then delegates the persistent
-!> configuration to \ref TimeScheme3DStep.
+!> configuration to the internal MultiStep runner.
 !
 ! Input:
 ! ------
@@ -878,10 +821,10 @@ subroutine DouglasGunn3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_dat
       integer(kind=4), intent(out) :: mierr
 
       if (present(RHS_point)) then
-            call TimeScheme3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, &
-                                  RHS_point)
+            call RunConfigured3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, &
+                                     RHS_point)
       else
-            call TimeScheme3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr)
+            call RunConfigured3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr)
       end if
 
 end subroutine DouglasGunn3DStep
@@ -894,7 +837,7 @@ end subroutine DouglasGunn3DStep
 !> @details
 !> Build \p scheme once with \ref ConfigurePeacemanRachford3DTimeScheme
 !> before the time loop. This named wrapper then delegates the persistent
-!> configuration to \ref TimeScheme3DStep.
+!> configuration to the internal MultiStep runner.
 !
 ! Input:
 ! ------
@@ -952,10 +895,10 @@ subroutine PeacemanRachford3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ad
       integer(kind=4), intent(out) :: mierr
 
       if (present(RHS_point)) then
-            call TimeScheme3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, &
-                                  RHS_point)
+            call RunConfigured3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, &
+                                     RHS_point)
       else
-            call TimeScheme3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr)
+            call RunConfigured3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr)
       end if
 
 end subroutine PeacemanRachford3DStep
@@ -968,7 +911,7 @@ end subroutine PeacemanRachford3DStep
 !> @details
 !> Build \p scheme once with \ref ConfigureBackwardEuler3DTimeScheme
 !> before the time loop. This named wrapper then delegates the persistent
-!> configuration to \ref TimeScheme3DStep.
+!> configuration to the internal MultiStep runner.
 !
 ! Input:
 ! ------
@@ -1026,10 +969,10 @@ subroutine BackwardEuler3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_d
       integer(kind=4), intent(out) :: mierr
 
       if (present(RHS_point)) then
-            call TimeScheme3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, &
-                                  RHS_point)
+            call RunConfigured3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, &
+                                     RHS_point)
       else
-            call TimeScheme3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr)
+            call RunConfigured3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr)
       end if
 
 end subroutine BackwardEuler3DStep

@@ -110,9 +110,9 @@ object. Use the persistent configurators in `src/time_scheme.F90`:
 
 The `*TimeScheme` configurators fill `TimeScheme3D` with the RHS coefficient
 table, the RHS derivative-state selector, and the directional LHS mixing table.
-Time loops should call `TimeScheme3DStep` or the named DG/PR/BE wrappers with
-that existing object, not rebuild scheme coefficients every step. The lower
-level `ConfigureDouglasGunn3D`, `ConfigurePeacemanRachford3D`, and
+Time loops should call the named DG/PR/BE wrappers with that existing object,
+not rebuild scheme coefficients every step. The lower level
+`ConfigureDouglasGunn3D`, `ConfigurePeacemanRachford3D`, and
 `ConfigureBackwardEuler3D` routines remain available for callers that need raw
 coefficient tables.
 
