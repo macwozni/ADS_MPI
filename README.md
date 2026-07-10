@@ -300,16 +300,28 @@ Arguments expected by the parser:
 
 ```text
 <isizex> <isizey> <isizez> <order> <procx> <procy> <procz>
+<isizex> <isizey> <isizez> <order> <procx> <procy> <procz> <scheme>
+<isizex> <isizey> <isizez> <order> <procx> <procy> <procz> <tau> <scheme>
 ```
 
 The current driver is a fixed small iGRM demonstration: it parses these
 arguments but uses a hard-coded `2 x 2 x 2` mesh with `p_test = 3` and
 `p_trial = 1`.
 
+The optional `scheme` argument selects the iGRM time scheme. Forward Euler is
+not accepted here because this driver exercises the `MultiStep` iGRM schemes:
+
+```text
+dg    Douglas-Gunn, default
+pr    Peaceman-Rachford
+be    Backward Euler
+```
+
 Example:
 
 ```bash
-/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/igrm_l2 2 2 2 1 1 1 1
+/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/igrm_l2 2 2 2 1 1 1 1 pr
+/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/igrm_l2 2 2 2 1 1 1 1 1.0 be
 ```
 
 ## iGRM Mesh Assumptions

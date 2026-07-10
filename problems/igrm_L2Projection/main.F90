@@ -8,7 +8,7 @@
 !>
 !> @details
 !> The program initializes separate test and trial ADS spaces, configures
-!> a single-step iGRM workflow through the time-scheme wrapper layer, and
+!> a selected iGRM time scheme through the time-scheme wrapper layer, and
 !> prints the resulting trial-space solution.
 !
 !------------------------------------------------------------------------------
@@ -18,7 +18,9 @@ program main
    use parallelism, ONLY: MYRANK
    use parallelism, ONLY: PRINTRANK, InitializeParallelism, Cleanup_Parallelism
    use communicators, ONLY: CreateCommunicators, Cleanup_Communicators
-   use time_scheme, ONLY: ConfigureMassOnly3DTimeScheme, TimeScheme3D, TimeScheme3DStep, &
+   use time_scheme, ONLY: BackwardEuler3DStep, ConfigureBackwardEuler3DTimeScheme, &
+                          ConfigureDouglasGunn3DTimeScheme, ConfigurePeacemanRachford3DTimeScheme, &
+                          DouglasGunn3DStep, PeacemanRachford3DStep, TimeScheme3D, &
                           ValidateIGRMTimeSchemeSpaces
    use RHS_fun
    use ADSS
@@ -34,7 +36,9 @@ program main
 
    integer(kind = 4) :: ierr
    integer(kind = 4), dimension(3) :: nelem, p1, p2
-   
+   integer(kind = 4), parameter :: SCHEME_DG = 1, SCHEME_PR = 2, SCHEME_BE = 3
+   integer(kind = 4) :: selected_scheme
+
    logical :: prnt = .FALSE.
    logical :: ok = .TRUE.
 
@@ -72,17 +76,40 @@ program main
    p2 = (/1,1,1/)
    call Initialize(nelem, p1, p2, p2-1, ads_test, ads_trial, ads_data, ierr)
    call ValidateIGRMTimeSchemeSpaces(ads_test, ads_trial)
-   tau = 1.d0
+   tau = scheme_tau
    ads_test%tau = tau
    ads_trial%tau = tau
-   call ConfigureMassOnly3DTimeScheme(scheme)
+   select case (trim(time_scheme))
+   case ("dg", "douglas-gunn", "douglas_gunn")
+      selected_scheme = SCHEME_DG
+      call ConfigureDouglasGunn3DTimeScheme(tau, scheme, include_transport=.false.)
+   case ("pr", "peaceman-rachford", "peaceman_rachford")
+      selected_scheme = SCHEME_PR
+      call ConfigurePeacemanRachford3DTimeScheme(tau, scheme, include_transport=.false.)
+   case ("be", "backward-euler", "backward_euler", "backwardeuler")
+      selected_scheme = SCHEME_BE
+      call ConfigureBackwardEuler3DTimeScheme(tau, scheme, include_transport=.false.)
+   case ("fe", "forward-euler", "forward_euler", "forwardeuler")
+      if (MYRANK == 0) write(*, *) "forward euler is not an iGRM L2 time-scheme option"
+      stop 5
+   case default
+      if (MYRANK == 0) write(*, *) "unknown time scheme: ", trim(time_scheme)
+      stop 5
+   end select
 
    fullnorm = 0.d0
    iter = 0
    l2norm = 0.d0
 
    nn = 1
-   call TimeScheme3DStep(scheme, iter, forcing, ads_test, ads_trial, ads_data, nn, ierr)
+   select case (selected_scheme)
+   case (SCHEME_DG)
+      call DouglasGunn3DStep(scheme, iter, forcing, ads_test, ads_trial, ads_data, nn, ierr)
+   case (SCHEME_PR)
+      call PeacemanRachford3DStep(scheme, iter, forcing, ads_test, ads_trial, ads_data, nn, ierr)
+   case (SCHEME_BE)
+      call BackwardEuler3DStep(scheme, iter, forcing, ads_test, ads_trial, ads_data, nn, ierr)
+   end select
    call PrintSolution(iter, ads_trial, ads_data%FF)
 
    call Cleanup_ADS(ads_test, ierr)
