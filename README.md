@@ -99,26 +99,35 @@ PeacemanRachford3DStep      3D cyclic Peaceman-Rachford wrapper
 BackwardEuler3DStep         3D split Backward Euler wrapper
 ```
 
-`ForwardEuler3DStep` delegates to `Step`. The iGRM/ADI wrappers configure
-`MultiStep` through `src/time_scheme.F90`:
+`ForwardEuler3DStep` delegates to `Step`. The iGRM/ADI path is configured
+once before the time loop and then reused through a persistent `TimeScheme3D`
+object. Use the persistent configurators in `src/time_scheme.F90`:
 
-- `ConfigureDouglasGunn3D`
-- `ConfigurePeacemanRachford3D`
-- `ConfigureBackwardEuler3D`
+- `ConfigureDouglasGunn3DTimeScheme`
+- `ConfigurePeacemanRachford3DTimeScheme`
+- `ConfigureBackwardEuler3DTimeScheme`
+- `ConfigureMassOnly3DTimeScheme`
 
-These configurators build the RHS coefficient table, the RHS derivative-state
-selector, and the directional LHS mixing table. The active iGRM direction keeps
-the residual-minimization gram block mass-only, while the scheme operator is
-applied through the coupling blocks. This avoids singular mixed iGRM stiffness
-blocks.
+The `*TimeScheme` configurators fill `TimeScheme3D` with the RHS coefficient
+table, the RHS derivative-state selector, and the directional LHS mixing table.
+Time loops should call `TimeScheme3DStep` or the named DG/PR/BE wrappers with
+that existing object, not rebuild scheme coefficients every step. The lower
+level `ConfigureDouglasGunn3D`, `ConfigurePeacemanRachford3D`, and
+`ConfigureBackwardEuler3D` routines remain available for callers that need raw
+coefficient tables.
+
+The active iGRM direction keeps the residual-minimization gram block mass-only,
+while the scheme operator is applied through the coupling blocks. This avoids
+singular mixed iGRM stiffness blocks.
 
 iGRM space compatibility is checked once during problem setup with
 `ValidateIGRMTimeSchemeSpaces`; it is not repeated inside each time-step
 wrapper.
 
-The iGRM/ADI wrappers are diffusion-oriented by default. They accept an
+The iGRM/ADI configurators are diffusion-oriented by default. They accept an
 optional `include_transport` flag for first-derivative transport terms; the
-`pure_diffusion_igrm` driver calls them with `include_transport=.false.`.
+`pure_diffusion_igrm` driver configures its scheme with
+`include_transport=.false.`.
 
 ## Building
 

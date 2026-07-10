@@ -19,15 +19,38 @@ module time_scheme
 
    private
 
+   public :: TimeScheme3D
    public :: ValidateIGRMTimeSchemeSpaces
    public :: ForwardEuler3DStep
+   public :: TimeScheme3DStep
    public :: DouglasGunn3DStep
    public :: PeacemanRachford3DStep
    public :: BackwardEuler3DStep
+   public :: ConfigureMassOnly3DTimeScheme
+   public :: ConfigureDouglasGunn3DTimeScheme
+   public :: ConfigurePeacemanRachford3DTimeScheme
+   public :: ConfigureBackwardEuler3DTimeScheme
    public :: ConfigureDouglasGunn
    public :: ConfigureDouglasGunn3D
    public :: ConfigurePeacemanRachford3D
    public :: ConfigureBackwardEuler3D
+
+   !> @brief Persistent 3D time-scheme configuration consumed by MultiStep.
+   !>
+   !> @details
+   !> Configurators fill this object once during problem setup. Time loops
+   !> should then pass the same object to \ref TimeScheme3DStep instead of
+   !> rebuilding coefficient tables at every step.
+   type TimeScheme3D
+      !> Legacy substep matrix-mixing table.
+      real(kind=8) :: mix(4, 3) = 0.d0
+      !> RHS coefficient table for the three substeps.
+      real(kind=8) :: alpha_step(7, 3) = 0.d0
+      !> Directional LHS matrix-mixing table.
+      real(kind=8) :: lhs_mix(4, 3, 3) = 0.d0
+      !> RHS derivative-state selector table.
+      integer(kind=4) :: rhs_du_state(6, 3) = 0
+   end type TimeScheme3D
 
 contains
 
@@ -456,6 +479,147 @@ end subroutine ConfigureBackwardEuler3D
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
+!> @brief Builds a persistent mass-only 3D iGRM time-scheme configuration.
+!>
+!> @details
+!> This configuration mirrors the legacy iGRM L2-projection setup: each
+!> substep solves a mass-only system and the pointwise forcing callback is
+!> active through RHS row 7. It is intended for callers that already need
+!> the \ref MultiStep workflow but do not want directional derivative
+!> terms in the scheme.
+!
+! Output:
+! -------
+!> @param[out] scheme
+!> Persistent time-scheme configuration consumed by \ref TimeScheme3DStep.
+!
+!---------------------------------------------------------------------------
+subroutine ConfigureMassOnly3DTimeScheme(scheme)
+      implicit none
+!> @brief Persistent time-scheme configuration.
+      type(TimeScheme3D), intent(out) :: scheme
+
+      call ConfigureMassTables(scheme%mix, scheme%lhs_mix)
+      scheme%alpha_step = 0.d0
+      scheme%alpha_step(7, :) = 1.d0
+      scheme%rhs_du_state = 0
+
+end subroutine ConfigureMassOnly3DTimeScheme
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Builds a persistent 3D Douglas-Gunn configuration.
+!>
+!> @details
+!> Call this once after the final time-step length is known, then reuse
+!> the returned \p scheme for every call to \ref TimeScheme3DStep.
+!
+! Input:
+! ------
+!> @param[in] tau
+!> Time-step length represented by the persistent coefficient tables.
+!>
+!> @param[in] include_transport
+!> Optional logical flag selecting transport-term inclusion.
+!
+! Output:
+! -------
+!> @param[out] scheme
+!> Persistent time-scheme configuration consumed by \ref TimeScheme3DStep.
+!
+!---------------------------------------------------------------------------
+subroutine ConfigureDouglasGunn3DTimeScheme(tau, scheme, include_transport)
+      implicit none
+!> @brief Time-step length represented by the coefficient tables.
+      real(kind=8), intent(in) :: tau
+!> @brief Persistent time-scheme configuration.
+      type(TimeScheme3D), intent(out) :: scheme
+!> @brief Optional logical flag selecting transport-term inclusion.
+      logical, intent(in), optional :: include_transport
+
+      call ConfigureDouglasGunn3D(tau, scheme%mix, scheme%alpha_step, scheme%lhs_mix, &
+                                  scheme%rhs_du_state, include_transport)
+
+end subroutine ConfigureDouglasGunn3DTimeScheme
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Builds a persistent cyclic 3D Peaceman-Rachford configuration.
+!>
+!> @details
+!> Call this once after the final time-step length is known, then reuse
+!> the returned \p scheme for every call to \ref TimeScheme3DStep.
+!
+! Input:
+! ------
+!> @param[in] tau
+!> Time-step length represented by the persistent coefficient tables.
+!>
+!> @param[in] include_transport
+!> Optional logical flag selecting transport-term inclusion.
+!
+! Output:
+! -------
+!> @param[out] scheme
+!> Persistent time-scheme configuration consumed by \ref TimeScheme3DStep.
+!
+!---------------------------------------------------------------------------
+subroutine ConfigurePeacemanRachford3DTimeScheme(tau, scheme, include_transport)
+      implicit none
+!> @brief Time-step length represented by the coefficient tables.
+      real(kind=8), intent(in) :: tau
+!> @brief Persistent time-scheme configuration.
+      type(TimeScheme3D), intent(out) :: scheme
+!> @brief Optional logical flag selecting transport-term inclusion.
+      logical, intent(in), optional :: include_transport
+
+      call ConfigurePeacemanRachford3D(tau, scheme%mix, scheme%alpha_step, scheme%lhs_mix, &
+                                       scheme%rhs_du_state, include_transport)
+
+end subroutine ConfigurePeacemanRachford3DTimeScheme
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Builds a persistent split 3D Backward Euler configuration.
+!>
+!> @details
+!> Call this once after the final time-step length is known, then reuse
+!> the returned \p scheme for every call to \ref TimeScheme3DStep.
+!
+! Input:
+! ------
+!> @param[in] tau
+!> Time-step length represented by the persistent coefficient tables.
+!>
+!> @param[in] include_transport
+!> Optional logical flag selecting transport-term inclusion.
+!
+! Output:
+! -------
+!> @param[out] scheme
+!> Persistent time-scheme configuration consumed by \ref TimeScheme3DStep.
+!
+!---------------------------------------------------------------------------
+subroutine ConfigureBackwardEuler3DTimeScheme(tau, scheme, include_transport)
+      implicit none
+!> @brief Time-step length represented by the coefficient tables.
+      real(kind=8), intent(in) :: tau
+!> @brief Persistent time-scheme configuration.
+      type(TimeScheme3D), intent(out) :: scheme
+!> @brief Optional logical flag selecting transport-term inclusion.
+      logical, intent(in), optional :: include_transport
+
+      call ConfigureBackwardEuler3D(tau, scheme%mix, scheme%alpha_step, scheme%lhs_mix, &
+                                    scheme%rhs_du_state, include_transport)
+
+end subroutine ConfigureBackwardEuler3DTimeScheme
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
 !> @brief Builds legacy mass-only coefficient tables for iGRM multi-step.
 !>
 !> @details
@@ -571,18 +735,22 @@ end subroutine ForwardEuler3DStep
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
-!> @brief Advances one 3D Douglas-Gunn iGRM time step through \ref MultiStep.
+!> @brief Advances one preconfigured 3D iGRM time-scheme step.
 !>
 !> @details
-!> This is the scheme-level wrapper for Douglas-Gunn. It prepares the 3D
-!> Douglas-Gunn coefficient tables with \ref ConfigureDouglasGunn3D and
-!> delegates the actual three directional iGRM solves to \ref MultiStep.
+!> The caller owns the one-time setup of \p scheme. This wrapper only
+!> delegates the already prepared coefficient tables to \ref MultiStep,
+!> so time loops can reuse a persistent configuration without rebuilding
+!> it every iteration.
 !>
 !> iGRM space compatibility is expected to be checked once during
 !> problem setup by \ref ValidateIGRMTimeSchemeSpaces.
 !
 ! Input:
 ! ------
+!> @param[in] scheme
+!> Persistent time-scheme configuration.
+!>
 !> @param[in] iter
 !> Outer iteration index.
 !>
@@ -600,9 +768,6 @@ end subroutine ForwardEuler3DStep
 !>
 !> @param[in] RHS_point
 !> Optional callback overriding the default pointwise RHS integrand.
-!>
-!> @param[in] include_transport
-!> Optional logical flag selecting transport-term inclusion.
 !
 ! Input/Output:
 ! -------------
@@ -615,12 +780,13 @@ end subroutine ForwardEuler3DStep
 !> Returned status code.
 !
 !---------------------------------------------------------------------------
-subroutine DouglasGunn3DStep(iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, RHS_point, &
-                           include_transport)
+subroutine TimeScheme3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, RHS_point)
       use ADSS, ONLY: MultiStep
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use Interfaces, ONLY: forcing_fun, rhs_point_fun
       implicit none
+!> @brief Persistent time-scheme configuration.
+      type(TimeScheme3D), intent(in) :: scheme
 !> @brief Outer iteration index.
       integer(kind=4), intent(in) :: iter
 !> @brief Time-integration or history index.
@@ -629,30 +795,93 @@ subroutine DouglasGunn3DStep(iter, RHS_fun, ads_test, ads_trial, ads_data, n, mi
       procedure(forcing_fun) :: RHS_fun
 !> @brief Optional callback overriding the default pointwise RHS integrand.
       procedure(rhs_point_fun), optional :: RHS_point
-!> @brief Optional switch for first-derivative transport terms.
-      logical, intent(in), optional :: include_transport
 !> @brief Test and trial setup structures.
       type(ADS_setup), intent(in) :: ads_test, ads_trial
 !> @brief Runtime data updated in place.
       type(ADS_compute_data), intent(inout) :: ads_data
 !> @brief Returned status code.
       integer(kind=4), intent(out) :: mierr
-!> @brief Legacy substep matrix-mixing table.
-      real(kind=8) :: mix(4, 3)
-!> @brief RHS coefficient table for the three substeps.
-      real(kind=8), dimension(7, 3) :: alpha_step
-!> @brief Directional LHS matrix-mixing table.
-      real(kind=8), dimension(4, 3, 3) :: lhs_mix
-!> @brief RHS derivative-state selector table.
-      integer(kind=4), dimension(6, 3) :: rhs_du_state
 
-      call ConfigureDouglasGunn3D(ads_trial%tau, mix, alpha_step, lhs_mix, rhs_du_state, include_transport)
       if (present(RHS_point)) then
-            call MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha_step, mierr, &
-                           RHS_point, lhs_mix, rhs_du_state)
+            call MultiStep(iter, scheme%mix, RHS_fun, ads_test, ads_trial, ads_data, n, scheme%alpha_step, &
+                           mierr, RHS_point, scheme%lhs_mix, scheme%rhs_du_state)
       else
-            call MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha_step, mierr, &
-                           lhs_mix=lhs_mix, rhs_du_state=rhs_du_state)
+            call MultiStep(iter, scheme%mix, RHS_fun, ads_test, ads_trial, ads_data, n, scheme%alpha_step, &
+                           mierr, lhs_mix=scheme%lhs_mix, rhs_du_state=scheme%rhs_du_state)
+      end if
+
+end subroutine TimeScheme3DStep
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Advances one preconfigured 3D Douglas-Gunn iGRM time step.
+!>
+!> @details
+!> Build \p scheme once with \ref ConfigureDouglasGunn3DTimeScheme before
+!> the time loop. This named wrapper then delegates the persistent
+!> configuration to \ref TimeScheme3DStep.
+!
+! Input:
+! ------
+!> @param[in] scheme
+!> Persistent Douglas-Gunn time-scheme configuration.
+!>
+!> @param[in] iter
+!> Outer iteration index.
+!>
+!> @param[in] RHS_fun
+!> Callback used for pointwise RHS evaluation.
+!>
+!> @param[in] ads_test
+!> Enriched iGRM test-space setup.
+!>
+!> @param[in] ads_trial
+!> Trial-space setup.
+!>
+!> @param[in] n
+!> Time-integration or history index passed to lower-level routines.
+!>
+!> @param[in] RHS_point
+!> Optional callback overriding the default pointwise RHS integrand.
+!
+! Input/Output:
+! -------------
+!> @param[inout] ads_data
+!> Runtime data structure updated throughout all substeps.
+!
+! Output:
+! -------
+!> @param[out] mierr
+!> Returned status code.
+!
+!---------------------------------------------------------------------------
+subroutine DouglasGunn3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, RHS_point)
+      use Setup, ONLY: ADS_Setup, ADS_compute_data
+      use Interfaces, ONLY: forcing_fun, rhs_point_fun
+      implicit none
+!> @brief Persistent Douglas-Gunn time-scheme configuration.
+      type(TimeScheme3D), intent(in) :: scheme
+!> @brief Outer iteration index.
+      integer(kind=4), intent(in) :: iter
+!> @brief Time-integration or history index.
+      integer(kind=4), intent(in) :: n
+!> @brief Callback used for pointwise RHS evaluation.
+      procedure(forcing_fun) :: RHS_fun
+!> @brief Optional callback overriding the default pointwise RHS integrand.
+      procedure(rhs_point_fun), optional :: RHS_point
+!> @brief Test and trial setup structures.
+      type(ADS_setup), intent(in) :: ads_test, ads_trial
+!> @brief Runtime data updated in place.
+      type(ADS_compute_data), intent(inout) :: ads_data
+!> @brief Returned status code.
+      integer(kind=4), intent(out) :: mierr
+
+      if (present(RHS_point)) then
+            call TimeScheme3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, &
+                                  RHS_point)
+      else
+            call TimeScheme3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr)
       end if
 
 end subroutine DouglasGunn3DStep
@@ -660,16 +889,18 @@ end subroutine DouglasGunn3DStep
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
-!> @brief Advances one cyclic Peaceman-Rachford iGRM time step in 3D.
+!> @brief Advances one preconfigured cyclic Peaceman-Rachford step in 3D.
 !>
 !> @details
-!> The wrapper prepares the 3D PR coefficient tables and delegates the
-!> three directional substeps to \ref MultiStep. iGRM space compatibility
-!> is expected to be checked once during problem setup by
-!> \ref ValidateIGRMTimeSchemeSpaces.
+!> Build \p scheme once with \ref ConfigurePeacemanRachford3DTimeScheme
+!> before the time loop. This named wrapper then delegates the persistent
+!> configuration to \ref TimeScheme3DStep.
 !
 ! Input:
 ! ------
+!> @param[in] scheme
+!> Persistent Peaceman-Rachford time-scheme configuration.
+!>
 !> @param[in] iter
 !> Outer iteration index.
 !>
@@ -687,9 +918,6 @@ end subroutine DouglasGunn3DStep
 !>
 !> @param[in] RHS_point
 !> Optional callback overriding the default pointwise RHS integrand.
-!>
-!> @param[in] include_transport
-!> Optional logical flag selecting transport-term inclusion.
 !
 ! Input/Output:
 ! -------------
@@ -702,12 +930,12 @@ end subroutine DouglasGunn3DStep
 !> Returned status code.
 !
 !---------------------------------------------------------------------------
-subroutine PeacemanRachford3DStep(iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, RHS_point, &
-                                include_transport)
-      use ADSS, ONLY: MultiStep
+subroutine PeacemanRachford3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, RHS_point)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use Interfaces, ONLY: forcing_fun, rhs_point_fun
       implicit none
+!> @brief Persistent Peaceman-Rachford time-scheme configuration.
+      type(TimeScheme3D), intent(in) :: scheme
 !> @brief Outer iteration index.
       integer(kind=4), intent(in) :: iter
 !> @brief Time-integration or history index.
@@ -716,30 +944,18 @@ subroutine PeacemanRachford3DStep(iter, RHS_fun, ads_test, ads_trial, ads_data, 
       procedure(forcing_fun) :: RHS_fun
 !> @brief Optional callback overriding the default pointwise RHS integrand.
       procedure(rhs_point_fun), optional :: RHS_point
-!> @brief Optional logical flag selecting transport-term inclusion.
-      logical, intent(in), optional :: include_transport
 !> @brief Test and trial setup structures.
       type(ADS_setup), intent(in) :: ads_test, ads_trial
 !> @brief Runtime data updated in place.
       type(ADS_compute_data), intent(inout) :: ads_data
 !> @brief Returned status code.
       integer(kind=4), intent(out) :: mierr
-!> @brief Legacy substep matrix-mixing table.
-      real(kind=8) :: mix(4, 3)
-!> @brief RHS coefficient table for the three substeps.
-      real(kind=8), dimension(7, 3) :: alpha_step
-!> @brief Directional LHS matrix-mixing table.
-      real(kind=8), dimension(4, 3, 3) :: lhs_mix
-!> @brief RHS derivative-state selector table.
-      integer(kind=4), dimension(6, 3) :: rhs_du_state
 
-      call ConfigurePeacemanRachford3D(ads_trial%tau, mix, alpha_step, lhs_mix, rhs_du_state, include_transport)
       if (present(RHS_point)) then
-            call MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha_step, mierr, &
-                           RHS_point, lhs_mix, rhs_du_state)
+            call TimeScheme3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, &
+                                  RHS_point)
       else
-            call MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha_step, mierr, &
-                           lhs_mix=lhs_mix, rhs_du_state=rhs_du_state)
+            call TimeScheme3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr)
       end if
 
 end subroutine PeacemanRachford3DStep
@@ -747,16 +963,18 @@ end subroutine PeacemanRachford3DStep
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
-!> @brief Advances one split Backward Euler iGRM time step in 3D.
+!> @brief Advances one preconfigured split Backward Euler step in 3D.
 !>
 !> @details
-!> The wrapper prepares directional Backward Euler coefficient tables and
-!> delegates the three directional substeps to \ref MultiStep. iGRM space
-!> compatibility is expected to be checked once during problem setup by
-!> \ref ValidateIGRMTimeSchemeSpaces.
+!> Build \p scheme once with \ref ConfigureBackwardEuler3DTimeScheme
+!> before the time loop. This named wrapper then delegates the persistent
+!> configuration to \ref TimeScheme3DStep.
 !
 ! Input:
 ! ------
+!> @param[in] scheme
+!> Persistent Backward Euler time-scheme configuration.
+!>
 !> @param[in] iter
 !> Outer iteration index.
 !>
@@ -774,9 +992,6 @@ end subroutine PeacemanRachford3DStep
 !>
 !> @param[in] RHS_point
 !> Optional callback overriding the default pointwise RHS integrand.
-!>
-!> @param[in] include_transport
-!> Optional logical flag selecting transport-term inclusion.
 !
 ! Input/Output:
 ! -------------
@@ -789,12 +1004,12 @@ end subroutine PeacemanRachford3DStep
 !> Returned status code.
 !
 !---------------------------------------------------------------------------
-subroutine BackwardEuler3DStep(iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, RHS_point, &
-                             include_transport)
-      use ADSS, ONLY: MultiStep
+subroutine BackwardEuler3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, RHS_point)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use Interfaces, ONLY: forcing_fun, rhs_point_fun
       implicit none
+!> @brief Persistent Backward Euler time-scheme configuration.
+      type(TimeScheme3D), intent(in) :: scheme
 !> @brief Outer iteration index.
       integer(kind=4), intent(in) :: iter
 !> @brief Time-integration or history index.
@@ -803,30 +1018,18 @@ subroutine BackwardEuler3DStep(iter, RHS_fun, ads_test, ads_trial, ads_data, n, 
       procedure(forcing_fun) :: RHS_fun
 !> @brief Optional callback overriding the default pointwise RHS integrand.
       procedure(rhs_point_fun), optional :: RHS_point
-!> @brief Optional logical flag selecting transport-term inclusion.
-      logical, intent(in), optional :: include_transport
 !> @brief Test and trial setup structures.
       type(ADS_setup), intent(in) :: ads_test, ads_trial
 !> @brief Runtime data updated in place.
       type(ADS_compute_data), intent(inout) :: ads_data
 !> @brief Returned status code.
       integer(kind=4), intent(out) :: mierr
-!> @brief Legacy substep matrix-mixing table.
-      real(kind=8) :: mix(4, 3)
-!> @brief RHS coefficient table for the three substeps.
-      real(kind=8), dimension(7, 3) :: alpha_step
-!> @brief Directional LHS matrix-mixing table.
-      real(kind=8), dimension(4, 3, 3) :: lhs_mix
-!> @brief RHS derivative-state selector table.
-      integer(kind=4), dimension(6, 3) :: rhs_du_state
 
-      call ConfigureBackwardEuler3D(ads_trial%tau, mix, alpha_step, lhs_mix, rhs_du_state, include_transport)
       if (present(RHS_point)) then
-            call MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha_step, mierr, &
-                           RHS_point, lhs_mix, rhs_du_state)
+            call TimeScheme3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, &
+                                  RHS_point)
       else
-            call MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha_step, mierr, &
-                           lhs_mix=lhs_mix, rhs_du_state=rhs_du_state)
+            call TimeScheme3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr)
       end if
 
 end subroutine BackwardEuler3DStep

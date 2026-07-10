@@ -8,8 +8,8 @@
 !>
 !> @details
 !> The program initializes separate test and trial ADS spaces, configures
-!> a single-step iGRM workflow through \ref MultiStep, and prints the
-!> resulting trial-space solution.
+!> a single-step iGRM workflow through the time-scheme wrapper layer, and
+!> prints the resulting trial-space solution.
 !
 !------------------------------------------------------------------------------
 program main
@@ -18,7 +18,8 @@ program main
    use parallelism, ONLY: MYRANK
    use parallelism, ONLY: PRINTRANK, InitializeParallelism, Cleanup_Parallelism
    use communicators, ONLY: CreateCommunicators, Cleanup_Communicators
-   use time_scheme, ONLY: ValidateIGRMTimeSchemeSpaces
+   use time_scheme, ONLY: ConfigureMassOnly3DTimeScheme, TimeScheme3D, TimeScheme3DStep, &
+                          ValidateIGRMTimeSchemeSpaces
    use RHS_fun
    use ADSS
    use input_data
@@ -39,13 +40,12 @@ program main
 
    type (ADS_setup) :: ads_test, ads_trial
    type (ADS_compute_data) :: ads_data
-   
+   type (TimeScheme3D) :: scheme
+
    real (kind = 8) :: epsilon = 1.E-10
 
    real (kind = 8) :: l2norm, fullnorm
 
-   real(kind=8) :: mix(4,3)
-   real (kind=8), dimension(7,3) :: alpha_step
    real (kind=8) :: tau
    integer (kind = 4) :: nn
 
@@ -75,18 +75,14 @@ program main
    tau = 1.d0
    ads_test%tau = tau
    ads_trial%tau = tau
+   call ConfigureMassOnly3DTimeScheme(scheme)
 
    fullnorm = 0.d0
    iter = 0
    l2norm = 0.d0
-   
-   mix(:, 1) = (/1.d0, 0.d0, 0.d0, 0.d0/)
-   mix(:, 2) = (/1.d0, 0.d0, 0.d0, 0.d0/)
-   mix(:, 3) = (/1.d0, 0.d0, 0.d0, 0.d0/)
-   alpha_step = 0.d0
-   alpha_step(7, :) = 1.d0
+
    nn = 1
-   call MultiStep(iter, mix, forcing, ads_test, ads_trial, ads_data,nn,alpha_step, ierr)
+   call TimeScheme3DStep(scheme, iter, forcing, ads_test, ads_trial, ads_data, nn, ierr)
    call PrintSolution(iter, ads_trial, ads_data%FF)
 
    call Cleanup_ADS(ads_test, ierr)

@@ -18,7 +18,9 @@ program main
    use parallelism, ONLY: MYRANK
    use parallelism, ONLY: PRINTRANK, InitializeParallelism, Cleanup_Parallelism
    use communicators, ONLY: CreateCommunicators, Cleanup_Communicators
-   use time_scheme, ONLY: BackwardEuler3DStep, DouglasGunn3DStep, PeacemanRachford3DStep, &
+   use time_scheme, ONLY: BackwardEuler3DStep, ConfigureBackwardEuler3DTimeScheme, &
+                          ConfigureDouglasGunn3DTimeScheme, ConfigurePeacemanRachford3DTimeScheme, &
+                          DouglasGunn3DStep, PeacemanRachford3DStep, TimeScheme3D, &
                           ValidateIGRMTimeSchemeSpaces
    use ADSS
    use RHS_fun
@@ -34,9 +36,12 @@ program main
    integer(kind = 4) :: ierr
    integer(kind = 4), dimension(3) :: nelem, p_test, p_trial
    integer(kind = 4) :: nn
+   integer(kind = 4), parameter :: SCHEME_DG = 1, SCHEME_PR = 2, SCHEME_BE = 3
+   integer(kind = 4) :: selected_scheme
 
    type (ADS_setup) :: ads_test, ads_trial
    type (ADS_compute_data) :: ads_data
+   type (TimeScheme3D) :: scheme
 
 
    integer :: values(1:8), k
@@ -72,30 +77,33 @@ program main
    p_test = p_trial + 1
    call Initialize(nelem, p_test, p_trial, p_trial - 1, ads_test, ads_trial, ads_data, ierr)
    call ValidateIGRMTimeSchemeSpaces(ads_test, ads_trial)
+   ads_trial%tau = Dt
+   ads_test%tau = Dt
+   select case (trim(time_scheme))
+   case ("dg", "douglas-gunn", "douglas_gunn")
+      selected_scheme = SCHEME_DG
+      call ConfigureDouglasGunn3DTimeScheme(Dt, scheme, include_transport=.false.)
+   case ("pr", "peaceman-rachford", "peaceman_rachford")
+      selected_scheme = SCHEME_PR
+      call ConfigurePeacemanRachford3DTimeScheme(Dt, scheme, include_transport=.false.)
+   case ("be", "backward-euler", "backward_euler", "backwardeuler")
+      selected_scheme = SCHEME_BE
+      call ConfigureBackwardEuler3DTimeScheme(Dt, scheme, include_transport=.false.)
+   case default
+      if (MYRANK == 0) write(*, *) "unknown time scheme: ", trim(time_scheme)
+      stop 5
+   end select
    nn = 1
    ! Iterations
    do iter = 0, steps
 
-      if (t > 0.d0) then
-         ads_trial%tau = Dt
-         ads_test%tau = Dt
-      else
-         ads_trial%tau = 1.d0
-         ads_test%tau = 1.d0
-      endif
-      select case (trim(time_scheme))
-      case ("dg", "douglas-gunn", "douglas_gunn")
-         call DouglasGunn3DStep(iter, forcing, ads_test, ads_trial, ads_data, nn, ierr, &
-                                include_transport=.false.)
-      case ("pr", "peaceman-rachford", "peaceman_rachford")
-         call PeacemanRachford3DStep(iter, forcing, ads_test, ads_trial, ads_data, nn, ierr, &
-                                     include_transport=.false.)
-      case ("be", "backward-euler", "backward_euler", "backwardeuler")
-         call BackwardEuler3DStep(iter, forcing, ads_test, ads_trial, ads_data, nn, ierr, &
-                                  include_transport=.false.)
-      case default
-         if (MYRANK == 0) write(*, *) "unknown time scheme: ", trim(time_scheme)
-         stop 5
+      select case (selected_scheme)
+      case (SCHEME_DG)
+         call DouglasGunn3DStep(scheme, iter, forcing, ads_test, ads_trial, ads_data, nn, ierr)
+      case (SCHEME_PR)
+         call PeacemanRachford3DStep(scheme, iter, forcing, ads_test, ads_trial, ads_data, nn, ierr)
+      case (SCHEME_BE)
+         call BackwardEuler3DStep(scheme, iter, forcing, ads_test, ads_trial, ads_data, nn, ierr)
       end select
       if (MYRANK == 0) then
          write(*, *) iter
