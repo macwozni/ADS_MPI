@@ -15,6 +15,8 @@
 !------------------------------------------------------------------------------
 module input_data
 
+   use argument_parser, ONLY: ReadIntegerArgument, ReadRealArgument
+
    implicit none
 
 !> @brief Current physical time.
@@ -51,7 +53,6 @@ contains
 !---------------------------------------------------------------------------
    subroutine InitializeParameters
       implicit none
-      character(100) :: input
 
       ! ./l2 <size> <order> <procx> <procy> <procz>
 
@@ -68,52 +69,6 @@ contains
       call ReadIntegerArgument(5, procx)
       call ReadIntegerArgument(6, procy)
       call ReadIntegerArgument(7, procz)
-
-   contains
-
-      subroutine ReadArgument(arg, input)
-         implicit none
-         integer(kind = 4), intent(in) :: arg
-         character(*), intent(out) :: input
-         integer(kind = 4) :: length
-         integer(kind = 4) :: status
-
-         call GET_COMMAND_ARGUMENT(arg, input, length, status)
-         if (status /= 0) then
-            write(*,*) "invalid command argument: ", arg
-            STOP 5
-         end if
-      end subroutine ReadArgument
-
-      subroutine ReadIntegerArgument(arg, value)
-         implicit none
-         integer(kind = 4), intent(in) :: arg
-         integer(kind = 4), intent(out) :: value
-         character(100) :: input
-         integer(kind = 4) :: read_status
-
-         call ReadArgument(arg, input)
-         read(input, *, iostat = read_status) value
-         if (read_status /= 0) then
-            write(*,*) "invalid integer argument: ", arg
-            STOP 5
-         end if
-      end subroutine ReadIntegerArgument
-
-      subroutine ReadRealArgument(arg, value)
-         implicit none
-         integer(kind = 4), intent(in) :: arg
-         real(kind = 8), intent(out) :: value
-         character(100) :: input
-         integer(kind = 4) :: read_status
-
-         call ReadArgument(arg, input)
-         read(input, *, iostat = read_status) value
-         if (read_status /= 0) then
-            write(*,*) "invalid real argument: ", arg
-            STOP 5
-         end if
-      end subroutine ReadRealArgument
 
    end subroutine InitializeParameters
 

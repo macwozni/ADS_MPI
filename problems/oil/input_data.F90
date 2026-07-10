@@ -15,6 +15,8 @@
 !------------------------------------------------------------------------------
 module input_data
 
+   use argument_parser, ONLY: ReadIntegerArgument, ReadRealArgument
+
    implicit none
 
 !> @brief Number of generated curves and number of segments per curve.
@@ -78,7 +80,6 @@ contains
 !---------------------------------------------------------------------------
    subroutine InitializeParameters
       implicit none
-      character(100) :: input
 
       ! ./l2 <size> <procx> <procy> <procz> <nsteps> <dt>
       ORDER = 2
@@ -95,52 +96,6 @@ contains
       call ReadIntegerArgument(5, procz)
       call ReadIntegerArgument(6, steps)
       call ReadRealArgument(7, Dt)
-
-   contains
-
-      subroutine ReadArgument(arg, input)
-         implicit none
-         integer(kind = 4), intent(in) :: arg
-         character(*), intent(out) :: input
-         integer(kind = 4) :: length
-         integer(kind = 4) :: status
-
-         call GET_COMMAND_ARGUMENT(arg, input, length, status)
-         if (status /= 0) then
-            write(*,*) "invalid command argument: ", arg
-            STOP 5
-         end if
-      end subroutine ReadArgument
-
-      subroutine ReadIntegerArgument(arg, value)
-         implicit none
-         integer(kind = 4), intent(in) :: arg
-         integer(kind = 4), intent(out) :: value
-         character(100) :: input
-         integer(kind = 4) :: read_status
-
-         call ReadArgument(arg, input)
-         read(input, *, iostat = read_status) value
-         if (read_status /= 0) then
-            write(*,*) "invalid integer argument: ", arg
-            STOP 5
-         end if
-      end subroutine ReadIntegerArgument
-
-      subroutine ReadRealArgument(arg, value)
-         implicit none
-         integer(kind = 4), intent(in) :: arg
-         real(kind = 8), intent(out) :: value
-         character(100) :: input
-         integer(kind = 4) :: read_status
-
-         call ReadArgument(arg, input)
-         read(input, *, iostat = read_status) value
-         if (read_status /= 0) then
-            write(*,*) "invalid real argument: ", arg
-            STOP 5
-         end if
-      end subroutine ReadRealArgument
 
    end subroutine InitializeParameters
 
@@ -185,7 +140,6 @@ contains
 !---------------------------------------------------------------------------
    subroutine InitPumps()
       implicit none
-      character(100) :: input
       integer(kind = 4) :: i, arg = 8 ! First argument after "technical" ones
       integer(kind = 4) :: expected
       integer(kind = 4) :: arg_count
@@ -236,52 +190,6 @@ contains
          call ReadRealArgument(arg + 2, drains(3, i))
          arg = arg + 3
       enddo
-
-   contains
-
-      subroutine ReadArgument(arg, input)
-         implicit none
-         integer(kind = 4), intent(in) :: arg
-         character(*), intent(out) :: input
-         integer(kind = 4) :: length
-         integer(kind = 4) :: status
-
-         call GET_COMMAND_ARGUMENT(arg, input, length, status)
-         if (status /= 0) then
-            write(*,*) "invalid command argument: ", arg
-            STOP 5
-         end if
-      end subroutine ReadArgument
-
-      subroutine ReadIntegerArgument(arg, value)
-         implicit none
-         integer(kind = 4), intent(in) :: arg
-         integer(kind = 4), intent(out) :: value
-         character(100) :: input
-         integer(kind = 4) :: read_status
-
-         call ReadArgument(arg, input)
-         read(input, *, iostat = read_status) value
-         if (read_status /= 0) then
-            write(*,*) "invalid integer argument: ", arg
-            STOP 5
-         end if
-      end subroutine ReadIntegerArgument
-
-      subroutine ReadRealArgument(arg, value)
-         implicit none
-         integer(kind = 4), intent(in) :: arg
-         real(kind = 8), intent(out) :: value
-         character(100) :: input
-         integer(kind = 4) :: read_status
-
-         call ReadArgument(arg, input)
-         read(input, *, iostat = read_status) value
-         if (read_status /= 0) then
-            write(*,*) "invalid real argument: ", arg
-            STOP 5
-         end if
-      end subroutine ReadRealArgument
 
    end subroutine InitPumps
 

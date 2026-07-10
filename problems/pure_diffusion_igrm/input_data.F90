@@ -17,6 +17,8 @@
 !------------------------------------------------------------------------------
 module input_data
 
+   use argument_parser, ONLY: ReadIntegerArgument, ReadRealArgument, ReadStringArgument
+
    implicit none
 
 !> @brief Number of generated curves and number of segments per curve
@@ -86,7 +88,6 @@ contains
 !---------------------------------------------------------------------------
    subroutine InitializeParameters
       implicit none
-      character(100) :: input
 
       ! ./l2 <size> <procx> <procy> <procz> <nsteps> <dt>
       ORDER = 2
@@ -106,74 +107,6 @@ contains
       call ReadRealArgument(7, Dt)
       time_scheme = "dg"
       if (COMMAND_ARGUMENT_COUNT() .EQ. 8) call ReadStringArgument(8, time_scheme)
-
-   contains
-
-      subroutine ReadArgument(arg, input)
-         implicit none
-         integer(kind = 4), intent(in) :: arg
-         character(*), intent(out) :: input
-         integer(kind = 4) :: length
-         integer(kind = 4) :: status
-
-         call GET_COMMAND_ARGUMENT(arg, input, length, status)
-         if (status /= 0) then
-            write(*,*) "invalid command argument: ", arg
-            STOP 5
-         end if
-      end subroutine ReadArgument
-
-      subroutine ReadIntegerArgument(arg, value)
-         implicit none
-         integer(kind = 4), intent(in) :: arg
-         integer(kind = 4), intent(out) :: value
-         character(100) :: input
-         integer(kind = 4) :: read_status
-
-         call ReadArgument(arg, input)
-         read(input, *, iostat = read_status) value
-         if (read_status /= 0) then
-            write(*,*) "invalid integer argument: ", arg
-            STOP 5
-         end if
-      end subroutine ReadIntegerArgument
-
-      subroutine ReadRealArgument(arg, value)
-         implicit none
-         integer(kind = 4), intent(in) :: arg
-         real(kind = 8), intent(out) :: value
-         character(100) :: input
-         integer(kind = 4) :: read_status
-
-         call ReadArgument(arg, input)
-         read(input, *, iostat = read_status) value
-         if (read_status /= 0) then
-            write(*,*) "invalid real argument: ", arg
-            STOP 5
-         end if
-      end subroutine ReadRealArgument
-
-      subroutine ReadStringArgument(arg, value)
-         implicit none
-         integer(kind = 4), intent(in) :: arg
-         character(*), intent(out) :: value
-         character(100) :: input
-
-         call ReadArgument(arg, input)
-         value = adjustl(input)
-         call Lowercase(value)
-      end subroutine ReadStringArgument
-
-      subroutine Lowercase(value)
-         implicit none
-         character(*), intent(inout) :: value
-         integer(kind = 4) :: i, code
-
-         do i = 1, len_trim(value)
-            code = iachar(value(i:i))
-            if (code >= iachar('A') .AND. code <= iachar('Z')) value(i:i) = achar(code + 32)
-         end do
-      end subroutine Lowercase
 
    end subroutine InitializeParameters
 
