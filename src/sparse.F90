@@ -389,12 +389,11 @@ end subroutine to_mumps_format
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
-!> @brief Converts a sparse matrix to the historical transposed triplet
-!> format.
+!> @brief Converts a sparse matrix to a transposed MUMPS triplet format.
 !
 !> @details
-!> This preserves the old project contract: the row and column indices are
-!> swapped, and no one-based shift is applied.
+!> The row and column indices are swapped and shifted to the one-based indexing
+!> required by MUMPS.
 !
 !---------------------------------------------------------------------------
 subroutine to_mumps_format_transposed(matrix, mumps_par)
@@ -427,8 +426,8 @@ subroutine to_mumps_format_transposed(matrix, mumps_par)
       call sorted_row_order(matrix%rows(i), order)
       do k = 1, matrix%rows(i)%nnz
          nz_counter = nz_counter + 1_8
-         mumps_par%irn(nz_counter) = matrix%rows(i)%col(order(k))
-         mumps_par%jcn(nz_counter) = i
+         mumps_par%irn(nz_counter) = matrix%rows(i)%col(order(k)) + 1
+         mumps_par%jcn(nz_counter) = i + 1
          mumps_par%a(nz_counter)   = matrix%rows(i)%val(order(k))
       end do
       deallocate(order)
