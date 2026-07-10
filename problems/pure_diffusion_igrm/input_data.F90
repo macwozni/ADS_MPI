@@ -94,20 +94,13 @@ contains
          STOP 5
       end if
 
-      call ReadArgument(1, input)
-      read(input, *) SIZE
-      call ReadArgument(2, input)
-      read(input, *) ORDER
-      call ReadArgument(3, input)
-      read(input, *) procx
-      call ReadArgument(4, input)
-      read(input, *) procy
-      call ReadArgument(5, input)
-      read(input, *) procz
-      call ReadArgument(6, input)
-      read(input, *) steps
-      call ReadArgument(7, input)
-      read(input, *) Dt
+      call ReadIntegerArgument(1, SIZE)
+      call ReadIntegerArgument(2, ORDER)
+      call ReadIntegerArgument(3, procx)
+      call ReadIntegerArgument(4, procy)
+      call ReadIntegerArgument(5, procz)
+      call ReadIntegerArgument(6, steps)
+      call ReadRealArgument(7, Dt)
 
    contains
 
@@ -124,6 +117,36 @@ contains
             STOP 5
          end if
       end subroutine ReadArgument
+
+      subroutine ReadIntegerArgument(arg, value)
+         implicit none
+         integer(kind = 4), intent(in) :: arg
+         integer(kind = 4), intent(out) :: value
+         character(100) :: input
+         integer(kind = 4) :: read_status
+
+         call ReadArgument(arg, input)
+         read(input, *, iostat = read_status) value
+         if (read_status /= 0) then
+            write(*,*) "invalid integer argument: ", arg
+            STOP 5
+         end if
+      end subroutine ReadIntegerArgument
+
+      subroutine ReadRealArgument(arg, value)
+         implicit none
+         integer(kind = 4), intent(in) :: arg
+         real(kind = 8), intent(out) :: value
+         character(100) :: input
+         integer(kind = 4) :: read_status
+
+         call ReadArgument(arg, input)
+         read(input, *, iostat = read_status) value
+         if (read_status /= 0) then
+            write(*,*) "invalid real argument: ", arg
+            STOP 5
+         end if
+      end subroutine ReadRealArgument
 
    end subroutine InitializeParameters
 

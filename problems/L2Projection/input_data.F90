@@ -42,9 +42,6 @@ contains
 !---------------------------------------------------------------------------
    subroutine InitializeParameters
       implicit none
-      character(100) :: input
-      integer(kind = 4) :: length
-      integer(kind = 4) :: status
 
       ! ./l2 <size> <order> <procx> <procy> <procz>
 
@@ -55,20 +52,44 @@ contains
       end if
       
       
-      call GET_COMMAND_ARGUMENT(1, input, length, status)
-      read(input, *) isizex
-      call GET_COMMAND_ARGUMENT(2, input, length, status)
-      read(input, *) isizey
-      call GET_COMMAND_ARGUMENT(3, input, length, status)
-      read(input, *) isizez
-      call GET_COMMAND_ARGUMENT(4, input, length, status)
-      read(input, *) order
-      call GET_COMMAND_ARGUMENT(5, input, length, status)
-      read(input, *) procx
-      call GET_COMMAND_ARGUMENT(6, input, length, status)
-      read(input, *) procy
-      call GET_COMMAND_ARGUMENT(7, input, length, status)
-      read(input, *) procz
+      call ReadIntegerArgument(1, isizex)
+      call ReadIntegerArgument(2, isizey)
+      call ReadIntegerArgument(3, isizez)
+      call ReadIntegerArgument(4, order)
+      call ReadIntegerArgument(5, procx)
+      call ReadIntegerArgument(6, procy)
+      call ReadIntegerArgument(7, procz)
+
+   contains
+
+      subroutine ReadArgument(arg, input)
+         implicit none
+         integer(kind = 4), intent(in) :: arg
+         character(*), intent(out) :: input
+         integer(kind = 4) :: length
+         integer(kind = 4) :: status
+
+         call GET_COMMAND_ARGUMENT(arg, input, length, status)
+         if (status /= 0) then
+            write(*,*) "invalid command argument: ", arg
+            STOP 5
+         end if
+      end subroutine ReadArgument
+
+      subroutine ReadIntegerArgument(arg, value)
+         implicit none
+         integer(kind = 4), intent(in) :: arg
+         integer(kind = 4), intent(out) :: value
+         character(100) :: input
+         integer(kind = 4) :: read_status
+
+         call ReadArgument(arg, input)
+         read(input, *, iostat = read_status) value
+         if (read_status /= 0) then
+            write(*,*) "invalid integer argument: ", arg
+            STOP 5
+         end if
+      end subroutine ReadIntegerArgument
       
    end subroutine InitializeParameters
 

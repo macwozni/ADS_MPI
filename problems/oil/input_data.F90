@@ -88,20 +88,13 @@ contains
          STOP 5
       end if
 
-      call ReadArgument(1, input)
-      read(input, *) SIZE
-      call ReadArgument(2, input)
-      read(input, *) ORDER
-      call ReadArgument(3, input)
-      read(input, *) procx
-      call ReadArgument(4, input)
-      read(input, *) procy
-      call ReadArgument(5, input)
-      read(input, *) procz
-      call ReadArgument(6, input)
-      read(input, *) steps
-      call ReadArgument(7, input)
-      read(input, *) Dt
+      call ReadIntegerArgument(1, SIZE)
+      call ReadIntegerArgument(2, ORDER)
+      call ReadIntegerArgument(3, procx)
+      call ReadIntegerArgument(4, procy)
+      call ReadIntegerArgument(5, procz)
+      call ReadIntegerArgument(6, steps)
+      call ReadRealArgument(7, Dt)
 
    contains
 
@@ -118,6 +111,36 @@ contains
             STOP 5
          end if
       end subroutine ReadArgument
+
+      subroutine ReadIntegerArgument(arg, value)
+         implicit none
+         integer(kind = 4), intent(in) :: arg
+         integer(kind = 4), intent(out) :: value
+         character(100) :: input
+         integer(kind = 4) :: read_status
+
+         call ReadArgument(arg, input)
+         read(input, *, iostat = read_status) value
+         if (read_status /= 0) then
+            write(*,*) "invalid integer argument: ", arg
+            STOP 5
+         end if
+      end subroutine ReadIntegerArgument
+
+      subroutine ReadRealArgument(arg, value)
+         implicit none
+         integer(kind = 4), intent(in) :: arg
+         real(kind = 8), intent(out) :: value
+         character(100) :: input
+         integer(kind = 4) :: read_status
+
+         call ReadArgument(arg, input)
+         read(input, *, iostat = read_status) value
+         if (read_status /= 0) then
+            write(*,*) "invalid real argument: ", arg
+            STOP 5
+         end if
+      end subroutine ReadRealArgument
 
    end subroutine InitializeParameters
 
@@ -173,8 +196,7 @@ contains
          STOP 5
       end if
 
-      call ReadArgument(arg, input)
-      read(input, *) npumps
+      call ReadIntegerArgument(arg, npumps)
       if (npumps < 0) then
          write(*,*) "number of pumps must be non-negative"
          STOP 5
@@ -189,17 +211,13 @@ contains
       end if
 
       do i = 1, npumps
-         call ReadArgument(arg, input)
-         read(input, *) pumps(1, i)
-         call ReadArgument(arg + 1, input)
-         read(input, *) pumps(2, i)
-         call ReadArgument(arg + 2, input)
-         read(input, *) pumps(3, i)
+         call ReadRealArgument(arg, pumps(1, i))
+         call ReadRealArgument(arg + 1, pumps(2, i))
+         call ReadRealArgument(arg + 2, pumps(3, i))
          arg = arg + 3
       enddo
 
-      call ReadArgument(arg, input)
-      read(input, *) ndrains
+      call ReadIntegerArgument(arg, ndrains)
       if (ndrains < 0) then
          write(*,*) "number of drains must be non-negative"
          STOP 5
@@ -213,12 +231,9 @@ contains
       allocate(drains(3, ndrains))
 
       do i = 1, ndrains
-         call ReadArgument(arg, input)
-         read(input, *) drains(1, i)
-         call ReadArgument(arg + 1, input)
-         read(input, *) drains(2, i)
-         call ReadArgument(arg + 2, input)
-         read(input, *) drains(3, i)
+         call ReadRealArgument(arg, drains(1, i))
+         call ReadRealArgument(arg + 1, drains(2, i))
+         call ReadRealArgument(arg + 2, drains(3, i))
          arg = arg + 3
       enddo
 
@@ -237,6 +252,36 @@ contains
             STOP 5
          end if
       end subroutine ReadArgument
+
+      subroutine ReadIntegerArgument(arg, value)
+         implicit none
+         integer(kind = 4), intent(in) :: arg
+         integer(kind = 4), intent(out) :: value
+         character(100) :: input
+         integer(kind = 4) :: read_status
+
+         call ReadArgument(arg, input)
+         read(input, *, iostat = read_status) value
+         if (read_status /= 0) then
+            write(*,*) "invalid integer argument: ", arg
+            STOP 5
+         end if
+      end subroutine ReadIntegerArgument
+
+      subroutine ReadRealArgument(arg, value)
+         implicit none
+         integer(kind = 4), intent(in) :: arg
+         real(kind = 8), intent(out) :: value
+         character(100) :: input
+         integer(kind = 4) :: read_status
+
+         call ReadArgument(arg, input)
+         read(input, *, iostat = read_status) value
+         if (read_status /= 0) then
+            write(*,*) "invalid real argument: ", arg
+            STOP 5
+         end if
+      end subroutine ReadRealArgument
 
    end subroutine InitPumps
 
