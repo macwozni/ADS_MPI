@@ -14,7 +14,6 @@
 !> The provided functionality includes:
 !> - preparation of open or reduced-continuity knot vectors through
 !>   \ref PrepareKnot,
-!> - direct filling of an open knot vector through \ref FillOpenKnot,
 !> - counting nonempty knot spans through \ref CountSpans.
 !>
 !> The routines are intended for use in spline-space setup and mesh-like
@@ -27,7 +26,6 @@ module knot_vector
 
    private
    public :: PrepareKnot
-   public :: FillOpenKnot
    public :: CountSpans
 
    interface PrepareKnot
@@ -94,60 +92,6 @@ subroutine PrepareOpenKnot(n, p, U, nelem)
 #endif
 
 end subroutine PrepareOpenKnot
-
-
-!---------------------------------------------------------------------------
-!
-! DESCRIPTION:
-!> @brief Fills an existing array with an open knot vector on the
-!> interval \f$[0,1]\f$.
-!>
-!> @details
-!> This routine writes a standard open uniform knot vector into the
-!> output array \p U. The first and last knot values are repeated
-!> \f$p+1\f$ times, and the internal knots are distributed uniformly
-!> between \f$0\f$ and \f$1\f$.
-!>
-!> The number of subintervals induced by the knot vector is
-!> \f$N = n - p + 1\f$.
-!
-! Input:
-! ------
-!> @param[in] n
-!> Number of basis functions minus one.
-!>
-!> @param[in] p
-!> Polynomial degree of the spline basis.
-!
-! Output:
-! -------
-!> @param[out] U
-!> Knot vector filled with the open uniform distribution.
-!
-! Notes:
-! ------
-!> @note
-!> The output array \p U must already be allocated with length
-!> \f$n + p + 2\f$.
-!
-!---------------------------------------------------------------------------
-subroutine FillOpenKnot(n, p, U)
-   implicit none
-!> @brief Number of basis functions minus one and polynomial degree.
-   integer(kind=4), intent(in) :: n, p
-!> @brief Output knot vector.
-   real(kind=8), dimension(1:n + p + 2), intent(out) :: U
-!> @brief Loop counter.
-   integer(kind=4) :: i
-
-   U(1:p + 1) = 0.d0
-   U(n + 2:n + p + 2) = 1.d0
-
-   do i = p + 2, n + 1
-      U(i) = real(i - p - 1)/real(n - p + 1)
-   end do
-
-end subroutine FillOpenKnot
 
 
 !---------------------------------------------------------------------------
