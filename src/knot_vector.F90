@@ -12,11 +12,10 @@
 !> one-dimensional knot vectors defined on the interval \f$[0,1]\f$.
 !>
 !> The provided functionality includes:
-!> - preparation of an open knot vector through \ref PrepareKnot,
+!> - preparation of open or reduced-continuity knot vectors through
+!>   \ref PrepareKnot,
 !> - direct filling of an open knot vector through \ref FillOpenKnot,
-!> - counting nonempty knot spans through \ref CountSpans,
-!> - construction of knot vectors with repeated internal knots through
-!>   \ref repeatedKnot.
+!> - counting nonempty knot spans through \ref CountSpans.
 !>
 !> The routines are intended for use in spline-space setup and mesh-like
 !> parametrization stages preceding assembly or evaluation procedures.
@@ -26,27 +25,29 @@ module knot_vector
 
    implicit none
 
+   private
+   public :: PrepareKnot
+   public :: FillOpenKnot
+   public :: CountSpans
+
+   interface PrepareKnot
+      module procedure PrepareOpenKnot
+      module procedure PrepareRepeatedKnot
+   end interface PrepareKnot
+
 contains
 
 
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
-!> @brief Allocates and fills an open knot vector on the interval
-!> \f$[0,1]\f$.
+!> @brief Allocates and fills a fully continuous open knot vector.
 !>
 !> @details
-!> This routine allocates the knot vector \p U for a spline space with
-!> \f$n+1\f$ basis functions and polynomial degree \p p, fills it with
-!> a standard open uniform knot sequence, and computes the number of
-!> nonempty knot spans.
-!>
-!> In this convention, the number of subintervals is
-!> \f$N = n - p + 1\f$. The endpoints \f$0\f$ and \f$1\f$ are repeated
-!> \f$p+1\f$ times, which yields an open knot vector.
-!>
-!> The actual filling of the vector is delegated to \ref FillOpenKnot,
-!> while the number of elements is obtained through \ref CountSpans.
+!> This is the backward-compatible four-argument overload of
+!> \ref PrepareKnot. It delegates to the reduced-continuity constructor
+!> with continuity \f$C^{p-1}\f$, which reproduces the standard open
+!> uniform knot vector without additional internal multiplicities.
 !
 ! Input:
 ! ------
@@ -70,7 +71,7 @@ contains
 !> The allocated size of \p U is \f$n + p + 2\f$.
 !
 !---------------------------------------------------------------------------
-subroutine PrepareKnot(n, p, U, nelem)
+subroutine PrepareOpenKnot(n, p, U, nelem)
    implicit none
 !> @brief Number of basis functions minus one and polynomial degree.
    integer(kind=4), intent(in) :: n, p
@@ -78,17 +79,21 @@ subroutine PrepareKnot(n, p, U, nelem)
    real(kind=8), allocatable, dimension(:), intent(out) :: U
 !> @brief Number of nonempty knot spans.
    integer(kind=4), intent(out) :: nelem
+!> @brief Local copy passed to the inout overload.
+   integer(kind=4) :: n_work
+!> @brief Single block covering all elements for the full-continuity case.
+   integer(kind=4) :: iblock
 
-   allocate (U(n + p + 2))
-   call FillOpenKnot(n, p, U)
-   nelem = CountSpans(n, p, U)
+   n_work = n
+   iblock = max(1, n - p + 1)
+   call PrepareRepeatedKnot(n_work, p, iblock, p - 1, U, nelem)
 
 #ifdef IINFO
    write (*, *) 'n,p,nelem', n, p, nelem
    write (*, *) 'U', U
 #endif
 
-end subroutine PrepareKnot
+end subroutine PrepareOpenKnot
 
 
 !---------------------------------------------------------------------------
@@ -271,7 +276,7 @@ end function CountSpans
 !> and that \p iblock is compatible with the element partition.
 !
 !---------------------------------------------------------------------------
-subroutine repeatedKnot(n, p, iblock, c_continuity, U, nelem)
+subroutine PrepareRepeatedKnot(n, p, iblock, c_continuity, U, nelem)
 
    implicit none
 
@@ -341,6 +346,6 @@ subroutine repeatedKnot(n, p, iblock, c_continuity, U, nelem)
 
    n = n_new
 
-end subroutine repeatedKnot
+end subroutine PrepareRepeatedKnot
 
 end module knot_vector
