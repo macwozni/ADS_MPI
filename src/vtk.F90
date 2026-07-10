@@ -65,9 +65,9 @@ contains
 !> @note
 !> The file is written in ASCII formatted XML form.
 !
-!> @warning
-!> The VTK data type declared in the XML output is `Float32`, whereas the
-!> input data are stored as `real(kind=8)`.
+!> @note
+!> The VTK data type is declared as `Float64`, matching the
+!> `real(kind=8)` input data written in ASCII form.
 !
 !---------------------------------------------------------------------------
 subroutine VtkOutput(filename, vals, params)
@@ -92,7 +92,8 @@ subroutine VtkOutput(filename, vals, params)
 #endif
 
    open (unit=outFile, file=trim(filename)//'.vti', &
-         form='formatted', access='sequential', status='unknown')
+         form='formatted', access='sequential', status='replace', &
+         action='write')
 
    ! XML version/root
    write (outFile, '(A)') '<?xml version="1.0"?>'
@@ -105,12 +106,12 @@ subroutine VtkOutput(filename, vals, params)
 
    ! Init ImageData structure for whole region
    temp = '  <ImageData WholeExtent="'//trim(extent)
-   write (outFile, '(A)') trim(temp)//'" origin="0 0 0" spacing="1 1 1">'
+   write (outFile, '(A)') trim(temp)//'" Origin="0 0 0" Spacing="1 1 1">'
 
    ! Region consists of one piece in one file
    write (outFile, '(A)') '    <Piece Extent="'//trim(extent)//'">'
    write (outFile, '(A)') '      <PointData Scalars="Result">'
-   write (outFile, '(A)') '        <DataArray Name="Result" type="Float32">'
+   write (outFile, '(A)') '        <DataArray Name="Result" type="Float64" format="ascii">'
 
    ! outFile result values by X, Y and Z axis
 #ifdef IPRINT
