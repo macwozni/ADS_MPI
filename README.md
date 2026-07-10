@@ -98,7 +98,7 @@ PeacemanRachfordStep    3D cyclic Peaceman-Rachford wrapper
 BackwardEulerStep       3D split Backward Euler wrapper
 ```
 
-The wrappers configure `MultiStep` through:
+The wrappers configure `MultiStep` through `src/time_scheme.F90`:
 
 - `ConfigureDouglasGunn3D`
 - `ConfigurePeacemanRachford3D`
@@ -109,6 +109,10 @@ selector, and the directional LHS mixing table. The active iGRM direction keeps
 the residual-minimization gram block mass-only, while the scheme operator is
 applied through the coupling blocks. This avoids singular mixed iGRM stiffness
 blocks.
+
+iGRM space compatibility is checked once during problem setup with
+`ValidateIGRMTimeSchemeSpaces`; it is not repeated inside each time-step
+wrapper.
 
 The default wrappers are diffusion-oriented. They accept an optional
 `include_transport` flag for first-derivative transport terms; the

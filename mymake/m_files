@@ -17,6 +17,7 @@ SOURCES = \
     ../src/plot.F90 \
     ../src/gnuplot.F90 \
     ../src/vtk.F90 \
+    ../src/time_scheme.F90 \
     ../src/ADS.F90
 
 OIL = \

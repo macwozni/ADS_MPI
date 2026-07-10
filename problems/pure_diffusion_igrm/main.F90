@@ -18,6 +18,7 @@ program main
    use parallelism, ONLY: MYRANK
    use parallelism, ONLY: PRINTRANK, InitializeParallelism, Cleanup_Parallelism
    use communicators, ONLY: CreateCommunicators, Cleanup_Communicators
+   use time_scheme, ONLY: ValidateIGRMTimeSchemeSpaces
    use ADSS
    use RHS_fun
    use input_data
@@ -69,6 +70,7 @@ program main
    p_trial = (/ ORDER, ORDER, ORDER /)
    p_test = p_trial + 1
    call Initialize(nelem, p_test, p_trial, p_trial - 1, ads_test, ads_trial, ads_data, ierr)
+   call ValidateIGRMTimeSchemeSpaces(ads_test, ads_trial)
    nn = 1
    ! Iterations
    do iter = 0, steps
