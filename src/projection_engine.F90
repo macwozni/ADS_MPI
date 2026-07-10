@@ -1327,7 +1327,6 @@ subroutine ComputeMatrix(U1, p1, n1, nelem1, U2, p2, n2, nelem2, mixA, mixB, mix
    if (equ) then
       call MKBBT_small(nelem2, U2, p2, n2, mixA, sprsmtrx)
    else
-      call ValidateIGRMMesh(U1, p1, n1, nelem1, U2, p2, n2, nelem2)
       call MKBBT_large(nelem2, U1, p1, n1, U2, p2, n2, mixA, mixB, mixBT, sprsmtrx)
    end if
 
