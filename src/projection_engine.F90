@@ -1066,10 +1066,13 @@ subroutine FormUn(subun, ads, ads_data)
    select case (subun)
    case (1)
       ads_data%Un = 0.d0
+      ads_data%dUn0 = 0.d0
    case (2)
       ads_data%Un13 = 0.d0
+      ads_data%dUn13 = 0.d0
    case (3)
       ads_data%Un23 = 0.d0
+      ads_data%dUn23 = 0.d0
    case default
       write (ERROR_UNIT, *) "wrong substep"
       stop 1
@@ -1165,10 +1168,13 @@ subroutine FormUn(subun, ads, ads_data)
                      ads_data%dUn(statex, statey, statez, kx, ky, kz, :) = (/dux, duy, duz/)
                      if (subun .EQ. 1) then
                         ads_data%Un(statex, statey, statez, kx, ky, kz) = Uval
+                        ads_data%dUn0(statex, statey, statez, kx, ky, kz, :) = (/dux, duy, duz/)
                      else if (subun .EQ. 2) then
                         ads_data%Un13(statex, statey, statez, kx, ky, kz) = Uval
+                        ads_data%dUn13(statex, statey, statez, kx, ky, kz, :) = (/dux, duy, duz/)
                      else if (subun .EQ. 3) then
                         ads_data%Un23(statex, statey, statez, kx, ky, kz) = Uval
+                        ads_data%dUn23(statex, statey, statez, kx, ky, kz, :) = (/dux, duy, duz/)
                      else
                         write (ERROR_UNIT, *) "wrong substep"
                      end if

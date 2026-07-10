@@ -245,6 +245,23 @@ type ADS_compute_data
 !> @brief Derivative values inherited from the previous time step.
       real(kind=8), allocatable, dimension(:, :, :, :, :, :, :) :: dUn
 
+!> @brief Derivative values reconstructed from the previous time level.
+      real(kind=8), allocatable, dimension(:, :, :, :, :, :, :) :: dUn0
+
+!> @brief Derivative values reconstructed from the first intermediate state.
+      real(kind=8), allocatable, dimension(:, :, :, :, :, :, :) :: dUn13
+
+!> @brief Derivative values reconstructed from the second intermediate state.
+      real(kind=8), allocatable, dimension(:, :, :, :, :, :, :) :: dUn23
+
+!> @brief RHS derivative-state selector for time schemes.
+!>
+!> @details
+!> Rows 1:6 match RHS derivative coefficients. Value 0 means "use the
+!> currently active derivative buffer", while 1, 2, and 3 select
+!> dUn0, dUn13, and dUn23, respectively.
+      integer(kind=4), dimension(6, 3) :: rhs_du_state
+
 end type ADS_compute_data
 
 end module Setup

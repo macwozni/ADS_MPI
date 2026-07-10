@@ -209,6 +209,12 @@ subroutine ComputePointForRHS( &
    real(kind=8) :: rhs, v, u
 !> @brief Active coefficient vector extracted for the current substep.
    real(kind=8), dimension(7) :: alpha
+!> @brief Directional derivatives selected independently for RHS terms.
+   real(kind=8), dimension(6) :: rhs_du
+!> @brief Local indices into the stored derivative-state buffers.
+   integer(kind=4) :: statex, statey, statez
+!> @brief Loop and direction selectors for derivative-state lookup.
+   integer(kind=4) :: term, idir
 
    alpha = alpha_step(:, substep)
    select case (substep)
@@ -227,13 +233,32 @@ subroutine ComputePointForRHS( &
    dv(2) = ads%NNx(0, a(1), k(1), e(1))*ads%NNy(1, a(2), k(2), e(2))*ads%NNz(0, a(3), k(3), e(3))
    dv(3) = ads%NNx(0, a(1), k(1), e(1))*ads%NNy(0, a(2), k(2), e(2))*ads%NNz(1, a(3), k(3), e(3))
 
+   statex = e(1) - ads_data%state_mine(1) + 1
+   statey = e(2) - ads_data%state_mine(2) + 1
+   statez = e(3) - ads_data%state_mine(3) + 1
+   do term = 1, 6
+      idir = (term + 1)/2
+      select case (ads_data%rhs_du_state(term, substep))
+      case (0)
+         rhs_du(term) = du(idir)
+      case (1)
+         rhs_du(term) = ads_data%dUn0(statex, statey, statez, k(1), k(2), k(3), idir)
+      case (2)
+         rhs_du(term) = ads_data%dUn13(statex, statey, statez, k(1), k(2), k(3), idir)
+      case (3)
+         rhs_du(term) = ads_data%dUn23(statex, statey, statez, k(1), k(2), k(3), idir)
+      case default
+         stop "wrong RHS derivative state"
+      end select
+   end do
+
    rhs = forcing(u, du, X)
 
    fval = u*v
    fval = fval + ads%tau*( &
-      alpha(1)*du(1)*dv(1) + alpha(2)*du(1)*v + &
-      alpha(3)*du(2)*dv(2) + alpha(4)*du(2)*v + &
-      alpha(5)*du(3)*dv(3) + alpha(6)*du(3)*v + &
+      alpha(1)*rhs_du(1)*dv(1) + alpha(2)*rhs_du(2)*v + &
+      alpha(3)*rhs_du(3)*dv(2) + alpha(4)*rhs_du(4)*v + &
+      alpha(5)*rhs_du(5)*dv(3) + alpha(6)*rhs_du(6)*v + &
       alpha(7)*rhs*v)
 
    ret = J*W*fval

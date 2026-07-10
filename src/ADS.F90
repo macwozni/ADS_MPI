@@ -554,11 +554,21 @@ subroutine AllocateADSdata(ads_test, ads_trial, ads_data)
       allocate (ads_data%Un23(ads_data%state_lnelem(1), ads_data%state_lnelem(2), ads_data%state_lnelem(3), &
                               state_ng(1), state_ng(2), state_ng(3)))
       allocate (ads_data%dUn(ads_data%state_lnelem(1), ads_data%state_lnelem(2), ads_data%state_lnelem(3), &
-                              state_ng(1), state_ng(2), state_ng(3), 3))
+                                state_ng(1), state_ng(2), state_ng(3), 3))
+      allocate (ads_data%dUn0(ads_data%state_lnelem(1), ads_data%state_lnelem(2), ads_data%state_lnelem(3), &
+                                state_ng(1), state_ng(2), state_ng(3), 3))
+      allocate (ads_data%dUn13(ads_data%state_lnelem(1), ads_data%state_lnelem(2), ads_data%state_lnelem(3), &
+                                state_ng(1), state_ng(2), state_ng(3), 3))
+      allocate (ads_data%dUn23(ads_data%state_lnelem(1), ads_data%state_lnelem(2), ads_data%state_lnelem(3), &
+                                state_ng(1), state_ng(2), state_ng(3), 3))
       ads_data%Un = 0.d0
       ads_data%Un13 = 0.d0
       ads_data%Un23 = 0.d0
       ads_data%dUn = 0.d0
+      ads_data%dUn0 = 0.d0
+      ads_data%dUn13 = 0.d0
+      ads_data%dUn23 = 0.d0
+      ads_data%rhs_du_state = 0
 
       ! OLD: MP start with system fully generated along X
       ! allocate( F((n+1),(sy)*(sz))) !x,y,z
@@ -854,7 +864,8 @@ end subroutine SolveOneDirection
 !> Returned status code.
 !
 !---------------------------------------------------------------------------
-subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha_step, mierr, RHS_point)
+subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha_step, mierr, RHS_point, &
+                  lhs_mix, rhs_du_state)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use projection_engine, ONLY: FormUn
       use Interfaces, ONLY: forcing_fun, rhs_point_fun
@@ -871,6 +882,10 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
       procedure(forcing_fun) :: RHS_fun
 !> @brief Optional callback overriding the default pointwise RHS integrand.
       procedure(rhs_point_fun), optional :: RHS_point
+!> @brief Optional LHS mixing vectors indexed by physical direction and substep.
+      real(kind=8), intent(in), optional :: lhs_mix(4, 3, 3)
+!> @brief Optional RHS derivative-state selector indexed by coefficient row and substep.
+      integer(kind=4), intent(in), optional :: rhs_du_state(6, 3)
 !> @brief Test and trial setup structures.
       type(ADS_setup), intent(in) :: ads_test, ads_trial
 !> @brief Runtime data updated in place.
@@ -881,6 +896,9 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
       integer(kind=4), dimension(3) :: direction
       integer(kind=4) :: substep
       integer(kind=4), dimension(3, 3) :: abc
+
+      ads_data%rhs_du_state = 0
+      if (present(rhs_du_state)) ads_data%rhs_du_state = rhs_du_state
 
       allocate (ads_data%F (ads_trial%s(1), ads_trial%s(2)*ads_trial%s(3))) !x,y,z
       allocate (ads_data%F2(ads_trial%s(2), ads_trial%s(3)*ads_trial%s(1))) !y,z,x
@@ -899,8 +917,13 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
       if (allocated(ads_data%R)) deallocate(ads_data%R)
       allocate (ads_data%R(ads_trial%nrcpp(3)*ads_trial%nrcpp(1)*ads_trial%nrcpp(2), 3, 3, 3))
       ads_data%R = 0.d0
-      call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
-                  n, alpha_step, RHS_fun, ads_data, mierr, RHS_point)
+      if (present(lhs_mix)) then
+            call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
+                        n, alpha_step, RHS_fun, ads_data, mierr, RHS_point, lhs_mix(:, :, substep))
+      else
+            call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
+                        n, alpha_step, RHS_fun, ads_data, mierr, RHS_point)
+      end if
       if (allocated(ads_data%FFt)) deallocate(ads_data%FFt)
       if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
       if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
@@ -927,8 +950,13 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
       if (allocated(ads_data%R)) deallocate(ads_data%R)
       allocate (ads_data%R(ads_trial%nrcpp(2)*ads_trial%nrcpp(3)*ads_trial%nrcpp(1), 3, 3, 3))
       ads_data%R = 0.d0
-      call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
-                  n, alpha_step, RHS_fun, ads_data, mierr, RHS_point)
+      if (present(lhs_mix)) then
+            call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
+                        n, alpha_step, RHS_fun, ads_data, mierr, RHS_point, lhs_mix(:, :, substep))
+      else
+            call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
+                        n, alpha_step, RHS_fun, ads_data, mierr, RHS_point)
+      end if
       if (allocated(ads_data%FFt)) deallocate(ads_data%FFt)
       if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
       if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
@@ -955,8 +983,13 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
       if (allocated(ads_data%R)) deallocate(ads_data%R)
       allocate (ads_data%R(ads_trial%nrcpp(1)*ads_trial%nrcpp(2)*ads_trial%nrcpp(3), 3, 3, 3))
       ads_data%R = 0.d0
-      call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
-                  n, alpha_step, RHS_fun, ads_data, mierr, RHS_point)
+      if (present(lhs_mix)) then
+            call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
+                        n, alpha_step, RHS_fun, ads_data, mierr, RHS_point, lhs_mix(:, :, substep))
+      else
+            call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
+                        n, alpha_step, RHS_fun, ads_data, mierr, RHS_point)
+      end if
       if (allocated(ads_data%FFt)) deallocate(ads_data%FFt)
       if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
       if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
@@ -966,6 +999,7 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
 
       call move_alloc(ads_data%F,ads_data%FF)
       call move_alloc(ads_data%Ft,ads_data%FFt)
+      ads_data%rhs_du_state = 0
 
 end subroutine MultiStep
 
@@ -1173,7 +1207,7 @@ end subroutine NormalizeTrialBufferToXYZ
 !---------------------------------------------------------------------------
 subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
                   n, alpha_step, &
-                  RHS_fun, ads_data, mierr, RHS_point)
+                  RHS_fun, ads_data, mierr, RHS_point, lhs_mix)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       ! use parallelism, ONLY: PRINTRANK, MYRANKX, MYRANKY, MYRANKZ
       ! use communicators, ONLY: COMMX, COMMY, COMMZ
@@ -1206,15 +1240,27 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
       procedure(forcing_fun) :: RHS_fun
 !> @brief Optional callback overriding the default pointwise RHS integrand.
       procedure(rhs_point_fun), optional :: RHS_point
+!> @brief Optional LHS mixing vectors indexed by physical direction.
+      real(kind=8), intent(in), optional :: lhs_mix(4, 3)
 !> @brief Runtime data updated in place.
       type(ADS_compute_data), intent(inout) :: ads_data
 !> @brief Returned status code.
       integer(kind=4), intent(out) :: mierr
       integer(kind=4) :: i,a,b,c
+      integer(kind=4) :: diridx
       integer(kind=4) :: ierr!, iret
       integer(kind=4), dimension(3) :: nrcpp
+      real(kind=8) :: solve_mix(4, 3)
       ! real(kind=8) :: time1, time2
       logical :: igrm
+
+      if (present(lhs_mix)) then
+            solve_mix = lhs_mix
+      else
+            do diridx = 1, 3
+                  solve_mix(:, diridx) = mix
+            end do
+      end if
 
 #ifdef PERFORMANCE
       time1 = MPI_Wtime()
@@ -1245,19 +1291,24 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
 ! Solve the first problem
 !--------------------------------------------------------------------
       call solve_problem(ads_test, ads_trial, abc(1, 1), abc(2, 1), abc(3, 1), &
-                        mix, mix, mix, direction, igrm, ads_data%F, ads_data%F2, ads_data%Ft, ads_data%Ft2, ierr)
+                        solve_mix(:, a), solve_mix(:, a), solve_mix(:, a), direction, igrm, &
+                        ads_data%F, ads_data%F2, ads_data%Ft, ads_data%Ft2, ierr)
 
 !--------------------------------------------------------------------
 ! Solve the second problem
 !--------------------------------------------------------------------
+      a=abc(1, 2)
       call solve_problem(ads_test, ads_trial, abc(1, 2), abc(2, 2), abc(3, 2), &
-                        mix, mix, mix, direction, igrm, ads_data%F2, ads_data%F3, ads_data%Ft2, ads_data%Ft3, ierr)
+                        solve_mix(:, a), solve_mix(:, a), solve_mix(:, a), direction, igrm, &
+                        ads_data%F2, ads_data%F3, ads_data%Ft2, ads_data%Ft3, ierr)
 
 !--------------------------------------------------------------------
 ! Solve the third problem
 !--------------------------------------------------------------------
+      a=abc(1, 3)
       call solve_problem(ads_test, ads_trial, abc(1, 3), abc(2, 3), abc(3, 3), &
-                        mix, mix, mix, direction, igrm, ads_data%F3, ads_data%F, ads_data%Ft3, ads_data%Ft, ierr)
+                        solve_mix(:, a), solve_mix(:, a), solve_mix(:, a), direction, igrm, &
+                        ads_data%F3, ads_data%F, ads_data%Ft3, ads_data%Ft, ierr)
 
 #ifdef IINFO
       write (*, *) PRINTRANK, '3e) DISTRIBUTE SOLUTION'
@@ -1332,6 +1383,9 @@ subroutine Cleanup_data(ads_data, mierr)
       if (allocated(ads_data%Un13)) deallocate (ads_data%Un13)
       if (allocated(ads_data%Un23)) deallocate (ads_data%Un23)
       if (allocated(ads_data%dUn)) deallocate (ads_data%dUn)
+      if (allocated(ads_data%dUn0)) deallocate (ads_data%dUn0)
+      if (allocated(ads_data%dUn13)) deallocate (ads_data%dUn13)
+      if (allocated(ads_data%dUn23)) deallocate (ads_data%dUn23)
 
       if (allocated(ads_data%R)) deallocate (ads_data%R)
 #ifdef IINFO
