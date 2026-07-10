@@ -205,9 +205,9 @@ end subroutine recv_piece
 !>   dependency ordering.
 !>
 !> The communicated coefficient blocks are stored in the four-dimensional
-!> arrays \p spline and \p R, whose second, third, and fourth indices
-!> encode the relative neighbour position in the \f$3\times3\times3\f$
-!> surrounding process stencil.
+!> array \p spline, whose second, third, and fourth indices encode the
+!> relative neighbour position in the \f$3\times3\times3\f$ surrounding
+!> process stencil.
 !>
 !> This routine is central for all computations that require neighbouring
 !> solution coefficients, such as local reconstruction at quadrature
@@ -221,10 +221,6 @@ end subroutine recv_piece
 ! Input/Output:
 ! -------------
 !> @param[inout] spline
-!> Local and neighbouring spline-coefficient blocks participating in the
-!> exchange.
-!>
-!> @param[inout] R
 !> Buffer storing coefficient blocks associated with neighbouring domain
 !> fragments.
 !
@@ -235,11 +231,11 @@ end subroutine recv_piece
 !> followed by explicit waits after each directional stage.
 !
 !> @warning
-!> The routine assumes that the storage layout of \p spline and \p R is
-!> compatible with the hard-coded neighbour-stencil convention.
+!> The routine assumes that the storage layout of \p spline is compatible
+!> with the hard-coded neighbour-stencil convention.
 !
 !---------------------------------------------------------------------------
-subroutine DistributeSpline(spline, nrcpp, R)
+subroutine DistributeSpline(spline, nrcpp)
    use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ, NRPROCX, NRPROCY, NRPROCZ
    use mpi
    implicit none
@@ -247,8 +243,6 @@ subroutine DistributeSpline(spline, nrcpp, R)
    integer(kind=4), dimension(:), intent(in) :: nrcpp
 !> @brief Local and neighbouring spline-coefficient blocks.
    real(kind=8), dimension(:, :, :, :), intent(inout) :: spline
-!> @brief Buffer of neighbouring-domain coefficient blocks.
-   real(kind=8), dimension(:, :, :, :), intent(inout) :: R
 !> @brief Request counter and wait-loop counter.
    integer(kind=4) :: s, i
 !> @brief Array of MPI request handles.
@@ -310,17 +304,17 @@ subroutine DistributeSpline(spline, nrcpp, R)
    if (MYRANKX > 0) then
       temp = (/-1, 0, 0/)
       dst = neighbour(temp)
-      call send_piece(R(:, 2, 2, 2), dst, request(s), nrcpp)
+      call send_piece(spline(:, 2, 2, 2), dst, request(s), nrcpp)
       s = s + 1
-      call send_piece(R(:, 2, 3, 2), dst, request(s), nrcpp)
+      call send_piece(spline(:, 2, 3, 2), dst, request(s), nrcpp)
       s = s + 1
    end if
    if (MYRANKX < NRPROCX - 1) then
       temp = (/1, 0, 0/)
       src = neighbour(temp)
-      call recv_piece(R(:, 3, 2, 2), src, request(s), nrcpp)
+      call recv_piece(spline(:, 3, 2, 2), src, request(s), nrcpp)
       s = s + 1
-      call recv_piece(R(:, 3, 3, 2), src, request(s), nrcpp)
+      call recv_piece(spline(:, 3, 3, 2), src, request(s), nrcpp)
       s = s + 1
    end if
 

@@ -1214,7 +1214,7 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
       end do
       !  nrcpp - number of columns (average) per processor
       nrcpp = (/ads_trial%nrcpp(c), ads_trial%nrcpp(a), ads_trial%nrcpp(b)/)
-      call DistributeSpline(ads_data%R, nrcpp, ads_data%R)
+      call DistributeSpline(ads_data%R, nrcpp)
 
 #ifdef IPRINT
       write (*, *) PRINTRANK, 'Result:'
