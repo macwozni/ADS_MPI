@@ -1,34 +1,54 @@
+# Fortran and mymake build artifacts
 *.mod
+*.o
+*.x
 EXEC
 _OBJ
 output
-*.plot
-*.png
-*.o
-*.vti
-*.swp
+fort.1
 nohup.out
-*.swp
+vgcore.*
+
+# Build directories
+build/
+build_gnu/
+temp_build/
+
+# CMake-generated files
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
 CTestTestfile.cmake
-.cproject
-.project
-.settings
-*.vti
+FindSCALAPACK.cmake
+
+# Generated output and visualization files
 *.data
 *.gif
-build/
-build_gnu/
+*.plot
+*.png
+*.vti
+*.xml
 test/*.xml
 test/tests
-.directory
-*.x
-*.xml
+
+# Generated documentation
 doxygen/
-fort.1
-vgcore.*
+
+# IDE, editor, and desktop metadata
+.cproject
+.directory
 .idea
+.project
+.settings
+.vscode/
+*.swp
 
+# Local notes, documents, and scratch files
+*.odt
+*.pdf
+TODO.txt
+/git
 
+# Experimental/local test files
+tests/make.txt
+tests/test_*
