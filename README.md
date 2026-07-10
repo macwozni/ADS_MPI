@@ -21,7 +21,7 @@ doxygen/    Generated/documentation support files
 
 The default `mymake/m_options` expects:
 
-- an MPI Fortran compiler, currently configured as MPICH `mpif90`
+- an MPI Fortran compiler
 - MUMPS
 - BLAS
 - LAPACK
@@ -31,6 +31,25 @@ The default `mymake/m_options` expects:
 - GKlib
 
 Edit `mymake/m_options` for local library paths and compiler flags.
+
+### Library Versions In The Current Local Configuration
+
+The active `mymake/m_options` currently points to:
+
+```text
+MPI compiler: /opt/lib/mpich-5.0.0/bin/mpif90
+MUMPS:        /opt/lib/MUMPS_5.8.2/
+BLAS:         /opt/lib/lapack-3.12.1/lib64/libblas.a
+LAPACK:       /opt/lib/lapack-3.12.1/lib64/liblapack.a
+ScaLAPACK:    /opt/lib/scalapack-2.3.2/lib64/libscalapack.a
+METIS:        /opt/lib/metis/lib/libmetis.a
+ParMETIS:     /opt/lib/parmetis/lib/libparmetis.a
+GKlib:        /opt/lib/GKlib/lib64/libGKlib.a
+```
+
+The code is still an MPI program. Directional linear solves are executed with
+MUMPS on `MPI_COMM_SELF`, so each rank solves its local gathered systems while
+the ADS workflow itself remains distributed through MPI.
 
 The current debug-style options use bounds checking and AddressSanitizer:
 
@@ -62,6 +81,38 @@ end function forcing
 Problem-local legacy `RHS_eq.F90` files may still exist as references, but the
 current `mymake/m_files` problem groups use `RHS_fun.F90`. The shared
 quadrature-level RHS assembly lives in `src/RHS_eq.F90`.
+
+## Time Integration Schemes
+
+There are two ADS time-advancement paths:
+
+- `Step` is the single-step Forward Euler path. Its `alpha_step = 1` is
+  intentional and should not be treated as a Douglas-Gunn or ADI scheme.
+- `MultiStep` is the three-substep directional path used by iGRM time schemes.
+
+The implemented iGRM scheme wrappers are:
+
+```text
+DouglasGunnStep         3D Douglas-Gunn wrapper
+PeacemanRachfordStep    3D cyclic Peaceman-Rachford wrapper
+BackwardEulerStep       3D split Backward Euler wrapper
+```
+
+The wrappers configure `MultiStep` through:
+
+- `ConfigureDouglasGunn3D`
+- `ConfigurePeacemanRachford3D`
+- `ConfigureBackwardEuler3D`
+
+These configurators build the RHS coefficient table, the RHS derivative-state
+selector, and the directional LHS mixing table. The active iGRM direction keeps
+the residual-minimization gram block mass-only, while the scheme operator is
+applied through the coupling blocks. This avoids singular mixed iGRM stiffness
+blocks.
+
+The default wrappers are diffusion-oriented. They accept an optional
+`include_transport` flag for first-derivative transport terms; the
+`pure_diffusion_igrm` driver calls them with `include_transport=.false.`.
 
 ## Building
 
@@ -184,13 +235,29 @@ Example:
 Arguments:
 
 ```text
-<size> <order> <procx> <procy> <procz> <steps> <dt>
+<size> <order> <procx> <procy> <procz> <steps> <dt> [scheme]
+```
+
+The optional `scheme` argument selects the iGRM time scheme:
+
+```text
+dg    Douglas-Gunn, default
+pr    Peaceman-Rachford
+be    Backward Euler
 ```
 
 Example:
 
 ```bash
 /opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/pure_diffusion_igrm 2 1 1 1 1 0 1
+```
+
+Scheme-selection examples:
+
+```bash
+/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/pure_diffusion_igrm 2 1 1 1 1 1 0.1 dg
+/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/pure_diffusion_igrm 2 1 1 1 1 1 0.1 pr
+/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/pure_diffusion_igrm 2 1 1 1 1 1 0.1 be
 ```
 
 ### Oil
