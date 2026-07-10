@@ -80,7 +80,20 @@ program main
          ads_trial%tau = 1.d0
          ads_test%tau = 1.d0
       endif
-      call DouglasGunnStep(iter, forcing, ads_test, ads_trial, ads_data, nn, ierr)
+      select case (trim(time_scheme))
+      case ("dg", "douglas-gunn", "douglas_gunn")
+         call DouglasGunnStep(iter, forcing, ads_test, ads_trial, ads_data, nn, ierr, &
+                              include_transport=.false.)
+      case ("pr", "peaceman-rachford", "peaceman_rachford")
+         call PeacemanRachfordStep(iter, forcing, ads_test, ads_trial, ads_data, nn, ierr, &
+                                   include_transport=.false.)
+      case ("be", "backward-euler", "backward_euler", "backwardeuler")
+         call BackwardEulerStep(iter, forcing, ads_test, ads_trial, ads_data, nn, ierr, &
+                                include_transport=.false.)
+      case default
+         if (MYRANK == 0) write(*, *) "unknown time scheme: ", trim(time_scheme)
+         stop 5
+      end select
       if (MYRANK == 0) then
          write(*, *) iter
       endif

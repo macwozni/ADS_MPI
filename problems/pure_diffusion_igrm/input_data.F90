@@ -65,6 +65,9 @@ module input_data
 !> @brief Numbers of MPI processes in the three process-grid directions.
    integer(kind = 4) :: procx, procy, procz
 
+!> @brief Time scheme selected for the iGRM multi-step driver.
+   character(len = 32) :: time_scheme = "dg"
+
 !> @brief Drained quantity retained from the template problem.
    real (kind = 8) :: drained = 0
 
@@ -78,7 +81,7 @@ contains
 !>
 !> @details
 !> The expected argument list is:
-!> `<size> <order> <procx> <procy> <procz> <steps> <dt>`.
+!> `<size> <order> <procx> <procy> <procz> <steps> <dt> [scheme]`.
 !
 !---------------------------------------------------------------------------
    subroutine InitializeParameters
@@ -88,9 +91,9 @@ contains
       ! ./l2 <size> <procx> <procy> <procz> <nsteps> <dt>
       ORDER = 2
 
-      if (COMMAND_ARGUMENT_COUNT() .NE. 7) then
+      if (COMMAND_ARGUMENT_COUNT() .NE. 7 .AND. COMMAND_ARGUMENT_COUNT() .NE. 8) then
          write(*,*) "proper usage with arguments: ", &
-         "<size> <order> <procx> <procy> <procz> <steps> <dt>"
+         "<size> <order> <procx> <procy> <procz> <steps> <dt> [dg|pr|be]"
          STOP 5
       end if
 
@@ -101,6 +104,8 @@ contains
       call ReadIntegerArgument(5, procz)
       call ReadIntegerArgument(6, steps)
       call ReadRealArgument(7, Dt)
+      time_scheme = "dg"
+      if (COMMAND_ARGUMENT_COUNT() .EQ. 8) call ReadStringArgument(8, time_scheme)
 
    contains
 
@@ -147,6 +152,28 @@ contains
             STOP 5
          end if
       end subroutine ReadRealArgument
+
+      subroutine ReadStringArgument(arg, value)
+         implicit none
+         integer(kind = 4), intent(in) :: arg
+         character(*), intent(out) :: value
+         character(100) :: input
+
+         call ReadArgument(arg, input)
+         value = adjustl(input)
+         call Lowercase(value)
+      end subroutine ReadStringArgument
+
+      subroutine Lowercase(value)
+         implicit none
+         character(*), intent(inout) :: value
+         integer(kind = 4) :: i, code
+
+         do i = 1, len_trim(value)
+            code = iachar(value(i:i))
+            if (code >= iachar('A') .AND. code <= iachar('Z')) value(i:i) = achar(code + 32)
+         end do
+      end subroutine Lowercase
 
    end subroutine InitializeParameters
 
