@@ -686,8 +686,8 @@ end subroutine AllocateADS
 !> directly in the current implementation.
 !
 !> @warning
-!> The routine stops execution if the MUMPS factorization phase returns a
-!> nonzero primary error code.
+!> The routine stops execution if any MUMPS phase returns a negative
+!> primary or global error code.
 !
 !---------------------------------------------------------------------------
 subroutine SolveOneDirection(RHS, eqnum, n, p, sprsmtrx)
@@ -712,6 +712,7 @@ use sparse
       mumps_par%par = 1
       mumps_par%N = n + 1
       call dmumps(mumps_par)
+      call CheckMumpsStatus('initialization')
 
       !  convert LHS and RHS to MUMPS format
       call to_mumps_format(sprsmtrx, mumps_par)
@@ -757,30 +758,44 @@ use sparse
 !  start MUMPS
       mumps_par%job = 1
       call dmumps(mumps_par)
+      call CheckMumpsStatus('analysis')
 
       mumps_par%job = 2
       call dmumps(mumps_par)
-      if (mumps_par%info(1) .ne. 0) then
-            write (*, *) 'mumps_par%job=', mumps_par%job
-            write (*, *) 'mumps_par%info=', mumps_par%info
-            stop 1
-      end if
+      call CheckMumpsStatus('factorization')
 
       do i = 1, eqnum
             mumps_par%rhs(1:n + 1) = rhs(1:n + 1, i)
             mumps_par%job = 3
             call dmumps(mumps_par)
+            call CheckMumpsStatus('solve')
             rhs(1:n + 1, i) = mumps_par%rhs(1:n + 1)
       end do
 
 !  stop MUMPS
       mumps_par%job = -2
       call dmumps(mumps_par)
+      call CheckMumpsStatus('finalization')
 
       deallocate (mumps_par%irn)
       deallocate (mumps_par%jcn)
       deallocate (mumps_par%a)
       deallocate (mumps_par%rhs)
+
+contains
+
+      subroutine CheckMumpsStatus(phase)
+            implicit none
+            character(*), intent(in) :: phase
+
+            if (mumps_par%info(1) .lt. 0 .or. mumps_par%infog(1) .lt. 0) then
+                  write (*, *) 'MUMPS failed during ', trim(phase)
+                  write (*, *) 'mumps_par%job=', mumps_par%job
+                  write (*, *) 'mumps_par%info=', mumps_par%info
+                  write (*, *) 'mumps_par%infog=', mumps_par%infog
+                  stop 1
+            end if
+      end subroutine CheckMumpsStatus
 
 end subroutine SolveOneDirection
 
