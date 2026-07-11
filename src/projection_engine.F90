@@ -597,6 +597,10 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
    real(kind=8), intent(in), dimension(7, 3) :: alpha_step
 !> @brief Loop counters over quadrature points, local basis indices, and elements.
    integer(kind=4) :: kx, ky, kz, ax, ay, az, ex, ey, ez!, exx,eyy,ezz
+!> @brief Linearized local element and element-basis indices.
+   integer(kind=4) :: elidx, ldof
+!> @brief Numbers of local elements and local basis functions.
+   integer(kind=4) :: local_elements, local_dofs
 !> @brief Element Jacobian product and quadrature weight product.
    real(kind=8) :: J, W
 !> @brief Global and local index variables.
@@ -609,6 +613,8 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
    real(kind=8), dimension(3) :: X
 !> @brief Direction-dependent quadrature, element, and local basis indices.
    integer(kind=4), dimension(3) :: k, e, a, indb
+!> @brief Local element counts in each direction.
+   integer(kind=4), dimension(3) :: lnelem
    ! integer (kind = 4) :: tmp, all
    ! integer (kind = 4) :: total_size
 !> @brief Values of the gradient-like quantity from the previous step.
@@ -622,6 +628,8 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
    real(kind=8) :: Uval23
 !> @brief Element-local temporary accumulation array.
    real(kind=8), dimension(:, :, :), allocatable :: elarr
+!> @brief Element-wise RHS contributions before deterministic global scatter.
+   real(kind=8), dimension(:, :), allocatable :: element_rhs
 !> @brief Mixed-space setup used for the current assembly pass.
    type(ADS_setup) :: ads
 !> @brief Flag indicating use of the iGRM path.
@@ -633,7 +641,11 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
    ads, dira, dirb, dirc, igrm)
 
    ! Each OpenMP thread needs a private element-local accumulator.
-   ! total_size = ads % lnelem(1) * ads % lnelem(2) * ads % lnelem(3)
+   lnelem = ads%maxe - ads%mine + 1
+   local_elements = lnelem(1)*lnelem(2)*lnelem(3)
+   local_dofs = (ads%p(dira) + 1)*(ads%p(dirb) + 1)*(ads%p(dirc) + 1)
+   allocate (element_rhs(local_dofs, local_elements))
+   element_rhs = 0.d0
 
 !   if (allocated(ads_data%F)) ads_data%F = 0.d0
 !   if (allocated(ads_data%Ft)) ads_data%Ft = 0.d0
@@ -641,9 +653,9 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
 !      loop over points
 !$OMP PARALLEL DEFAULT(SHARED) &
 !$OMP PRIVATE(ex,ey,ez,e,kx,ky,kz,k,W,ax,ay,az,a,ind,indx,indy,indz,ind1,ind23,J) &
-!$OMP PRIVATE(statex,statey,statez,X,du,resvalue,indb,Uval,Uval13,Uval23,elarr)
+!$OMP PRIVATE(statex,statey,statez,X,du,resvalue,indb,Uval,Uval13,Uval23,elarr,elidx,ldof)
    allocate (elarr(0:ads%p(dira), 0:ads%p(dirb), 0:ads%p(dirc)))
-!$OMP DO COLLAPSE(3) SCHEDULE(STATIC) ORDERED
+!$OMP DO COLLAPSE(3) SCHEDULE(STATIC)
    ! do all = 1, total_size
 ! translate coefficients to local
    ! ez = modulo(all - 1, ads % lnelem(3))
@@ -666,6 +678,9 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
 ! Jacobian
             J = ads%Jx(ex)*ads%Jy(ey)*ads%Jz(ez)
             e = (/ex, ey, ez/)
+            elidx = ((ex - ads%mine(1))*lnelem(2) + &
+               (ey - ads%mine(2)))*lnelem(3) + &
+               (ez - ads%mine(3)) + 1
             elarr = 0.d0
 ! loop over quadrature points
             do kx = 1, ads%ng(dira)
@@ -766,8 +781,28 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
                   end do
                end do
             end do
-! moving results from temporary array to main one
-!$OMP ORDERED
+            do ax = 0, ads%p(dira)
+               do ay = 0, ads%p(dirb)
+                  do az = 0, ads%p(dirc)
+                     ldof = ax + (ads%p(dira) + 1)*(ay + (ads%p(dirb) + 1)*az) + 1
+                     element_rhs(ldof, elidx) = elarr(ax, ay, az)
+                  end do
+               end do
+            end do
+         end do
+      end do
+   end do
+!$OMP END DO
+   deallocate (elarr)
+!$OMP END PARALLEL
+
+! moving results from temporary array to main one in deterministic element order
+   do ex = ads%mine(1), ads%maxe(1)
+      do ey = ads%mine(2), ads%maxe(2)
+         do ez = ads%mine(3), ads%maxe(3)
+            elidx = ((ex - ads%mine(1))*lnelem(2) + &
+               (ey - ads%mine(2)))*lnelem(3) + &
+               (ez - ads%mine(3)) + 1
             do ax = 0, ads%p(dira)
                do ay = 0, ads%p(dirb)
                   do az = 0, ads%p(dirc)
@@ -786,28 +821,25 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
                         ind1 = indb(dira) - ads%ibeg(dira) + 1
                         ind23 = (indb(dirb) - ads%ibeg(dirb) + 1) + &
                            (indb(dirc) - ads%ibeg(dirc) + 1)*(ads%iend(dirb) - ads%ibeg(dirb) + 1)
+                        ldof = ax + (ads%p(dira) + 1)*(ay + (ads%p(dirb) + 1)*az) + 1
 
                         if (igrm) then
                            ads_data%Ft(ind1 + 1, ind23 + 1) = &
                               ads_data%Ft(ind1 + 1, ind23 + 1) &
-                              + elarr(ax, ay, az)
+                              + element_rhs(ldof, elidx)
                         else
                            ads_data%F(ind1 + 1, ind23 + 1) = &
                               ads_data%F(ind1 + 1, ind23 + 1) &
-                              + elarr(ax, ay, az)
+                              + element_rhs(ldof, elidx)
                         end if
                      end if
                   end do
                end do
             end do
-!$OMP END ORDERED
          end do
       end do
    end do
-!$OMP END DO
-   deallocate (elarr)
-!$OMP END PARALLEL
-
+   deallocate (element_rhs)
 
 end subroutine Form3DRHS
 
