@@ -12,7 +12,8 @@
 !> - the plotting-parameter container \ref PlotParams,
 !> - a generic sampling routine for scalar functions through
 !>   \ref SavePlot,
-!> - a spline-field sampling routine through \ref SaveSplinePlot.
+!> - serial and MPI spline-field sampling routines through
+!>   \ref SaveSplinePlot and \ref SaveSplinePlotMPI.
 !>
 !> The module acts as a thin orchestration layer between:
 !> - evaluation of scalar functions or spline fields,
@@ -309,5 +310,191 @@ subroutine SaveSplinePlot(filename, &
    call output(filename, vals, params)
 
 end subroutine SaveSplinePlot
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Samples a tensor-product spline field in parallel and exports
+!> the gathered structured grid on one root process.
+!>
+!> @details
+!> This routine is the MPI-enabled counterpart of \ref SaveSplinePlot.
+!> All ranks receive the same spline coefficient tensor, split the
+!> structured sampling grid into contiguous linear chunks, evaluate their
+!> assigned points independently, and gather sampled values on \p root.
+!> The root process reconstructs the three-dimensional value tensor and
+!> forwards it to the supplied output backend.
+!
+! Input:
+! ------
+!> @param[in] filename
+!> Base filename or filename pattern passed to the output backend.
+!>
+!> @param[in] Ux, Uy, Uz
+!> Knot vectors in the three parametric directions.
+!>
+!> @param[in] px, py, pz
+!> Polynomial degrees in the three directions.
+!>
+!> @param[in] nx, ny, nz
+!> Number of basis functions minus one in the three directions.
+!>
+!> @param[in] nelemx, nelemy, nelemz
+!> Number of elements in the three directions.
+!>
+!> @param[in] coeffs
+!> Full tensor-product spline coefficient array available on each rank.
+!>
+!> @param[in] output
+!> Output callback called only on \p root.
+!>
+!> @param[in] params
+!> Plot-parameter structure defining coordinate ranges and grid
+!> resolutions.
+!>
+!> @param[in] root
+!> Rank that gathers sampled values and writes the output.
+!>
+!> @param[in] comm
+!> MPI communicator used for parallel sampling and gather.
+!
+!---------------------------------------------------------------------------
+subroutine SaveSplinePlotMPI(filename, &
+                              Ux, px, nx, nelemx, &
+                              Uy, py, ny, nelemy, &
+                              Uz, pz, nz, nelemz, &
+                              coeffs, output, params, root, comm)
+   use math, ONLY: lerp
+   use basis, ONLY: EvalSpline
+   use mpi
+   implicit none
+   interface
+      subroutine output(filename, vals, params)
+         import PlotParams
+         character(len=*), intent(in) :: filename
+         type(PlotParams), intent(in) :: params
+         real(kind=8), intent(in) :: vals(params%resx, params%resy, params%resz)
+      end subroutine
+   end interface
+
+!> @brief Base filename or filename pattern passed to the output backend.
+   character(len=*), intent(in) :: filename
+!> @brief Basis size minus one, degree, and element count in the first direction.
+   integer(kind=4), intent(in) :: nx, px, nelemx
+!> @brief Basis size minus one, degree, and element count in the second direction.
+   integer(kind=4), intent(in) :: ny, py, nelemy
+!> @brief Basis size minus one, degree, and element count in the third direction.
+   integer(kind=4), intent(in) :: nz, pz, nelemz
+!> @brief Knot vector in the first direction.
+   real(kind=8), intent(in) :: Ux(0:nx + px + 1)
+!> @brief Knot vector in the second direction.
+   real(kind=8), intent(in) :: Uy(0:ny + py + 1)
+!> @brief Knot vector in the third direction.
+   real(kind=8), intent(in) :: Uz(0:nz + pz + 1)
+!> @brief Tensor-product spline coefficients.
+   real(kind=8), intent(in) :: coeffs(0:nx, 0:ny, 0:nz)
+!> @brief Plot parameters defining the sampling grid.
+   type(PlotParams), intent(in) :: params
+!> @brief Root rank and MPI communicator.
+   integer(kind=4), intent(in) :: root, comm
+!> @brief Sampled spline values on the root process.
+   real(kind=8), allocatable :: vals(:, :, :)
+!> @brief Rank-local and gathered linear sampling buffers.
+   real(kind=8), allocatable :: local_vals(:), gathered_vals(:)
+!> @brief Receive counts and displacements for sampled grid values.
+   integer(kind=4), allocatable :: recvcounts(:), displs(:)
+!> @brief MPI rank, size, and status.
+   integer(kind=4) :: myrank, nranks, ierr
+!> @brief Total number of structured-grid points.
+   integer(kind=4) :: total_points
+!> @brief Base chunk size, remainder, and local chunk metadata.
+   integer(kind=4) :: base_count, remainder, local_count, local_start
+!> @brief Loop counters and linearized global sample index.
+   integer(kind=4) :: i, local_idx, global_idx
+!> @brief Structured-grid indices.
+   integer(kind=4) :: ix, iy, iz
+!> @brief Physical coordinates and normalized interpolation parameter.
+   real(kind=8) :: x, y, z, t
+
+   call MPI_Comm_rank(comm, myrank, ierr)
+   call MPI_Comm_size(comm, nranks, ierr)
+
+   total_points = params%resx*params%resy*params%resz
+   allocate (recvcounts(0:nranks - 1))
+   allocate (displs(0:nranks - 1))
+
+   base_count = total_points/nranks
+   remainder = mod(total_points, nranks)
+   do i = 0, nranks - 1
+      recvcounts(i) = base_count
+      if (i < remainder) recvcounts(i) = recvcounts(i) + 1
+      if (i == 0) then
+         displs(i) = 0
+      else
+         displs(i) = displs(i - 1) + recvcounts(i - 1)
+      end if
+   end do
+
+   local_count = recvcounts(myrank)
+   local_start = displs(myrank)
+   allocate (local_vals(local_count))
+
+   do local_idx = 0, local_count - 1
+      global_idx = local_start + local_idx
+      ix = mod(global_idx, params%resx) + 1
+      iy = mod(global_idx/params%resx, params%resy) + 1
+      iz = global_idx/(params%resx*params%resy) + 1
+
+      if (params%resx > 1) then
+         t = dble(ix - 1)/dble(params%resx - 1)
+         x = lerp(t, params%startx, params%endx)
+      else
+         x = params%startx
+      end if
+      if (params%resy > 1) then
+         t = dble(iy - 1)/dble(params%resy - 1)
+         y = lerp(t, params%starty, params%endy)
+      else
+         y = params%starty
+      end if
+      if (params%resz > 1) then
+         t = dble(iz - 1)/dble(params%resz - 1)
+         z = lerp(t, params%startz, params%endz)
+      else
+         z = params%startz
+      end if
+
+      local_vals(local_idx + 1) = EvalSpline(0, Ux, px, nx, nelemx, Uy, py, ny, nelemy, &
+                                             Uz, pz, nz, nelemz, coeffs, x, y, z)
+   end do
+
+   if (myrank == root) then
+      allocate (gathered_vals(total_points))
+   else
+      allocate (gathered_vals(0))
+   end if
+
+   call MPI_Gatherv(local_vals, local_count, MPI_DOUBLE_PRECISION, gathered_vals, &
+                    recvcounts, displs, MPI_DOUBLE_PRECISION, root, comm, ierr)
+
+   if (myrank == root) then
+      allocate (vals(params%resx, params%resy, params%resz))
+      do global_idx = 0, total_points - 1
+         ix = mod(global_idx, params%resx) + 1
+         iy = mod(global_idx/params%resx, params%resy) + 1
+         iz = global_idx/(params%resx*params%resy) + 1
+         vals(ix, iy, iz) = gathered_vals(global_idx + 1)
+      end do
+
+      call output(filename, vals, params)
+   end if
+
+   deallocate (recvcounts)
+   deallocate (displs)
+   deallocate (local_vals)
+   deallocate (gathered_vals)
+   if (allocated(vals)) deallocate (vals)
+
+end subroutine SaveSplinePlotMPI
 
 end module plot

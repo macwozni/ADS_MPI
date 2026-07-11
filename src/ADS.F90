@@ -1362,9 +1362,10 @@ end subroutine Cleanup_ADS
 !>
 !> @details
 !> This routine reconstructs the full spline solution on rank zero using
-!> `GatherFullSolution`, prepares a plotting-parameter structure, and
-!> delegates sampling/export to `SaveSplinePlot`, which in the current
-!> configuration writes VTK output via \ref VtkOutput.
+!> `GatherFullSolution`, broadcasts the coefficient tensor to all ranks,
+!> prepares a plotting-parameter structure, and delegates MPI-distributed
+!> sampling/export to `SaveSplinePlotMPI`, which writes VTK output via
+!> \ref VtkOutput on rank zero.
 !>
 !> The generated filename has the form `stepNNNN...` derived from the
 !> iteration counter.
@@ -1384,9 +1385,10 @@ end subroutine Cleanup_ADS
 subroutine PrintSolution(iter, ads, part)
       use Setup, ONLY: ADS_Setup
       use parallelism, ONLY: MYRANK
-      use plot, ONLY: SaveSplinePlot, PlotParams
+      use plot, ONLY: SaveSplinePlotMPI, PlotParams
       use vtk, ONLY: VtkOutput
       use my_mpi, ONLY: GatherFullSolution
+      use mpi
       implicit none
 !> @brief Local piece of the solution.
       real(kind=8), dimension(:,:), intent(in) :: part
@@ -1397,25 +1399,32 @@ subroutine PrintSolution(iter, ads, part)
       real(kind=8), allocatable :: solution(:, :, :)
       type(PlotParams) :: params
       character(len=20) :: filename
+      integer(kind=4) :: coefficient_count, ierr
 
       call GatherFullSolution(0, part, solution, &
                               ads%n, ads%p, ads%s)
+
+      coefficient_count = (ads%n(1) + 1)*(ads%n(2) + 1)*(ads%n(3) + 1)
+      if (MYRANK /= 0) then
+            allocate (solution(0:ads%n(1), 0:ads%n(2), 0:ads%n(3)))
+      end if
+      call MPI_Bcast(solution, coefficient_count, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
 
       if (MYRANK == 0) then
             write (filename, '(I10)') iter
             filename = 'step'//adjustl(filename)
             ! filename = trim(filename) // '_'
-
-            params = PlotParams(0.d0, 1.d0, 0.d0, 1.d0, 0.d0, 1.d0, 31, 31, 31)
-            call SaveSplinePlot(trim(filename), &
-                              ads%Ux, ads%p(1), ads%n(1), ads%nelem(1), &
-                              ads%Uy, ads%p(2), ads%n(2), ads%nelem(2), &
-                              ads%Uz, ads%p(3), ads%n(3), ads%nelem(3), &
-                              ! solution, GnuPlotOutput, params)
-                              solution, VtkOutput, params)
-
-            ! call SavePlot(trim(filename), ftest, GnuPlotOutput, params)
       end if
+
+      call MPI_Bcast(filename, len(filename), MPI_CHARACTER, 0, MPI_COMM_WORLD, ierr)
+
+      params = PlotParams(0.d0, 1.d0, 0.d0, 1.d0, 0.d0, 1.d0, 31, 31, 31)
+      call SaveSplinePlotMPI(trim(filename), &
+                           ads%Ux, ads%p(1), ads%n(1), ads%nelem(1), &
+                           ads%Uy, ads%p(2), ads%n(2), ads%nelem(2), &
+                           ads%Uz, ads%p(3), ads%n(3), ads%nelem(3), &
+                           ! solution, GnuPlotOutput, params, 0, MPI_COMM_WORLD)
+                           solution, VtkOutput, params, 0, MPI_COMM_WORLD)
 
 end subroutine PrintSolution
 
