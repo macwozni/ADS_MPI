@@ -444,6 +444,8 @@ subroutine MKBBT_small(nelem, U, p, n, mix, sprsmtrx)
    integer(kind=4) :: ng
 !> @brief Loop counters.
    integer(kind=4) :: e, i, c, d
+!> @brief Element color used to avoid concurrent writes to the same rows.
+   integer(kind=4) :: color, ncolors
 !> @brief First nonzero basis-function index on each element.
    integer(kind=4) :: O(nelem)
 !> @brief Output sparse matrix.
@@ -452,6 +454,8 @@ subroutine MKBBT_small(nelem, U, p, n, mix, sprsmtrx)
    real(kind=8) :: val
 !> @brief Elementary mass, stiffness, and advection-like terms.
    real(kind=8) :: M, K, B, BT
+!> @brief Element-local matrix accumulated before sparse scatter.
+   real(kind=8), dimension(0:p, 0:p) :: elmat
 
    mm = n + p + 1
    ng = p + 1
@@ -461,44 +465,50 @@ subroutine MKBBT_small(nelem, U, p, n, mix, sprsmtrx)
 
    call initialize_sparse(n + 1, n + 1, sprsmtrx)
 
-! submatrix A
-! new parallel loop
-!!$OMP PARALLEL DO &
-!!$OMP DEFAULT(PRIVATE) &
-!!$OMP PRIVATE(d,c,i,e,ia,ib,tmp) &
-!!$OMP SHARED(nelem,ng,p,O,NN,W,J,total_size) &
-!!$OMP REDUCTION(+:M) &
-!!$OMP REDUCTION(+:K) &
-!!$OMP REDUCTION(+:B) &
-!!$OMP REDUCTION(+:BT)
-! loop over elements
+! Build the sparse pattern once. The numerical phase can then update
+! existing entries without reallocating row storage.
    do e = 1, nelem
-! loop over Gauss points
-      do i = 1, ng
-         ! loop over shape functions over elements (p+1 functions)
-         do c = 0, p
-            ! loop over shape functions over elements (p+1 functions)
-            do d = 0, p
-               ! O(e) + c = first dof of element + 1st local shape function index
-               ! O(e) + d = first dof of element + 2nd local shape function index
-               ! NN(0,c,i,e) = value of shape function c at Gauss point i over element e
-               ! NN(0,d,i,e) = value of shape function d at Gauss point i over element e
-               ! W(i) weight for Gauss point i
-               ! J(e) jacobian for element e
-               ia = O(e) + c
-               ib = O(e) + d
-               ! M = u*v
-               M = NN(0, c, i, e)*NN(0, d, i, e)*J(e)*W(i)
-               K = NN(1, c, i, e)*NN(1, d, i, e)*J(e)*W(i)
-               B = NN(1, c, i, e)*NN(0, d, i, e)*J(e)*W(i)
-               BT = NN(0, c, i, e)*NN(1, d, i, e)*J(e)*W(i)
-               val = mix(1)*M + mix(2)*K + mix(3)*B + mix(4)*BT
-               call add(sprsmtrx, ia, ib, val)
-            end do
+      do c = 0, p
+         ia = O(e) + c
+         do d = 0, p
+            ib = O(e) + d
+            call add(sprsmtrx, ia, ib, 0.d0)
          end do
       end do
    end do
-!!$OMP END PARALLEL DO
+
+   ncolors = p + 1
+   do color = 1, ncolors
+!$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(e,i,c,d,ia,ib,M,K,B,BT,val,elmat) SCHEDULE(STATIC)
+      do e = color, nelem, ncolors
+         elmat = 0.d0
+! loop over Gauss points
+         do i = 1, ng
+            ! loop over shape functions over elements (p+1 functions)
+            do c = 0, p
+               ! loop over shape functions over elements (p+1 functions)
+               do d = 0, p
+                  ! M = u*v
+                  M = NN(0, c, i, e)*NN(0, d, i, e)*J(e)*W(i)
+                  K = NN(1, c, i, e)*NN(1, d, i, e)*J(e)*W(i)
+                  B = NN(1, c, i, e)*NN(0, d, i, e)*J(e)*W(i)
+                  BT = NN(0, c, i, e)*NN(1, d, i, e)*J(e)*W(i)
+                  val = mix(1)*M + mix(2)*K + mix(3)*B + mix(4)*BT
+                  elmat(c, d) = elmat(c, d) + val
+               end do
+            end do
+         end do
+
+         do c = 0, p
+            ia = O(e) + c
+            do d = 0, p
+               ib = O(e) + d
+               call add_existing(sprsmtrx, ia, ib, elmat(c, d))
+            end do
+         end do
+      end do
+!$OMP END PARALLEL DO
+   end do
 
 end subroutine MKBBT_small
 

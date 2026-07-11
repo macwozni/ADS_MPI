@@ -69,7 +69,7 @@ module sparse
    private :: sparse_row_storage
    private :: ensure_row_capacity, find_in_row, append_to_row
    private :: sorted_row_order, release_mumps_triplets
-   public  :: initialize_sparse, clear_matrix, add
+   public  :: initialize_sparse, clear_matrix, add, add_existing
    public  :: to_dense_matrix, to_mumps_format, to_mumps_format_transposed
    public  :: sparse_matrix
 
@@ -244,6 +244,37 @@ subroutine add(matrix, x, y, val)
       matrix%total_entries = matrix%total_entries + 1_8
    end if
 end subroutine add
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Adds a contribution to an already allocated sparse entry.
+!>
+!> @details
+!> This routine is intended for assembly kernels that build the sparse
+!> pattern before the numerical phase. It never reallocates row storage and
+!> never changes \ref sparse_matrix::total_entries.
+!
+!---------------------------------------------------------------------------
+subroutine add_existing(matrix, x, y, val)
+   use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT
+   implicit none
+   type(sparse_matrix), pointer, intent(inout) :: matrix
+   integer(kind=4), intent(in) :: x
+   integer(kind=4), intent(in) :: y
+   real(kind=8), intent(in) :: val
+   logical :: found
+   integer(kind=4) :: pos
+
+   call find_in_row(matrix%rows(x), y, found, pos)
+
+   if (.not. found) then
+      write(ERROR_UNIT, *) 'add_existing called for a missing sparse entry:', x, y
+      stop 1
+   end if
+
+   matrix%rows(x)%val(pos) = matrix%rows(x)%val(pos) + val
+end subroutine add_existing
 
 !---------------------------------------------------------------------------
 !
