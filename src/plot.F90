@@ -439,6 +439,7 @@ subroutine SaveSplinePlotMPI(filename, &
    local_start = displs(myrank)
    allocate (local_vals(local_count))
 
+!$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(local_idx,global_idx,ix,iy,iz,x,y,z,t) SCHEDULE(STATIC)
    do local_idx = 0, local_count - 1
       global_idx = local_start + local_idx
       ix = mod(global_idx, params%resx) + 1
@@ -467,6 +468,7 @@ subroutine SaveSplinePlotMPI(filename, &
       local_vals(local_idx + 1) = EvalSpline(0, Ux, px, nx, nelemx, Uy, py, ny, nelemy, &
                                              Uz, pz, nz, nelemz, coeffs, x, y, z)
    end do
+!$OMP END PARALLEL DO
 
    if (myrank == root) then
       allocate (gathered_vals(total_points))
