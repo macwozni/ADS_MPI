@@ -292,13 +292,14 @@ subroutine SaveSplinePlot(filename, &
    integer(kind=4) :: ix, iy, iz
 
    ! Compute function values
+!$OMP PARALLEL DO COLLAPSE(3) DEFAULT(SHARED) PRIVATE(ix,iy,iz,x,y,z,t) SCHEDULE(STATIC)
    do ix = 1, params%resx
-      t = (ix - 1)/dble(params%resx - 1)
-      x = lerp(t, params%startx, params%endx)
       do iy = 1, params%resy
-         t = (iy - 1)/dble(params%resy - 1)
-         y = lerp(t, params%starty, params%endy)
          do iz = 1, params%resz
+            t = (ix - 1)/dble(params%resx - 1)
+            x = lerp(t, params%startx, params%endx)
+            t = (iy - 1)/dble(params%resy - 1)
+            y = lerp(t, params%starty, params%endy)
             t = (iz - 1)/dble(params%resz - 1)
             z = lerp(t, params%startz, params%endz)
             vals(ix, iy, iz) = EvalSpline(0, Ux, px, nx, nelemx, Uy, py, ny, nelemy, &
@@ -306,6 +307,7 @@ subroutine SaveSplinePlot(filename, &
          end do
       end do
    end do
+!$OMP END PARALLEL DO
 
    call output(filename, vals, params)
 
