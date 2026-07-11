@@ -631,19 +631,18 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
    call create_mixed_space(ads_test, ads_trial, direction,&
    ads, dira, dirb, dirc, igrm)
 
-   allocate (elarr(0:ads%p(dira), 0:ads%p(dirb), 0:ads%p(dirc)))
+   ! Each OpenMP thread needs a private element-local accumulator.
    ! total_size = ads % lnelem(1) * ads % lnelem(2) * ads % lnelem(3)
 
 !   if (allocated(ads_data%F)) ads_data%F = 0.d0
 !   if (allocated(ads_data%Ft)) ads_data%Ft = 0.d0
 
 !      loop over points
-! !$OMP PARALLEL DO &
-! !$OMP DEFAULT(SHARED) &
-! !$OMP SHARED(ads,ads_data,total_size) &
-! !$OMP PRIVATE(tmp,ex,ey,ez,e,kx,ky,kz,k,W,ax,ay,az,a,ind,indx,indy,indz,ind1,ind23,J) &
-! !$OMP PRIVATE(X,du,resvalue) &
-! !$OMP PRIVATE(indbx,indby,indbz,Uval,elarr,,Uval_m,Uval13,Uval23)
+!$OMP PARALLEL DEFAULT(SHARED) &
+!$OMP PRIVATE(ex,ey,ez,e,kx,ky,kz,k,W,ax,ay,az,a,ind,indx,indy,indz,ind1,ind23,J) &
+!$OMP PRIVATE(statex,statey,statez,X,du,resvalue,indb,Uval,Uval13,Uval23,elarr)
+   allocate (elarr(0:ads%p(dira), 0:ads%p(dirb), 0:ads%p(dirc)))
+!$OMP DO COLLAPSE(3) SCHEDULE(STATIC) ORDERED
    ! do all = 1, total_size
 ! translate coefficients to local
    ! ez = modulo(all - 1, ads % lnelem(3))
@@ -767,7 +766,7 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
                end do
             end do
 ! moving results from temporary array to main one
-! !$OMP CRITICAL
+!$OMP ORDERED
             do ax = 0, ads%p(dira)
                do ay = 0, ads%p(dirb)
                   do az = 0, ads%p(dirc)
@@ -800,13 +799,14 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
                   end do
                end do
             end do
-! !$OMP END CRITICAL
+!$OMP END ORDERED
          end do
       end do
    end do
-! !$OMP END PARALLEL DO
-
+!$OMP END DO
    deallocate (elarr)
+!$OMP END PARALLEL
+
 
 end subroutine Form3DRHS
 
