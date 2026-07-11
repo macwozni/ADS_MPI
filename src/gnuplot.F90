@@ -20,9 +20,8 @@
 !>
 !> In the current design, each \f$z\f$-layer of a three-dimensional field
 !> is written to a separate `.plot` file. The resulting files contain
-!> triples of the form
-!> \f$(x, y, value)\f$
-!> arranged in a grid-like plain-text layout.
+!> triples of the form \f$(x, y, value)\f$ arranged in a grid-like
+!> plain-text layout.
 !
 !------------------------------------------------------------------------------
 module gnuplot
@@ -104,8 +103,8 @@ end subroutine GnuPlotOutput
 !> \f]
 !>
 !> The integer layer index is first written to a temporary character
-!> buffer, left-adjusted, and then concatenated with the base pattern
-!> and the `.plot` extension.
+!> buffer, left-adjusted, trimmed, and then concatenated with the trimmed
+!> base pattern and the `.plot` extension.
 !
 ! Input:
 ! ------
@@ -123,8 +122,8 @@ end subroutine GnuPlotOutput
 ! Notes:
 ! ------
 !> @note
-!> The layer index is written using default integer formatting and then
-!> left-adjusted before concatenation.
+!> The layer index is written using fixed-width integer formatting and
+!> then left-adjusted and trimmed before concatenation.
 !
 !---------------------------------------------------------------------------
 subroutine BuildFileName(pattern, layer, filename)
@@ -136,11 +135,11 @@ subroutine BuildFileName(pattern, layer, filename)
 !> @brief Constructed output filename.
    character(len=*), intent(out) :: filename
 !> @brief Temporary buffer holding the textual layer index.
-   character(len=10) :: buffer
+   character(len=32) :: buffer
 
-   write (buffer, '(I10)') layer
+   write (buffer, '(I32)') layer
    buffer = adjustl(buffer)
-   filename = trim(pattern//buffer)//'.plot'
+   filename = trim(pattern)//trim(buffer)//'.plot'
 
 end subroutine BuildFileName
 
@@ -155,8 +154,8 @@ end subroutine BuildFileName
 !> file whose name is constructed by \ref BuildFileName.
 !>
 !> For each grid point, the output file contains one line with:
-!> - the zero-based index in the first direction,
-!> - the zero-based index in the second direction,
+!> - the physical coordinate in the first direction,
+!> - the physical coordinate in the second direction,
 !> - the scalar value at that point.
 !>
 !> A blank line is inserted after each sweep in the first direction,
@@ -194,25 +193,37 @@ subroutine OutputLayer(pattern, zlayer, vals, params)
 !> @brief Two-dimensional scalar field of the selected layer.
    real(kind=8), intent(in) :: vals(params%resx, params%resy)
 
-!> @brief Output filename and temporary formatted value buffer.
-   character(len=50) :: filename, buf
+!> @brief Output filename.
+   character(len=512) :: filename
 !> @brief Output unit number used for file writing.
    integer :: outFile = 57 ! random value, Grothendieck's prime
 !> @brief Loop counters over the two-dimensional grid.
    integer :: ix, iy
+!> @brief Physical coordinates of one grid sample.
+   real(kind=8) :: x, y
 
 #ifdef IPRINT
    write (*, *) 'Layer', zlayer
 #endif
    call BuildFileName(pattern, zlayer, filename)
 
-   open (unit=outFile, file=filename, &
-         form='formatted', access='sequential', status='unknown')
+   open (unit=outFile, file=trim(filename), &
+         form='formatted', access='sequential', status='replace', &
+         action='write')
 
    do ix = 1, params%resx
+      if (params%resx > 1) then
+         x = params%startx + (params%endx - params%startx)*dble(ix - 1)/dble(params%resx - 1)
+      else
+         x = params%startx
+      end if
       do iy = 1, params%resy
-         write (buf, '(F30.10)') vals(ix, iy)
-         write (outFile, *) ix - 1, ' ', iy - 1, ' ', buf
+         if (params%resy > 1) then
+            y = params%starty + (params%endy - params%starty)*dble(iy - 1)/dble(params%resy - 1)
+         else
+            y = params%starty
+         end if
+         write (outFile, '(3(ES24.16,1X))') x, y, vals(ix, iy)
       end do
       write (outFile, *) ! blank line
    end do
