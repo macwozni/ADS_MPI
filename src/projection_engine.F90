@@ -1114,12 +1114,11 @@ subroutine FormUn(subun, ads, ads_data)
    !total_size = ads%lnelem(1)*ads%lnelem(2)*ads%lnelem(3)
 
 !      loop over points
-! !$OMP PARALLEL DO &
-! !$OMP DEFAULT(SHARED) &
-! !$OMP SHARED(ads,ads_data,total_size) &
-! !$OMP PRIVATE(tmp,ex,ey,ez,kx,ky,kz,ind) &
-! !$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz,du) &
-! !$OMP PRIVATE(indbx,indby,indbz,Uval,dux,duy,duz,v)
+!$OMP PARALLEL DO COLLAPSE(3) DEFAULT(SHARED) &
+!$OMP PRIVATE(ex,ey,ez,kx,ky,kz,ind,statex,statey,statez) &
+!$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz) &
+!$OMP PRIVATE(indbx,indby,indbz,Uval,dux,duy,duz,v) &
+!$OMP SCHEDULE(STATIC)
    !do all = 1, total_size
 !        translate coefficients to local
    !ez = modulo(all - 1, ads%lnelem(3))
@@ -1217,7 +1216,7 @@ subroutine FormUn(subun, ads, ads_data)
          end do
       end do
    end do
-! !$OMP END PARALLEL DO
+!$OMP END PARALLEL DO
 
 end subroutine FormUn
 
