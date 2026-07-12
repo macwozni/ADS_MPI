@@ -9,7 +9,7 @@
 !> @details
 !> This module groups a small set of helper procedures used across the
 !> code base. The available routines currently include:
-!> - a placeholder procedure \ref NormL2,
+!> - the generic \ref NormL2 interface for solution and error norms,
 !> - a distributed assembly-oriented routine \ref Norm_L2,
 !> - an integer-to-string conversion utility \ref int2str.
 !>
@@ -22,34 +22,207 @@ module utils
 
    implicit none
 
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Exact scalar field interface used by the \ref NormL2 error mode.
+!
+!---------------------------------------------------------------------------
+   abstract interface
+      function l2_scalar_fun(X) result(val)
+         implicit none
+!> @brief Physical evaluation point.
+         real(kind=8), intent(in), dimension(3) :: X
+!> @brief Exact scalar value at \p X.
+         real(kind=8) :: val
+      end function l2_scalar_fun
+   end interface
+
+   interface NormL2
+      module procedure NormL2Solution
+      module procedure NormL2Error
+   end interface NormL2
+
+   public :: NormL2
+   private :: NormL2Solution, NormL2Error, ComputeL2Norm
+
 contains
 
 
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
-!> @brief Placeholder routine for \f$L_2\f$-norm-related setup handling.
+!> @brief Computes the \f$L_2\f$ norm of a spline solution.
 !>
 !> @details
-!> This procedure currently imports selected symbols from module
-!> `Setup`, but it does not perform any computational work yet.
-!> It may serve as a future entry point for norm evaluation logic
-!> or setup-dependent pre-processing.
+!> This wrapper evaluates
+!> \f[
+!>   \|u_h\|_{L_2(\Omega)}
+!>     = \left(\int_\Omega u_h^2\,dx\right)^{1/2}
+!> \f]
+!> for the distributed spline coefficient block \p part.
+!>
+!> Internally the coefficient field is gathered on rank zero and
+!> integrated over the global element grid exactly once. The resulting
+!> scalar norm is then broadcast back to all MPI ranks.
 !
-! Notes:
+! Input:
 ! ------
-!> @note
-!> At present, this routine is an empty stub.
+!> @param[in] ads
+!> Spline setup describing the coefficient field.
+!>
+!> @param[in] part
+!> Local coefficient block stored in the canonical ADS layout.
 !
-!> @warning
-!> The procedure has no effect in its current form.
+! Output:
+! -------
+!> @param[out] norm
+!> Computed global \f$L_2\f$ norm.
 !
 !---------------------------------------------------------------------------
-subroutine NormL2 ()
-   use Setup, ONLY: ADS_Setup, ADS_compute_data
+subroutine NormL2Solution(ads, part, norm)
+   use Setup, ONLY: ADS_Setup
    implicit none
+!> @brief Spline setup describing the coefficient field.
+   type(ADS_Setup), intent(in) :: ads
+!> @brief Local coefficient block in canonical ADS layout.
+   real(kind=8), intent(in), dimension(:, :) :: part
+!> @brief Computed global solution norm.
+   real(kind=8), intent(out) :: norm
 
-end subroutine NormL2
+   call ComputeL2Norm(ads, part, norm)
+
+end subroutine NormL2Solution
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Computes the \f$L_2\f$ norm of the error against an exact field.
+!>
+!> @details
+!> This wrapper evaluates
+!> \f[
+!>   \|u_h-u_{\mathrm{exact}}\|_{L_2(\Omega)}
+!>     = \left(\int_\Omega
+!>       (u_h-u_{\mathrm{exact}})^2\,dx\right)^{1/2}
+!> \f]
+!> for the distributed spline coefficient block \p part.
+!>
+!> The exact scalar field is supplied as a callback accepting the
+!> physical quadrature-point coordinate.
+!
+! Input:
+! ------
+!> @param[in] ads
+!> Spline setup describing the coefficient field.
+!>
+!> @param[in] part
+!> Local coefficient block stored in the canonical ADS layout.
+!>
+!> @param[in] exact_fun
+!> Exact scalar field used as the reference solution.
+!
+! Output:
+! -------
+!> @param[out] norm
+!> Computed global \f$L_2\f$ error norm.
+!
+!---------------------------------------------------------------------------
+subroutine NormL2Error(ads, part, norm, exact_fun)
+   use Setup, ONLY: ADS_Setup
+   implicit none
+!> @brief Spline setup describing the coefficient field.
+   type(ADS_Setup), intent(in) :: ads
+!> @brief Local coefficient block in canonical ADS layout.
+   real(kind=8), intent(in), dimension(:, :) :: part
+!> @brief Computed global error norm.
+   real(kind=8), intent(out) :: norm
+!> @brief Exact scalar field used as reference.
+   procedure(l2_scalar_fun) :: exact_fun
+
+   call ComputeL2Norm(ads, part, norm, exact_fun)
+
+end subroutine NormL2Error
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Shared implementation for solution and error \f$L_2\f$ norms.
+!>
+!> @details
+!> The routine gathers the distributed coefficient field to rank zero,
+!> integrates over all global elements and quadrature points using the
+!> basis data stored in \p ads, and broadcasts the final norm to all
+!> ranks.
+!>
+!> When \p exact_fun is present, the squared error is integrated.
+!> Otherwise the squared numerical solution is integrated.
+!
+!---------------------------------------------------------------------------
+subroutine ComputeL2Norm(ads, part, norm, exact_fun)
+   use Setup, ONLY: ADS_Setup
+   use basis, ONLY: EvalSpline
+   use my_mpi, ONLY: GatherFullSolution
+   use parallelism, ONLY: MYRANK
+   use mpi
+   implicit none
+!> @brief Spline setup describing the coefficient field.
+   type(ADS_Setup), intent(in) :: ads
+!> @brief Local coefficient block in canonical ADS layout.
+   real(kind=8), intent(in), dimension(:, :) :: part
+!> @brief Computed global norm.
+   real(kind=8), intent(out) :: norm
+!> @brief Optional exact scalar field for error norms.
+   procedure(l2_scalar_fun), optional :: exact_fun
+!> @brief Full coefficient field gathered on rank zero.
+   real(kind=8), allocatable, dimension(:, :, :) :: coeffs
+!> @brief Physical quadrature point.
+   real(kind=8), dimension(3) :: X
+!> @brief Quadrature weight, Jacobian, spline value, and integrated value.
+   real(kind=8) :: W, J, uh, diff, norm_sq
+!> @brief Loop counters over elements and quadrature points.
+   integer(kind=4) :: ex, ey, ez, kx, ky, kz
+!> @brief MPI return code.
+   integer(kind=4) :: ierr
+
+   call GatherFullSolution(0, part, coeffs, ads%n, ads%p, ads%s)
+
+   norm_sq = 0.d0
+   if (MYRANK == 0) then
+      do ex = 1, ads%nelem(1)
+         do ey = 1, ads%nelem(2)
+            do ez = 1, ads%nelem(3)
+               J = ads%Jx(ex)*ads%Jy(ey)*ads%Jz(ez)
+               do kx = 1, ads%ng(1)
+                  do ky = 1, ads%ng(2)
+                     do kz = 1, ads%ng(3)
+                        W = ads%Wx(kx)*ads%Wy(ky)*ads%Wz(kz)
+                        X = (/ads%Xx(kx, ex), ads%Xy(ky, ey), ads%Xz(kz, ez)/)
+                        uh = EvalSpline(0, &
+                           ads%Ux, ads%p(1), ads%n(1), ads%nelem(1), &
+                           ads%Uy, ads%p(2), ads%n(2), ads%nelem(2), &
+                           ads%Uz, ads%p(3), ads%n(3), ads%nelem(3), &
+                           coeffs, X(1), X(2), X(3))
+                        if (present(exact_fun)) then
+                           diff = uh - exact_fun(X)
+                        else
+                           diff = uh
+                        end if
+                        norm_sq = norm_sq + diff*diff*J*W
+                     end do
+                  end do
+               end do
+            end do
+         end do
+      end do
+   end if
+
+   call MPI_Bcast(norm_sq, 1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
+   norm = sqrt(max(norm_sq, 0.d0))
+
+   if (allocated(coeffs)) deallocate(coeffs)
+
+end subroutine ComputeL2Norm
 
 !---------------------------------------------------------------------------
 !
@@ -294,4 +467,3 @@ subroutine int2str(n, str)
 end subroutine int2str
 
 end module utils
-
