@@ -157,6 +157,7 @@ subroutine BasisData(p, m, U, d, q, r, O, J, W, X, N)
 
    call GaussRule(q, Xg, W)
 
+!$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(ir,i,iq,uu,basis) SCHEDULE(STATIC)
    do ir = 1, r
       i = O(ir) + p
       J(ir) = (U(i + 1) - U(i))/2.0
@@ -167,6 +168,7 @@ subroutine BasisData(p, m, U, d, q, r, O, J, W, X, N)
          N(:, :, iq, ir) = transpose(basis)
       end do
    end do
+!$OMP END PARALLEL DO
 
 end subroutine BasisData
 
