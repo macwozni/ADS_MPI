@@ -69,6 +69,7 @@ module sparse
    private :: sparse_row_storage
    private :: ensure_row_capacity, find_in_row, append_to_row
    private :: sorted_row_order, release_mumps_triplets
+   private :: build_mumps_row_offsets, fill_mumps_triplets
    public  :: initialize_sparse, clear_matrix, add, add_existing
    public  :: to_dense_matrix, to_mumps_format, to_mumps_format_transposed
    public  :: sparse_matrix
@@ -376,6 +377,68 @@ end subroutine release_mumps_triplets
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
+!> @brief Builds one-based row starts for deterministic MUMPS triplet export.
+!
+!---------------------------------------------------------------------------
+subroutine build_mumps_row_offsets(matrix, row_offsets)
+   implicit none
+   type(sparse_matrix), pointer, intent(in) :: matrix
+   integer(kind=8), allocatable, intent(out) :: row_offsets(:)
+   integer(kind=4) :: i
+
+   allocate(row_offsets(0:matrix%x))
+   row_offsets(0) = 1_8
+
+   do i = 0, matrix%x - 1
+      row_offsets(i + 1) = row_offsets(i) + int(matrix%rows(i)%nnz, kind=8)
+   end do
+end subroutine build_mumps_row_offsets
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Fills MUMPS triplet arrays from independent row ranges.
+!
+!---------------------------------------------------------------------------
+subroutine fill_mumps_triplets(matrix, row_offsets, transpose_triplets, mumps_par)
+   implicit none
+   include 'dmumps_struc.h'
+   type(sparse_matrix), pointer, intent(in) :: matrix
+   integer(kind=8), intent(in) :: row_offsets(0:matrix%x)
+   logical, intent(in) :: transpose_triplets
+   type(dmumps_struc), intent(inout) :: mumps_par
+!> @brief Minimum number of triplets for OpenMP row conversion.
+   integer(kind=8), parameter :: MUMPS_FORMAT_OMP_THRESHOLD = 4096_8
+   integer(kind=4) :: i
+   integer(kind=4) :: k
+   integer(kind=4), allocatable :: order(:)
+   integer(kind=8) :: pos
+
+!$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,k,pos,order) SCHEDULE(STATIC) &
+!$OMP IF(matrix%total_entries > MUMPS_FORMAT_OMP_THRESHOLD)
+   do i = 0, matrix%x - 1
+      if (matrix%rows(i)%nnz <= 0) cycle
+
+      pos = row_offsets(i)
+      call sorted_row_order(matrix%rows(i), order)
+      do k = 1, matrix%rows(i)%nnz
+         if (transpose_triplets) then
+            mumps_par%irn(pos + k - 1_8) = matrix%rows(i)%col(order(k)) + 1
+            mumps_par%jcn(pos + k - 1_8) = i + 1
+         else
+            mumps_par%irn(pos + k - 1_8) = i + 1
+            mumps_par%jcn(pos + k - 1_8) = matrix%rows(i)%col(order(k)) + 1
+         end if
+         mumps_par%a(pos + k - 1_8) = matrix%rows(i)%val(order(k))
+      end do
+      deallocate(order)
+   end do
+!$OMP END PARALLEL DO
+end subroutine fill_mumps_triplets
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
 !> @brief Converts a sparse matrix to the one-based MUMPS triplet format.
 !
 !---------------------------------------------------------------------------
@@ -384,10 +447,7 @@ subroutine to_mumps_format(matrix, mumps_par)
    include 'dmumps_struc.h'
    type(sparse_matrix), pointer, intent(in) :: matrix
    type(dmumps_struc), intent(inout) :: mumps_par
-   integer(kind=4) :: i
-   integer(kind=4) :: k
-   integer(kind=4), allocatable :: order(:)
-   integer(kind=8) :: nz_counter
+   integer(kind=8), allocatable :: row_offsets(:)
 
    if (matrix%x > matrix%y) then
       mumps_par%N = matrix%x
@@ -402,19 +462,9 @@ subroutine to_mumps_format(matrix, mumps_par)
    allocate(mumps_par%jcn(mumps_par%NZ))
    allocate(mumps_par%a(mumps_par%NZ))
 
-   nz_counter = 0_8
-   do i = 0, matrix%x - 1
-      if (matrix%rows(i)%nnz <= 0) cycle
-
-      call sorted_row_order(matrix%rows(i), order)
-      do k = 1, matrix%rows(i)%nnz
-         nz_counter = nz_counter + 1_8
-         mumps_par%irn(nz_counter) = i + 1
-         mumps_par%jcn(nz_counter) = matrix%rows(i)%col(order(k)) + 1
-         mumps_par%a(nz_counter)   = matrix%rows(i)%val(order(k))
-      end do
-      deallocate(order)
-   end do
+   call build_mumps_row_offsets(matrix, row_offsets)
+   call fill_mumps_triplets(matrix, row_offsets, .false., mumps_par)
+   deallocate(row_offsets)
 end subroutine to_mumps_format
 
 !---------------------------------------------------------------------------
@@ -432,10 +482,7 @@ subroutine to_mumps_format_transposed(matrix, mumps_par)
    include 'dmumps_struc.h'
    type(sparse_matrix), pointer, intent(in) :: matrix
    type(dmumps_struc), intent(inout) :: mumps_par
-   integer(kind=4) :: i
-   integer(kind=4) :: k
-   integer(kind=4), allocatable :: order(:)
-   integer(kind=8) :: nz_counter
+   integer(kind=8), allocatable :: row_offsets(:)
 
    if (matrix%x > matrix%y) then
       mumps_par%N = matrix%x
@@ -450,19 +497,9 @@ subroutine to_mumps_format_transposed(matrix, mumps_par)
    allocate(mumps_par%jcn(mumps_par%NZ))
    allocate(mumps_par%a(mumps_par%NZ))
 
-   nz_counter = 0_8
-   do i = 0, matrix%x - 1
-      if (matrix%rows(i)%nnz <= 0) cycle
-
-      call sorted_row_order(matrix%rows(i), order)
-      do k = 1, matrix%rows(i)%nnz
-         nz_counter = nz_counter + 1_8
-         mumps_par%irn(nz_counter) = matrix%rows(i)%col(order(k)) + 1
-         mumps_par%jcn(nz_counter) = i + 1
-         mumps_par%a(nz_counter)   = matrix%rows(i)%val(order(k))
-      end do
-      deallocate(order)
-   end do
+   call build_mumps_row_offsets(matrix, row_offsets)
+   call fill_mumps_triplets(matrix, row_offsets, .true., mumps_par)
+   deallocate(row_offsets)
 end subroutine to_mumps_format_transposed
 
 end module sparse
