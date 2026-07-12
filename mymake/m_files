@@ -13,11 +13,19 @@ SOURCES = \
     ../src/my_mpi.F90 \
     ../src/sparse.F90 \
     ../src/RHS_eq.F90 \
+    ../src/igrm_space.F90 \
+    ../src/operator_assembly.F90 \
+    ../src/rhs_assembly.F90 \
+    ../src/solution_reconstruction.F90 \
     ../src/projection_engine.F90 \
+    ../src/ads_lifecycle.F90 \
+    ../src/mumps_solver.F90 \
+    ../src/ads_directional_solve.F90 \
     ../src/utils.F90 \
     ../src/plot.F90 \
     ../src/gnuplot.F90 \
     ../src/vtk.F90 \
+    ../src/solution_output.F90 \
     ../src/ADS.F90 \
     ../src/time_scheme.F90
 
