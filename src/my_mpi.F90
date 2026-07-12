@@ -597,6 +597,10 @@ subroutine GatherFullSolution(at, part, full, n, p, s)
    integer(kind=4), dimension(0:NRPROCX*NRPROCY*NRPROCZ - 1) :: displs
    !> @brief Running offset and local piece size.
    integer(kind=4) :: offset, msize
+   !> @brief Minimum number of coefficients for OpenMP root-side unpacking.
+   integer(kind=4), parameter :: GATHER_FULL_OMP_THRESHOLD = 262144
+   !> @brief Offset and size of one gathered process block.
+   integer(kind=4) :: block_offset, block_size
    !> @brief MPI return code.
    integer(kind=4) :: ierr
    !> @brief Total number of gathered coefficients on the root process.
@@ -613,10 +617,8 @@ subroutine GatherFullSolution(at, part, full, n, p, s)
    integer(kind=4) :: xx, yy, zz
    !> @brief Logical process-grid coordinates.
    integer(kind=4) :: x, y, z
-   !> @brief Logical process-grid coordinates.
-   integer(kind=4), dimension(3) :: i
-   !> @brief Linear rank or local linearized index.
-   integer(kind=4) :: idx
+   !> @brief Linear rank and local linearized index.
+   integer(kind=4) :: rank_idx, local_idx
    !> @brief Temporary process-grid coordinate triplet.
    integer(kind=4), dimension(3) :: tmp
 
@@ -638,11 +640,11 @@ subroutine GatherFullSolution(at, part, full, n, p, s)
    do x = 0, NRPROCX - 1
       do y = 0, NRPROCY - 1
          do z = 0, NRPROCZ - 1
-            idx = LinearIndex(x, y, z)
+            rank_idx = LinearIndex(x, y, z)
             tmp = (/x, y, z/)
             msize = SizeOfPiece(tmp, n, p)
-            recvcounts(idx) = msize
-            displs(idx) = offset
+            recvcounts(rank_idx) = msize
+            displs(rank_idx) = offset
             offset = offset + msize
          end do
       end do
@@ -653,10 +655,12 @@ subroutine GatherFullSolution(at, part, full, n, p, s)
 
 ! Reordering of the array at root
    if (MYRANK == at) then
-      offset = 0
       do x = 0, NRPROCX - 1
          do y = 0, NRPROCY - 1
             do z = 0, NRPROCZ - 1
+               rank_idx = LinearIndex(x, y, z)
+               block_offset = displs(rank_idx)
+               block_size = recvcounts(rank_idx)
                call ComputeEndpoints(x, NRPROCX, n(1), p(1), nrcpp, begs(1), ends(1), mine, maxe)
                call ComputeEndpoints(y, NRPROCY, n(2), p(2), nrcpp, begs(2), ends(2), mine, maxe)
                call ComputeEndpoints(z, NRPROCZ, n(3), p(3), nrcpp, begs(3), ends(3), mine, maxe)
@@ -664,21 +668,18 @@ subroutine GatherFullSolution(at, part, full, n, p, s)
                ss(2) = ends(2) - begs(2) + 1
                ss(3) = ends(3) - begs(3) + 1
 
-               do xx = 0, ss(1) - 1
+!$OMP PARALLEL DO COLLAPSE(2) DEFAULT(SHARED) PRIVATE(xx,yy,zz,local_idx) SCHEDULE(STATIC) &
+!$OMP IF(block_size > GATHER_FULL_OMP_THRESHOLD)
+               do zz = 0, ss(3) - 1
                   do yy = 0, ss(2) - 1
-                     do zz = 0, ss(3) - 1
-                        i(1) = begs(1) - 1 + xx ! beg_ starts from 1, hence -1
-                        i(2) = begs(2) - 1 + yy
-                        i(3) = begs(3) - 1 + zz
-                        idx = (zz*ss(2) + yy)*ss(1) + xx
-
-                        full(i(1), i(2), i(3)) = buffer(offset + idx)
+                     do xx = 0, ss(1) - 1
+                        local_idx = (zz*ss(2) + yy)*ss(1) + xx
+                        full(begs(1) - 1 + xx, begs(2) - 1 + yy, begs(3) - 1 + zz) = &
+                              buffer(block_offset + local_idx)
                      end do
                   end do
                end do
-
-               tmp = (/x, y, z/)
-               offset = offset + SizeOfPiece(tmp, n, p)
+!$OMP END PARALLEL DO
             end do
          end do
       end do
