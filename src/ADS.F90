@@ -1115,7 +1115,10 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
       type(ADS_compute_data), intent(inout) :: ads_data
 !> @brief Returned status code.
       integer(kind=4), intent(out) :: mierr
+!> @brief Minimum number of copied values for OpenMP redistribution-buffer fill.
+      integer(kind=4), parameter :: COPY_TO_R_OMP_THRESHOLD = 262144
       integer(kind=4) :: i,a,b,c
+      integer(kind=4) :: copy_columns, copy_size, copy_width
       integer(kind=4) :: diridx
       integer(kind=4) :: ierr!, iret
       integer(kind=4), dimension(3) :: nrcpp
@@ -1212,9 +1215,15 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
       c = 3
 
       !  copy results to proper buffer
-      do i = 1, ads_trial%s(b)*ads_trial%s(c)
-            ads_data%R((i - 1)*ads_trial%s(a) + 1:i*ads_trial%s(a), 2, 2, 2) = ads_data%F(:, i)
+      copy_width = ads_trial%s(a)
+      copy_columns = ads_trial%s(b)*ads_trial%s(c)
+      copy_size = copy_width*copy_columns
+!$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i) SCHEDULE(STATIC) &
+!$OMP IF(copy_size > COPY_TO_R_OMP_THRESHOLD)
+      do i = 1, copy_columns
+            ads_data%R((i - 1)*copy_width + 1:i*copy_width, 2, 2, 2) = ads_data%F(:, i)
       end do
+!$OMP END PARALLEL DO
       !  nrcpp - number of columns (average) per processor
       nrcpp = (/ads_trial%nrcpp(c), ads_trial%nrcpp(a), ads_trial%nrcpp(b)/)
       call DistributeSpline(ads_data%R, nrcpp)
