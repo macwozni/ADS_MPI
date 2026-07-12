@@ -101,21 +101,29 @@ subroutine ReorderRHSForY(ibeg, iend, F, F2)
    integer(kind = 4) :: ix, iy, iz
 !> @brief Flattened local indices in the input and output layouts.
    integer(kind = 4) :: ind2, ind13, ind1, ind23
+!> @brief Local extents in the first and second physical directions.
+   integer(kind = 4) :: n1, n2
 
-   do ix = ibeg(1), iend(1)
-      do iy = ibeg(2), iend(2)
-         do iz = ibeg(3), iend(3)
+   n1 = iend(1) - ibeg(1) + 1
+   n2 = iend(2) - ibeg(2) + 1
+
+!$OMP PARALLEL DO COLLAPSE(2) DEFAULT(SHARED) &
+!$OMP PRIVATE(ix,iy,iz,ind2,ind13,ind1,ind23) SCHEDULE(STATIC)
+   do iz = ibeg(3), iend(3)
+      do ix = ibeg(1), iend(1)
+         do iy = ibeg(2), iend(2)
 
             ind2 = iy - ibeg(2)
-            ind13 = (ix - ibeg(1))+(iz - ibeg(3))*(iend(1) - ibeg(1) + 1)
+            ind13 = (ix - ibeg(1))+(iz - ibeg(3))*n1
 
             ind1 = ix - ibeg(1)
-            ind23 = (iy - ibeg(2))+(iz - ibeg(3))*(iend(2) - ibeg(2) + 1)
+            ind23 = (iy - ibeg(2))+(iz - ibeg(3))*n2
 
             F2(ind2, ind13) = F(ind1, ind23)
          enddo
       enddo
    enddo
+!$OMP END PARALLEL DO
 
 end subroutine ReorderRHSForY
 
@@ -181,22 +189,29 @@ subroutine ReorderRHSForZ(ibeg, iend, F, F2)
    integer(kind = 4) :: ix, iy, iz
 !> @brief Flattened local indices in the input and output layouts.
    integer(kind = 4) :: ind3, ind12, ind2, ind13
+!> @brief Local extent in the first physical direction.
+   integer(kind = 4) :: n1
 
-   do ix = ibeg(1), iend(1)
-      do iy = ibeg(2), iend(2)
-         do iz = ibeg(3), iend(3)
+   n1 = iend(1) - ibeg(1) + 1
+
+!$OMP PARALLEL DO COLLAPSE(2) DEFAULT(SHARED) &
+!$OMP PRIVATE(ix,iy,iz,ind3,ind12,ind2,ind13) SCHEDULE(STATIC)
+   do iz = ibeg(3), iend(3)
+      do ix = ibeg(1), iend(1)
+         do iy = ibeg(2), iend(2)
 
             ind3 = iz - ibeg(3)
-            ind12 = (ix - ibeg(1))+(iy - ibeg(2))*(iend(1) - ibeg(1) + 1)
+            ind12 = (ix - ibeg(1))+(iy - ibeg(2))*n1
 
             ind2 = iy - ibeg(2)
-            ind13 = (ix - ibeg(1))+(iz - ibeg(3))*(iend(1) - ibeg(1) + 1)
+            ind13 = (ix - ibeg(1))+(iz - ibeg(3))*n1
 
             F2(ind3, ind12) = F(ind2, ind13)
 
          enddo
       enddo
    enddo
+!$OMP END PARALLEL DO
 
 end subroutine ReorderRHSForZ
 
@@ -263,22 +278,30 @@ subroutine ReorderRHSForX(ibeg, iend, F, F2)
    integer(kind = 4) :: ix, iy, iz
 !> @brief Flattened local indices in the input and output layouts.
    integer(kind = 4) :: ind1, ind23, ind3, ind12
+!> @brief Local extents in the first and second physical directions.
+   integer(kind = 4) :: n1, n2
 
-   do ix = ibeg(1), iend(1)
+   n1 = iend(1) - ibeg(1) + 1
+   n2 = iend(2) - ibeg(2) + 1
+
+!$OMP PARALLEL DO COLLAPSE(2) DEFAULT(SHARED) &
+!$OMP PRIVATE(ix,iy,iz,ind1,ind23,ind3,ind12) SCHEDULE(STATIC)
+   do iz = ibeg(3), iend(3)
       do iy = ibeg(2), iend(2)
-         do iz = ibeg(3), iend(3)
+         do ix = ibeg(1), iend(1)
 
             ind1 = ix - ibeg(1)
-            ind23 = (iy - ibeg(2))+(iz - ibeg(3))*(iend(2) - ibeg(2) + 1)
+            ind23 = (iy - ibeg(2))+(iz - ibeg(3))*n2
 
             ind3 = iz - ibeg(3)
-            ind12 = (ix - ibeg(1))+(iy - ibeg(2))*(iend(1) - ibeg(1) + 1)
+            ind12 = (ix - ibeg(1))+(iy - ibeg(2))*n1
 
             F2(ind1, ind23) = F(ind3, ind12)
 
          enddo
       enddo
    enddo
+!$OMP END PARALLEL DO
 
 end subroutine ReorderRHSForX
 
