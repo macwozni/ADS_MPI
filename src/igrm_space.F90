@@ -37,10 +37,59 @@ contains
 !> @brief Checks whether two spline spaces use the same geometric mesh.
 !>
 !> @details
-!> The comparison ignores knot multiplicities and only checks the sequence of
-!> distinct knot locations. This matches the iGRM requirement that test and
-!> trial spaces share the same element partition, while still allowing
-!> repeated knots used to lower continuity.
+!> The comparison walks through both knot vectors and compares only the
+!> ordered sequence of distinct knot locations. Consecutive knots whose
+!> values differ by less than the local tolerance are treated as one
+!> location. This makes the routine insensitive to multiplicity changes
+!> introduced to lower spline continuity.
+!>
+!> This distinction matters for iGRM: the test and trial spaces must
+!> describe the same geometric element partition, but the test space may
+!> still be enriched by changing continuity and therefore by repeating
+!> knots. Such repeated knots increase the number of basis functions
+!> without creating additional element boundaries.
+!>
+!> The routine returns `.true.` only when both knot vectors contain the
+!> same distinct locations in the same order and both vectors are
+!> exhausted at the same time.
+!
+! Input:
+! ------
+!> @param[in] U1
+!> First knot vector.
+!>
+!> @param[in] p1
+!> Polynomial degree associated with \p U1.
+!>
+!> @param[in] n1
+!> Number of control points minus one for the first space.
+!>
+!> @param[in] U2
+!> Second knot vector.
+!>
+!> @param[in] p2
+!> Polynomial degree associated with \p U2.
+!>
+!> @param[in] n2
+!> Number of control points minus one for the second space.
+!
+! Output:
+! -------
+!> @return
+!> `.true.` when both vectors define the same unique knot-location
+!> sequence; `.false.` otherwise.
+!
+! Notes:
+! ------
+!> @note
+!> The routine is intentionally local and deterministic. It performs no
+!> MPI communication and assumes that both compared vectors are already
+!> available in the calling rank's setup data.
+!
+!> @warning
+!> The comparison tolerance is fixed at \f$10^{-12}\f$. Knot vectors whose
+!> distinct locations are closer than this tolerance may be interpreted as
+!> having the same geometric location.
 !
 !---------------------------------------------------------------------------
 logical function SameKnotLocations(U1, p1, n1, U2, p2, n2) result(same)
@@ -85,6 +134,73 @@ end function SameKnotLocations
 !
 ! DESCRIPTION:
 !> @brief Validates the iGRM mixed-space assumptions before matrix assembly.
+!>
+!> @details
+!> This procedure checks the compatibility conditions between one
+!> test-space direction and the corresponding trial-space direction used
+!> by the iGRM path. It is intended to be called once while constructing
+!> the problem setup, before operator assembly and before entering the
+!> time loop.
+!>
+!> The validation currently enforces three conditions:
+!> - the test polynomial degree must be greater than the trial degree,
+!> - the test and trial knot vectors must contain the same distinct knot
+!>   locations,
+!> - the stored element counts must agree.
+!>
+!> The knot-location check is delegated to \ref SameKnotLocations, so
+!> knot multiplicities are ignored when comparing the geometric mesh.
+!> This prevents repeated knots used for continuity control from being
+!> mistaken for a different element partition.
+!>
+!> If any condition fails, the routine writes a diagnostic to
+!> `ERROR_UNIT` and stops execution with exit code `1`. This fail-fast
+!> behaviour avoids assembling mixed iGRM operators for incompatible
+!> spaces.
+!
+! Input:
+! ------
+!> @param[in] U_test
+!> Test-space knot vector for one parametric direction.
+!>
+!> @param[in] p_test
+!> Test-space polynomial degree.
+!>
+!> @param[in] n_test
+!> Number of test-space control points minus one.
+!>
+!> @param[in] nelem_test
+!> Number of geometric elements recorded for the test space.
+!>
+!> @param[in] U_trial
+!> Trial-space knot vector for the same parametric direction.
+!>
+!> @param[in] p_trial
+!> Trial-space polynomial degree.
+!>
+!> @param[in] n_trial
+!> Number of trial-space control points minus one.
+!>
+!> @param[in] nelem_trial
+!> Number of geometric elements recorded for the trial space.
+!
+! Notes:
+! ------
+!> @note
+!> The routine validates one direction at a time. A complete 3D iGRM
+!> setup should call it independently for the x, y, and z directions.
+!
+!> @note
+!> The procedure checks compatibility metadata only. It does not allocate
+!> basis tables, assemble operators, or inspect the numerical contents of
+!> solution vectors.
+!
+!> @warning
+!> The current degree check is stricter than a general "test space richer
+!> than trial space" condition because it requires \p p_test > \p p_trial.
+!> Setups enriched purely through reduced continuity should be handled by
+!> a future validation rule based directly on degrees of freedom and
+!> unique knot locations.
 !
 !---------------------------------------------------------------------------
 subroutine ValidateIGRMMesh(U_test, p_test, n_test, nelem_test, &

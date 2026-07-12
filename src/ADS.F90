@@ -379,8 +379,7 @@ subroutine NormalizeTrialBufferToXYZ(ads, order, F)
 
 end subroutine NormalizeTrialBufferToXYZ
 
-!!!! podzielic na wraper i czesc wlasciwa
-! przeniesc czesc do solver
+
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
