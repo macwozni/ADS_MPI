@@ -990,9 +990,11 @@ subroutine NormalizeTrialBufferToXYZ(ads, order, F)
 
       allocate (Fxyz(ads%s(1), ads%s(2)*ads%s(3)))
 
-      do ix = 0, ads%s(1) - 1
+!$OMP PARALLEL DO COLLAPSE(2) DEFAULT(SHARED) &
+!$OMP PRIVATE(ix,iy,iz,idx,in1,in23,out23) SCHEDULE(STATIC)
+      do iz = 0, ads%s(3) - 1
          do iy = 0, ads%s(2) - 1
-            do iz = 0, ads%s(3) - 1
+            do ix = 0, ads%s(1) - 1
                idx = (/ix, iy, iz/)
                in1 = idx(order(1)) + 1
                in23 = idx(order(2)) + 1 + idx(order(3))*ads%s(order(2))
@@ -1001,6 +1003,7 @@ subroutine NormalizeTrialBufferToXYZ(ads, order, F)
             end do
          end do
       end do
+!$OMP END PARALLEL DO
 
       call move_alloc(Fxyz, F)
 
