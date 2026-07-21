@@ -3,12 +3,18 @@ module test_math
    use pfunit
    use math, only: PI, lerp, falloff, bump, bump01, bump3d, norm_2
    implicit none
+
+   real(kind=8), parameter :: property_tol = 64.0d0*epsilon(1.0d0)
+
 contains
 
    @test
    subroutine test_PI()
-      real(kind=8), parameter :: tol = 1.0d-15
-      @assertTrue(abs(PI - 4.0d0*atan(1.0d0)) < tol)
+      real(kind=8), parameter :: expected = 3.1415926535897932384626433832795d0
+
+      @assertTrue(abs(PI - expected) <= property_tol)
+      @assertTrue(abs(sin(PI)) <= property_tol)
+      @assertTrue(abs(cos(PI) + 1.0d0) <= property_tol)
    end subroutine test_PI
 
 
@@ -31,6 +37,16 @@ contains
 
 
    @test
+   subroutine test_lerp_constant_reversal_and_extrapolation()
+      @assertTrue(abs(lerp(-2.0d0, 7.0d0, 7.0d0) - 7.0d0) <= property_tol)
+      @assertTrue(abs(lerp(3.0d0, 7.0d0, 7.0d0) - 7.0d0) <= property_tol)
+      @assertTrue(abs(lerp(-0.5d0, 2.0d0, 6.0d0)) <= property_tol)
+      @assertTrue(abs(lerp(1.5d0, 2.0d0, 6.0d0) - 8.0d0) <= property_tol)
+      @assertTrue(abs(lerp(0.25d0, -4.0d0, 8.0d0) - lerp(0.75d0, 8.0d0, -4.0d0)) <= property_tol)
+   end subroutine test_lerp_constant_reversal_and_extrapolation
+
+
+   @test
    subroutine test_falloff_left_region()
       real(kind=8), parameter :: tol = 1.0d-15
 
@@ -50,18 +66,31 @@ contains
 
    @test
    subroutine test_falloff_transition_value()
-      real(kind=8), parameter :: tol = 1.0d-15
-      real(kind=8) :: r, Rr, t, h, ref
+      real(kind=8), parameter :: expected = 9.0d0/16.0d0
 
-      r  = 1.0d0
-      Rr = 3.0d0
-      t  = 2.0d0
-
-      h   = (t - r) / (Rr - r)
-      ref = ((h - 1.0d0) * (h + 1.0d0))**2
-
-      @assertTrue(abs(falloff(r, Rr, t) - ref) < tol)
+      @assertTrue(abs(falloff(1.0d0, 3.0d0, 2.0d0) - expected) <= property_tol)
    end subroutine test_falloff_transition_value
+
+
+   @test
+   subroutine test_falloff_known_values_and_monotonicity()
+      real(kind=8), parameter :: points(0:4) = &
+         (/1.0d0, 1.5d0, 2.0d0, 2.5d0, 3.0d0/)
+      real(kind=8), parameter :: expected(0:4) = &
+         (/1.0d0, 225.0d0/256.0d0, 9.0d0/16.0d0, 49.0d0/256.0d0, 0.0d0/)
+      real(kind=8) :: values(0:4)
+      integer(kind=4) :: i
+
+      do i = 0, 4
+         values(i) = falloff(1.0d0, 3.0d0, points(i))
+         @assertTrue(abs(values(i) - expected(i)) <= property_tol)
+      end do
+
+      @assertTrue(all(values >= -property_tol))
+      @assertTrue(all(values <= 1.0d0 + property_tol))
+      @assertTrue(all(values(1:4) <= values(0:3) + property_tol))
+      @assertTrue(abs(falloff(-4.0d0, 8.0d0, 2.0d0) - 9.0d0/16.0d0) <= property_tol)
+   end subroutine test_falloff_known_values_and_monotonicity
 
 
    @test
@@ -78,12 +107,8 @@ contains
    @test
    subroutine test_bump_inside_support()
       real(kind=8), parameter :: tol = 1.0d-15
-      real(kind=8) :: x, ref
 
-      x   = 0.5d0
-      ref = (x + 1.0d0)**2 * (x - 1.0d0)**2
-
-      @assertTrue(abs(bump(x) - ref) < tol)
+      @assertTrue(abs(bump(0.5d0) - 9.0d0/16.0d0) < tol)
       @assertTrue(abs(bump(0.0d0) - 1.0d0) < tol)
    end subroutine test_bump_inside_support
 
@@ -95,6 +120,23 @@ contains
       @assertTrue(abs(bump(-0.3d0) - bump(0.3d0)) < tol)
       @assertTrue(abs(bump(-0.8d0) - bump(0.8d0)) < tol)
    end subroutine test_bump_symmetry
+
+
+   @test
+   subroutine test_bump_is_bounded_and_monotone_on_half_support()
+      real(kind=8), parameter :: points(0:4) = &
+         (/0.0d0, 0.25d0, 0.5d0, 0.75d0, 1.0d0/)
+      real(kind=8) :: values(0:4)
+      integer(kind=4) :: i
+
+      do i = 0, 4
+         values(i) = bump(points(i))
+      end do
+
+      @assertTrue(all(values >= -property_tol))
+      @assertTrue(all(values <= 1.0d0 + property_tol))
+      @assertTrue(all(values(1:4) <= values(0:3) + property_tol))
+   end subroutine test_bump_is_bounded_and_monotone_on_half_support
 
 
    @test
@@ -121,6 +163,16 @@ contains
 
 
    @test
+   subroutine test_bump01_support_symmetry_and_known_values()
+      @assertTrue(abs(bump01(-0.25d0)) <= property_tol)
+      @assertTrue(abs(bump01(1.25d0)) <= property_tol)
+      @assertTrue(abs(bump01(0.25d0) - 9.0d0/16.0d0) <= property_tol)
+      @assertTrue(abs(bump01(0.75d0) - 9.0d0/16.0d0) <= property_tol)
+      @assertTrue(abs(bump01(0.125d0) - bump01(0.875d0)) <= property_tol)
+   end subroutine test_bump01_support_symmetry_and_known_values
+
+
+   @test
    subroutine test_norm_2_zero_vector()
       real(kind=8), parameter :: tol = 1.0d-15
       real(kind=8) :: x(3)
@@ -140,6 +192,29 @@ contains
 
       @assertTrue(abs(norm_2(x) - 13.0d0) < tol)
    end subroutine test_norm_2_basic_vector
+
+
+   @test
+   subroutine test_norm_2_general_vectors_and_homogeneity()
+      real(kind=8) :: x(-1:2)
+
+      x = (/1.0d0, -2.0d0, 2.0d0, -4.0d0/)
+
+      @assertTrue(abs(norm_2(x) - 5.0d0) <= property_tol)
+      @assertTrue(abs(norm_2(-x) - 5.0d0) <= property_tol)
+      @assertTrue(abs(norm_2(3.0d0*x) - 15.0d0) <= property_tol)
+      @assertTrue(abs(norm_2((/-7.0d0/)) - 7.0d0) <= property_tol)
+   end subroutine test_norm_2_general_vectors_and_homogeneity
+
+
+   @test
+   subroutine test_norm_2_empty_vector()
+      real(kind=8), allocatable :: x(:)
+
+      allocate(x(0))
+      @assertTrue(norm_2(x) == 0.0d0)
+      deallocate(x)
+   end subroutine test_norm_2_empty_vector
 
 
    @test
@@ -172,20 +247,32 @@ contains
 
    @test
    subroutine test_bump3d_transition_value()
-      real(kind=8), parameter :: tol = 1.0d-15
-      real(kind=8) :: r, Rr, x, y, z, t, ref, h
-
-      r  = 0.2d0
-      Rr = 0.6d0
-      x  = 0.7d0
-      y  = 0.5d0
-      z  = 0.5d0
-
-      t = sqrt((x - 0.5d0)**2 + (y - 0.5d0)**2 + (z - 0.5d0)**2)
-      h = (t - r/2.0d0) / (Rr/2.0d0 - r/2.0d0)
-      ref = ((h - 1.0d0) * (h + 1.0d0))**2
-
-      @assertTrue(abs(bump3d(r, Rr, x, y, z) - ref) < tol)
+      @assertTrue(abs(bump3d(0.25d0, 0.75d0, 0.75d0, 0.5d0, 0.5d0) - 9.0d0/16.0d0) <= property_tol)
    end subroutine test_bump3d_transition_value
+
+
+   @test
+   subroutine test_bump3d_inner_and_outer_boundaries()
+      real(kind=8), parameter :: r = 0.25d0
+      real(kind=8), parameter :: Rr = 0.75d0
+
+      @assertTrue(abs(bump3d(r, Rr, 0.625d0, 0.5d0, 0.5d0) - 1.0d0) <= property_tol)
+      @assertTrue(abs(bump3d(r, Rr, 0.875d0, 0.5d0, 0.5d0)) <= property_tol)
+   end subroutine test_bump3d_inner_and_outer_boundaries
+
+
+   @test
+   subroutine test_bump3d_general_radial_symmetry()
+      real(kind=8), parameter :: r = 0.25d0
+      real(kind=8), parameter :: Rr = 0.75d0
+      real(kind=8) :: axis_value, pythagorean_value
+
+      axis_value = bump3d(r, Rr, 0.75d0, 0.5d0, 0.5d0)
+      pythagorean_value = bump3d(r, Rr, 0.65d0, 0.70d0, 0.5d0)
+
+      @assertTrue(abs(axis_value - 9.0d0/16.0d0) <= property_tol)
+      @assertTrue(abs(pythagorean_value - 9.0d0/16.0d0) <= property_tol)
+      @assertTrue(abs(axis_value - pythagorean_value) <= property_tol)
+   end subroutine test_bump3d_general_radial_symmetry
 
 end module test_math
