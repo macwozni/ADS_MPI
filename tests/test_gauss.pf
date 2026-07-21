@@ -2,6 +2,9 @@ module test_gauss
    use pfunit
    use gauss, only: GaussRule
    implicit none
+
+   real(kind=8), parameter :: property_tol = 1.0d-13
+
 contains
 
    subroutine assert_vec_near(a, b, tol)
@@ -9,8 +12,19 @@ contains
       real(kind=8), intent(in) :: tol
 
       @assertEqual(size(a), size(b))
-      @assertTrue(all(abs(a - b) < tol))
+      @assertTrue(all(abs(a - b) <= tol))
    end subroutine assert_vec_near
+
+
+   pure real(kind=8) function exact_monomial_integral(degree) result(value)
+      integer(kind=4), intent(in) :: degree
+
+      if (mod(degree, 2) == 0) then
+         value = 2.0d0/real(degree + 1, kind=8)
+      else
+         value = 0.0d0
+      end if
+   end function exact_monomial_integral
 
 
    @test
@@ -311,5 +325,86 @@ contains
       call assert_vec_near(X, Xref, tol)
       call assert_vec_near(W, Wref, tol)
    end subroutine test_gauss_rule_10
+
+
+   @test
+   subroutine test_all_rules_have_valid_symmetric_nodes_and_weights()
+      real(kind=8), allocatable :: X(:), W(:)
+      integer(kind=4) :: i, n
+
+      do n = 1, 10
+         allocate(X(0:n - 1), W(0:n - 1))
+         call GaussRule(n, X, W)
+
+         @assertTrue(all(X > -1.0d0))
+         @assertTrue(all(X < 1.0d0))
+         @assertTrue(all(W > 0.0d0))
+         @assertTrue(abs(sum(W) - 2.0d0) <= property_tol)
+
+         if (n > 1) then
+            @assertTrue(all(X(1:n - 1) > X(0:n - 2)))
+         end if
+         do i = 0, n - 1
+            @assertTrue(abs(X(i) + X(n - 1 - i)) <= property_tol)
+            @assertTrue(abs(W(i) - W(n - 1 - i)) <= property_tol)
+         end do
+
+         deallocate(X, W)
+      end do
+   end subroutine test_all_rules_have_valid_symmetric_nodes_and_weights
+
+
+   @test
+   subroutine test_all_rules_integrate_monomials_through_degree_2n_minus_1()
+      real(kind=8), allocatable :: X(:), W(:)
+      real(kind=8) :: actual, expected
+      integer(kind=4) :: degree, n
+
+      do n = 1, 10
+         allocate(X(0:n - 1), W(0:n - 1))
+         call GaussRule(n, X, W)
+
+         do degree = 0, 2*n - 1
+            actual = sum(W*X**degree)
+            expected = exact_monomial_integral(degree)
+            @assertTrue(abs(actual - expected) <= property_tol)
+         end do
+
+         deallocate(X, W)
+      end do
+   end subroutine test_all_rules_integrate_monomials_through_degree_2n_minus_1
+
+
+   @test
+   subroutine test_unsupported_rule_returns_zero_arrays()
+      real(kind=8) :: X(0:10), W(0:10)
+
+      X = 17.0d0
+      W = -23.0d0
+      call GaussRule(11, X, W)
+
+      @assertTrue(all(X == 0.0d0))
+      @assertTrue(all(W == 0.0d0))
+   end subroutine test_unsupported_rule_returns_zero_arrays
+
+
+   @test
+   subroutine test_repeated_and_interleaved_calls_are_stable()
+      real(kind=8) :: X1(0:0), W1(0:0)
+      real(kind=8) :: X6(0:5), W6(0:5)
+      real(kind=8) :: X10_first(0:9), W10_first(0:9)
+      real(kind=8) :: X10_second(0:9), W10_second(0:9)
+
+      call GaussRule(10, X10_first, W10_first)
+      call GaussRule(1, X1, W1)
+      call GaussRule(6, X6, W6)
+      call GaussRule(10, X10_second, W10_second)
+
+      call assert_vec_near(X10_second, X10_first, 0.0d0)
+      call assert_vec_near(W10_second, W10_first, 0.0d0)
+      @assertTrue(X1(0) == 0.0d0)
+      @assertTrue(W1(0) == 2.0d0)
+      @assertTrue(all(W6 > 0.0d0))
+   end subroutine test_repeated_and_interleaved_calls_are_stable
 
 end module test_gauss
