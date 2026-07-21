@@ -1,0 +1,595 @@
+module test_time_scheme
+   use pfunit
+   use Setup, only: ADS_Setup, ADS_compute_data
+   use Interfaces, only: forcing_fun
+   use time_scheme
+   use projection_engine, only: reset_validation_spy, validation_call_count, &
+                                recorded_test_p, recorded_test_n, recorded_test_nelem, &
+                                recorded_test_size, recorded_test_sum, recorded_trial_p, &
+                                recorded_trial_n, recorded_trial_nelem, recorded_trial_size, &
+                                recorded_trial_sum
+   use ADSS, only: reset_adss_spy, STEP_STATUS, MULTISTEP_STATUS, step_call_count, &
+                   multistep_call_count, recorded_iter, recorded_history_index, &
+                   recorded_test_space_n => recorded_test_n, &
+                   recorded_trial_space_n => recorded_trial_n, recorded_rhs_point_present, &
+                   recorded_lhs_mix_present, recorded_rhs_du_state_present, &
+                   recorded_forcing_value, recorded_rhs_point_value, recorded_ads_time, &
+                   recorded_mix, recorded_alpha_step, &
+                   recorded_lhs_mix, recorded_rhs_du_state
+   implicit none
+
+   real(kind=8), parameter :: tol = 1.0d-14
+
+contains
+
+   subroutine assert_scheme_equals(scheme, mix, alpha_step, lhs_mix, rhs_du_state)
+      type(TimeScheme3D), intent(in) :: scheme
+      real(kind=8), intent(in) :: mix(4, 3), alpha_step(7, 3), lhs_mix(4, 3, 3)
+      integer(kind=4), intent(in) :: rhs_du_state(6, 3)
+
+      @assertTrue(maxval(abs(scheme%mix - mix)) <= tol)
+      @assertTrue(maxval(abs(scheme%alpha_step - alpha_step)) <= tol)
+      @assertTrue(maxval(abs(scheme%lhs_mix - lhs_mix)) <= tol)
+      @assertTrue(all(scheme%rhs_du_state == rhs_du_state))
+   end subroutine assert_scheme_equals
+
+
+   subroutine expected_mass_tables(mix, lhs_mix)
+      real(kind=8), intent(out) :: mix(4, 3), lhs_mix(4, 3, 3)
+
+      mix = 0.0d0
+      mix(1, :) = 1.0d0
+      lhs_mix = 0.0d0
+      lhs_mix(1, :, :) = 1.0d0
+   end subroutine expected_mass_tables
+
+
+   subroutine expected_douglas_gunn(tau, include_transport, mix, alpha_step, lhs_mix, rhs_du_state)
+      real(kind=8), intent(in) :: tau
+      logical, intent(in) :: include_transport
+      real(kind=8), intent(out) :: mix(4, 3), alpha_step(7, 3), lhs_mix(4, 3, 3)
+      integer(kind=4), intent(out) :: rhs_du_state(6, 3)
+      integer(kind=4) :: axis
+
+      call expected_mass_tables(mix, lhs_mix)
+      alpha_step = 0.0d0
+      rhs_du_state = 0
+
+      do axis = 1, 3
+         lhs_mix(2, axis, axis) = 0.5d0*tau
+      end do
+      alpha_step(1, 1) = -0.5d0
+      alpha_step(3, 1) = -1.0d0
+      alpha_step(5, 1) = -1.0d0
+      alpha_step(7, 1) = 1.0d0
+      alpha_step(3, 2) = 0.5d0
+      alpha_step(5, 3) = 0.5d0
+      rhs_du_state(1, 1) = 1
+      rhs_du_state(3, 1) = 1
+      rhs_du_state(5, 1) = 1
+      rhs_du_state(3, 2) = 1
+      rhs_du_state(5, 3) = 1
+
+      if (include_transport) call add_expected_transport(alpha_step, lhs_mix, rhs_du_state)
+   end subroutine expected_douglas_gunn
+
+
+   subroutine expected_peaceman_rachford(tau, include_transport, mix, alpha_step, lhs_mix, rhs_du_state)
+      real(kind=8), intent(in) :: tau
+      logical, intent(in) :: include_transport
+      real(kind=8), intent(out) :: mix(4, 3), alpha_step(7, 3), lhs_mix(4, 3, 3)
+      integer(kind=4), intent(out) :: rhs_du_state(6, 3)
+      integer(kind=4) :: axis
+
+      call expected_mass_tables(mix, lhs_mix)
+      alpha_step = 0.0d0
+      rhs_du_state = 0
+
+      do axis = 1, 3
+         lhs_mix(2, axis, axis) = 0.5d0*tau
+      end do
+      alpha_step(3, 1) = -0.5d0
+      alpha_step(5, 1) = -0.5d0
+      alpha_step(1, 2) = -0.5d0
+      alpha_step(5, 2) = -0.5d0
+      alpha_step(1, 3) = -0.5d0
+      alpha_step(3, 3) = -0.5d0
+      alpha_step(7, :) = 1.0d0/3.0d0
+      rhs_du_state(3, 1) = 1
+      rhs_du_state(5, 1) = 1
+
+      if (include_transport) call add_expected_transport(alpha_step, lhs_mix, rhs_du_state)
+   end subroutine expected_peaceman_rachford
+
+
+   subroutine expected_backward_euler(tau, include_transport, mix, alpha_step, lhs_mix, rhs_du_state)
+      real(kind=8), intent(in) :: tau
+      logical, intent(in) :: include_transport
+      real(kind=8), intent(out) :: mix(4, 3), alpha_step(7, 3), lhs_mix(4, 3, 3)
+      integer(kind=4), intent(out) :: rhs_du_state(6, 3)
+      integer(kind=4) :: axis
+
+      call expected_mass_tables(mix, lhs_mix)
+      alpha_step = 0.0d0
+      alpha_step(7, :) = 1.0d0/3.0d0
+      rhs_du_state = 0
+
+      do axis = 1, 3
+         lhs_mix(2, axis, axis) = 0.5d0*tau
+      end do
+
+      if (include_transport) call add_expected_transport(alpha_step, lhs_mix, rhs_du_state)
+   end subroutine expected_backward_euler
+
+
+   subroutine add_expected_transport(alpha_step, lhs_mix, rhs_du_state)
+      real(kind=8), intent(inout) :: alpha_step(7, 3), lhs_mix(4, 3, 3)
+      integer(kind=4), intent(inout) :: rhs_du_state(6, 3)
+
+      lhs_mix(4, :, :) = lhs_mix(2, :, :)
+      alpha_step(2, :) = alpha_step(1, :)
+      alpha_step(4, :) = alpha_step(3, :)
+      alpha_step(6, :) = alpha_step(5, :)
+      rhs_du_state(2, :) = rhs_du_state(1, :)
+      rhs_du_state(4, :) = rhs_du_state(3, :)
+      rhs_du_state(6, :) = rhs_du_state(5, :)
+   end subroutine add_expected_transport
+
+
+   subroutine make_distinct_spaces(ads_test, ads_trial)
+      type(ADS_Setup), intent(out) :: ads_test, ads_trial
+      integer(kind=4) :: i
+
+      ads_test%p = (/ 2, 3, 4 /)
+      ads_test%n = (/ 5, 6, 7 /)
+      ads_test%nelem = (/ 11, 12, 13 /)
+      ads_trial%p = (/ 1, 2, 3 /)
+      ads_trial%n = (/ 4, 5, 6 /)
+      ads_trial%nelem = (/ 21, 22, 23 /)
+
+      allocate(ads_test%Ux(0:ads_test%n(1) + ads_test%p(1) + 1))
+      allocate(ads_test%Uy(0:ads_test%n(2) + ads_test%p(2) + 1))
+      allocate(ads_test%Uz(0:ads_test%n(3) + ads_test%p(3) + 1))
+      allocate(ads_trial%Ux(0:ads_trial%n(1) + ads_trial%p(1) + 1))
+      allocate(ads_trial%Uy(0:ads_trial%n(2) + ads_trial%p(2) + 1))
+      allocate(ads_trial%Uz(0:ads_trial%n(3) + ads_trial%p(3) + 1))
+
+      do i = lbound(ads_test%Ux, 1), ubound(ads_test%Ux, 1)
+         ads_test%Ux(i) = 10.0d0 + real(i, kind=8)
+      end do
+      do i = lbound(ads_test%Uy, 1), ubound(ads_test%Uy, 1)
+         ads_test%Uy(i) = 20.0d0 + real(i, kind=8)
+      end do
+      do i = lbound(ads_test%Uz, 1), ubound(ads_test%Uz, 1)
+         ads_test%Uz(i) = 30.0d0 + real(i, kind=8)
+      end do
+      do i = lbound(ads_trial%Ux, 1), ubound(ads_trial%Ux, 1)
+         ads_trial%Ux(i) = 40.0d0 + real(i, kind=8)
+      end do
+      do i = lbound(ads_trial%Uy, 1), ubound(ads_trial%Uy, 1)
+         ads_trial%Uy(i) = 50.0d0 + real(i, kind=8)
+      end do
+      do i = lbound(ads_trial%Uz, 1), ubound(ads_trial%Uz, 1)
+         ads_trial%Uz(i) = 60.0d0 + real(i, kind=8)
+      end do
+   end subroutine make_distinct_spaces
+
+
+   real(kind=8) function sample_forcing(un, du, X) result(value)
+      real(kind=8), intent(in) :: un, du(3), X(3)
+
+      value = un + 2.0d0*sum(du) + 3.0d0*sum(X)
+   end function sample_forcing
+
+
+   subroutine sample_rhs_point(ads, X, k, e, a, du, n, un11, un13, un23, ads_data, &
+                               J, W, direction, substep, alpha_step, forcing, ret)
+      type(ADS_Setup), intent(in) :: ads
+      real(kind=8), intent(in) :: X(3), du(3)
+      integer(kind=4), intent(in) :: k(3), e(3), a(3), n
+      real(kind=8), intent(in) :: un11, un13, un23
+      type(ADS_compute_data), intent(in) :: ads_data
+      real(kind=8), intent(in) :: J, W
+      integer(kind=4), intent(in) :: direction(3), substep
+      real(kind=8), intent(in) :: alpha_step(7, 3)
+      procedure(forcing_fun) :: forcing
+      real(kind=8), intent(out) :: ret
+
+      ret = forcing(un11, du, X)
+   end subroutine sample_rhs_point
+
+
+   @test
+   subroutine test_time_scheme_type_defaults_to_zero()
+      type(TimeScheme3D) :: scheme
+
+      @assertTrue(maxval(abs(scheme%mix)) == 0.0d0)
+      @assertTrue(maxval(abs(scheme%alpha_step)) == 0.0d0)
+      @assertTrue(maxval(abs(scheme%lhs_mix)) == 0.0d0)
+      @assertTrue(all(scheme%rhs_du_state == 0))
+   end subroutine test_time_scheme_type_defaults_to_zero
+
+
+   @test
+   subroutine test_configure_mass_only()
+      type(TimeScheme3D) :: scheme
+      real(kind=8) :: mix(4, 3), alpha_step(7, 3), lhs_mix(4, 3, 3)
+      integer(kind=4) :: rhs_du_state(6, 3)
+
+      call expected_mass_tables(mix, lhs_mix)
+      alpha_step = 0.0d0
+      alpha_step(7, :) = 1.0d0
+      rhs_du_state = 0
+
+      call ConfigureMassOnly3DTimeScheme(scheme)
+      call assert_scheme_equals(scheme, mix, alpha_step, lhs_mix, rhs_du_state)
+   end subroutine test_configure_mass_only
+
+
+   @test
+   subroutine test_configure_douglas_gunn_without_transport()
+      real(kind=8), parameter :: tau = 0.2d0
+      real(kind=8) :: mix(4, 3), alpha_step(7, 3), lhs_mix(4, 3, 3)
+      real(kind=8) :: expected_mix(4, 3), expected_alpha(7, 3), expected_lhs(4, 3, 3)
+      integer(kind=4) :: rhs_du_state(6, 3), expected_state(6, 3)
+
+      call ConfigureDouglasGunn3D(tau, mix, alpha_step, lhs_mix, rhs_du_state, .false.)
+      call expected_douglas_gunn(tau, .false., expected_mix, expected_alpha, expected_lhs, expected_state)
+
+      @assertTrue(maxval(abs(mix - expected_mix)) <= tol)
+      @assertTrue(maxval(abs(alpha_step - expected_alpha)) <= tol)
+      @assertTrue(maxval(abs(lhs_mix - expected_lhs)) <= tol)
+      @assertTrue(all(rhs_du_state == expected_state))
+   end subroutine test_configure_douglas_gunn_without_transport
+
+
+   @test
+   subroutine test_configure_peaceman_rachford_without_transport()
+      real(kind=8), parameter :: tau = 0.2d0
+      real(kind=8) :: mix(4, 3), alpha_step(7, 3), lhs_mix(4, 3, 3)
+      real(kind=8) :: expected_mix(4, 3), expected_alpha(7, 3), expected_lhs(4, 3, 3)
+      integer(kind=4) :: rhs_du_state(6, 3), expected_state(6, 3)
+
+      call ConfigurePeacemanRachford3D(tau, mix, alpha_step, lhs_mix, rhs_du_state, .false.)
+      call expected_peaceman_rachford(tau, .false., expected_mix, expected_alpha, expected_lhs, expected_state)
+
+      @assertTrue(maxval(abs(mix - expected_mix)) <= tol)
+      @assertTrue(maxval(abs(alpha_step - expected_alpha)) <= tol)
+      @assertTrue(maxval(abs(lhs_mix - expected_lhs)) <= tol)
+      @assertTrue(all(rhs_du_state == expected_state))
+   end subroutine test_configure_peaceman_rachford_without_transport
+
+
+   @test
+   subroutine test_configure_backward_euler_without_transport()
+      real(kind=8), parameter :: tau = 0.2d0
+      real(kind=8) :: mix(4, 3), alpha_step(7, 3), lhs_mix(4, 3, 3)
+      real(kind=8) :: expected_mix(4, 3), expected_alpha(7, 3), expected_lhs(4, 3, 3)
+      integer(kind=4) :: rhs_du_state(6, 3), expected_state(6, 3)
+
+      call ConfigureBackwardEuler3D(tau, mix, alpha_step, lhs_mix, rhs_du_state, .false.)
+      call expected_backward_euler(tau, .false., expected_mix, expected_alpha, expected_lhs, expected_state)
+
+      @assertTrue(maxval(abs(mix - expected_mix)) <= tol)
+      @assertTrue(maxval(abs(alpha_step - expected_alpha)) <= tol)
+      @assertTrue(maxval(abs(lhs_mix - expected_lhs)) <= tol)
+      @assertTrue(all(rhs_du_state == expected_state))
+   end subroutine test_configure_backward_euler_without_transport
+
+
+   @test
+   subroutine test_configure_douglas_gunn_with_transport()
+      type(TimeScheme3D) :: scheme
+      real(kind=8) :: mix(4, 3), alpha_step(7, 3), lhs_mix(4, 3, 3)
+      integer(kind=4) :: rhs_du_state(6, 3)
+
+      call expected_douglas_gunn(0.4d0, .true., mix, alpha_step, lhs_mix, rhs_du_state)
+      call ConfigureDouglasGunn3DTimeScheme(0.4d0, scheme, .true.)
+      call assert_scheme_equals(scheme, mix, alpha_step, lhs_mix, rhs_du_state)
+   end subroutine test_configure_douglas_gunn_with_transport
+
+
+   @test
+   subroutine test_configure_peaceman_rachford_with_transport()
+      type(TimeScheme3D) :: scheme
+      real(kind=8) :: mix(4, 3), alpha_step(7, 3), lhs_mix(4, 3, 3)
+      integer(kind=4) :: rhs_du_state(6, 3)
+
+      call expected_peaceman_rachford(0.4d0, .true., mix, alpha_step, lhs_mix, rhs_du_state)
+      call ConfigurePeacemanRachford3DTimeScheme(0.4d0, scheme, .true.)
+      call assert_scheme_equals(scheme, mix, alpha_step, lhs_mix, rhs_du_state)
+   end subroutine test_configure_peaceman_rachford_with_transport
+
+
+   @test
+   subroutine test_configure_backward_euler_with_transport()
+      type(TimeScheme3D) :: scheme
+      real(kind=8) :: mix(4, 3), alpha_step(7, 3), lhs_mix(4, 3, 3)
+      integer(kind=4) :: rhs_du_state(6, 3)
+
+      call expected_backward_euler(0.4d0, .true., mix, alpha_step, lhs_mix, rhs_du_state)
+      call ConfigureBackwardEuler3DTimeScheme(0.4d0, scheme, .true.)
+      call assert_scheme_equals(scheme, mix, alpha_step, lhs_mix, rhs_du_state)
+   end subroutine test_configure_backward_euler_with_transport
+
+
+   @test
+   subroutine test_omitted_transport_matches_false()
+      real(kind=8) :: mix_default(4, 3), alpha_default(7, 3), lhs_default(4, 3, 3)
+      real(kind=8) :: mix_false(4, 3), alpha_false(7, 3), lhs_false(4, 3, 3)
+      integer(kind=4) :: state_default(6, 3), state_false(6, 3)
+
+      call ConfigureDouglasGunn3D(0.3d0, mix_default, alpha_default, lhs_default, state_default)
+      call ConfigureDouglasGunn3D(0.3d0, mix_false, alpha_false, lhs_false, state_false, .false.)
+
+      @assertTrue(maxval(abs(mix_default - mix_false)) <= tol)
+      @assertTrue(maxval(abs(alpha_default - alpha_false)) <= tol)
+      @assertTrue(maxval(abs(lhs_default - lhs_false)) <= tol)
+      @assertTrue(all(state_default == state_false))
+   end subroutine test_omitted_transport_matches_false
+
+
+   @test
+   subroutine test_reconfigure_clears_transport_terms()
+      type(TimeScheme3D) :: scheme
+
+      call ConfigureDouglasGunn3DTimeScheme(0.2d0, scheme, .true.)
+      call ConfigureDouglasGunn3DTimeScheme(0.2d0, scheme, .false.)
+
+      @assertTrue(maxval(abs(scheme%lhs_mix(4, :, :))) == 0.0d0)
+      @assertTrue(maxval(abs(scheme%alpha_step(2, :))) == 0.0d0)
+      @assertTrue(maxval(abs(scheme%alpha_step(4, :))) == 0.0d0)
+      @assertTrue(maxval(abs(scheme%alpha_step(6, :))) == 0.0d0)
+      @assertTrue(all(scheme%rhs_du_state(2, :) == 0))
+      @assertTrue(all(scheme%rhs_du_state(4, :) == 0))
+      @assertTrue(all(scheme%rhs_du_state(6, :) == 0))
+   end subroutine test_reconfigure_clears_transport_terms
+
+
+   @test
+   subroutine test_persistent_douglas_gunn_matches_raw_configuration()
+      type(TimeScheme3D) :: scheme
+      real(kind=8) :: mix(4, 3), alpha_step(7, 3), lhs_mix(4, 3, 3)
+      integer(kind=4) :: rhs_du_state(6, 3)
+
+      call ConfigureDouglasGunn3D(0.6d0, mix, alpha_step, lhs_mix, rhs_du_state, .true.)
+      call ConfigureDouglasGunn3DTimeScheme(0.6d0, scheme, .true.)
+      call assert_scheme_equals(scheme, mix, alpha_step, lhs_mix, rhs_du_state)
+   end subroutine test_persistent_douglas_gunn_matches_raw_configuration
+
+
+   @test
+   subroutine test_persistent_peaceman_rachford_matches_raw_configuration()
+      type(TimeScheme3D) :: scheme
+      real(kind=8) :: mix(4, 3), alpha_step(7, 3), lhs_mix(4, 3, 3)
+      integer(kind=4) :: rhs_du_state(6, 3)
+
+      call ConfigurePeacemanRachford3D(0.6d0, mix, alpha_step, lhs_mix, rhs_du_state, .true.)
+      call ConfigurePeacemanRachford3DTimeScheme(0.6d0, scheme, .true.)
+      call assert_scheme_equals(scheme, mix, alpha_step, lhs_mix, rhs_du_state)
+   end subroutine test_persistent_peaceman_rachford_matches_raw_configuration
+
+
+   @test
+   subroutine test_persistent_backward_euler_matches_raw_configuration()
+      type(TimeScheme3D) :: scheme
+      real(kind=8) :: mix(4, 3), alpha_step(7, 3), lhs_mix(4, 3, 3)
+      integer(kind=4) :: rhs_du_state(6, 3)
+
+      call ConfigureBackwardEuler3D(0.6d0, mix, alpha_step, lhs_mix, rhs_du_state, .true.)
+      call ConfigureBackwardEuler3DTimeScheme(0.6d0, scheme, .true.)
+      call assert_scheme_equals(scheme, mix, alpha_step, lhs_mix, rhs_du_state)
+   end subroutine test_persistent_backward_euler_matches_raw_configuration
+
+
+   @test
+   subroutine test_validate_spaces_delegates_all_three_axes()
+      type(ADS_Setup) :: ads_test, ads_trial
+
+      call make_distinct_spaces(ads_test, ads_trial)
+      call reset_validation_spy()
+      call ValidateIGRMTimeSchemeSpaces(ads_test, ads_trial)
+
+      @assertTrue(validation_call_count == 3)
+      @assertTrue(all(recorded_test_p == ads_test%p))
+      @assertTrue(all(recorded_test_n == ads_test%n))
+      @assertTrue(all(recorded_test_nelem == ads_test%nelem))
+      @assertTrue(all(recorded_test_size == (/ size(ads_test%Ux), size(ads_test%Uy), size(ads_test%Uz) /)))
+      @assertTrue(abs(recorded_test_sum(1) - sum(ads_test%Ux)) <= tol)
+      @assertTrue(abs(recorded_test_sum(2) - sum(ads_test%Uy)) <= tol)
+      @assertTrue(abs(recorded_test_sum(3) - sum(ads_test%Uz)) <= tol)
+      @assertTrue(all(recorded_trial_p == ads_trial%p))
+      @assertTrue(all(recorded_trial_n == ads_trial%n))
+      @assertTrue(all(recorded_trial_nelem == ads_trial%nelem))
+      @assertTrue(all(recorded_trial_size == (/ size(ads_trial%Ux), size(ads_trial%Uy), size(ads_trial%Uz) /)))
+      @assertTrue(abs(recorded_trial_sum(1) - sum(ads_trial%Ux)) <= tol)
+      @assertTrue(abs(recorded_trial_sum(2) - sum(ads_trial%Uy)) <= tol)
+      @assertTrue(abs(recorded_trial_sum(3) - sum(ads_trial%Uz)) <= tol)
+   end subroutine test_validate_spaces_delegates_all_three_axes
+
+
+   @test
+   subroutine test_forward_euler_delegates_without_rhs_point()
+      type(ADS_Setup) :: ads
+      type(ADS_compute_data) :: ads_data
+      integer(kind=4) :: mierr
+
+      ads%n = (/ 3, 4, 5 /)
+      ads_data%t = 1.25d0
+      call reset_adss_spy()
+      call ForwardEuler3DStep(17, sample_forcing, ads, ads_data, mierr)
+
+      @assertTrue(step_call_count == 1)
+      @assertTrue(multistep_call_count == 0)
+      @assertTrue(recorded_iter == 17)
+      @assertTrue(all(recorded_test_space_n == ads%n))
+      @assertFalse(recorded_rhs_point_present)
+      @assertTrue(abs(recorded_forcing_value - 64.0d0) <= tol)
+      @assertTrue(abs(recorded_ads_time - 1.25d0) <= tol)
+      @assertTrue(mierr == STEP_STATUS)
+   end subroutine test_forward_euler_delegates_without_rhs_point
+
+
+   @test
+   subroutine test_forward_euler_delegates_with_rhs_point()
+      type(ADS_Setup) :: ads
+      type(ADS_compute_data) :: ads_data
+      integer(kind=4) :: mierr
+
+      ads%n = (/ 6, 7, 8 /)
+      ads_data%t = 2.5d0
+      call reset_adss_spy()
+      call ForwardEuler3DStep(19, sample_forcing, ads, ads_data, mierr, sample_rhs_point)
+
+      @assertTrue(step_call_count == 1)
+      @assertTrue(multistep_call_count == 0)
+      @assertTrue(recorded_iter == 19)
+      @assertTrue(recorded_rhs_point_present)
+      @assertTrue(abs(recorded_rhs_point_value - 65.0d0) <= tol)
+      @assertTrue(abs(recorded_ads_time - 2.5d0) <= tol)
+      @assertTrue(mierr == STEP_STATUS)
+   end subroutine test_forward_euler_delegates_with_rhs_point
+
+
+   @test
+   subroutine test_douglas_gunn_step_delegates_configuration()
+      type(TimeScheme3D) :: scheme
+      type(ADS_Setup) :: ads_test, ads_trial
+      type(ADS_compute_data) :: ads_data
+      integer(kind=4) :: mierr
+
+      call ConfigureDouglasGunn3DTimeScheme(0.2d0, scheme, .true.)
+      ads_test%n = (/ 1, 2, 3 /)
+      ads_trial%n = (/ 4, 5, 6 /)
+      ads_data%t = 0.25d0
+      call reset_adss_spy()
+      call DouglasGunn3DStep(scheme, 23, sample_forcing, ads_test, ads_trial, ads_data, 29, mierr)
+
+      call assert_multistep_delegation(scheme, ads_test%n, ads_trial%n, 23, 29, 0.25d0, .false., mierr)
+   end subroutine test_douglas_gunn_step_delegates_configuration
+
+
+   @test
+   subroutine test_peaceman_rachford_step_delegates_rhs_point()
+      type(TimeScheme3D) :: scheme
+      type(ADS_Setup) :: ads_test, ads_trial
+      type(ADS_compute_data) :: ads_data
+      integer(kind=4) :: mierr
+
+      call ConfigurePeacemanRachford3DTimeScheme(0.3d0, scheme)
+      ads_test%n = (/ 7, 8, 9 /)
+      ads_trial%n = (/ 10, 11, 12 /)
+      ads_data%t = 0.5d0
+      call reset_adss_spy()
+      call PeacemanRachford3DStep(scheme, 31, sample_forcing, ads_test, ads_trial, ads_data, &
+                                  37, mierr, sample_rhs_point)
+
+      call assert_multistep_delegation(scheme, ads_test%n, ads_trial%n, 31, 37, 0.5d0, .true., mierr)
+   end subroutine test_peaceman_rachford_step_delegates_rhs_point
+
+
+   @test
+   subroutine test_backward_euler_step_delegates_configuration()
+      type(TimeScheme3D) :: scheme
+      type(ADS_Setup) :: ads_test, ads_trial
+      type(ADS_compute_data) :: ads_data
+      integer(kind=4) :: mierr
+
+      call ConfigureBackwardEuler3DTimeScheme(0.4d0, scheme)
+      ads_test%n = (/ 13, 14, 15 /)
+      ads_trial%n = (/ 16, 17, 18 /)
+      ads_data%t = 0.75d0
+      call reset_adss_spy()
+      call BackwardEuler3DStep(scheme, 41, sample_forcing, ads_test, ads_trial, ads_data, 43, mierr)
+
+      call assert_multistep_delegation(scheme, ads_test%n, ads_trial%n, 41, 43, 0.75d0, .false., mierr)
+   end subroutine test_backward_euler_step_delegates_configuration
+
+
+   @test
+   subroutine test_douglas_gunn_step_delegates_rhs_point()
+      type(TimeScheme3D) :: scheme
+      type(ADS_Setup) :: ads_test, ads_trial
+      type(ADS_compute_data) :: ads_data
+      integer(kind=4) :: mierr
+
+      call ConfigureDouglasGunn3DTimeScheme(0.5d0, scheme)
+      ads_test%n = (/ 19, 20, 21 /)
+      ads_trial%n = (/ 22, 23, 24 /)
+      ads_data%t = 1.25d0
+      call reset_adss_spy()
+      call DouglasGunn3DStep(scheme, 47, sample_forcing, ads_test, ads_trial, ads_data, &
+                             53, mierr, sample_rhs_point)
+
+      call assert_multistep_delegation(scheme, ads_test%n, ads_trial%n, 47, 53, 1.25d0, .true., mierr)
+   end subroutine test_douglas_gunn_step_delegates_rhs_point
+
+
+   @test
+   subroutine test_peaceman_rachford_step_delegates_without_rhs_point()
+      type(TimeScheme3D) :: scheme
+      type(ADS_Setup) :: ads_test, ads_trial
+      type(ADS_compute_data) :: ads_data
+      integer(kind=4) :: mierr
+
+      call ConfigurePeacemanRachford3DTimeScheme(0.6d0, scheme)
+      ads_test%n = (/ 25, 26, 27 /)
+      ads_trial%n = (/ 28, 29, 30 /)
+      ads_data%t = 1.5d0
+      call reset_adss_spy()
+      call PeacemanRachford3DStep(scheme, 59, sample_forcing, ads_test, ads_trial, ads_data, 61, mierr)
+
+      call assert_multistep_delegation(scheme, ads_test%n, ads_trial%n, 59, 61, 1.5d0, .false., mierr)
+   end subroutine test_peaceman_rachford_step_delegates_without_rhs_point
+
+
+   @test
+   subroutine test_backward_euler_step_delegates_rhs_point()
+      type(TimeScheme3D) :: scheme
+      type(ADS_Setup) :: ads_test, ads_trial
+      type(ADS_compute_data) :: ads_data
+      integer(kind=4) :: mierr
+
+      call ConfigureBackwardEuler3DTimeScheme(0.7d0, scheme)
+      ads_test%n = (/ 31, 32, 33 /)
+      ads_trial%n = (/ 34, 35, 36 /)
+      ads_data%t = 1.75d0
+      call reset_adss_spy()
+      call BackwardEuler3DStep(scheme, 67, sample_forcing, ads_test, ads_trial, ads_data, &
+                               71, mierr, sample_rhs_point)
+
+      call assert_multistep_delegation(scheme, ads_test%n, ads_trial%n, 67, 71, 1.75d0, .true., mierr)
+   end subroutine test_backward_euler_step_delegates_rhs_point
+
+
+   subroutine assert_multistep_delegation(scheme, test_n, trial_n, iter, history_index, &
+                                          expected_time, expect_rhs_point, mierr)
+      type(TimeScheme3D), intent(in) :: scheme
+      integer(kind=4), intent(in) :: test_n(3), trial_n(3), iter, history_index, mierr
+      real(kind=8), intent(in) :: expected_time
+      logical, intent(in) :: expect_rhs_point
+
+      @assertTrue(step_call_count == 0)
+      @assertTrue(multistep_call_count == 1)
+      @assertTrue(recorded_iter == iter)
+      @assertTrue(recorded_history_index == history_index)
+      @assertTrue(all(recorded_test_space_n == test_n))
+      @assertTrue(all(recorded_trial_space_n == trial_n))
+      @assertTrue(recorded_rhs_point_present .eqv. expect_rhs_point)
+      @assertTrue(abs(recorded_ads_time - expected_time) <= tol)
+      @assertTrue(recorded_lhs_mix_present)
+      @assertTrue(recorded_rhs_du_state_present)
+      @assertTrue(maxval(abs(recorded_mix - scheme%mix)) <= tol)
+      @assertTrue(maxval(abs(recorded_alpha_step - scheme%alpha_step)) <= tol)
+      @assertTrue(maxval(abs(recorded_lhs_mix - scheme%lhs_mix)) <= tol)
+      @assertTrue(all(recorded_rhs_du_state == scheme%rhs_du_state))
+      @assertTrue(abs(recorded_forcing_value - 64.0d0) <= tol)
+      if (expect_rhs_point) then
+         @assertTrue(abs(recorded_rhs_point_value - 65.0d0) <= tol)
+      else
+         @assertTrue(abs(recorded_rhs_point_value) <= tol)
+      end if
+      @assertTrue(mierr == MULTISTEP_STATUS)
+   end subroutine assert_multistep_delegation
+
+end module test_time_scheme
