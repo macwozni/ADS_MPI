@@ -977,7 +977,7 @@ subroutine AllGather(F, F_out, n, elems, stride, dims, shifts, comm)
                         MPI_DOUBLE_PRECISION, &
                         comm, ierr)
 
-   call Delinearize(F_out_lin, F_out, elems, stride)
+   call Delinearize(F_out_lin, F_out, n + 1, stride)
 
 end subroutine AllGather
 

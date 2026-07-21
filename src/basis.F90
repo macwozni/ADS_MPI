@@ -586,9 +586,9 @@ function EvalSpline(d, &
    yspan = FindSpan(ny, py, y, Uy)
    zspan = FindSpan(nz, pz, z, Uz)
 
-   call DersBasisFuns(xspan, x, px, 0, ux, bx)
-   call DersBasisFuns(yspan, y, py, 0, uy, by)
-   call DersBasisFuns(zspan, z, pz, 0, uz, bz)
+   call DersBasisFuns(xspan, x, px, d, ux, bx)
+   call DersBasisFuns(yspan, y, py, d, uy, by)
+   call DersBasisFuns(zspan, z, pz, d, uz, bz)
 
    x0 = xspan - px
    y0 = yspan - py
