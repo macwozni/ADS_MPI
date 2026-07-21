@@ -1,0 +1,98 @@
+module test_argument_parser
+   use pfunit
+   use argument_parser, only: Lowercase, SelectTimeScheme, &
+                              TIME_SCHEME_DG, TIME_SCHEME_PR, TIME_SCHEME_BE
+   implicit none
+
+contains
+
+   subroutine assert_scheme(value, expected_id, expected_name)
+      character(*), intent(in) :: value, expected_name
+      integer(kind=4), intent(in) :: expected_id
+      character(len=32) :: canonical_name
+      integer(kind=4) :: selected_id
+
+      canonical_name = "not-overwritten"
+      selected_id = -1
+      call SelectTimeScheme(value, selected_id, canonical_name)
+
+      @assertTrue(selected_id == expected_id)
+      @assertTrue(trim(canonical_name) == expected_name)
+   end subroutine assert_scheme
+
+
+   @test
+   subroutine test_time_scheme_constants()
+      @assertTrue(TIME_SCHEME_DG == 1)
+      @assertTrue(TIME_SCHEME_PR == 2)
+      @assertTrue(TIME_SCHEME_BE == 3)
+      @assertTrue(TIME_SCHEME_DG /= TIME_SCHEME_PR)
+      @assertTrue(TIME_SCHEME_DG /= TIME_SCHEME_BE)
+      @assertTrue(TIME_SCHEME_PR /= TIME_SCHEME_BE)
+   end subroutine test_time_scheme_constants
+
+
+   @test
+   subroutine test_lowercase_all_ascii_letters()
+      character(len=26) :: value
+
+      value = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+      call Lowercase(value)
+
+      @assertTrue(value == "abcdefghijklmnopqrstuvwxyz")
+   end subroutine test_lowercase_all_ascii_letters
+
+
+   @test
+   subroutine test_lowercase_preserves_nonletters_and_spaces()
+      character(len=20) :: value
+
+      value = "  AbC-12_X yZ!  "
+      call Lowercase(value)
+
+      @assertTrue(value == "  abc-12_x yz!     ")
+   end subroutine test_lowercase_preserves_nonletters_and_spaces
+
+
+   @test
+   subroutine test_lowercase_blank_string()
+      character(len=8) :: value
+
+      value = ""
+      call Lowercase(value)
+
+      @assertTrue(len_trim(value) == 0)
+   end subroutine test_lowercase_blank_string
+
+
+   @test
+   subroutine test_select_douglas_gunn_aliases()
+      call assert_scheme("dg", TIME_SCHEME_DG, "dg")
+      call assert_scheme("DG", TIME_SCHEME_DG, "dg")
+      call assert_scheme("douglas-gunn", TIME_SCHEME_DG, "dg")
+      call assert_scheme("Douglas_Gunn", TIME_SCHEME_DG, "dg")
+      call assert_scheme("  dg  ", TIME_SCHEME_DG, "dg")
+   end subroutine test_select_douglas_gunn_aliases
+
+
+   @test
+   subroutine test_select_peaceman_rachford_aliases()
+      call assert_scheme("pr", TIME_SCHEME_PR, "pr")
+      call assert_scheme("PR", TIME_SCHEME_PR, "pr")
+      call assert_scheme("peaceman-rachford", TIME_SCHEME_PR, "pr")
+      call assert_scheme("Peaceman_Rachford", TIME_SCHEME_PR, "pr")
+      call assert_scheme("  pr  ", TIME_SCHEME_PR, "pr")
+   end subroutine test_select_peaceman_rachford_aliases
+
+
+   @test
+   subroutine test_select_backward_euler_aliases()
+      call assert_scheme("be", TIME_SCHEME_BE, "be")
+      call assert_scheme("BE", TIME_SCHEME_BE, "be")
+      call assert_scheme("backward-euler", TIME_SCHEME_BE, "be")
+      call assert_scheme("Backward_Euler", TIME_SCHEME_BE, "be")
+      call assert_scheme("BackwardEuler", TIME_SCHEME_BE, "be")
+      call assert_scheme("  be  ", TIME_SCHEME_BE, "be")
+   end subroutine test_select_backward_euler_aliases
+
+end module test_argument_parser
