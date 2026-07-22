@@ -122,7 +122,9 @@ contains
 !>
 !> The process-grid dimensions are stored in the module-global variables
 !> \ref NRPROCX, \ref NRPROCY, and \ref NRPROCZ. The global rank and
-!> communicator size are stored in \ref MYRANK and \ref NRPROC.
+!> communicator size are stored in \ref MYRANK and \ref NRPROC. A
+!> zero-padded character representation of the rank is stored in
+!> \ref PRINTRANK for diagnostic output.
 !>
 !> If any MPI initialization call fails, or if the requested process grid
 !> is inconsistent with `MPI_COMM_WORLD`, the routine writes an error
@@ -163,8 +165,8 @@ subroutine InitializeParallelism(procx, procy, procz, ierr)
    integer(kind=4), intent(in) :: procx, procy, procz
 !> @brief Returned status code.
    integer(kind=4), intent(out) :: ierr
-!> @brief Auxiliary character buffer reserved for diagnostic use.
-   character(4) :: buffer
+!> @brief Auxiliary character buffer used to format the process rank.
+   character(len=7) :: buffer
 !> @brief MPI return codes from initialization and rank/size queries.
    integer(kind=4) :: i1, i2, i3
 !> @brief Number of MPI ranks requested by the process-grid dimensions.
@@ -202,6 +204,9 @@ subroutine InitializeParallelism(procx, procy, procz, ierr)
    end if
 
    call Decompose(MYRANK, MYRANKX, MYRANKY, MYRANKZ)
+
+   write (buffer, '(I0)') MYRANK
+   PRINTRANK = repeat('0', max(0, 5 - len_trim(buffer)))//trim(buffer)
 
    ierr = 0
 
