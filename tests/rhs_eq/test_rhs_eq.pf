@@ -1,0 +1,248 @@
+module test_rhs_eq
+   use pfunit
+   use Setup, only: ADS_Setup, ADS_compute_data
+   use RHS_eq, only: ComputePointForRHS
+   implicit none
+
+   integer(kind=4), parameter :: A_INDEX(3) = (/ 1, 0, 1 /)
+   integer(kind=4), parameter :: E_INDEX(3) = (/ 4, 5, 6 /)
+   integer(kind=4), parameter :: K_INDEX(3) = (/ 2, 1, 2 /)
+   integer(kind=4), parameter :: DIRECTION(3) = (/ 7, 8, 9 /)
+   real(kind=8), parameter :: DU_INPUT(3) = (/ 17.d0, 19.d0, 23.d0 /)
+   real(kind=8), parameter :: X_INPUT(3) = (/ 29.d0, 31.d0, 37.d0 /)
+   real(kind=8), parameter :: STAGE_VALUES(3) = (/ 41.d0, 43.d0, 47.d0 /)
+   real(kind=8), parameter :: TEST_VALUE = 110.d0
+   real(kind=8), parameter :: TEST_DERIVATIVES(3) = (/ 165.d0, 154.d0, 130.d0 /)
+
+   integer(kind=4) :: forcing_call_count = 0
+   real(kind=8) :: configured_forcing_result = 0.d0
+   real(kind=8) :: recorded_du(3) = 0.d0
+   real(kind=8) :: recorded_un = 0.d0
+   real(kind=8) :: recorded_X(3) = 0.d0
+
+contains
+
+   subroutine initialize_fixture(ads, ads_data)
+      type(ADS_Setup), intent(out) :: ads
+      type(ADS_compute_data), intent(out) :: ads_data
+
+      ads%tau = 0.25d0
+      allocate(ads%NNx(0:1, 0:1, 1:2, 3:4))
+      allocate(ads%NNy(0:1, 0:1, 1:2, 5:6))
+      allocate(ads%NNz(0:1, 0:1, 1:2, 5:6))
+      ads%NNx = 0.d0
+      ads%NNy = 0.d0
+      ads%NNz = 0.d0
+
+      ads%NNx(0, A_INDEX(1), K_INDEX(1), E_INDEX(1)) = 2.d0
+      ads%NNx(1, A_INDEX(1), K_INDEX(1), E_INDEX(1)) = 3.d0
+      ads%NNy(0, A_INDEX(2), K_INDEX(2), E_INDEX(2)) = 5.d0
+      ads%NNy(1, A_INDEX(2), K_INDEX(2), E_INDEX(2)) = 7.d0
+      ads%NNz(0, A_INDEX(3), K_INDEX(3), E_INDEX(3)) = 11.d0
+      ads%NNz(1, A_INDEX(3), K_INDEX(3), E_INDEX(3)) = 13.d0
+
+      ads_data%state_mine = (/ 3, 5, 5 /)
+      ads_data%rhs_du_state = 0
+      allocate(ads_data%dUn0(2, 2, 2, 2, 2, 2, 3))
+      allocate(ads_data%dUn13(2, 2, 2, 2, 2, 2, 3))
+      allocate(ads_data%dUn23(2, 2, 2, 2, 2, 2, 3))
+      ads_data%dUn0 = -1000.d0
+      ads_data%dUn13 = -2000.d0
+      ads_data%dUn23 = -3000.d0
+      ads_data%dUn0(2, 1, 2, 2, 1, 2, :) = (/ 101.d0, 102.d0, 103.d0 /)
+      ads_data%dUn13(2, 1, 2, 2, 1, 2, :) = (/ 201.d0, 202.d0, 203.d0 /)
+      ads_data%dUn23(2, 1, 2, 2, 1, 2, :) = (/ 301.d0, 302.d0, 303.d0 /)
+   end subroutine initialize_fixture
+
+
+   logical function close_enough(actual, expected) result(close)
+      real(kind=8), intent(in) :: actual, expected
+
+      close = abs(actual - expected) <= 1.d-12*max(1.d0, abs(expected))
+   end function close_enough
+
+
+   function encoded_forcing(un, du, X) result(ret)
+      real(kind=8), intent(in) :: un
+      real(kind=8), intent(in) :: du(3), X(3)
+      real(kind=8) :: ret
+
+      ret = un + 2.d0*du(1) + 3.d0*du(2) + 5.d0*du(3) + &
+            7.d0*X(1) + 11.d0*X(2) + 13.d0*X(3)
+   end function encoded_forcing
+
+
+   function recording_forcing(un, du, X) result(ret)
+      real(kind=8), intent(in) :: un
+      real(kind=8), intent(in) :: du(3), X(3)
+      real(kind=8) :: ret
+
+      forcing_call_count = forcing_call_count + 1
+      recorded_un = un
+      recorded_du = du
+      recorded_X = X
+      ret = configured_forcing_result
+   end function recording_forcing
+
+
+   subroutine reset_forcing_recorder(result_value)
+      real(kind=8), intent(in) :: result_value
+
+      forcing_call_count = 0
+      configured_forcing_result = result_value
+      recorded_un = 0.d0
+      recorded_du = 0.d0
+      recorded_X = 0.d0
+   end subroutine reset_forcing_recorder
+
+
+   @test
+   subroutine test_mass_term_selects_stage_value_for_each_substep()
+      type(ADS_Setup) :: ads
+      type(ADS_compute_data) :: ads_data
+      integer(kind=4) :: substep
+      real(kind=8) :: alpha_step(7, 3), expected, ret
+
+      call initialize_fixture(ads, ads_data)
+      alpha_step = 0.d0
+
+      do substep = 1, 3
+         call ComputePointForRHS(ads, X_INPUT, K_INDEX, E_INDEX, A_INDEX, DU_INPUT, 123, &
+                                 STAGE_VALUES(1), STAGE_VALUES(2), STAGE_VALUES(3), &
+                                 ads_data, 1.d0, 1.d0, DIRECTION, substep, alpha_step, &
+                                 encoded_forcing, ret)
+         expected = STAGE_VALUES(substep)*TEST_VALUE
+         @assertTrue(close_enough(ret, expected))
+      end do
+   end subroutine test_mass_term_selects_stage_value_for_each_substep
+
+
+   @test
+   subroutine test_each_operator_row_uses_expected_value_or_derivative()
+      type(ADS_Setup) :: ads
+      type(ADS_compute_data) :: ads_data
+      integer(kind=4) :: term
+      real(kind=8) :: alpha_step(7, 3), component(7), expected, ret
+
+      call initialize_fixture(ads, ads_data)
+      component(1) = DU_INPUT(1)*TEST_DERIVATIVES(1)
+      component(2) = DU_INPUT(1)*TEST_VALUE
+      component(3) = DU_INPUT(2)*TEST_DERIVATIVES(2)
+      component(4) = DU_INPUT(2)*TEST_VALUE
+      component(5) = DU_INPUT(3)*TEST_DERIVATIVES(3)
+      component(6) = DU_INPUT(3)*TEST_VALUE
+      component(7) = encoded_forcing(STAGE_VALUES(1), DU_INPUT, X_INPUT)*TEST_VALUE
+
+      do term = 1, 7
+         alpha_step = 0.d0
+         alpha_step(:, 2) = 1000.d0
+         alpha_step(:, 3) = -1000.d0
+         alpha_step(term, 1) = 1.d0
+
+         call ComputePointForRHS(ads, X_INPUT, K_INDEX, E_INDEX, A_INDEX, DU_INPUT, 321, &
+                                 STAGE_VALUES(1), STAGE_VALUES(2), STAGE_VALUES(3), &
+                                 ads_data, 1.5d0, 0.25d0, DIRECTION, 1, alpha_step, &
+                                 encoded_forcing, ret)
+         expected = 0.375d0*(STAGE_VALUES(1)*TEST_VALUE + ads%tau*component(term))
+         @assertTrue(close_enough(ret, expected))
+      end do
+   end subroutine test_each_operator_row_uses_expected_value_or_derivative
+
+
+   @test
+   subroutine test_all_derivative_state_selectors_and_local_offsets()
+      type(ADS_Setup) :: ads
+      type(ADS_compute_data) :: ads_data
+      integer(kind=4) :: idir, selector, term
+      real(kind=8) :: alpha_step(7, 3), expected, factor, ret, selected_derivative
+
+      call initialize_fixture(ads, ads_data)
+
+      do selector = 0, 3
+         do term = 1, 6
+            alpha_step = 0.d0
+            alpha_step(:, 1) = 500.d0
+            alpha_step(:, 3) = -500.d0
+            alpha_step(term, 2) = 1.d0
+            ads_data%rhs_du_state = 0
+            ads_data%rhs_du_state(term, 2) = selector
+
+            idir = (term + 1)/2
+            select case (selector)
+            case (0)
+               selected_derivative = DU_INPUT(idir)
+            case (1)
+               selected_derivative = 100.d0 + real(idir, kind=8)
+            case (2)
+               selected_derivative = 200.d0 + real(idir, kind=8)
+            case (3)
+               selected_derivative = 300.d0 + real(idir, kind=8)
+            end select
+            if (mod(term, 2) == 1) then
+               factor = TEST_DERIVATIVES(idir)
+            else
+               factor = TEST_VALUE
+            end if
+
+            call ComputePointForRHS(ads, X_INPUT, K_INDEX, E_INDEX, A_INDEX, DU_INPUT, 456, &
+                                    STAGE_VALUES(1), STAGE_VALUES(2), STAGE_VALUES(3), &
+                                    ads_data, 1.d0, 1.d0, DIRECTION, 2, alpha_step, &
+                                    encoded_forcing, ret)
+            expected = STAGE_VALUES(2)*TEST_VALUE + ads%tau*selected_derivative*factor
+            @assertTrue(close_enough(ret, expected))
+         end do
+      end do
+   end subroutine test_all_derivative_state_selectors_and_local_offsets
+
+
+   @test
+   subroutine test_full_operator_sum_with_mixed_derivative_states()
+      type(ADS_Setup) :: ads
+      type(ADS_compute_data) :: ads_data
+      real(kind=8) :: alpha_step(7, 3), ret
+
+      call initialize_fixture(ads, ads_data)
+      alpha_step = 0.d0
+      alpha_step(:, 3) = (/ 0.5d0, -1.25d0, 2.d0, -0.75d0, 1.5d0, -2.5d0, 0.125d0 /)
+      ads_data%rhs_du_state(:, 3) = (/ 0, 1, 2, 3, 1, 2 /)
+
+      call ComputePointForRHS(ads, X_INPUT, K_INDEX, E_INDEX, A_INDEX, DU_INPUT, 654, &
+                              STAGE_VALUES(1), STAGE_VALUES(2), STAGE_VALUES(3), &
+                              ads_data, 1.2d0, 0.5d0, DIRECTION, 3, alpha_step, &
+                              encoded_forcing, ret)
+
+      @assertTrue(close_enough(ret, 4099.275d0))
+   end subroutine test_full_operator_sum_with_mixed_derivative_states
+
+
+   @test
+   subroutine test_forcing_receives_stage_and_original_inputs()
+      type(ADS_Setup) :: ads
+      type(ADS_compute_data) :: ads_data
+      integer(kind=4) :: substep
+      real(kind=8) :: alpha_step(7, 3), expected, ret
+
+      call initialize_fixture(ads, ads_data)
+      do substep = 1, 3
+         call reset_forcing_recorder(-7.25d0)
+         alpha_step = 400.d0
+         alpha_step(:, substep) = 0.d0
+         alpha_step(7, substep) = 2.5d0
+         ads_data%rhs_du_state(:, substep) = substep
+
+         call ComputePointForRHS(ads, X_INPUT, K_INDEX, E_INDEX, A_INDEX, DU_INPUT, 789, &
+                                 STAGE_VALUES(1), STAGE_VALUES(2), STAGE_VALUES(3), &
+                                 ads_data, 2.d0, 3.d0, DIRECTION, substep, alpha_step, &
+                                 recording_forcing, ret)
+         expected = 6.d0*(STAGE_VALUES(substep)*TEST_VALUE + &
+                    ads%tau*2.5d0*configured_forcing_result*TEST_VALUE)
+
+         @assertTrue(close_enough(ret, expected))
+         @assertTrue(forcing_call_count == 1)
+         @assertTrue(close_enough(recorded_un, STAGE_VALUES(substep)))
+         @assertTrue(maxval(abs(recorded_du - DU_INPUT)) < 1.d-14)
+         @assertTrue(maxval(abs(recorded_X - X_INPUT)) < 1.d-14)
+      end do
+   end subroutine test_forcing_receives_stage_and_original_inputs
+
+end module test_rhs_eq

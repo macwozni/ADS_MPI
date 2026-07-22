@@ -170,6 +170,7 @@ subroutine ComputePointForRHS( &
    ret)
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    use Interfaces, ONLY: forcing_fun
+   use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT
    implicit none
 !> @brief ADS setup structure with basis tables and time-step data.
    type(ADS_setup), intent(in) :: ads
@@ -216,7 +217,6 @@ subroutine ComputePointForRHS( &
 !> @brief Loop and direction selectors for derivative-state lookup.
    integer(kind=4) :: term, idir
 
-   alpha = alpha_step(:, substep)
    select case (substep)
    case (1)
       u = un11
@@ -225,8 +225,11 @@ subroutine ComputePointForRHS( &
    case (3)
       u = un23
    case default
-      stop "wrong substep"
+      write (ERROR_UNIT, '(A,I0)') 'wrong substep: ', substep
+      flush (ERROR_UNIT)
+      STOP 1
    end select
+   alpha = alpha_step(:, substep)
 
    v = ads%NNx(0, a(1), k(1), e(1))*ads%NNy(0, a(2), k(2), e(2))*ads%NNz(0, a(3), k(3), e(3))
    dv(1) = ads%NNx(1, a(1), k(1), e(1))*ads%NNy(0, a(2), k(2), e(2))*ads%NNz(0, a(3), k(3), e(3))
@@ -248,7 +251,11 @@ subroutine ComputePointForRHS( &
       case (3)
          rhs_du(term) = ads_data%dUn23(statex, statey, statez, k(1), k(2), k(3), idir)
       case default
-         stop "wrong RHS derivative state"
+         write (ERROR_UNIT, '(A,I0,A,I0,A,I0)') &
+            'wrong RHS derivative state: ', ads_data%rhs_du_state(term, substep), &
+            ', term: ', term, ', substep: ', substep
+         flush (ERROR_UNIT)
+         STOP 1
       end select
    end do
 
