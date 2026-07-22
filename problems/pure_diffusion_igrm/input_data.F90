@@ -17,7 +17,9 @@
 !------------------------------------------------------------------------------
 module input_data
 
-   use argument_parser, ONLY: ReadIntegerArgument, ReadRealArgument, ReadStringArgument
+   use argument_parser, ONLY: ReadIntegerArgument, ReadRealArgument, ReadTimeSchemeArgument, &
+                              RequireNonnegativeInteger, RequirePositiveInteger, RequirePositiveReal, &
+                              RequireSafeSplineDimensions
 
    implicit none
 
@@ -88,6 +90,7 @@ contains
 !---------------------------------------------------------------------------
    subroutine InitializeParameters
       implicit none
+      integer(kind = 4) :: selected_time_scheme
 
       ! ./l2 <size> <procx> <procy> <procz> <nsteps> <dt>
       ORDER = 2
@@ -106,7 +109,18 @@ contains
       call ReadIntegerArgument(6, steps)
       call ReadRealArgument(7, Dt)
       time_scheme = "dg"
-      if (COMMAND_ARGUMENT_COUNT() .EQ. 8) call ReadStringArgument(8, time_scheme)
+      if (COMMAND_ARGUMENT_COUNT() .EQ. 8) then
+         call ReadTimeSchemeArgument(8, selected_time_scheme, time_scheme)
+      end if
+
+      call RequirePositiveInteger(SIZE, "number of elements")
+      call RequireNonnegativeInteger(ORDER, "polynomial order")
+      call RequireSafeSplineDimensions(SIZE, ORDER, 1)
+      call RequireNonnegativeInteger(steps, "number of time steps")
+      call RequirePositiveReal(Dt, "time step")
+      call RequirePositiveInteger(procx, "process-grid dimension")
+      call RequirePositiveInteger(procy, "process-grid dimension")
+      call RequirePositiveInteger(procz, "process-grid dimension")
 
    end subroutine InitializeParameters
 

@@ -451,7 +451,7 @@ subroutine int2str(n, str)
    integer(kind=4), intent(in) :: n
 !> @brief String containing the converted integer.
    character(len=*), intent(out) :: str
-!> @brief Temporary buffer sized for the longest signed 32-bit integer. Longest is -2147483647
+!> @brief Temporary buffer sized for the longest signed 32-bit integer: -2147483648.
    character(len=11) :: longstr
 
    write (longstr, '(I11)') n

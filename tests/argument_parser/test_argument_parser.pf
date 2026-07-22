@@ -1,6 +1,7 @@
 module test_argument_parser
    use pfunit
    use argument_parser, only: Lowercase, SelectTimeScheme, &
+                              RequireSafeSplineDimensions, &
                               TIME_SCHEME_DG, TIME_SCHEME_PR, TIME_SCHEME_BE
    implicit none
 
@@ -63,6 +64,17 @@ contains
 
       @assertTrue(len_trim(value) == 0)
    end subroutine test_lowercase_blank_string
+
+
+   @test
+   subroutine test_safe_spline_dimension_boundaries()
+      call RequireSafeSplineDimensions(1, 0)
+      call RequireSafeSplineDimensions(2147483646, 0)
+      call RequireSafeSplineDimensions(1, 1073741822)
+      call RequireSafeSplineDimensions(2147483644, 0, 1)
+
+      @assertTrue(.true.)
+   end subroutine test_safe_spline_dimension_boundaries
 
 
    @test

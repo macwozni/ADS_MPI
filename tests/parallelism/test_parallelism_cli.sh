@@ -13,7 +13,8 @@ expect_failure() {
     local expected_message=$2
     shift 2
 
-    local output_file
+    local diagnostics_found expected_fragment output_file
+    local -a expected_fragments
     local status
     output_file=$(mktemp)
 
@@ -21,7 +22,15 @@ expect_failure() {
     status=$?
     checks=$((checks + 1))
 
-    if [[ $status -ne 0 ]] && grep -Fq "$expected_message" "$output_file"; then
+    diagnostics_found=1
+    IFS='|' read -r -a expected_fragments <<< "$expected_message"
+    for expected_fragment in "${expected_fragments[@]}"; do
+        if ! grep -Fq -- "$expected_fragment" "$output_file"; then
+            diagnostics_found=0
+        fi
+    done
+
+    if [[ $status -ne 0 && $diagnostics_found -eq 1 ]]; then
         printf 'PASS %s\n' "$label"
     else
         printf 'FAIL %s (status %d)\n' "$label" "$status"
@@ -40,6 +49,9 @@ expect_failure 'zero Z process-grid dimension' \
     'Process-grid dimensions must be positive:' 1 1 0
 expect_failure 'process-grid and world-size mismatch' \
     'Process-grid size mismatch:' 2 1 1
+expect_failure 'process-grid product does not overflow' \
+    'Process-grid size mismatch: dimensions =|2147483647' \
+    2147483647 2147483647 2147483647
 
 if [[ $failures -eq 0 ]]; then
     printf 'OK (%d parallelism CLI checks)\n' "$checks"

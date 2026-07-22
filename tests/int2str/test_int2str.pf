@@ -1,0 +1,78 @@
+module test_int2str
+   use pfunit
+   use utils, only: int2str
+   implicit none
+
+contains
+
+   @test
+   subroutine test_zero_is_left_adjusted_and_padded()
+      character(len=4) :: value
+
+      call int2str(0_4, value)
+
+      @assertTrue(value == "0   ")
+   end subroutine test_zero_is_left_adjusted_and_padded
+
+
+   @test
+   subroutine test_positive_value_is_padded_on_the_right()
+      character(len=6) :: value
+
+      call int2str(42_4, value)
+
+      @assertTrue(value == "42    ")
+   end subroutine test_positive_value_is_padded_on_the_right
+
+
+   @test
+   subroutine test_negative_value_preserves_sign_and_padding()
+      character(len=6) :: value
+
+      call int2str(-42_4, value)
+
+      @assertTrue(value == "-42   ")
+   end subroutine test_negative_value_preserves_sign_and_padding
+
+
+   @test
+   subroutine test_exact_fit_for_positive_and_negative_values()
+      character(len=3) :: positive
+      character(len=4) :: negative
+
+      call int2str(123_4, positive)
+      call int2str(-123_4, negative)
+
+      @assertTrue(positive == "123")
+      @assertTrue(negative == "-123")
+   end subroutine test_exact_fit_for_positive_and_negative_values
+
+
+   @test
+   subroutine test_signed_32_bit_boundaries_fit_internal_buffer()
+      integer(kind=4), parameter :: max_i4 = huge(0_4)
+      integer(kind=4), parameter :: min_i4 = -huge(0_4) - 1_4
+      character(len=10) :: maximum
+      character(len=11) :: minimum
+
+      call int2str(max_i4, maximum)
+      call int2str(min_i4, minimum)
+
+      @assertTrue(maximum == "2147483647")
+      @assertTrue(minimum == "-2147483648")
+   end subroutine test_signed_32_bit_boundaries_fit_internal_buffer
+
+
+   @test
+   subroutine test_too_short_target_keeps_leftmost_characters()
+      character(len=2) :: positive
+      character(len=3) :: negative
+
+      call int2str(123_4, positive)
+      call int2str(-123_4, negative)
+
+      @assertTrue(positive == "12")
+      @assertTrue(negative == "-12")
+   end subroutine test_too_short_target_keeps_leftmost_characters
+
+end module test_int2str

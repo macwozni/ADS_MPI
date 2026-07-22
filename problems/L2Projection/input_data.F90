@@ -15,7 +15,8 @@
 !------------------------------------------------------------------------------
 module input_data
 
-   use argument_parser, ONLY: ReadIntegerArgument
+   use argument_parser, ONLY: ReadIntegerArgument, RequireNonnegativeInteger, &
+                              RequirePositiveInteger, RequireSafeSplineDimensions
 
    implicit none
 
@@ -61,6 +62,17 @@ contains
       call ReadIntegerArgument(5, procx)
       call ReadIntegerArgument(6, procy)
       call ReadIntegerArgument(7, procz)
+
+      call RequirePositiveInteger(isizex, "number of elements")
+      call RequirePositiveInteger(isizey, "number of elements")
+      call RequirePositiveInteger(isizez, "number of elements")
+      call RequireNonnegativeInteger(order, "polynomial order")
+      call RequireSafeSplineDimensions(isizex, order)
+      call RequireSafeSplineDimensions(isizey, order)
+      call RequireSafeSplineDimensions(isizez, order)
+      call RequirePositiveInteger(procx, "process-grid dimension")
+      call RequirePositiveInteger(procy, "process-grid dimension")
+      call RequirePositiveInteger(procz, "process-grid dimension")
 
    end subroutine InitializeParameters
 

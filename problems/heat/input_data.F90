@@ -15,7 +15,9 @@
 !------------------------------------------------------------------------------
 module input_data
 
-   use argument_parser, ONLY: ReadIntegerArgument, ReadRealArgument
+   use argument_parser, ONLY: ReadIntegerArgument, ReadRealArgument, &
+                              RequireNonnegativeInteger, RequirePositiveInteger, RequirePositiveReal, &
+                              RequireSafeSplineDimensions
 
    implicit none
 
@@ -69,6 +71,15 @@ contains
       call ReadIntegerArgument(5, procx)
       call ReadIntegerArgument(6, procy)
       call ReadIntegerArgument(7, procz)
+
+      call RequirePositiveInteger(SIZE, "number of elements")
+      call RequireNonnegativeInteger(ORDER, "polynomial order")
+      call RequireSafeSplineDimensions(SIZE, ORDER)
+      call RequireNonnegativeInteger(steps, "number of time steps")
+      call RequirePositiveReal(Dt, "time step")
+      call RequirePositiveInteger(procx, "process-grid dimension")
+      call RequirePositiveInteger(procy, "process-grid dimension")
+      call RequirePositiveInteger(procz, "process-grid dimension")
 
    end subroutine InitializeParameters
 

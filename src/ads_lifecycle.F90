@@ -181,8 +181,9 @@ end subroutine initialize
 !
 !---------------------------------------------------------------------------
 subroutine initialize_setup(n, p, continuity, ng, ads, mierr)
+      use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT
       use Setup, ONLY: ADS_Setup, ADS_compute_data
-      use parallelism, ONLY: NRPROCX, NRPROCY, NRPROCZ
+      use parallelism, ONLY: MYRANK, NRPROCX, NRPROCY, NRPROCZ
       use knot_vector, ONLY: PrepareKnot
       use basis, ONLY: BasisData
       use mpi
@@ -232,8 +233,12 @@ subroutine initialize_setup(n, p, continuity, ng, ads, mierr)
 #endif
 
       if (n(1) < NRPROCX .or. n(2) < NRPROCY .or. n(3) < NRPROCZ) then
-            write (*, *) 'Number of elements smaller than number of processors'
-            stop
+            if (MYRANK == 0) then
+                  write (ERROR_UNIT, *) 'Number of elements smaller than number of processors'
+                  flush (ERROR_UNIT)
+            end if
+            call MPI_Abort(MPI_COMM_WORLD, 4, ierr)
+            STOP 4
       end if
 
       call ComputeDecomposition(ads)

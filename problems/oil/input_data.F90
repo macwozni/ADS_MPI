@@ -15,7 +15,9 @@
 !------------------------------------------------------------------------------
 module input_data
 
-   use argument_parser, ONLY: ReadIntegerArgument, ReadRealArgument
+   use argument_parser, ONLY: ReadIntegerArgument, ReadRealArgument, &
+                              RequireNonnegativeInteger, RequirePositiveInteger, RequirePositiveReal, &
+                              RequireSafeSplineDimensions
 
    implicit none
 
@@ -73,9 +75,10 @@ contains
 !> @brief Reads the oil-problem discretization and time parameters.
 !>
 !> @details
-!> The expected leading argument list is:
+!> The expected argument list starts with:
 !> `<size> <order> <procx> <procy> <procz> <steps> <dt>`.
-!> Pump and drain coordinates are read later by \ref InitPumps.
+!> Pump and drain counts and coordinates are then validated by
+!> \ref InitPumps before MPI initialization.
 !
 !---------------------------------------------------------------------------
    subroutine InitializeParameters
@@ -96,6 +99,16 @@ contains
       call ReadIntegerArgument(5, procz)
       call ReadIntegerArgument(6, steps)
       call ReadRealArgument(7, Dt)
+
+      call RequirePositiveInteger(SIZE, "number of elements")
+      call RequireNonnegativeInteger(ORDER, "polynomial order")
+      call RequireSafeSplineDimensions(SIZE, ORDER)
+      call RequireNonnegativeInteger(steps, "number of time steps")
+      call RequirePositiveReal(Dt, "time step")
+      call RequirePositiveInteger(procx, "process-grid dimension")
+      call RequirePositiveInteger(procy, "process-grid dimension")
+      call RequirePositiveInteger(procz, "process-grid dimension")
+      call InitPumps()
 
    end subroutine InitializeParameters
 
@@ -140,9 +153,10 @@ contains
 !---------------------------------------------------------------------------
    subroutine InitPumps()
       implicit none
+      integer, parameter :: WIDE_INT = selected_int_kind(18)
       integer(kind = 4) :: i, arg = 8 ! First argument after "technical" ones
-      integer(kind = 4) :: expected
       integer(kind = 4) :: arg_count
+      integer(kind = WIDE_INT) :: expected
 
       arg_count = COMMAND_ARGUMENT_COUNT()
       if (arg_count < 9) then
@@ -156,13 +170,13 @@ contains
          STOP 5
       end if
       arg = arg + 1
-      allocate(pumps(3, npumps))
 
-      expected = 9 + 3*npumps
-      if (arg_count < expected) then
+      expected = 9_WIDE_INT + 3_WIDE_INT*int(npumps, kind = WIDE_INT)
+      if (int(arg_count, kind = WIDE_INT) < expected) then
          call PrintUsage()
          STOP 5
       end if
+      allocate(pumps(3, npumps))
 
       do i = 1, npumps
          call ReadRealArgument(arg, pumps(1, i))
@@ -176,8 +190,9 @@ contains
          write(*,*) "number of drains must be non-negative"
          STOP 5
       end if
-      expected = 9 + 3*npumps + 3*ndrains
-      if (arg_count .NE. expected) then
+      expected = 9_WIDE_INT + 3_WIDE_INT*int(npumps, kind = WIDE_INT) + &
+                 3_WIDE_INT*int(ndrains, kind = WIDE_INT)
+      if (int(arg_count, kind = WIDE_INT) .NE. expected) then
          call PrintUsage()
          STOP 5
       end if
@@ -211,11 +226,12 @@ contains
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
-!> @brief Generates random channel curves and initializes pumps/drains.
+!> @brief Generates random channel curves.
 !>
 !> @details
 !> The routine fills the global curve coordinate arrays with short random
-!> walks and then calls \ref InitPumps to read external source/sink data.
+!> walks. Pump and drain data have already been read by
+!> \ref InitializeParameters before MPI initialization.
 !
 !---------------------------------------------------------------------------
    subroutine InitInputData()
@@ -241,9 +257,6 @@ contains
             cz(i * cL + j) = cz(i * cL + j - 1) + step * dx(3)
          end do
       end do
-
-      call InitPumps()
-
    end subroutine InitInputData
 
 !---------------------------------------------------------------------------

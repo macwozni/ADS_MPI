@@ -19,7 +19,9 @@ module input_data
                               ARG_TIME_SCHEME_DG => TIME_SCHEME_DG, &
                               ARG_TIME_SCHEME_PR => TIME_SCHEME_PR, &
                               ReadIntegerArgument, ReadRealArgument, &
-                              ReadTimeSchemeArgument, SelectTimeScheme
+                              ReadTimeSchemeArgument, RequireNonnegativeInteger, &
+                              RequirePositiveInteger, RequirePositiveReal, &
+                              RequireSafeSplineDimensions, SelectTimeScheme
 
    implicit none
 
@@ -98,6 +100,31 @@ contains
       call ReadRealArgument(14, Dt)
       call SelectTimeScheme("dg", selected_time_scheme, time_scheme)
       if (nargs .EQ. 15) call ReadTimeSchemeArgument(15, selected_time_scheme, time_scheme)
+
+      call RequirePositiveInteger(nelem(1), "number of elements")
+      call RequirePositiveInteger(nelem(2), "number of elements")
+      call RequirePositiveInteger(nelem(3), "number of elements")
+      call RequireNonnegativeInteger(p_test(1), "test polynomial degree")
+      call RequireNonnegativeInteger(p_test(2), "test polynomial degree")
+      call RequireNonnegativeInteger(p_test(3), "test polynomial degree")
+      call RequireNonnegativeInteger(p_trial(1), "trial polynomial degree")
+      call RequireNonnegativeInteger(p_trial(2), "trial polynomial degree")
+      call RequireNonnegativeInteger(p_trial(3), "trial polynomial degree")
+      if (any(p_test <= p_trial)) then
+         write(*, '(A)') "test polynomial degree must be greater than trial polynomial degree"
+         STOP 5
+      end if
+      call RequireSafeSplineDimensions(nelem(1), p_test(1))
+      call RequireSafeSplineDimensions(nelem(2), p_test(2))
+      call RequireSafeSplineDimensions(nelem(3), p_test(3))
+      call RequireSafeSplineDimensions(nelem(1), p_trial(1))
+      call RequireSafeSplineDimensions(nelem(2), p_trial(2))
+      call RequireSafeSplineDimensions(nelem(3), p_trial(3))
+      call RequirePositiveInteger(procx, "process-grid dimension")
+      call RequirePositiveInteger(procy, "process-grid dimension")
+      call RequirePositiveInteger(procz, "process-grid dimension")
+      call RequireNonnegativeInteger(steps, "number of time steps")
+      call RequirePositiveReal(Dt, "time step")
 
    end subroutine InitializeParameters
 

@@ -169,8 +169,10 @@ subroutine InitializeParallelism(procx, procy, procz, ierr)
    character(len=7) :: buffer
 !> @brief MPI return codes from initialization and rank/size queries.
    integer(kind=4) :: i1, i2, i3
-!> @brief Number of MPI ranks requested by the process-grid dimensions.
-   integer(kind=4) :: requested_proc
+!> @brief Remaining MPI ranks while checking the process-grid product safely.
+   integer(kind=4) :: remaining_proc
+!> @brief Whether the process-grid product equals the MPI world size.
+   logical :: process_grid_matches
 
    NRPROCX = procx
    NRPROCY = procy
@@ -190,16 +192,29 @@ subroutine InitializeParallelism(procx, procy, procz, ierr)
       if (MYRANK == 0) then
          write (ERROR_UNIT, *) 'Process-grid dimensions must be positive:', &
             procx, procy, procz
+         flush (ERROR_UNIT)
       end if
+      call MPI_Abort(MPI_COMM_WORLD, 4, ierr)
       STOP 4
    end if
 
-   requested_proc = procx*procy*procz
-   if (requested_proc /= NRPROC) then
-      if (MYRANK == 0) then
-         write (ERROR_UNIT, *) 'Process-grid size mismatch:', &
-            'procx*procy*procz =', requested_proc, 'MPI ranks =', NRPROC
+   process_grid_matches = .FALSE.
+   remaining_proc = NRPROC
+   if (mod(remaining_proc, procx) == 0) then
+      remaining_proc = remaining_proc/procx
+      if (mod(remaining_proc, procy) == 0) then
+         remaining_proc = remaining_proc/procy
+         process_grid_matches = remaining_proc == procz
       end if
+   end if
+
+   if (.NOT. process_grid_matches) then
+      if (MYRANK == 0) then
+         write (ERROR_UNIT, *) 'Process-grid size mismatch: dimensions =', &
+            procx, procy, procz, 'MPI ranks =', NRPROC
+         flush (ERROR_UNIT)
+      end if
+      call MPI_Abort(MPI_COMM_WORLD, 4, ierr)
       STOP 4
    end if
 
