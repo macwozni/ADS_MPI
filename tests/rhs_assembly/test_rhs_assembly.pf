@@ -1,0 +1,795 @@
+module test_rhs_assembly
+   use pfunit
+   use Setup, only: ADS_Setup, ADS_compute_data
+   use Interfaces, only: forcing_fun
+   use knot_vector, only: PrepareKnot
+   use basis, only: BasisData
+   use omp_lib, only: omp_set_dynamic, omp_set_num_threads
+   use rhs_assembly, only: Form3DRHS, create_mixed_space
+   implicit none
+
+   real(kind=8), parameter :: TOL = 4096.d0*epsilon(1.d0)
+   real(kind=8), parameter :: SENTINEL = -987654.25d0
+
+   integer(kind=4) :: callback_calls = 0
+   integer(kind=4) :: forcing_calls = 0
+   integer(kind=4) :: recorded_n = 0
+   integer(kind=4) :: recorded_substep = 0
+   integer(kind=4) :: recorded_k(3) = 0
+   integer(kind=4) :: recorded_e(3) = 0
+   integer(kind=4) :: recorded_a(3) = 0
+   integer(kind=4) :: recorded_direction(3) = 0
+   integer(kind=4) :: recorded_rhs_state = 0
+   real(kind=8) :: configured_callback_result = 0.d0
+   real(kind=8) :: recorded_X(3) = 0.d0
+   real(kind=8) :: recorded_du(3) = 0.d0
+   real(kind=8) :: recorded_un(3) = 0.d0
+   real(kind=8) :: recorded_J = 0.d0
+   real(kind=8) :: recorded_W = 0.d0
+   real(kind=8) :: recorded_tau = 0.d0
+   real(kind=8) :: recorded_time = 0.d0
+   real(kind=8) :: recorded_alpha(7, 3) = 0.d0
+   real(kind=8) :: recorded_forcing_un = 0.d0
+   real(kind=8) :: recorded_forcing_du(3) = 0.d0
+   real(kind=8) :: recorded_forcing_X(3) = 0.d0
+   real(kind=8) :: recorded_forcing_result = 0.d0
+
+contains
+
+   logical function matrices_near(actual, expected) result(matches)
+      real(kind=8), intent(in) :: actual(:, :), expected(:, :)
+      real(kind=8) :: tolerance
+
+      matches = all(shape(actual) == shape(expected))
+      if (.not. matches) return
+      tolerance = TOL*max(1.d0, maxval(abs(expected)))
+      matches = all(abs(actual - expected) <= tolerance)
+   end function matrices_near
+
+
+   subroutine populate_tagged_setup(ads, tag)
+      type(ADS_Setup), intent(out) :: ads
+      integer(kind=4), intent(in) :: tag
+      integer(kind=4) :: a, d, extent, i, j
+
+      ads%n = tag + (/1, 2, 3/)
+      ads%p = tag + (/4, 5, 6/)
+      ads%nelem = tag + (/7, 8, 9/)
+      ads%nrcpp = tag + (/10, 11, 12/)
+      ads%ibeg = tag + (/13, 14, 15/)
+      ads%iend = tag + (/16, 17, 18/)
+      ads%s = tag + (/19, 20, 21/)
+      ads%ibegsx = tag + (/22, 23, 24/)
+      ads%iendsx = tag + (/25, 26, 27/)
+      ads%ibegsy = tag + (/28, 29, 30/)
+      ads%iendsy = tag + (/31, 32, 33/)
+      ads%ibegsz = tag + (/34, 35, 36/)
+      ads%iendsz = tag + (/37, 38, 39/)
+      ads%mine = tag + (/40, 41, 42/)
+      ads%maxe = tag + (/43, 44, 45/)
+      ads%lnelem = tag + (/46, 47, 48/)
+      ads%m = tag + (/49, 50, 51/)
+      ads%ng = tag + (/52, 53, 54/)
+      ads%tau = real(tag, kind=8) + 0.125d0
+
+      extent = 2
+      if (tag >= 200) extent = 3
+      allocate(ads%Ux(0:extent), ads%Uy(0:extent), ads%Uz(0:extent))
+      allocate(ads%dimensionsX(extent), ads%dimensionsY(extent))
+      allocate(ads%dimensionsZ(extent))
+      allocate(ads%shiftsX(extent), ads%shiftsY(extent), ads%shiftsZ(extent))
+      allocate(ads%IPIVx(extent), ads%IPIVy(extent), ads%IPIVz(extent))
+      allocate(ads%Ox(extent), ads%Oy(extent), ads%Oz(extent))
+      allocate(ads%Jx(extent), ads%Jy(extent), ads%Jz(extent))
+      allocate(ads%Xx(extent, extent), ads%Xy(extent, extent))
+      allocate(ads%Xz(extent, extent))
+      allocate(ads%NNx(0:1, 0:1, 1:extent, 1:extent))
+      allocate(ads%NNy(0:1, 0:1, 1:extent, 1:extent))
+      allocate(ads%NNz(0:1, 0:1, 1:extent, 1:extent))
+      allocate(ads%Wx(extent), ads%Wy(extent), ads%Wz(extent))
+
+      do i = 0, extent
+         ads%Ux(i) = real(tag + 101 + i, kind=8)
+         ads%Uy(i) = real(tag + 201 + i, kind=8)
+         ads%Uz(i) = real(tag + 301 + i, kind=8)
+      end do
+      do i = 1, extent
+         ads%dimensionsX(i) = tag + 104 + i
+         ads%dimensionsY(i) = tag + 204 + i
+         ads%dimensionsZ(i) = tag + 304 + i
+         ads%shiftsX(i) = tag + 107 + i
+         ads%shiftsY(i) = tag + 207 + i
+         ads%shiftsZ(i) = tag + 307 + i
+         ads%IPIVx(i) = tag + 110 + i
+         ads%IPIVy(i) = tag + 210 + i
+         ads%IPIVz(i) = tag + 310 + i
+         ads%Ox(i) = tag + 113 + i
+         ads%Oy(i) = tag + 213 + i
+         ads%Oz(i) = tag + 313 + i
+         ads%Jx(i) = real(tag + 116 + i, kind=8)
+         ads%Jy(i) = real(tag + 216 + i, kind=8)
+         ads%Jz(i) = real(tag + 316 + i, kind=8)
+         ads%Wx(i) = real(tag + 125 + i, kind=8)
+         ads%Wy(i) = real(tag + 225 + i, kind=8)
+         ads%Wz(i) = real(tag + 325 + i, kind=8)
+         do j = 1, extent
+            ads%Xx(i, j) = real(tag + 1000 + 10*i + j, kind=8)
+            ads%Xy(i, j) = real(tag + 2000 + 10*i + j, kind=8)
+            ads%Xz(i, j) = real(tag + 3000 + 10*i + j, kind=8)
+            do a = 0, 1
+               do d = 0, 1
+                  ads%NNx(d, a, i, j) = &
+                     real(tag + 4000 + 1000*d + 100*a + 10*i + j, kind=8)
+                  ads%NNy(d, a, i, j) = &
+                     real(tag + 5000 + 1000*d + 100*a + 10*i + j, kind=8)
+                  ads%NNz(d, a, i, j) = &
+                     real(tag + 6000 + 1000*d + 100*a + 10*i + j, kind=8)
+               end do
+            end do
+         end do
+      end do
+   end subroutine populate_tagged_setup
+
+
+   logical function axis_payload_matches(actual, expected, axis) result(matches)
+      type(ADS_Setup), intent(in) :: actual, expected
+      integer(kind=4), intent(in) :: axis
+
+      matches = .false.
+      select case (axis)
+      case (1)
+         matches = actual%n(1) == expected%n(1) .and. &
+            actual%p(1) == expected%p(1) .and. &
+            actual%nelem(1) == expected%nelem(1) .and. &
+            actual%nrcpp(1) == expected%nrcpp(1) .and. &
+            actual%ibeg(1) == expected%ibeg(1) .and. &
+            actual%iend(1) == expected%iend(1) .and. &
+            actual%s(1) == expected%s(1) .and. &
+            actual%mine(1) == expected%mine(1) .and. &
+            actual%maxe(1) == expected%maxe(1) .and. &
+            actual%lnelem(1) == expected%lnelem(1) .and. &
+            actual%m(1) == expected%m(1) .and. &
+            actual%ng(1) == expected%ng(1) .and. &
+            all(actual%Ux == expected%Ux) .and. &
+            all(actual%dimensionsX == expected%dimensionsX) .and. &
+            all(actual%shiftsX == expected%shiftsX) .and. &
+            all(actual%IPIVx == expected%IPIVx) .and. &
+            all(actual%ibegsx == expected%ibegsx) .and. &
+            all(actual%iendsx == expected%iendsx) .and. &
+            all(actual%Ox == expected%Ox) .and. &
+            all(actual%Jx == expected%Jx) .and. &
+            all(actual%Xx == expected%Xx) .and. &
+            all(actual%NNx == expected%NNx) .and. &
+            all(actual%Wx == expected%Wx)
+      case (2)
+         matches = actual%n(2) == expected%n(2) .and. &
+            actual%p(2) == expected%p(2) .and. &
+            actual%nelem(2) == expected%nelem(2) .and. &
+            actual%nrcpp(2) == expected%nrcpp(2) .and. &
+            actual%ibeg(2) == expected%ibeg(2) .and. &
+            actual%iend(2) == expected%iend(2) .and. &
+            actual%s(2) == expected%s(2) .and. &
+            actual%mine(2) == expected%mine(2) .and. &
+            actual%maxe(2) == expected%maxe(2) .and. &
+            actual%lnelem(2) == expected%lnelem(2) .and. &
+            actual%m(2) == expected%m(2) .and. &
+            actual%ng(2) == expected%ng(2) .and. &
+            all(actual%Uy == expected%Uy) .and. &
+            all(actual%dimensionsY == expected%dimensionsY) .and. &
+            all(actual%shiftsY == expected%shiftsY) .and. &
+            all(actual%IPIVy == expected%IPIVy) .and. &
+            all(actual%ibegsy == expected%ibegsy) .and. &
+            all(actual%iendsy == expected%iendsy) .and. &
+            all(actual%Oy == expected%Oy) .and. &
+            all(actual%Jy == expected%Jy) .and. &
+            all(actual%Xy == expected%Xy) .and. &
+            all(actual%NNy == expected%NNy) .and. &
+            all(actual%Wy == expected%Wy)
+      case (3)
+         matches = actual%n(3) == expected%n(3) .and. &
+            actual%p(3) == expected%p(3) .and. &
+            actual%nelem(3) == expected%nelem(3) .and. &
+            actual%nrcpp(3) == expected%nrcpp(3) .and. &
+            actual%ibeg(3) == expected%ibeg(3) .and. &
+            actual%iend(3) == expected%iend(3) .and. &
+            actual%s(3) == expected%s(3) .and. &
+            actual%mine(3) == expected%mine(3) .and. &
+            actual%maxe(3) == expected%maxe(3) .and. &
+            actual%lnelem(3) == expected%lnelem(3) .and. &
+            actual%m(3) == expected%m(3) .and. &
+            actual%ng(3) == expected%ng(3) .and. &
+            all(actual%Uz == expected%Uz) .and. &
+            all(actual%dimensionsZ == expected%dimensionsZ) .and. &
+            all(actual%shiftsZ == expected%shiftsZ) .and. &
+            all(actual%IPIVz == expected%IPIVz) .and. &
+            all(actual%ibegsz == expected%ibegsz) .and. &
+            all(actual%iendsz == expected%iendsz) .and. &
+            all(actual%Oz == expected%Oz) .and. &
+            all(actual%Jz == expected%Jz) .and. &
+            all(actual%Xz == expected%Xz) .and. &
+            all(actual%NNz == expected%NNz) .and. &
+            all(actual%Wz == expected%Wz)
+      end select
+   end function axis_payload_matches
+
+
+   subroutine prepare_space(ads, element_count, degree, quadrature)
+      type(ADS_Setup), intent(out) :: ads
+      integer(kind=4), intent(in) :: element_count(3), degree(3), quadrature(3)
+      integer(kind=4) :: actual_elements, axis
+
+      ads%nelem = element_count
+      ads%p = degree
+      ads%n = element_count + degree - 1
+      ads%m = ads%n + ads%p + 1
+      ads%ng = quadrature
+      ads%ibeg = 1
+      ads%iend = ads%n + 1
+      ads%s = ads%n + 1
+      ads%nrcpp = ads%s
+      ads%mine = 1
+      ads%maxe = element_count
+      ads%lnelem = element_count
+      ads%ibegsx = ads%ibeg
+      ads%iendsx = ads%iend
+      ads%ibegsy = ads%ibeg
+      ads%iendsy = ads%iend
+      ads%ibegsz = ads%ibeg
+      ads%iendsz = ads%iend
+      ads%tau = 0.25d0
+
+      call PrepareKnot(ads%n(1), ads%p(1), ads%Ux, actual_elements)
+      if (actual_elements /= element_count(1)) stop 91
+      call PrepareKnot(ads%n(2), ads%p(2), ads%Uy, actual_elements)
+      if (actual_elements /= element_count(2)) stop 92
+      call PrepareKnot(ads%n(3), ads%p(3), ads%Uz, actual_elements)
+      if (actual_elements /= element_count(3)) stop 93
+
+      allocate(ads%dimensionsX(1), ads%dimensionsY(1), ads%dimensionsZ(1))
+      allocate(ads%shiftsX(1), ads%shiftsY(1), ads%shiftsZ(1))
+      allocate(ads%IPIVx(ads%s(1)), ads%IPIVy(ads%s(2)), ads%IPIVz(ads%s(3)))
+      ads%dimensionsX = ads%s(1)
+      ads%dimensionsY = ads%s(2)
+      ads%dimensionsZ = ads%s(3)
+      ads%shiftsX = 0
+      ads%shiftsY = 0
+      ads%shiftsZ = 0
+      ads%IPIVx = 0
+      ads%IPIVy = 0
+      ads%IPIVz = 0
+
+      allocate(ads%Ox(element_count(1)), ads%Oy(element_count(2)))
+      allocate(ads%Oz(element_count(3)))
+      allocate(ads%Jx(element_count(1)), ads%Jy(element_count(2)))
+      allocate(ads%Jz(element_count(3)))
+      allocate(ads%Wx(quadrature(1)), ads%Wy(quadrature(2)))
+      allocate(ads%Wz(quadrature(3)))
+      allocate(ads%Xx(quadrature(1), element_count(1)))
+      allocate(ads%Xy(quadrature(2), element_count(2)))
+      allocate(ads%Xz(quadrature(3), element_count(3)))
+      allocate(ads%NNx(0:1, 0:degree(1), quadrature(1), element_count(1)))
+      allocate(ads%NNy(0:1, 0:degree(2), quadrature(2), element_count(2)))
+      allocate(ads%NNz(0:1, 0:degree(3), quadrature(3), element_count(3)))
+
+      call BasisData(degree(1), ads%m(1), ads%Ux, 1, quadrature(1), &
+                     element_count(1), ads%Ox, ads%Jx, ads%Wx, ads%Xx, ads%NNx)
+      call BasisData(degree(2), ads%m(2), ads%Uy, 1, quadrature(2), &
+                     element_count(2), ads%Oy, ads%Jy, ads%Wy, ads%Xy, ads%NNy)
+      call BasisData(degree(3), ads%m(3), ads%Uz, 1, quadrature(3), &
+                     element_count(3), ads%Oz, ads%Jz, ads%Wz, ads%Xz, ads%NNz)
+
+      do axis = 1, 3
+         if (ads%lnelem(axis) /= element_count(axis)) stop 94
+      end do
+   end subroutine prepare_space
+
+
+   subroutine prepare_compute_data(data, state_mine, state_shape, quadrature)
+      type(ADS_compute_data), intent(out) :: data
+      integer(kind=4), intent(in) :: state_mine(3), state_shape(3), quadrature(3)
+
+      data%state_mine = state_mine
+      data%state_maxe = state_mine + state_shape - 1
+      data%state_lnelem = state_shape
+      data%rhs_du_state = 0
+      data%t = 0.d0
+
+      allocate(data%Un(state_shape(1), state_shape(2), state_shape(3), &
+                       quadrature(1), quadrature(2), quadrature(3)))
+      allocate(data%Un13(state_shape(1), state_shape(2), state_shape(3), &
+                         quadrature(1), quadrature(2), quadrature(3)))
+      allocate(data%Un23(state_shape(1), state_shape(2), state_shape(3), &
+                         quadrature(1), quadrature(2), quadrature(3)))
+      allocate(data%dUn(state_shape(1), state_shape(2), state_shape(3), &
+                        quadrature(1), quadrature(2), quadrature(3), 3))
+      allocate(data%dUn0(state_shape(1), state_shape(2), state_shape(3), &
+                         quadrature(1), quadrature(2), quadrature(3), 3))
+      allocate(data%dUn13(state_shape(1), state_shape(2), state_shape(3), &
+                          quadrature(1), quadrature(2), quadrature(3), 3))
+      allocate(data%dUn23(state_shape(1), state_shape(2), state_shape(3), &
+                          quadrature(1), quadrature(2), quadrature(3), 3))
+
+      data%Un = SENTINEL
+      data%Un13 = SENTINEL
+      data%Un23 = SENTINEL
+      data%dUn = 0.d0
+      data%dUn0 = 0.d0
+      data%dUn13 = 0.d0
+      data%dUn23 = 0.d0
+   end subroutine prepare_compute_data
+
+
+   subroutine set_active_stage_constants(data, element_count, quadrature, values)
+      type(ADS_compute_data), intent(inout) :: data
+      integer(kind=4), intent(in) :: element_count(3), quadrature(3)
+      real(kind=8), intent(in) :: values(3)
+      integer(kind=4) :: ex, ey, ez, kx, ky, kz, sx, sy, sz
+
+      do ex = 1, element_count(1)
+         sx = ex - data%state_mine(1) + 1
+         do ey = 1, element_count(2)
+            sy = ey - data%state_mine(2) + 1
+            do ez = 1, element_count(3)
+               sz = ez - data%state_mine(3) + 1
+               do kx = 1, quadrature(1)
+                  do ky = 1, quadrature(2)
+                     do kz = 1, quadrature(3)
+                        data%Un(sx, sy, sz, kx, ky, kz) = values(1)
+                        data%Un13(sx, sy, sz, kx, ky, kz) = values(2)
+                        data%Un23(sx, sy, sz, kx, ky, kz) = values(3)
+                     end do
+                  end do
+               end do
+            end do
+         end do
+      end do
+   end subroutine set_active_stage_constants
+
+
+   function zero_forcing(un, du, X) result(ret)
+      real(kind=8), intent(in) :: un, du(3), X(3)
+      real(kind=8) :: ret
+
+      ret = 0.d0*(un + sum(du) + sum(X))
+   end function zero_forcing
+
+
+   subroutine state_rhs_point(ads, X, k, e, a, du, n, un11, un13, un23, &
+                              ads_data, J, W, direction, substep, alpha_step, &
+                              forcing, ret)
+      type(ADS_Setup), intent(in) :: ads
+      real(kind=8), intent(in) :: X(3), du(3), un11, un13, un23, J, W
+      integer(kind=4), intent(in) :: k(3), e(3), a(3), n
+      type(ADS_compute_data), intent(in) :: ads_data
+      integer(kind=4), intent(in) :: direction(3), substep
+      real(kind=8), intent(in) :: alpha_step(7, 3)
+      procedure(forcing_fun) :: forcing
+      real(kind=8), intent(out) :: ret
+
+      ret = un11
+   end subroutine state_rhs_point
+
+
+   subroutine clipping_rhs_point(ads, X, k, e, a, du, n, un11, un13, un23, &
+                                 ads_data, J, W, direction, substep, alpha_step, &
+                                 forcing, ret)
+      type(ADS_Setup), intent(in) :: ads
+      real(kind=8), intent(in) :: X(3), du(3), un11, un13, un23, J, W
+      integer(kind=4), intent(in) :: k(3), e(3), a(3), n
+      type(ADS_compute_data), intent(in) :: ads_data
+      integer(kind=4), intent(in) :: direction(3), substep
+      real(kind=8), intent(in) :: alpha_step(7, 3)
+      procedure(forcing_fun) :: forcing
+      real(kind=8), intent(out) :: ret
+
+      ret = 100.d0*real(e(1), kind=8) + &
+            10.d0*real(e(1)*a(1), kind=8) + real(a(1), kind=8)
+   end subroutine clipping_rhs_point
+
+
+   function recording_forcing(un, du, X) result(ret)
+      real(kind=8), intent(in) :: un, du(3), X(3)
+      real(kind=8) :: ret
+
+      forcing_calls = forcing_calls + 1
+      recorded_forcing_un = un
+      recorded_forcing_du = du
+      recorded_forcing_X = X
+      ret = 59.5d0
+   end function recording_forcing
+
+
+   subroutine recording_rhs_point(ads, X, k, e, a, du, n, un11, un13, un23, &
+                                  ads_data, J, W, direction, substep, alpha_step, &
+                                  forcing, ret)
+      type(ADS_Setup), intent(in) :: ads
+      real(kind=8), intent(in) :: X(3), du(3), un11, un13, un23, J, W
+      integer(kind=4), intent(in) :: k(3), e(3), a(3), n
+      type(ADS_compute_data), intent(in) :: ads_data
+      integer(kind=4), intent(in) :: direction(3), substep
+      real(kind=8), intent(in) :: alpha_step(7, 3)
+      procedure(forcing_fun) :: forcing
+      real(kind=8), intent(out) :: ret
+
+      callback_calls = callback_calls + 1
+      recorded_n = n
+      recorded_substep = substep
+      recorded_k = k
+      recorded_e = e
+      recorded_a = a
+      recorded_direction = direction
+      recorded_rhs_state = ads_data%rhs_du_state(6, 3)
+      recorded_X = X
+      recorded_du = du
+      recorded_un = (/un11, un13, un23/)
+      recorded_J = J
+      recorded_W = W
+      recorded_tau = ads%tau
+      recorded_time = ads_data%t
+      recorded_alpha = alpha_step
+      recorded_forcing_result = forcing(un13, du, X)
+      ret = configured_callback_result
+   end subroutine recording_rhs_point
+
+
+   subroutine reset_recorders(callback_result)
+      real(kind=8), intent(in) :: callback_result
+
+      callback_calls = 0
+      forcing_calls = 0
+      configured_callback_result = callback_result
+      recorded_n = 0
+      recorded_substep = 0
+      recorded_k = 0
+      recorded_e = 0
+      recorded_a = 0
+      recorded_direction = 0
+      recorded_rhs_state = 0
+      recorded_X = 0.d0
+      recorded_du = 0.d0
+      recorded_un = 0.d0
+      recorded_J = 0.d0
+      recorded_W = 0.d0
+      recorded_tau = 0.d0
+      recorded_time = 0.d0
+      recorded_alpha = 0.d0
+      recorded_forcing_un = 0.d0
+      recorded_forcing_du = 0.d0
+      recorded_forcing_X = 0.d0
+      recorded_forcing_result = 0.d0
+   end subroutine reset_recorders
+
+
+   @test
+   subroutine test_create_mixed_space_uses_trial_without_enrichment()
+      type(ADS_Setup) :: test_space, trial_space, mixed
+      integer(kind=4) :: dira, dirb, dirc
+      logical :: igrm
+
+      call populate_tagged_setup(test_space, 200)
+      call populate_tagged_setup(trial_space, 100)
+      call create_mixed_space(test_space, trial_space, (/0, 0, 0/), &
+                              mixed, dira, dirb, dirc, igrm)
+
+      @assertTrue(.not. igrm)
+      @assertTrue(all((/dira, dirb, dirc/) == (/1, 2, 3/)))
+      @assertTrue(axis_payload_matches(mixed, trial_space, 1))
+      @assertTrue(axis_payload_matches(mixed, trial_space, 2))
+      @assertTrue(axis_payload_matches(mixed, trial_space, 3))
+      @assertTrue(mixed%tau == trial_space%tau)
+   end subroutine test_create_mixed_space_uses_trial_without_enrichment
+
+
+   @test
+   subroutine test_create_mixed_space_replaces_each_selected_axis()
+      type(ADS_Setup) :: test_space, trial_space, mixed
+      integer(kind=4) :: axis, other, direction(3), dira, dirb, dirc
+      integer(kind=4), parameter :: permutations(3, 3) = reshape((/ &
+         1, 2, 3, 2, 1, 3, 3, 1, 2 /), (/3, 3/))
+      logical :: igrm
+
+      call populate_tagged_setup(test_space, 200)
+      call populate_tagged_setup(trial_space, 100)
+
+      do axis = 1, 3
+         direction = 0
+         direction(axis) = 1
+         call create_mixed_space(test_space, trial_space, direction, &
+                                 mixed, dira, dirb, dirc, igrm)
+
+         @assertTrue(igrm)
+         @assertTrue(all((/dira, dirb, dirc/) == permutations(:, axis)))
+         @assertTrue(axis_payload_matches(mixed, test_space, axis))
+         do other = 1, 3
+            if (other /= axis) then
+               @assertTrue(axis_payload_matches(mixed, trial_space, other))
+            end if
+         end do
+         @assertTrue(mixed%tau == trial_space%tau)
+      end do
+   end subroutine test_create_mixed_space_replaces_each_selected_axis
+
+
+   @test
+   subroutine test_default_rhs_reconstructs_loads_stages_and_addition()
+      type(ADS_Setup) :: test_space, trial_space
+      type(ADS_compute_data) :: data
+      integer(kind=4), parameter :: elements(3) = (/2, 2, 2/)
+      integer(kind=4), parameter :: degree(3) = (/1, 1, 1/)
+      integer(kind=4), parameter :: quadrature(3) = (/2, 2, 2/)
+      real(kind=8) :: alpha_step(7, 3), base(3, 9), expected(3, 9)
+      real(kind=8) :: one_thread(3, 9), four_threads(3, 9)
+      logical :: igrm
+
+      call prepare_space(trial_space, elements, degree, quadrature)
+      test_space = trial_space
+      call prepare_compute_data(data, (/0, 0, 0/), elements + 1, quadrature)
+      call set_active_stage_constants(data, elements, quadrature, &
+                                      (/64.d0, 128.d0, 320.d0/))
+      allocate(data%F(3, 9), data%Ft(2, 2))
+      alpha_step = 0.d0
+      base(1, :) = (/1.d0, 2.d0, 1.d0, 2.d0, 4.d0, 2.d0, 1.d0, 2.d0, 1.d0/)
+      base(2, :) = 2.d0*base(1, :)
+      base(3, :) = base(1, :)
+
+      call omp_set_dynamic(.false.)
+      call omp_set_num_threads(1)
+      data%F = 7.d0
+      data%Ft = SENTINEL
+      call Form3DRHS(test_space, trial_space, data, (/0, 0, 0/), 17, 1, &
+                     alpha_step, zero_forcing, igrm)
+      one_thread = data%F
+      expected = 7.d0 + base
+      @assertTrue(.not. igrm)
+      @assertTrue(matrices_near(one_thread, expected))
+      @assertTrue(all(data%Ft == SENTINEL))
+
+      call omp_set_num_threads(4)
+      data%F = 7.d0
+      call Form3DRHS(test_space, trial_space, data, (/0, 0, 0/), 17, 1, &
+                     alpha_step, zero_forcing, igrm)
+      four_threads = data%F
+      @assertTrue(all(four_threads == one_thread))
+
+      call Form3DRHS(test_space, trial_space, data, (/0, 0, 0/), 17, 1, &
+                     alpha_step, zero_forcing, igrm)
+      expected = 7.d0 + 2.d0*base
+      @assertTrue(matrices_near(data%F, expected))
+
+      data%F = 7.d0
+      call Form3DRHS(test_space, trial_space, data, (/0, 0, 0/), 17, 2, &
+                     alpha_step, zero_forcing, igrm)
+      expected = 7.d0 + 2.d0*base
+      @assertTrue(matrices_near(data%F, expected))
+
+      data%F = 7.d0
+      call Form3DRHS(test_space, trial_space, data, (/0, 0, 0/), 17, 3, &
+                     alpha_step, zero_forcing, igrm)
+      expected = 7.d0 + 5.d0*base
+      @assertTrue(matrices_near(data%F, expected))
+      @assertTrue(all(data%Ft == SENTINEL))
+      call omp_set_num_threads(1)
+   end subroutine test_default_rhs_reconstructs_loads_stages_and_addition
+
+
+   @test
+   subroutine test_mixed_x_rhs_uses_enriched_loads_and_ft()
+      type(ADS_Setup) :: test_space, trial_space
+      type(ADS_compute_data) :: data
+      integer(kind=4), parameter :: elements(3) = (/2, 2, 2/)
+      real(kind=8) :: alpha_step(7, 3), base(3, 9), expected(4, 9)
+      real(kind=8) :: one_thread(4, 9), four_threads(4, 9)
+      logical :: igrm
+
+      call prepare_space(trial_space, elements, (/1, 1, 1/), (/2, 2, 2/))
+      call prepare_space(test_space, elements, (/2, 1, 1/), (/3, 2, 2/))
+      call prepare_compute_data(data, (/0, 0, 0/), elements + 1, (/3, 2, 2/))
+      call set_active_stage_constants(data, elements, (/3, 2, 2/), &
+                                      (/96.d0, 192.d0, 480.d0/))
+      allocate(data%F(3, 9), data%Ft(4, 9))
+      alpha_step = 0.d0
+      base(1, :) = (/1.d0, 2.d0, 1.d0, 2.d0, 4.d0, 2.d0, 1.d0, 2.d0, 1.d0/)
+      base(2, :) = 2.d0*base(1, :)
+      base(3, :) = base(1, :)
+      expected(1, :) = base(1, :)
+      expected(2, :) = 2.d0*base(1, :)
+      expected(3, :) = 2.d0*base(1, :)
+      expected(4, :) = base(1, :)
+
+      call omp_set_dynamic(.false.)
+      call omp_set_num_threads(1)
+      data%F = SENTINEL
+      data%Ft = 7.d0
+      call Form3DRHS(test_space, trial_space, data, (/1, 0, 0/), 23, 1, &
+                     alpha_step, zero_forcing, igrm)
+      one_thread = data%Ft
+      @assertTrue(igrm)
+      @assertTrue(matrices_near(one_thread, 7.d0 + expected))
+      @assertTrue(all(data%F == SENTINEL))
+
+      call omp_set_num_threads(4)
+      data%Ft = 7.d0
+      call Form3DRHS(test_space, trial_space, data, (/1, 0, 0/), 23, 1, &
+                     alpha_step, zero_forcing, igrm)
+      four_threads = data%Ft
+      @assertTrue(all(four_threads == one_thread))
+
+      call Form3DRHS(test_space, trial_space, data, (/1, 0, 0/), 23, 1, &
+                     alpha_step, zero_forcing, igrm)
+      @assertTrue(matrices_near(data%Ft, 7.d0 + 2.d0*expected))
+      @assertTrue(all(data%F == SENTINEL))
+      call omp_set_num_threads(1)
+   end subroutine test_mixed_x_rhs_uses_enriched_loads_and_ft
+
+
+   @test
+   subroutine test_rhs_routes_regular_and_each_igrm_axis()
+      type(ADS_Setup) :: test_space, trial_space
+      type(ADS_compute_data) :: data
+      integer(kind=4), parameter :: elements(3) = (/2, 3, 2/)
+      integer(kind=4) :: ex, ey, ez, sx, sy, sz
+      real(kind=8) :: alpha_step(7, 3), expected_x(2, 6)
+      real(kind=8) :: expected_y(3, 4), expected_z(2, 6), value
+      logical :: igrm
+
+      call prepare_space(trial_space, elements, (/0, 0, 0/), (/1, 1, 1/))
+      test_space = trial_space
+      call prepare_compute_data(data, (/0, 0, 0/), elements + 1, (/1, 1, 1/))
+      do ex = 1, elements(1)
+         sx = ex - data%state_mine(1) + 1
+         do ey = 1, elements(2)
+            sy = ey - data%state_mine(2) + 1
+            do ez = 1, elements(3)
+               sz = ez - data%state_mine(3) + 1
+               value = 100.d0*real(ex, kind=8) + &
+                       10.d0*real(ey, kind=8) + real(ez, kind=8)
+               data%Un(sx, sy, sz, 1, 1, 1) = value
+            end do
+         end do
+      end do
+      allocate(data%F(2, 6), data%Ft(1, 1))
+      alpha_step = 0.d0
+      expected_x(1, :) = (/111.d0, 121.d0, 131.d0, 112.d0, 122.d0, 132.d0/)
+      expected_x(2, :) = (/211.d0, 221.d0, 231.d0, 212.d0, 222.d0, 232.d0/)
+      expected_y(1, :) = (/111.d0, 211.d0, 112.d0, 212.d0/)
+      expected_y(2, :) = (/121.d0, 221.d0, 122.d0, 222.d0/)
+      expected_y(3, :) = (/131.d0, 231.d0, 132.d0, 232.d0/)
+      expected_z(1, :) = (/111.d0, 211.d0, 121.d0, 221.d0, 131.d0, 231.d0/)
+      expected_z(2, :) = (/112.d0, 212.d0, 122.d0, 222.d0, 132.d0, 232.d0/)
+
+      data%F = 0.d0
+      data%Ft = SENTINEL
+      call Form3DRHS(test_space, trial_space, data, (/0, 0, 0/), 29, 1, &
+                     alpha_step, zero_forcing, igrm, state_rhs_point)
+      @assertTrue(.not. igrm)
+      @assertTrue(matrices_near(data%F, expected_x))
+      @assertTrue(all(data%Ft == SENTINEL))
+
+      deallocate(data%Ft)
+      allocate(data%Ft(2, 6))
+      data%F = SENTINEL
+      data%Ft = 0.d0
+      call Form3DRHS(test_space, trial_space, data, (/1, 0, 0/), 29, 1, &
+                     alpha_step, zero_forcing, igrm, state_rhs_point)
+      @assertTrue(igrm)
+      @assertTrue(matrices_near(data%Ft, expected_x))
+      @assertTrue(all(data%F == SENTINEL))
+
+      deallocate(data%Ft)
+      allocate(data%Ft(3, 4))
+      data%Ft = 0.d0
+      call Form3DRHS(test_space, trial_space, data, (/0, 1, 0/), 29, 1, &
+                     alpha_step, zero_forcing, igrm, state_rhs_point)
+      @assertTrue(igrm)
+      @assertTrue(matrices_near(data%Ft, expected_y))
+      @assertTrue(all(data%F == SENTINEL))
+
+      deallocate(data%Ft)
+      allocate(data%Ft(2, 6))
+      data%Ft = 0.d0
+      call Form3DRHS(test_space, trial_space, data, (/0, 0, 1/), 29, 1, &
+                     alpha_step, zero_forcing, igrm, state_rhs_point)
+      @assertTrue(igrm)
+      @assertTrue(matrices_near(data%Ft, expected_z))
+      @assertTrue(all(data%F == SENTINEL))
+   end subroutine test_rhs_routes_regular_and_each_igrm_axis
+
+
+   @test
+   subroutine test_rhs_clips_unowned_basis_functions()
+      type(ADS_Setup) :: test_space, trial_space
+      type(ADS_compute_data) :: data
+      real(kind=8) :: alpha_step(7, 3)
+      logical :: igrm
+
+      call prepare_space(trial_space, (/3, 1, 1/), (/1, 0, 0/), (/1, 1, 1/))
+      trial_space%ibeg = (/3, 1, 1/)
+      trial_space%iend = (/3, 1, 1/)
+      trial_space%s = 1
+      trial_space%mine = (/2, 1, 1/)
+      trial_space%maxe = (/3, 1, 1/)
+      trial_space%lnelem = (/2, 1, 1/)
+      test_space = trial_space
+      call prepare_compute_data(data, (/1, 0, 0/), (/3, 2, 2/), (/1, 1, 1/))
+      allocate(data%F(1, 1), data%Ft(1, 1))
+      data%F = 5.d0
+      data%Ft = SENTINEL
+      alpha_step = 0.d0
+
+      call Form3DRHS(test_space, trial_space, data, (/0, 0, 0/), 31, 1, &
+                     alpha_step, zero_forcing, igrm, clipping_rhs_point)
+
+      @assertTrue(.not. igrm)
+      @assertTrue(data%F(1, 1) == 526.d0)
+      @assertTrue(all(data%Ft == SENTINEL))
+   end subroutine test_rhs_clips_unowned_basis_functions
+
+
+   @test
+   subroutine test_rhs_forwards_complete_callback_context_without_reweighting()
+      type(ADS_Setup) :: test_space, trial_space
+      type(ADS_compute_data) :: data
+      integer(kind=4) :: i
+      real(kind=8) :: alpha_step(7, 3)
+      logical :: igrm
+
+      call prepare_space(trial_space, (/1, 1, 1/), (/0, 0, 0/), (/1, 1, 1/))
+      trial_space%Xx(1, 1) = 31.d0
+      trial_space%Xy(1, 1) = 37.d0
+      trial_space%Xz(1, 1) = 41.d0
+      trial_space%Jx(1) = 2.d0
+      trial_space%Jy(1) = 3.d0
+      trial_space%Jz(1) = 5.d0
+      trial_space%Wx(1) = 7.d0
+      trial_space%Wy(1) = 11.d0
+      trial_space%Wz(1) = 13.d0
+      trial_space%tau = 0.375d0
+      test_space = trial_space
+
+      call prepare_compute_data(data, (/0, 0, 0/), (/2, 2, 2/), (/1, 1, 1/))
+      data%Un(2, 2, 2, 1, 1, 1) = 11.d0
+      data%Un13(2, 2, 2, 1, 1, 1) = 13.d0
+      data%Un23(2, 2, 2, 1, 1, 1) = 17.d0
+      data%dUn(2, 2, 2, 1, 1, 1, :) = (/19.d0, 23.d0, 29.d0/)
+      data%rhs_du_state = 42
+      data%t = 0.625d0
+      allocate(data%F(1, 1), data%Ft(1, 1))
+      data%F = 7.d0
+      data%Ft = SENTINEL
+      do i = 1, 21
+         alpha_step(i - 7*((i - 1)/7), (i - 1)/7 + 1) = real(i, kind=8)
+      end do
+      call reset_recorders(73.25d0)
+      call omp_set_dynamic(.false.)
+      call omp_set_num_threads(1)
+
+      call Form3DRHS(test_space, trial_space, data, (/0, 0, 0/), 43, 2, &
+                     alpha_step, recording_forcing, igrm, recording_rhs_point)
+
+      @assertTrue(.not. igrm)
+      @assertTrue(callback_calls == 1)
+      @assertTrue(forcing_calls == 1)
+      @assertTrue(recorded_n == 43)
+      @assertTrue(recorded_substep == 2)
+      @assertTrue(all(recorded_k == 1))
+      @assertTrue(all(recorded_e == 1))
+      @assertTrue(all(recorded_a == 0))
+      @assertTrue(all(recorded_direction == 0))
+      @assertTrue(recorded_rhs_state == 42)
+      @assertTrue(all(recorded_X == (/31.d0, 37.d0, 41.d0/)))
+      @assertTrue(all(recorded_du == (/19.d0, 23.d0, 29.d0/)))
+      @assertTrue(all(recorded_un == (/11.d0, 13.d0, 17.d0/)))
+      @assertTrue(recorded_J == 30.d0)
+      @assertTrue(recorded_W == 1001.d0)
+      @assertTrue(recorded_tau == 0.375d0)
+      @assertTrue(recorded_time == 0.625d0)
+      @assertTrue(all(recorded_alpha == alpha_step))
+      @assertTrue(recorded_forcing_un == 13.d0)
+      @assertTrue(all(recorded_forcing_du == recorded_du))
+      @assertTrue(all(recorded_forcing_X == recorded_X))
+      @assertTrue(recorded_forcing_result == 59.5d0)
+      @assertTrue(data%F(1, 1) == 80.25d0)
+      @assertTrue(all(data%Ft == SENTINEL))
+   end subroutine test_rhs_forwards_complete_callback_context_without_reweighting
+
+end module test_rhs_assembly
