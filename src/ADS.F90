@@ -14,13 +14,11 @@
 !> The procedures implemented directly here are:
 !> - \ref Step, the single-step Forward Euler path,
 !> - \ref MultiStep, the three-substep directional ADS/iGRM path,
-!> - \ref Sub_Step, the shared per-substep orchestration layer,
-!> - \ref NormalizeTrialBufferToXYZ, the storage-normalization helper used
-!>   after directional permutations.
+!> - \ref Sub_Step, the shared per-substep orchestration layer.
 !>
-!> Setup, cleanup, directional solve details, MUMPS interaction, and
-!> solution output now live in separate modules and are re-exported here
-!> for compatibility with existing problem drivers.
+!> Setup, cleanup, directional solve details, buffer normalization, MUMPS
+!> interaction, and solution output now live in separate modules and are
+!> re-exported here for compatibility with existing problem drivers.
 !>
 !> The Forward Euler convention in \ref Step intentionally keeps
 !> `alpha_step = 1`. Douglas-Gunn, Peaceman-Rachford, Backward Euler, and
@@ -34,6 +32,7 @@ module ADSS
                               AllocateADSdata, AllocateADS, Cleanup_data, Cleanup_ADS
       use ads_directional_solve, ONLY: solve_problem
       use mumps_solver, ONLY: SolveOneDirection
+      use reorderRHS, ONLY: NormalizeTrialBufferToXYZ
       use solution_output, ONLY: PrintSolution
 
       implicit none
@@ -331,54 +330,6 @@ subroutine Step(iter, RHS_fun, ads, ads_data, mierr, RHS_point)
       call move_alloc(ads_data%F,ads_data%FF)
 
 end subroutine Step
-
-!---------------------------------------------------------------------------
-!
-! DESCRIPTION:
-!> @brief Converts a local trial-space buffer back to canonical x-y-z
-!> storage.
-!>
-!> @details
-!> Multi-step ADS substeps may start from y-x-z or z-x-y storage so that
-!> the existing directional reorder kernels can be reused. This helper
-!> rewrites the final two-dimensional buffer to the canonical
-!> `(x, y + z*s_y)` layout expected by history reconstruction and output.
-!
-!---------------------------------------------------------------------------
-subroutine NormalizeTrialBufferToXYZ(ads, order, F)
-      use Setup, ONLY: ADS_Setup
-      implicit none
-      type(ADS_setup), intent(in) :: ads
-      integer(kind=4), dimension(3), intent(in) :: order
-      real(kind=8), allocatable, dimension(:, :), intent(inout) :: F
-      real(kind=8), allocatable, dimension(:, :) :: Fxyz
-      integer(kind=4), dimension(3) :: idx
-      integer(kind=4) :: ix, iy, iz
-      integer(kind=4) :: in1, in23, out23
-
-      if (order(1) == 1 .and. order(2) == 2 .and. order(3) == 3) return
-
-      allocate (Fxyz(ads%s(1), ads%s(2)*ads%s(3)))
-
-!$OMP PARALLEL DO COLLAPSE(2) DEFAULT(SHARED) &
-!$OMP PRIVATE(ix,iy,iz,idx,in1,in23,out23) SCHEDULE(STATIC)
-      do iz = 0, ads%s(3) - 1
-         do iy = 0, ads%s(2) - 1
-            do ix = 0, ads%s(1) - 1
-               idx = (/ix, iy, iz/)
-               in1 = idx(order(1)) + 1
-               in23 = idx(order(2)) + 1 + idx(order(3))*ads%s(order(2))
-               out23 = iy + 1 + iz*ads%s(2)
-               Fxyz(ix + 1, out23) = F(in1, in23)
-            end do
-         end do
-      end do
-!$OMP END PARALLEL DO
-
-      call move_alloc(Fxyz, F)
-
-end subroutine NormalizeTrialBufferToXYZ
-
 
 !---------------------------------------------------------------------------
 !

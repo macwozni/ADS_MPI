@@ -19,7 +19,9 @@
 !> - reordering from a \f$(y, xz)\f$ layout to a \f$(z, xy)\f$ layout
 !>   through \ref ReorderRHSForZ,
 !> - reordering from a \f$(z, xy)\f$ layout back to an \f$(x, yz)\f$
-!>   layout through \ref ReorderRHSForX.
+!>   layout through \ref ReorderRHSForX,
+!> - normalizing any axis-order permutation to canonical \f$(x, yz)\f$
+!>   storage through \ref NormalizeTrialBufferToXYZ.
 !>
 !> These permutations are used by the ADS workflow to rotate directional
 !> right-hand-side data between successive one-dimensional solve stages.
@@ -304,5 +306,63 @@ subroutine ReorderRHSForX(ibeg, iend, F, F2)
 !$OMP END PARALLEL DO
 
 end subroutine ReorderRHSForX
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Converts a local trial-space buffer back to canonical x-y-z
+!> storage.
+!>
+!> @details
+!> Multi-step ADS substeps may start from y-x-z or z-x-y storage so that
+!> the existing directional reorder kernels can be reused. This helper
+!> rewrites the final two-dimensional buffer to the canonical
+!> `(x, y + z*s_y)` layout expected by history reconstruction and output.
+!>
+!> The entries of \p order identify the physical axes stored as the first,
+!> second-fastest, and third-fastest input indices. For example, the order
+!> `(2, 1, 3)` describes a \f$(y, xz)\f$ input buffer.
+!
+!---------------------------------------------------------------------------
+subroutine NormalizeTrialBufferToXYZ(ads, order, F)
+   use Setup, ONLY: ADS_Setup
+   implicit none
+!> @brief Trial-space setup containing the three local buffer extents.
+   type(ADS_setup), intent(in) :: ads
+!> @brief Physical-axis order represented by the input buffer.
+   integer(kind=4), dimension(3), intent(in) :: order
+!> @brief Input buffer, replaced with the canonical \f$(x, yz)\f$ layout.
+   real(kind=8), allocatable, dimension(:, :), intent(inout) :: F
+!> @brief Temporary canonical buffer.
+   real(kind=8), allocatable, dimension(:, :) :: Fxyz
+!> @brief Current zero-based indices in canonical physical-axis order.
+   integer(kind=4), dimension(3) :: idx
+!> @brief Loop indices in canonical physical-axis order.
+   integer(kind=4) :: ix, iy, iz
+!> @brief Flattened input and output indices.
+   integer(kind=4) :: in1, in23, out23
+
+   if (order(1) == 1 .and. order(2) == 2 .and. order(3) == 3) return
+
+   allocate (Fxyz(ads%s(1), ads%s(2)*ads%s(3)))
+
+!$OMP PARALLEL DO COLLAPSE(2) DEFAULT(SHARED) &
+!$OMP PRIVATE(ix,iy,iz,idx,in1,in23,out23) SCHEDULE(STATIC)
+   do iz = 0, ads%s(3) - 1
+      do iy = 0, ads%s(2) - 1
+         do ix = 0, ads%s(1) - 1
+            idx = (/ix, iy, iz/)
+            in1 = idx(order(1)) + 1
+            in23 = idx(order(2)) + 1 + idx(order(3))*ads%s(order(2))
+            out23 = iy + 1 + iz*ads%s(2)
+            Fxyz(ix + 1, out23) = F(in1, in23)
+         end do
+      end do
+   end do
+!$OMP END PARALLEL DO
+
+   call move_alloc(Fxyz, F)
+
+end subroutine NormalizeTrialBufferToXYZ
 
 end module reorderRHS
