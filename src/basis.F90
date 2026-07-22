@@ -148,7 +148,7 @@ subroutine BasisData(p, m, U, d, q, r, O, J, W, X, N)
 
 ! Calculates first nonzero basis function for each element
    ir = 1
-   do i = p, m - p
+   do i = p, m - p - 1
       if (U(i) /= U(i + 1)) then
          O(ir) = i - p
          ir = ir + 1

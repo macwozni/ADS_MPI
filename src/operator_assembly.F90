@@ -41,7 +41,7 @@ contains
 !> @details
 !> This procedure constructs a sparse matrix associated with two
 !> one-dimensional spline spaces. The resulting matrix contains:
-!> - a test-test block assembled from \p mixA,
+!> - a trial-trial block assembled from \p mixA,
 !> - a trial-test coupling block assembled from \p mixB,
 !> - a test-trial coupling block assembled from \p mixBT.
 !>
@@ -103,6 +103,15 @@ contains
 !> @warning
 !> The argument \p nelem is used for both spline spaces and is assumed to
 !> be consistent with both knot vectors.
+!>
+!> @warning
+!> Both spaces must describe the same sequence of nonempty knot spans.
+!> The first-space degree is assumed to be at least the second-space
+!> degree because it selects the shared quadrature order.
+!>
+!> @warning
+!> The current Gauss-rule table supports at most ten quadrature points,
+!> therefore \p p1 must not exceed nine.
 !
 !---------------------------------------------------------------------------
 subroutine MKBBT_large(nelem, U1, p1, n1, U2, p2, n2, mixA, mixB, mixBT, sprsmtrx)
@@ -321,6 +330,10 @@ end subroutine MKBBT_large
 !> @note
 !> The output matrix is initialized with logical dimensions
 !> \f$(n+1) \times (n+1)\f$.
+!>
+!> @warning
+!> The current Gauss-rule table supports at most ten quadrature points,
+!> therefore \p p must not exceed nine.
 !
 !---------------------------------------------------------------------------
 subroutine MKBBT_small(nelem, U, p, n, mix, sprsmtrx)
