@@ -1,0 +1,6 @@
+/_OBJ/
+/_DEBUG_OBJ/
+/solution_reconstruction_probe
+/test_solution_reconstruction
+/test_solution_reconstruction.F90
+/test_solution_reconstruction.inc

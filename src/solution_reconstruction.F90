@@ -50,12 +50,13 @@ contains
 !> tables stored in \p ads.
 !>
 !> The computed value is written to one of:
-!> - \p ads_data%Un,
-!> - \p ads_data%Un13,
-!> - \p ads_data%Un23,
+!> - \p ads_data%Un and \p ads_data%dUn0 for \p subun equal to 1,
+!> - \p ads_data%Un13 and \p ads_data%dUn13 for \p subun equal to 2,
+!> - \p ads_data%Un23 and \p ads_data%dUn23 for \p subun equal to 3,
 !>
-!> according to the selector \p subun. The derivative vector is written
-!> to \p ads_data%dUn.
+!> while the active derivative vector is always also written to
+!> \p ads_data%dUn. The selected value and history-derivative buffers,
+!> together with \p ads_data%dUn, are cleared before reconstruction.
 !
 ! Input:
 ! ------
@@ -79,12 +80,19 @@ contains
 !> @warning
 !> The procedure assumes that \p ads_data%R and all output arrays have
 !> been allocated consistently with the setup structure.
+!>
+!> @warning
+!> The supported basis functions may reach only the current MPI rank and
+!> its immediate neighbours represented by the 3-by-3-by-3 block stencil
+!> in \p ads_data%R.
 !
 !---------------------------------------------------------------------------
 subroutine FormUn(subun, ads, ads_data)
    use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
    use Setup, ONLY: ADS_Setup, ADS_compute_data
-   ! use parallelism, ONLY: PRINTRANK
+#ifdef IDEBUG
+   use parallelism, ONLY: PRINTRANK
+#endif
    use Interfaces, ONLY: forcing_fun
    use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
    use omp_lib

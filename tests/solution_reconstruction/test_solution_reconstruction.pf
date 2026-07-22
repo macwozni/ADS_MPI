@@ -1,0 +1,517 @@
+module test_solution_reconstruction
+   use pfunit
+   use Setup, only: ADS_Setup, ADS_compute_data
+   use omp_lib, only: omp_set_dynamic, omp_set_num_threads
+   use solution_reconstruction, only: FormUn, global2local
+   implicit none
+
+   real(kind=8), parameter :: TOL = 4096.d0*epsilon(1.d0)
+   real(kind=8), parameter :: SENTINEL = -987654.25d0
+   real(kind=8), parameter :: QX(2) = (/0.25d0, 0.75d0/)
+   real(kind=8), parameter :: QY(2) = (/0.20d0, 0.60d0/)
+   real(kind=8), parameter :: QZ(2) = (/0.10d0, 0.90d0/)
+
+contains
+
+   logical function scalar_near(actual, expected) result(matches)
+      real(kind=8), intent(in) :: actual, expected
+
+      matches = abs(actual - expected) <= TOL*max(1.d0, abs(expected))
+   end function scalar_near
+
+
+   pure real(kind=8) function exact_field(x, y, z) result(value)
+      real(kind=8), intent(in) :: x, y, z
+
+      value = 1.d0 + 2.d0*x + 3.d0*y + 5.d0*z + 7.d0*x*y + &
+              11.d0*x*z + 13.d0*y*z + 17.d0*x*y*z
+   end function exact_field
+
+
+   pure function exact_gradient(x, y, z) result(gradient)
+      real(kind=8), intent(in) :: x, y, z
+      real(kind=8) :: gradient(3)
+
+      gradient(1) = 2.d0 + 7.d0*y + 11.d0*z + 17.d0*y*z
+      gradient(2) = 3.d0 + 7.d0*x + 13.d0*z + 17.d0*x*z
+      gradient(3) = 5.d0 + 11.d0*x + 13.d0*y + 17.d0*x*y
+   end function exact_gradient
+
+
+   pure real(kind=8) function encoded_coefficient(ix, iy, iz) result(value)
+      integer(kind=4), intent(in) :: ix, iy, iz
+
+      value = 10000.d0 + 100.d0*real(ix, kind=8) + &
+              10.d0*real(iy, kind=8) + real(iz, kind=8)
+   end function encoded_coefficient
+
+
+   subroutine allocate_outputs(ads_data, extents, quadrature)
+      type(ADS_compute_data), intent(inout) :: ads_data
+      integer(kind=4), intent(in) :: extents(3), quadrature(3)
+
+      ads_data%state_lnelem = extents
+      allocate(ads_data%Un(extents(1), extents(2), extents(3), &
+                           quadrature(1), quadrature(2), quadrature(3)))
+      allocate(ads_data%Un13(extents(1), extents(2), extents(3), &
+                             quadrature(1), quadrature(2), quadrature(3)))
+      allocate(ads_data%Un23(extents(1), extents(2), extents(3), &
+                             quadrature(1), quadrature(2), quadrature(3)))
+      allocate(ads_data%dUn(extents(1), extents(2), extents(3), &
+                            quadrature(1), quadrature(2), quadrature(3), 3))
+      allocate(ads_data%dUn0(extents(1), extents(2), extents(3), &
+                             quadrature(1), quadrature(2), quadrature(3), 3))
+      allocate(ads_data%dUn13(extents(1), extents(2), extents(3), &
+                              quadrature(1), quadrature(2), quadrature(3), 3))
+      allocate(ads_data%dUn23(extents(1), extents(2), extents(3), &
+                              quadrature(1), quadrature(2), quadrature(3), 3))
+
+      ads_data%Un = SENTINEL
+      ads_data%Un13 = SENTINEL
+      ads_data%Un23 = SENTINEL
+      ads_data%dUn = SENTINEL
+      ads_data%dUn0 = SENTINEL
+      ads_data%dUn13 = SENTINEL
+      ads_data%dUn23 = SENTINEL
+   end subroutine allocate_outputs
+
+
+   subroutine deallocate_outputs(ads_data)
+      type(ADS_compute_data), intent(inout) :: ads_data
+
+      deallocate(ads_data%Un, ads_data%Un13, ads_data%Un23)
+      deallocate(ads_data%dUn, ads_data%dUn0, ads_data%dUn13, ads_data%dUn23)
+   end subroutine deallocate_outputs
+
+
+   subroutine set_linear_basis(table, element, points)
+      real(kind=8), intent(inout) :: table(0:, 0:, :, :)
+      integer(kind=4), intent(in) :: element
+      real(kind=8), intent(in) :: points(:)
+      integer(kind=4) :: k
+
+      do k = 1, size(points)
+         table(0, 0, k, element) = 1.d0 - points(k)
+         table(0, 1, k, element) = points(k)
+         table(1, 0, k, element) = -1.d0
+         table(1, 1, k, element) = 1.d0
+      end do
+   end subroutine set_linear_basis
+
+
+   subroutine setup_multilinear_case(ads, ads_data)
+      type(ADS_Setup), intent(out) :: ads
+      type(ADS_compute_data), intent(out) :: ads_data
+      integer(kind=4) :: bx, by, bz, index
+
+      ads%n = (/1, 1, 1/)
+      ads%p = (/1, 1, 1/)
+      ads%ng = (/2, 2, 2/)
+      ads%ibeg = 1
+      ads%iend = 2
+      ads%nrcpp = 2
+      ads%ibegsx = 1
+      ads%iendsx = 2
+      ads%ibegsy = 1
+      ads%iendsy = 2
+      ads%ibegsz = 1
+      ads%iendsz = 2
+
+      ads_data%state_mine = (/2, 3, 4/)
+      ads_data%state_maxe = ads_data%state_mine
+
+      allocate(ads%Ox(2), ads%Oy(3), ads%Oz(4))
+      ads%Ox = -99
+      ads%Oy = -99
+      ads%Oz = -99
+      ads%Ox(2) = 0
+      ads%Oy(3) = 0
+      ads%Oz(4) = 0
+
+      allocate(ads%NNx(0:1, 0:1, 1:2, 1:2))
+      allocate(ads%NNy(0:1, 0:1, 1:2, 1:3))
+      allocate(ads%NNz(0:1, 0:1, 1:2, 1:4))
+      ads%NNx = 0.d0
+      ads%NNy = 0.d0
+      ads%NNz = 0.d0
+      call set_linear_basis(ads%NNx, 2, QX)
+      call set_linear_basis(ads%NNy, 3, QY)
+      call set_linear_basis(ads%NNz, 4, QZ)
+
+      allocate(ads_data%R(8, 3, 3, 3))
+      ads_data%R = SENTINEL
+      do bz = 0, 1
+         do by = 0, 1
+            do bx = 0, 1
+               index = bx + 2*(by + 2*bz)
+               ads_data%R(index + 1, 2, 2, 2) = &
+                  exact_field(real(bx, kind=8), real(by, kind=8), &
+                              real(bz, kind=8))
+            end do
+         end do
+      end do
+
+      call allocate_outputs(ads_data, (/1, 1, 1/), ads%ng)
+   end subroutine setup_multilinear_case
+
+
+   logical function field_pair_matches(state, derivative, scale) result(matches)
+      real(kind=8), intent(in) :: state(:, :, :, :, :, :)
+      real(kind=8), intent(in) :: derivative(:, :, :, :, :, :, :)
+      real(kind=8), intent(in) :: scale
+      integer(kind=4) :: kx, ky, kz
+      real(kind=8) :: gradient(3), value
+
+      matches = .true.
+      do kx = 1, 2
+         do ky = 1, 2
+            do kz = 1, 2
+               value = scale*exact_field(QX(kx), QY(ky), QZ(kz))
+               gradient = scale*exact_gradient(QX(kx), QY(ky), QZ(kz))
+               matches = matches .and. &
+                  scalar_near(state(1, 1, 1, kx, ky, kz), value)
+               matches = matches .and. &
+                  all(abs(derivative(1, 1, 1, kx, ky, kz, :) - gradient) <= &
+                      TOL*max(1.d0, maxval(abs(gradient))))
+            end do
+         end do
+      end do
+   end function field_pair_matches
+
+
+   subroutine setup_neighbour_case(ads, ads_data)
+      type(ADS_Setup), intent(out) :: ads
+      type(ADS_compute_data), intent(out) :: ads_data
+      integer(kind=4), parameter :: GLOBAL_INDEX(3) = (/1, 2, 3/)
+      integer(kind=4), parameter :: SELECTED_SLOT(3, 3, 3) = reshape((/ &
+         8, 4, 7, 4, 2, 3, 6, 3, 5, &
+         4, 2, 3, 2, 1, 1, 2, 1, 1, &
+         4, 2, 3, 2, 1, 1, 2, 1, 1 /), (/3, 3, 3/))
+      integer(kind=4) :: k, rx, ry, rz
+
+      ads%n = (/4, 4, 4/)
+      ads%p = (/2, 2, 2/)
+      ads%ng = (/3, 3, 3/)
+      ads%ibeg = 3
+      ads%iend = 3
+      ads%nrcpp = 2
+      ads%ibegsx = (/1, 3, 4/)
+      ads%iendsx = (/2, 3, 5/)
+      ads%ibegsy = ads%ibegsx
+      ads%iendsy = ads%iendsx
+      ads%ibegsz = ads%ibegsx
+      ads%iendsz = ads%iendsx
+
+      ads_data%state_mine = 1
+      ads_data%state_maxe = 1
+
+      allocate(ads%Ox(1), ads%Oy(1), ads%Oz(1))
+      ads%Ox = 1
+      ads%Oy = 1
+      ads%Oz = 1
+
+      allocate(ads%NNx(0:1, 0:2, 1:3, 1:1))
+      allocate(ads%NNy(0:1, 0:2, 1:3, 1:1))
+      allocate(ads%NNz(0:1, 0:2, 1:3, 1:1))
+      ads%NNx = 0.d0
+      ads%NNy = 0.d0
+      ads%NNz = 0.d0
+      do k = 1, 3
+         ads%NNx(0, k - 1, k, 1) = 1.d0
+         ads%NNx(1, k - 1, k, 1) = 2.d0
+         ads%NNy(0, k - 1, k, 1) = 1.d0
+         ads%NNy(1, k - 1, k, 1) = -3.d0
+         ads%NNz(0, k - 1, k, 1) = 1.d0
+         ads%NNz(1, k - 1, k, 1) = 5.d0
+      end do
+
+      allocate(ads_data%R(8, 3, 3, 3))
+      ads_data%R = SENTINEL
+      do rz = 1, 3
+         do ry = 1, 3
+            do rx = 1, 3
+               ads_data%R(SELECTED_SLOT(rx, ry, rz), rx, ry, rz) = &
+                  encoded_coefficient(GLOBAL_INDEX(rx), GLOBAL_INDEX(ry), &
+                                      GLOBAL_INDEX(rz))
+            end do
+         end do
+      end do
+
+      call allocate_outputs(ads_data, (/1, 1, 1/), ads%ng)
+   end subroutine setup_neighbour_case
+
+
+   subroutine setup_parallel_case(ads, ads_data)
+      type(ADS_Setup), intent(out) :: ads
+      type(ADS_compute_data), intent(out) :: ads_data
+      integer(kind=4), parameter :: EXTENTS(3) = (/4, 3, 2/)
+      integer(kind=4) :: ex, ey, ez, index
+
+      ads%n = EXTENTS
+      ads%p = 1
+      ads%ng = 2
+      ads%ibeg = 1
+      ads%iend = EXTENTS + 1
+      ads%nrcpp = EXTENTS + 1
+      ads%ibegsx = 1
+      ads%iendsx = EXTENTS(1) + 1
+      ads%ibegsy = 1
+      ads%iendsy = EXTENTS(2) + 1
+      ads%ibegsz = 1
+      ads%iendsz = EXTENTS(3) + 1
+
+      ads_data%state_mine = 1
+      ads_data%state_maxe = EXTENTS
+
+      allocate(ads%Ox(EXTENTS(1)), ads%Oy(EXTENTS(2)), ads%Oz(EXTENTS(3)))
+      do ex = 1, EXTENTS(1)
+         ads%Ox(ex) = ex - 1
+      end do
+      do ey = 1, EXTENTS(2)
+         ads%Oy(ey) = ey - 1
+      end do
+      do ez = 1, EXTENTS(3)
+         ads%Oz(ez) = ez - 1
+      end do
+
+      allocate(ads%NNx(0:1, 0:1, 1:2, 1:EXTENTS(1)))
+      allocate(ads%NNy(0:1, 0:1, 1:2, 1:EXTENTS(2)))
+      allocate(ads%NNz(0:1, 0:1, 1:2, 1:EXTENTS(3)))
+      ads%NNx = 0.d0
+      ads%NNy = 0.d0
+      ads%NNz = 0.d0
+      do ex = 1, EXTENTS(1)
+         call set_linear_basis(ads%NNx, ex, QX)
+      end do
+      do ey = 1, EXTENTS(2)
+         call set_linear_basis(ads%NNy, ey, QY)
+      end do
+      do ez = 1, EXTENTS(3)
+         call set_linear_basis(ads%NNz, ez, QZ)
+      end do
+
+      allocate(ads_data%R(product(EXTENTS + 1), 3, 3, 3))
+      ads_data%R = SENTINEL
+      do ez = 0, EXTENTS(3)
+         do ey = 0, EXTENTS(2)
+            do ex = 0, EXTENTS(1)
+               index = ex + (EXTENTS(1) + 1)*(ey + (EXTENTS(2) + 1)*ez)
+               ads_data%R(index + 1, 2, 2, 2) = &
+                  encoded_coefficient(ex, ey, ez)
+            end do
+         end do
+      end do
+
+      call allocate_outputs(ads_data, EXTENTS, ads%ng)
+   end subroutine setup_parallel_case
+
+
+   logical function parallel_values_match(ads_data) result(matches)
+      type(ADS_compute_data), intent(in) :: ads_data
+      integer(kind=4) :: ex, ey, ez, kx, ky, kz
+      real(kind=8) :: expected
+
+      matches = .true.
+      do ex = 1, 4
+         do ey = 1, 3
+            do ez = 1, 2
+               do kx = 1, 2
+                  do ky = 1, 2
+                     do kz = 1, 2
+                        expected = 10000.d0 + &
+                           100.d0*(real(ex - 1, kind=8) + QX(kx)) + &
+                           10.d0*(real(ey - 1, kind=8) + QY(ky)) + &
+                           real(ez - 1, kind=8) + QZ(kz)
+                        matches = matches .and. &
+                           scalar_near(ads_data%Un(ex, ey, ez, kx, ky, kz), &
+                                       expected)
+                        matches = matches .and. &
+                           all(abs(ads_data%dUn(ex, ey, ez, kx, ky, kz, :) - &
+                               (/100.d0, 10.d0, 1.d0/)) <= 100.d0*TOL)
+                        matches = matches .and. &
+                           all(abs(ads_data%dUn0(ex, ey, ez, kx, ky, kz, :) - &
+                               (/100.d0, 10.d0, 1.d0/)) <= 100.d0*TOL)
+                     end do
+                  end do
+               end do
+            end do
+         end do
+      end do
+   end function parallel_values_match
+
+
+   @test
+   subroutine test_global2local_covers_rectangular_grid()
+      integer(kind=4), parameter :: n(3) = (/2, 3, 1/)
+      integer(kind=4) :: actual_x, actual_y, actual_z, ind, x, y, z
+
+      do z = 0, n(3)
+         do y = 0, n(2)
+            do x = 0, n(1)
+               ind = x + (n(1) + 1)*(y + (n(2) + 1)*z)
+               call global2local(ind, n, actual_x, actual_y, actual_z)
+               @assertTrue(actual_x == x)
+               @assertTrue(actual_y == y)
+               @assertTrue(actual_z == z)
+            end do
+         end do
+      end do
+   end subroutine test_global2local_covers_rectangular_grid
+
+
+   @test
+   subroutine test_form_un_reconstructs_and_routes_all_histories()
+      type(ADS_Setup) :: ads
+      type(ADS_compute_data) :: ads_data
+      real(kind=8), allocatable :: base_coefficients(:, :, :, :)
+
+      call setup_multilinear_case(ads, ads_data)
+      allocate(base_coefficients, source=ads_data%R)
+
+      call FormUn(1, ads, ads_data)
+      @assertTrue(field_pair_matches(ads_data%Un, ads_data%dUn0, 1.d0))
+      @assertTrue(field_pair_matches(ads_data%Un, ads_data%dUn, 1.d0))
+      @assertTrue(scalar_near(ads_data%Un(1, 1, 1, 1, 1, 1), 3.57d0))
+      @assertTrue(scalar_near(ads_data%dUn(1, 1, 1, 1, 1, 1, 1), 4.84d0))
+      @assertTrue(scalar_near(ads_data%dUn(1, 1, 1, 1, 1, 1, 2), 6.475d0))
+      @assertTrue(scalar_near(ads_data%dUn(1, 1, 1, 1, 1, 1, 3), 11.2d0))
+      @assertTrue(all(ads_data%Un13 == SENTINEL))
+      @assertTrue(all(ads_data%Un23 == SENTINEL))
+      @assertTrue(all(ads_data%dUn13 == SENTINEL))
+      @assertTrue(all(ads_data%dUn23 == SENTINEL))
+      @assertTrue(all(ads_data%R == base_coefficients))
+
+      ads_data%R = 2.d0*base_coefficients
+      call FormUn(2, ads, ads_data)
+      @assertTrue(field_pair_matches(ads_data%Un, ads_data%dUn0, 1.d0))
+      @assertTrue(field_pair_matches(ads_data%Un13, ads_data%dUn13, 2.d0))
+      @assertTrue(field_pair_matches(ads_data%Un13, ads_data%dUn, 2.d0))
+      @assertTrue(all(ads_data%Un23 == SENTINEL))
+      @assertTrue(all(ads_data%dUn23 == SENTINEL))
+      @assertTrue(all(ads_data%R == 2.d0*base_coefficients))
+
+      ads_data%R = -base_coefficients
+      call FormUn(3, ads, ads_data)
+      @assertTrue(field_pair_matches(ads_data%Un, ads_data%dUn0, 1.d0))
+      @assertTrue(field_pair_matches(ads_data%Un13, ads_data%dUn13, 2.d0))
+      @assertTrue(field_pair_matches(ads_data%Un23, ads_data%dUn23, -1.d0))
+      @assertTrue(field_pair_matches(ads_data%Un23, ads_data%dUn, -1.d0))
+      @assertTrue(all(ads_data%R == -base_coefficients))
+   end subroutine test_form_un_reconstructs_and_routes_all_histories
+
+
+   @test
+   subroutine test_form_un_routes_all_neighbour_blocks_and_local_offsets()
+      type(ADS_Setup) :: ads
+      type(ADS_compute_data) :: ads_data
+      integer(kind=4) :: kx, ky, kz
+      real(kind=8) :: expected
+      real(kind=8), allocatable :: coefficients(:, :, :, :)
+
+      call setup_neighbour_case(ads, ads_data)
+      allocate(coefficients, source=ads_data%R)
+      call FormUn(1, ads, ads_data)
+
+      do kx = 1, 3
+         do ky = 1, 3
+            do kz = 1, 3
+               expected = encoded_coefficient(kx, ky, kz)
+               @assertTrue(ads_data%Un(1, 1, 1, kx, ky, kz) == expected)
+               @assertTrue(ads_data%dUn(1, 1, 1, kx, ky, kz, 1) == 2.d0*expected)
+               @assertTrue(ads_data%dUn(1, 1, 1, kx, ky, kz, 2) == -3.d0*expected)
+               @assertTrue(ads_data%dUn(1, 1, 1, kx, ky, kz, 3) == 5.d0*expected)
+            end do
+         end do
+      end do
+      @assertTrue(all(ads_data%dUn0 == ads_data%dUn))
+      @assertTrue(all(ads_data%R == coefficients))
+   end subroutine test_form_un_routes_all_neighbour_blocks_and_local_offsets
+
+
+   @test
+   subroutine test_form_un_zeros_unused_entries_for_every_selector()
+      type(ADS_Setup) :: ads
+      type(ADS_compute_data) :: ads_data
+      integer(kind=4) :: kx, ky, kz, selector
+      real(kind=8) :: expected_gradient(3), expected_value
+      real(kind=8), allocatable :: expected_state(:, :, :, :, :, :)
+      real(kind=8), allocatable :: expected_derivative(:, :, :, :, :, :, :)
+
+      allocate(expected_state(1, 1, 1, 3, 3, 3))
+      allocate(expected_derivative(1, 1, 1, 3, 3, 3, 3))
+      expected_state = 0.d0
+      expected_derivative = 0.d0
+
+      do kx = 1, 2
+         do ky = 1, 2
+            do kz = 1, 2
+               expected_value = exact_field(QX(kx), QY(ky), QZ(kz))
+               expected_gradient = exact_gradient(QX(kx), QY(ky), QZ(kz))
+               expected_state(1, 1, 1, kx, ky, kz) = expected_value
+               expected_derivative(1, 1, 1, kx, ky, kz, :) = expected_gradient
+            end do
+         end do
+      end do
+
+      do selector = 1, 3
+         call setup_multilinear_case(ads, ads_data)
+         call deallocate_outputs(ads_data)
+         call allocate_outputs(ads_data, (/1, 1, 1/), (/3, 3, 3/))
+         call FormUn(selector, ads, ads_data)
+
+         @assertTrue(maxval(abs(ads_data%dUn - expected_derivative)) <= TOL)
+         select case (selector)
+         case (1)
+            @assertTrue(maxval(abs(ads_data%Un - expected_state)) <= TOL)
+            @assertTrue(maxval(abs(ads_data%dUn0 - expected_derivative)) <= TOL)
+            @assertTrue(all(ads_data%Un13 == SENTINEL))
+            @assertTrue(all(ads_data%Un23 == SENTINEL))
+            @assertTrue(all(ads_data%dUn13 == SENTINEL))
+            @assertTrue(all(ads_data%dUn23 == SENTINEL))
+         case (2)
+            @assertTrue(maxval(abs(ads_data%Un13 - expected_state)) <= TOL)
+            @assertTrue(maxval(abs(ads_data%dUn13 - expected_derivative)) <= TOL)
+            @assertTrue(all(ads_data%Un == SENTINEL))
+            @assertTrue(all(ads_data%Un23 == SENTINEL))
+            @assertTrue(all(ads_data%dUn0 == SENTINEL))
+            @assertTrue(all(ads_data%dUn23 == SENTINEL))
+         case (3)
+            @assertTrue(maxval(abs(ads_data%Un23 - expected_state)) <= TOL)
+            @assertTrue(maxval(abs(ads_data%dUn23 - expected_derivative)) <= TOL)
+            @assertTrue(all(ads_data%Un == SENTINEL))
+            @assertTrue(all(ads_data%Un13 == SENTINEL))
+            @assertTrue(all(ads_data%dUn0 == SENTINEL))
+            @assertTrue(all(ads_data%dUn13 == SENTINEL))
+         end select
+      end do
+   end subroutine test_form_un_zeros_unused_entries_for_every_selector
+
+
+   @test
+   subroutine test_form_un_is_bitwise_deterministic_with_openmp()
+      type(ADS_Setup) :: ads
+      type(ADS_compute_data) :: ads_data
+      real(kind=8), allocatable :: serial_derivative(:, :, :, :, :, :, :)
+      real(kind=8), allocatable :: serial_history(:, :, :, :, :, :, :)
+      real(kind=8), allocatable :: serial_state(:, :, :, :, :, :)
+
+      call setup_parallel_case(ads, ads_data)
+      call omp_set_dynamic(.false.)
+      call omp_set_num_threads(1)
+      call FormUn(1, ads, ads_data)
+      @assertTrue(parallel_values_match(ads_data))
+      allocate(serial_state, source=ads_data%Un)
+      allocate(serial_derivative, source=ads_data%dUn)
+      allocate(serial_history, source=ads_data%dUn0)
+
+      call omp_set_num_threads(4)
+      call FormUn(1, ads, ads_data)
+      call omp_set_num_threads(1)
+
+      @assertTrue(parallel_values_match(ads_data))
+      @assertTrue(all(ads_data%Un == serial_state))
+      @assertTrue(all(ads_data%dUn == serial_derivative))
+      @assertTrue(all(ads_data%dUn0 == serial_history))
+   end subroutine test_form_un_is_bitwise_deterministic_with_openmp
+
+end module test_solution_reconstruction
