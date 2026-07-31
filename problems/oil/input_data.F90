@@ -58,13 +58,19 @@ module input_data
    integer(kind = 4) :: ORDER
 
 !> @brief Number of elements in each parametric direction.
-   integer(kind = 4) :: SIZE
+   integer(kind = 4) :: ELEMENTS_PER_DIRECTION
 
 !> @brief Numbers of MPI processes in the three process-grid directions.
    integer(kind = 4) :: procx, procy, procz
 
-!> @brief Amount of material drained over the simulation.
-   real (kind = 8) :: drained = 0
+!> @brief Per-element partial sums of material drained over the simulation.
+!>
+!> Each local element is owned by exactly one OpenMP iteration while the
+!> pointwise RHS is assembled.  Keeping a separate slot for every element
+!> therefore avoids concurrent updates without synchronizing the hot loop.
+!> The dimensions are ordered as `(ez, ey, ex)` so consecutive iterations of
+!> the collapsed element loop access consecutive memory locations.
+   real (kind = 8), allocatable :: drained_by_element(:,:,:)
 
 
 contains
@@ -92,7 +98,7 @@ contains
          STOP 5
       end if
 
-      call ReadIntegerArgument(1, SIZE)
+      call ReadIntegerArgument(1, ELEMENTS_PER_DIRECTION)
       call ReadIntegerArgument(2, ORDER)
       call ReadIntegerArgument(3, procx)
       call ReadIntegerArgument(4, procy)
@@ -100,9 +106,9 @@ contains
       call ReadIntegerArgument(6, steps)
       call ReadRealArgument(7, Dt)
 
-      call RequirePositiveInteger(SIZE, "number of elements")
+      call RequirePositiveInteger(ELEMENTS_PER_DIRECTION, "number of elements")
       call RequireNonnegativeInteger(ORDER, "polynomial order")
-      call RequireSafeSplineDimensions(SIZE, ORDER)
+      call RequireSafeSplineDimensions(ELEMENTS_PER_DIRECTION, ORDER)
       call RequireNonnegativeInteger(steps, "number of time steps")
       call RequirePositiveReal(Dt, "time step")
       call RequirePositiveInteger(procx, "process-grid dimension")
@@ -115,22 +121,68 @@ contains
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
+!> @brief Initializes the race-free drained-material accumulator.
+!>
+!> @details
+!> The array bounds match the local element bounds of the trial space, and its
+!> dimension order follows the RHS element traversal.  During one assembly
+!> pass every slot has exactly one OpenMP writer.
+!
+!---------------------------------------------------------------------------
+   subroutine InitializeDrainedAccumulator(ads)
+      use Setup, ONLY: ADS_Setup
+      implicit none
+      type(ADS_Setup), intent(in) :: ads
+
+      if (allocated(drained_by_element)) deallocate(drained_by_element)
+      allocate(drained_by_element(ads%mine(3):ads%maxe(3), &
+                                  ads%mine(2):ads%maxe(2), &
+                                  ads%mine(1):ads%maxe(1)))
+      drained_by_element = 0.d0
+
+   end subroutine InitializeDrainedAccumulator
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Releases the drained-material accumulator.
+!
+!---------------------------------------------------------------------------
+   subroutine CleanupDrainedAccumulator()
+      implicit none
+
+      if (allocated(drained_by_element)) deallocate(drained_by_element)
+
+   end subroutine CleanupDrainedAccumulator
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
 !> @brief Reduces and prints the total drained quantity.
 !>
 !> @details
-!> The process-local value \ref drained is summed over `MPI_COMM_WORLD`.
-!> Rank zero writes the global value to standard output.
+!> Per-element partial sums are folded in a deterministic local order after
+!> all OpenMP work has finished.  The process-local result is then summed over
+!> `MPI_COMM_WORLD`, and rank zero writes the global value to standard output.
 !
 !---------------------------------------------------------------------------
    subroutine ComputeResults()
       use parallelism, ONLY: MYRANK
       use mpi
       implicit none
-      real (kind = 8) :: fulldrained
-      integer(kind = 4) :: ierr
+      real (kind = 8) :: localdrained, fulldrained
+      integer(kind = 4) :: ierr, ex, ey, ez
 
+      localdrained = 0.d0
+      do ex = lbound(drained_by_element, 3), ubound(drained_by_element, 3)
+         do ey = lbound(drained_by_element, 2), ubound(drained_by_element, 2)
+            do ez = lbound(drained_by_element, 1), ubound(drained_by_element, 1)
+               localdrained = localdrained + drained_by_element(ez, ey, ex)
+            enddo
+         enddo
+      enddo
 
-      call MPI_Reduce(drained, fulldrained, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+      call MPI_Reduce(localdrained, fulldrained, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
 
       if (MYRANK == 0) then
          write(*, *) fulldrained

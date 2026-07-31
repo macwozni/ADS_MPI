@@ -65,12 +65,13 @@ program main
 
    call InitializeParallelism(procx, procy, procz, ierr)
    call CreateCommunicators(ierr)
-   nelem = (/ SIZE, SIZE, SIZE /)
+   nelem = (/ ELEMENTS_PER_DIRECTION, ELEMENTS_PER_DIRECTION, ELEMENTS_PER_DIRECTION /)
    p = (/ ORDER, ORDER, ORDER /)
    call Initialize(nelem, p, p, p - 1, ads_test, ads_trial, ads_data, ierr)
    allocate(Kqvals(ads_trial % p(1) + 1, ads_trial % p(2) + 1, ads_trial % p(3) + 1, &
    ads_trial % maxe(1) - ads_trial % mine(1) + 1, &
    ads_trial % maxe(2) - ads_trial % mine(2) + 1, ads_trial % maxe(3) - ads_trial % mine(3) + 1))
+   call InitializeDrainedAccumulator(ads_trial)
    call InitInputData
    call PrecomputeKq(ads_trial)
 
@@ -91,6 +92,7 @@ program main
    enddo
 
    call ComputeResults
+   call CleanupDrainedAccumulator
    call Cleanup_ADS(ads_test, ierr)
    call Cleanup_ADS(ads_trial, ierr)
    call Cleanup_data(ads_data, ierr)

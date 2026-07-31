@@ -121,7 +121,7 @@ contains
       ret)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use Interfaces, ONLY: forcing_fun
-      use input_data, ONLY: t, mi, Kqvals, drained, initial_state, draining
+      use input_data, ONLY: t, mi, Kqvals, drained_by_element, initial_state, draining
       implicit none
       type(ADS_setup), intent(in) :: ads
       real(kind=8), intent(in), dimension(3) :: X
@@ -163,7 +163,8 @@ contains
          vdrain = max(0.d0, draining(un11, X(1), X(2), X(3)))
          grad_term = du(1)*dvx + du(2)*dvy + du(3)*dvz
          ret = J*W*(v*un11 + ads%tau*(-kqval*exp(mi*un11)*grad_term + v*source))
-         drained = drained + J*W*v*ads%tau*vdrain
+         drained_by_element(e(3), e(2), e(1)) = &
+            drained_by_element(e(3), e(2), e(1)) + J*W*v*ads%tau*vdrain
       else
          ret = J*W*v*initial_state(X(1), X(2), X(3))
       end if
