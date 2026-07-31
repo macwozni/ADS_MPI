@@ -270,11 +270,6 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
                                  ! ads_data, J, W, direction, substep, resvalue)
 
                                  if (present(rhs_point)) then
-! External point callbacks may update problem-owned shared state.  The
-! callback interface does not declare them pure or otherwise require
-! thread safety, so serialize callback execution while retaining the
-! parallel element assembly around it.
-!$OMP CRITICAL (ads_rhs_point_callback)
                                     call rhs_point( &
                                        ads, &
                                        X, &
@@ -290,7 +285,6 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
                                        alpha_step, &
                                        forcing, &
                                        resvalue)
-!$OMP END CRITICAL (ads_rhs_point_callback)
                                  else
                                     call ComputePointForRHS( &
                                        ads, &
