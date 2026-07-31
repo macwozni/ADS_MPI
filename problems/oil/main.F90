@@ -18,7 +18,7 @@ program main
    use parallelism, ONLY: MYRANK
    use parallelism, ONLY: PRINTRANK, InitializeParallelism, Cleanup_Parallelism
    use communicators, ONLY: CreateCommunicators, Cleanup_Communicators
-   use time_scheme, ONLY: ForwardEuler3DStep
+   use time_scheme, ONLY: ForwardEuler3DStep, ValidateSpaces
    use ADSS
    use RHS_fun
    use input_data
@@ -68,6 +68,7 @@ program main
    nelem = (/ ELEMENTS_PER_DIRECTION, ELEMENTS_PER_DIRECTION, ELEMENTS_PER_DIRECTION /)
    p = (/ ORDER, ORDER, ORDER /)
    call Initialize(nelem, p, p, p - 1, ads_test, ads_trial, ads_data, ierr)
+   call ValidateSpaces(ads_trial)
    allocate(Kqvals(ads_trial % p(1) + 1, ads_trial % p(2) + 1, ads_trial % p(3) + 1, &
    ads_trial % maxe(1) - ads_trial % mine(1) + 1, &
    ads_trial % maxe(2) - ads_trial % mine(2) + 1, ads_trial % maxe(3) - ads_trial % mine(3) + 1))

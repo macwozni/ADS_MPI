@@ -21,7 +21,7 @@ program main
    use time_scheme, ONLY: BackwardEuler3DStep, ConfigureBackwardEuler3DTimeScheme, &
                           ConfigureDouglasGunn3DTimeScheme, ConfigurePeacemanRachford3DTimeScheme, &
                           DouglasGunn3DStep, PeacemanRachford3DStep, TimeScheme3D, &
-                          ValidateIGRMTimeSchemeSpaces
+                          ValidateSpaces
    use RHS_fun
    use ADSS
    use input_data
@@ -66,7 +66,7 @@ program main
    call InitializeParallelism(procx, procy, procz, ierr)
    call CreateCommunicators(ierr)
    call Initialize(nelem, p_test, p_trial, p_trial-1, ads_test, ads_trial, ads_data, ierr)
-   call ValidateIGRMTimeSchemeSpaces(ads_test, ads_trial)
+   call ValidateSpaces(ads_test, ads_trial)
    tau = scheme_tau
    ads_test%tau = tau
    ads_trial%tau = tau

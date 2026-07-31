@@ -204,6 +204,35 @@ expect_failure 'iGRM heat overflowing spline extent' 1 igrm_heat \
     'spline dimensions exceed supported integer range' \
     2147483647 3 3 2 2 2 1 1 1 1 1 1 0 0.1
 
+# Space validation rejects degrees requiring unavailable Gauss rules.
+expect_failure 'L2 unsupported degree' 1 l2 \
+    'unsupported polynomial degree in ADS space' \
+    1 1 1 10 1 1 1
+expect_failure 'heat unsupported degree' 1 heat \
+    'unsupported polynomial degree in ADS space' \
+    1 10 0 0.1 1 1 1
+expect_failure 'Eriksson unsupported degree' 1 eriksson \
+    'unsupported polynomial degree in ADS space' \
+    1 10 0 0.1 1 1 1
+expect_failure 'oil unsupported degree' 1 oil \
+    'unsupported polynomial degree in ADS space' \
+    1 10 1 1 1 0 0.1 0 0
+expect_failure 'pure diffusion unsupported enriched degree' 1 pure_diffusion_igrm \
+    'unsupported polynomial degree in iGRM test space' \
+    1 9 1 1 1 0 0.1 dg
+expect_failure 'iGRM L2 unsupported test degree' 1 igrm_l2 \
+    'unsupported polynomial degree in iGRM test space' \
+    1 1 1 10 10 10 9 9 9 1 1 1 dg
+expect_failure 'iGRM L2 unsupported y degree' 1 igrm_l2 \
+    'iGRM test space along y: 10' \
+    1 1 1 2 10 2 1 9 1 1 1 1 dg
+expect_failure 'iGRM L2 unsupported z degree' 1 igrm_l2 \
+    'iGRM test space along z: 10' \
+    1 1 1 2 2 10 1 1 9 1 1 1 dg
+expect_failure 'iGRM heat unsupported test degree' 1 igrm_heat \
+    'unsupported polynomial degree in iGRM test space' \
+    1 1 1 10 10 10 9 9 9 1 1 1 0 0.1 dg
+
 # iGRM drivers accept DG/PR/BE only; Forward Euler has its own diagnostic.
 expect_failure 'pure diffusion unknown scheme' 1 pure_diffusion_igrm 'unknown time scheme:' \
     3 1 1 1 1 0 0.1 cn

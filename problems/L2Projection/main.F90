@@ -18,7 +18,7 @@ program main
    use parallelism, ONLY: MYRANK
    use parallelism, ONLY: PRINTRANK, InitializeParallelism, Cleanup_Parallelism
    use communicators, ONLY: CreateCommunicators, Cleanup_Communicators
-   use time_scheme, ONLY: ForwardEuler3DStep
+   use time_scheme, ONLY: ForwardEuler3DStep, ValidateSpaces
    use ADSS
    use RHS_fun
    use input_data
@@ -60,6 +60,7 @@ program main
    nelem = (/ isizex, isizey, isizez /)
    p = (/ order, order, order /)
    call Initialize(nelem, p, p, p - 1, ads_test, ads_trial, ads_data, ierr)
+   call ValidateSpaces(ads_trial)
    ads_trial%tau = 1.d0
 
    iter = 0

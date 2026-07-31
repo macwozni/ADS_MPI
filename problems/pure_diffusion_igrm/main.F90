@@ -21,7 +21,7 @@ program main
    use time_scheme, ONLY: BackwardEuler3DStep, ConfigureBackwardEuler3DTimeScheme, &
                           ConfigureDouglasGunn3DTimeScheme, ConfigurePeacemanRachford3DTimeScheme, &
                           DouglasGunn3DStep, PeacemanRachford3DStep, TimeScheme3D, &
-                          ValidateIGRMTimeSchemeSpaces
+                          ValidateSpaces
    use ADSS
    use RHS_fun
    use input_data
@@ -76,7 +76,7 @@ program main
    p_trial = (/ ORDER, ORDER, ORDER /)
    p_test = p_trial + 1
    call Initialize(nelem, p_test, p_trial, p_trial - 1, ads_test, ads_trial, ads_data, ierr)
-   call ValidateIGRMTimeSchemeSpaces(ads_test, ads_trial)
+   call ValidateSpaces(ads_test, ads_trial)
    ads_trial%tau = Dt
    ads_test%tau = Dt
    select case (trim(time_scheme))

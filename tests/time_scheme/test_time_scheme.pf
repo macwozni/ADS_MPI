@@ -143,9 +143,11 @@ contains
       ads_test%p = (/ 2, 3, 4 /)
       ads_test%n = (/ 5, 6, 7 /)
       ads_test%nelem = (/ 11, 12, 13 /)
+      ads_test%ng = ads_test%p + 1
       ads_trial%p = (/ 1, 2, 3 /)
       ads_trial%n = (/ 4, 5, 6 /)
       ads_trial%nelem = (/ 21, 22, 23 /)
+      ads_trial%ng = ads_test%p + 1
 
       allocate(ads_test%Ux(0:ads_test%n(1) + ads_test%p(1) + 1))
       allocate(ads_test%Uy(0:ads_test%n(2) + ads_test%p(2) + 1))
@@ -383,12 +385,25 @@ contains
 
 
    @test
+   subroutine test_validate_standard_space_accepts_supported_boundary()
+      type(ADS_Setup) :: ads
+
+      ads%p = (/ 0, 5, 9 /)
+      ads%ng = (/ 1, 6, 10 /)
+
+      call ValidateSpaces(ads)
+
+      @assertTrue(.true.)
+   end subroutine test_validate_standard_space_accepts_supported_boundary
+
+
+   @test
    subroutine test_validate_spaces_delegates_all_three_axes()
       type(ADS_Setup) :: ads_test, ads_trial
 
       call make_distinct_spaces(ads_test, ads_trial)
       call reset_validation_spy()
-      call ValidateIGRMTimeSchemeSpaces(ads_test, ads_trial)
+      call ValidateSpaces(ads_test, ads_trial)
 
       @assertTrue(validation_call_count == 3)
       @assertTrue(all(recorded_test_p == ads_test%p))

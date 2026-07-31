@@ -13,7 +13,7 @@ FFLAGS += $(PFUNIT_EXTRA_FFLAGS)
 FFLAGS += -I. -I$(SRC_DIR)
 
 TEST_NAME := test_time_scheme
-PROD_OBJS := setup.o interfaces.o time_scheme_test_doubles.o time_scheme.o
+PROD_OBJS := setup.o interfaces.o gauss.o time_scheme_test_doubles.o time_scheme.o
 
 setup.o: $(SRC_DIR)/Setup.F90
 	$(FC) -c $(FFLAGS) $< -o $@
@@ -21,10 +21,13 @@ setup.o: $(SRC_DIR)/Setup.F90
 interfaces.o: $(SRC_DIR)/Interfaces.F90 setup.o
 	$(FC) -c $(FFLAGS) $< -o $@
 
+gauss.o: $(SRC_DIR)/gauss.F90
+	$(FC) -c $(FFLAGS) $< -o $@
+
 time_scheme_test_doubles.o: time_scheme_test_doubles.f90 setup.o interfaces.o
 	$(FC) -c $(FFLAGS) $< -o $@
 
-time_scheme.o: $(SRC_DIR)/time_scheme.F90 time_scheme_test_doubles.o
+time_scheme.o: $(SRC_DIR)/time_scheme.F90 gauss.o time_scheme_test_doubles.o
 	$(FC) -c $(FFLAGS) $< -o $@
 
 $(TEST_NAME).o: $(PROD_OBJS)

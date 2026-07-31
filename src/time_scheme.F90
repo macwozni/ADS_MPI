@@ -20,6 +20,7 @@ module time_scheme
    private
 
    public :: TimeScheme3D
+   public :: ValidateSpaces
    public :: ValidateIGRMTimeSchemeSpaces
    public :: ForwardEuler3DStep
    public :: DouglasGunn3DStep
@@ -32,6 +33,12 @@ module time_scheme
    public :: ConfigureDouglasGunn3D
    public :: ConfigurePeacemanRachford3D
    public :: ConfigureBackwardEuler3D
+
+   !> @brief Validates either one standard ADS space or an iGRM space pair.
+   interface ValidateSpaces
+      module procedure ValidateTimeSchemeSpace
+      module procedure ValidateIGRMTimeSchemeSpaces
+   end interface ValidateSpaces
 
    !> @brief Persistent 3D time-scheme configuration consumed by MultiStep.
    !>
@@ -51,6 +58,61 @@ module time_scheme
    end type TimeScheme3D
 
 contains
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Validates one ADS space against the library's supported limits.
+!>
+!> @details
+!> The current basis and operator assembly paths require \f$p+1\f$
+!> Gauss points. Because the Gauss table contains rules with at most ten
+!> points, polynomial degrees from zero through nine are supported. The
+!> configured quadrature count must also lie between one and ten.
+!
+! Input:
+! ------
+!> @param[in] ads
+!> ADS space to validate.
+!>
+!> @param[in] space_name
+!> Optional name used to identify the space in diagnostics.
+!
+!---------------------------------------------------------------------------
+subroutine ValidateTimeSchemeSpace(ads, space_name)
+      use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT
+      use Setup, ONLY: ADS_Setup
+      use gauss, ONLY: MAX_GAUSS_POINTS
+      implicit none
+!> @brief ADS space to validate.
+      type(ADS_Setup), intent(in) :: ads
+!> @brief Optional name used to identify the space in diagnostics.
+      character(len=*), intent(in), optional :: space_name
+!> @brief Names of the three parametric directions.
+      character(len=1), parameter :: AXIS_NAME(3) = (/ "x", "y", "z" /)
+      character(len=32) :: label
+      integer(kind=4) :: axis
+
+      label = "ADS space"
+      if (present(space_name)) label = space_name
+
+      do axis = 1, 3
+         if (ads%p(axis) < 0 .or. ads%p(axis) >= MAX_GAUSS_POINTS) then
+            write(ERROR_UNIT, '(A,A,A,A,A,I0,A,I0)') &
+               "unsupported polynomial degree in ", trim(label), " along ", AXIS_NAME(axis), &
+               ": ", ads%p(axis), "; maximum supported degree is ", MAX_GAUSS_POINTS - 1
+            stop 5
+         end if
+
+         if (ads%ng(axis) < 1 .or. ads%ng(axis) > MAX_GAUSS_POINTS) then
+            write(ERROR_UNIT, '(A,A,A,A,A,I0,A,I0)') &
+               "unsupported Gauss quadrature size in ", trim(label), " along ", AXIS_NAME(axis), &
+               ": ", ads%ng(axis), "; supported range is 1 to ", MAX_GAUSS_POINTS
+            stop 5
+         end if
+      end do
+
+end subroutine ValidateTimeSchemeSpace
 
 !---------------------------------------------------------------------------
 !
@@ -241,13 +303,15 @@ end subroutine AddExplicitAxis
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
-!> @brief Validates test/trial mesh compatibility for iGRM time schemes.
+!> @brief Validates test/trial spaces used by iGRM time schemes.
 !>
 !> @details
-!> All multi-step iGRM schemes require the enriched test space and trial
-!> space to live on identical knot locations in every direction. Call this
-!> once after the spaces are initialized, before the time loop starts. The
-!> detailed one-dimensional check is delegated to \ref ValidateIGRMMesh.
+!> This routine first checks the supported degree and quadrature ranges in
+!> both spaces. It then enforces the iGRM requirement that the enriched test
+!> space and trial space live on identical knot locations in every direction.
+!> Call this once after the spaces are initialized, before the time loop
+!> starts. The detailed one-dimensional mesh check is delegated to
+!> \ref ValidateIGRMMesh.
 !
 ! Input:
 ! ------
@@ -264,6 +328,9 @@ subroutine ValidateIGRMTimeSchemeSpaces(ads_test, ads_trial)
       implicit none
 !> @brief Enriched iGRM test-space and trial-space setup structures.
       type(ADS_setup), intent(in) :: ads_test, ads_trial
+
+      call ValidateTimeSchemeSpace(ads_test, "iGRM test space")
+      call ValidateTimeSchemeSpace(ads_trial, "iGRM trial space")
 
       call ValidateIGRMMesh(ads_test%Ux, ads_test%p(1), ads_test%n(1), ads_test%nelem(1), &
                             ads_trial%Ux, ads_trial%p(1), ads_trial%n(1), ads_trial%nelem(1))

@@ -30,6 +30,9 @@ module gauss
 
    implicit none
 
+!> @brief Maximum number of points available in the Gauss rule table.
+   integer(kind=4), parameter, public :: MAX_GAUSS_POINTS = 10
+
 !> @brief Initialization status flag for module data.
 !
 !> @details
@@ -393,4 +396,3 @@ contains
    end subroutine GaussRule
 
 end module gauss
-
