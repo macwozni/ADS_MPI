@@ -49,8 +49,8 @@ contains
 !> - iterating over local elements and quadrature points,
 !> - extracting solution values and derivatives from previously computed
 !>   buffers,
-!> - evaluating the pointwise contribution through
-!>   `ComputePointForRHS`,
+!> - evaluating the pointwise contribution through the active RHS
+!>   implementation,
 !> - accumulating the result into a temporary element-local array,
 !> - scattering the local contributions into either \p ads_data%F or
 !>   \p ads_data%Ft depending on whether iGRM mode is active.
@@ -83,6 +83,9 @@ contains
 !>
 !> @param[in] forcing
 !> External forcing callback used during pointwise evaluation.
+!>
+!> @param[in] rhs_point
+!> Optional full pointwise RHS implementation overriding the library default.
 !
 ! Output:
 ! -------
@@ -113,6 +116,8 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
    procedure(forcing_fun) :: forcing
 !> @brief Optional callback overriding the default pointwise RHS integrand.
    procedure(rhs_point_fun), optional :: rhs_point
+!> @brief Pointwise RHS implementation selected for the current assembly pass.
+   procedure(rhs_point_fun), pointer :: active_rhs_point
 !> @brief Setup structures of the test and trial spaces.
    type(ADS_setup), intent(in) :: ads_test, ads_trial
 !> @brief Enrichment indicator for the current substep.
@@ -137,7 +142,7 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
    integer(kind=4) :: ind, ind1, ind23, indx, indy, indz
 !> @brief Local indices into the state buffers stored in ads_data.
    integer(kind=4) :: statex, statey, statez
-!> @brief Pointwise contribution returned by `ComputePointForRHS`.
+!> @brief Pointwise contribution returned by the active RHS implementation.
    real(kind=8) :: resvalue
 !> @brief Physical coordinates of the current quadrature point.
    real(kind=8), dimension(3) :: X
@@ -166,6 +171,12 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
    logical, intent(out) :: igrm
 !> @brief Permutation of coordinate directions used internally.
    integer(kind=4) :: dira,dirb,dirc
+
+   if (present(rhs_point)) then
+      active_rhs_point => rhs_point
+   else
+      active_rhs_point => ComputePointForRHS
+   end if
 
    call create_mixed_space(ads_test, ads_trial, direction,&
    ads, dira, dirb, dirc, igrm)
@@ -269,39 +280,21 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
                                  ! 1, Uval_m, Uval13,Uval23, &
                                  ! ads_data, J, W, direction, substep, resvalue)
 
-                                 if (present(rhs_point)) then
-                                    call rhs_point( &
-                                       ads, &
-                                       X, &
-                                       k, &
-                                       e, &
-                                       a, &
-                                       du, &
-                                       n, &
-                                       Uval, &
-                                       Uval13, &
-                                       Uval23, &
-                                       ads_data, J, W, direction, substep, &
-                                       alpha_step, &
-                                       forcing, &
-                                       resvalue)
-                                 else
-                                    call ComputePointForRHS( &
-                                       ads, &
-                                       X, &
-                                       k, &
-                                       e, &
-                                       a, &
-                                       du, &
-                                       n, &
-                                       Uval, &
-                                       Uval13, &
-                                       Uval23, &
-                                       ads_data, J, W, direction, substep, &
-                                       alpha_step, &
-                                       forcing, &
-                                       resvalue)
-                                 end if
+                                 call active_rhs_point( &
+                                    ads, &
+                                    X, &
+                                    k, &
+                                    e, &
+                                    a, &
+                                    du, &
+                                    n, &
+                                    Uval, &
+                                    Uval13, &
+                                    Uval23, &
+                                    ads_data, J, W, direction, substep, &
+                                    alpha_step, &
+                                    forcing, &
+                                    resvalue)
 
                                  elarr(ax, ay, az) = elarr(ax, ay, az) + resvalue
                               end if
