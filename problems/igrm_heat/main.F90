@@ -17,7 +17,8 @@ program main
 
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    use parallelism, ONLY: MYRANK
-   use parallelism, ONLY: PRINTRANK, InitializeParallelism, Cleanup_Parallelism
+   use parallelism, ONLY: PRINTRANK, InitializeParallelism, &
+      Cleanup_Parallelism, AbortOnError
    use communicators, ONLY: CreateCommunicators, Cleanup_Communicators
    use time_scheme, ONLY: BackwardEuler3DStep, ConfigureBackwardEuler3DTimeScheme, &
                           ConfigureDouglasGunn3DTimeScheme, ConfigureMassOnly3DTimeScheme, &
@@ -78,6 +79,7 @@ program main
          ads_trial%tau = 1.d0
          call RunHeatStep(init_scheme, iter, ads_test, ads_trial, ads_data, nn, ierr)
       end if
+      call AbortOnError(ierr, 'iGRM heat step')
       if (MYRANK == 0) then
          write(*, *) iter
       endif

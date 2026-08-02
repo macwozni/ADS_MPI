@@ -52,6 +52,9 @@ expect_failure 'process-grid and world-size mismatch' \
 expect_failure 'process-grid product does not overflow' \
     'Process-grid size mismatch: dimensions =|2147483647' \
     2147483647 2147483647 2147483647
+expect_failure 'fatal distributed status aborts the complete MPI job' \
+    'parallelism probe failed; aborting MPI job with original status -73' \
+    1 1 1 -73
 
 if [[ $failures -eq 0 ]]; then
     printf 'OK (%d parallelism CLI checks)\n' "$checks"

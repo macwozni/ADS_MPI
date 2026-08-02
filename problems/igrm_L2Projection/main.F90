@@ -16,7 +16,8 @@ program main
 
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    use parallelism, ONLY: MYRANK
-   use parallelism, ONLY: PRINTRANK, InitializeParallelism, Cleanup_Parallelism
+   use parallelism, ONLY: PRINTRANK, InitializeParallelism, &
+      Cleanup_Parallelism, AbortOnError
    use communicators, ONLY: CreateCommunicators, Cleanup_Communicators
    use time_scheme, ONLY: BackwardEuler3DStep, ConfigureBackwardEuler3DTimeScheme, &
                           ConfigureDouglasGunn3DTimeScheme, ConfigurePeacemanRachford3DTimeScheme, &
@@ -92,6 +93,7 @@ program main
    case (TIME_SCHEME_BE)
       call BackwardEuler3DStep(scheme, iter, forcing, ads_test, ads_trial, ads_data, nn, ierr)
    end select
+   call AbortOnError(ierr, 'iGRM projection step')
    call PrintSolution(iter, ads_trial, ads_data%FF)
 
    call Cleanup_ADS(ads_test, ierr)

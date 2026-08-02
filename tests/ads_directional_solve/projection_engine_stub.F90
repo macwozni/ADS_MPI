@@ -4,7 +4,8 @@ module projection_engine
       expected_p_test, expected_n_test, expected_nelem_test, &
       expected_p_trial, expected_n_trial, expected_nelem_trial, &
       expected_matrix_size, expected_equ, expected_mixA, expected_mixB, &
-      expected_mixBT, expected_u_test, expected_u_trial
+      expected_mixBT, expected_u_test, expected_u_trial, &
+      injected_matrix_size_delta
    implicit none
 
 contains
@@ -44,7 +45,8 @@ contains
          compute_contract_ok = .false.
       end if
 
-      call initialize_sparse(expected_matrix_size, expected_matrix_size, &
+      call initialize_sparse(expected_matrix_size + injected_matrix_size_delta, &
+                             expected_matrix_size + injected_matrix_size_delta, &
                              sprsmtrx)
    end subroutine ComputeMatrix
 

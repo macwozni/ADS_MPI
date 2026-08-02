@@ -16,7 +16,8 @@ program main
 
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    use parallelism, ONLY: MYRANK
-   use parallelism, ONLY: PRINTRANK, InitializeParallelism, Cleanup_Parallelism
+   use parallelism, ONLY: PRINTRANK, InitializeParallelism, &
+      Cleanup_Parallelism, AbortOnError
    use communicators, ONLY: CreateCommunicators, Cleanup_Communicators
    use time_scheme, ONLY: ForwardEuler3DStep, ValidateSpaces
    use ADSS
@@ -66,6 +67,7 @@ program main
          ads_trial%tau = 1.d0
       endif
       call ForwardEuler3DStep(iter, forcing, ads_trial, ads_data, ierr)
+      call AbortOnError(ierr, 'ForwardEuler3DStep')
       if (MYRANK == 0) then
          write(*, *) iter
       endif

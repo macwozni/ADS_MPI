@@ -11,6 +11,11 @@ module directional_test_support
    integer(kind=4) :: expected_n_trial = 0
    integer(kind=4) :: expected_nelem_trial = 0
    integer(kind=4) :: expected_matrix_size = 0
+   integer(kind=4) :: injected_solver_rank = -1
+   integer(kind=4) :: injected_solver_status = 0
+   integer(kind=4) :: injected_solver_rank_2 = -1
+   integer(kind=4) :: injected_solver_status_2 = 0
+   integer(kind=4) :: injected_matrix_size_delta = 0
    logical :: expected_equ = .true.
    logical :: compute_contract_ok = .true.
    logical :: solve_contract_ok = .true.
@@ -35,6 +40,11 @@ contains
       solve_calls = 0
       compute_contract_ok = .true.
       solve_contract_ok = .true.
+      injected_solver_rank = -1
+      injected_solver_status = 0
+      injected_solver_rank_2 = -1
+      injected_solver_status_2 = 0
+      injected_matrix_size_delta = 0
 
       expected_p_test = ads_test%p(axis)
       expected_n_test = ads_test%n(axis)
@@ -75,6 +85,41 @@ contains
       allocate(expected_packed_rhs(size(packed_rhs, 1), size(packed_rhs, 2)))
       expected_packed_rhs = packed_rhs
    end subroutine configure_directional_spies
+
+
+   subroutine inject_solver_failure(world_rank, status)
+      integer(kind=4), intent(in) :: world_rank, status
+
+      injected_solver_rank = world_rank
+      injected_solver_status = status
+   end subroutine inject_solver_failure
+
+
+   subroutine inject_two_solver_failures(world_rank_1, status_1, &
+                                         world_rank_2, status_2)
+      integer(kind=4), intent(in) :: world_rank_1, status_1
+      integer(kind=4), intent(in) :: world_rank_2, status_2
+
+      injected_solver_rank = world_rank_1
+      injected_solver_status = status_1
+      injected_solver_rank_2 = world_rank_2
+      injected_solver_status_2 = status_2
+   end subroutine inject_two_solver_failures
+
+
+   subroutine inject_matrix_size_mismatch(delta)
+      integer(kind=4), intent(in) :: delta
+
+      injected_matrix_size_delta = delta
+   end subroutine inject_matrix_size_mismatch
+
+
+   subroutine clear_solver_failure()
+      injected_solver_rank = -1
+      injected_solver_status = 0
+      injected_solver_rank_2 = -1
+      injected_solver_status_2 = 0
+   end subroutine clear_solver_failure
 
 
    logical function exact_matrix(actual, expected) result(matches)

@@ -132,6 +132,7 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
       integer(kind=4) :: substep
       integer(kind=4), dimension(3, 3) :: abc
 
+      mierr = 0
       ads_data%rhs_du_state = 0
       if (present(rhs_du_state)) ads_data%rhs_du_state = rhs_du_state
 
@@ -155,6 +156,11 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
       else
             call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
                         n, alpha_step, RHS_fun, ads_data, mierr, RHS_point)
+      end if
+      if (mierr /= 0) then
+            call CleanupDirectionalWorkBuffers(ads_data)
+            ads_data%rhs_du_state = 0
+            return
       end if
       if (allocated(ads_data%FFt)) deallocate(ads_data%FFt)
       if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
@@ -186,6 +192,11 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
             call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
                         n, alpha_step, RHS_fun, ads_data, mierr, RHS_point)
       end if
+      if (mierr /= 0) then
+            call CleanupDirectionalWorkBuffers(ads_data)
+            ads_data%rhs_du_state = 0
+            return
+      end if
       if (allocated(ads_data%FFt)) deallocate(ads_data%FFt)
       if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
       if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
@@ -215,6 +226,11 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
       else
             call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
                         n, alpha_step, RHS_fun, ads_data, mierr, RHS_point)
+      end if
+      if (mierr /= 0) then
+            call CleanupDirectionalWorkBuffers(ads_data)
+            ads_data%rhs_du_state = 0
+            return
       end if
       if (allocated(ads_data%FFt)) deallocate(ads_data%FFt)
       if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
@@ -310,6 +326,10 @@ subroutine Step(iter, RHS_fun, ads, ads_data, mierr, RHS_point)
       !call Sub_Step(ads, ads, iter, mix,direction,substep,abc,RHS_fun,ads_data, mierr)
       call Sub_Step(ads, ads, iter, mix, direction, substep, abc, &
                         1, alpha_step, RHS_fun, ads_data, mierr, RHS_point)
+      if (mierr /= 0) then
+            call CleanupDirectionalWorkBuffers(ads_data)
+            return
+      end if
       if (allocated(ads_data%FF)) deallocate(ads_data%FF)
       if (allocated(ads_data%F2)) deallocate(ads_data%F2)
       if (allocated(ads_data%F3)) deallocate(ads_data%F3)
@@ -430,6 +450,7 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
       ! real(kind=8) :: time1, time2
       logical :: igrm
 
+      mierr = 0
       mass_mix = (/1.d0, 0.d0, 0.d0, 0.d0/)
       if (present(lhs_mix)) then
             solve_mix = lhs_mix
@@ -475,6 +496,10 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
       call solve_problem(ads_test, ads_trial, abc(1, 1), abc(2, 1), abc(3, 1), &
                         solve_mixA, solve_mixB, solve_mixBT, direction, igrm, &
                         ads_data%F, ads_data%F2, ads_data%Ft, ads_data%Ft2, ierr)
+      if (ierr /= 0) then
+            mierr = ierr
+            return
+      end if
 
 !--------------------------------------------------------------------
 ! Solve the second problem
@@ -490,6 +515,10 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
       call solve_problem(ads_test, ads_trial, abc(1, 2), abc(2, 2), abc(3, 2), &
                         solve_mixA, solve_mixB, solve_mixBT, direction, igrm, &
                         ads_data%F2, ads_data%F3, ads_data%Ft2, ads_data%Ft3, ierr)
+      if (ierr /= 0) then
+            mierr = ierr
+            return
+      end if
 
 !--------------------------------------------------------------------
 ! Solve the third problem
@@ -505,6 +534,10 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
       call solve_problem(ads_test, ads_trial, abc(1, 3), abc(2, 3), abc(3, 3), &
                         solve_mixA, solve_mixB, solve_mixBT, direction, igrm, &
                         ads_data%F3, ads_data%F, ads_data%Ft3, ads_data%Ft, ierr)
+      if (ierr /= 0) then
+            mierr = ierr
+            return
+      end if
 
 #ifdef IINFO
       write (*, *) PRINTRANK, '3e) DISTRIBUTE SOLUTION'
@@ -521,6 +554,22 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
 
       mierr = 0
 end subroutine Sub_Step
+
+!---------------------------------------------------------------------------
+!> @brief Releases transient directional buffers after an aborted step.
+!---------------------------------------------------------------------------
+subroutine CleanupDirectionalWorkBuffers(ads_data)
+      use Setup, ONLY: ADS_compute_data
+      implicit none
+      type(ADS_compute_data), intent(inout) :: ads_data
+
+      if (allocated(ads_data%F)) deallocate(ads_data%F)
+      if (allocated(ads_data%F2)) deallocate(ads_data%F2)
+      if (allocated(ads_data%F3)) deallocate(ads_data%F3)
+      if (allocated(ads_data%Ft)) deallocate(ads_data%Ft)
+      if (allocated(ads_data%Ft2)) deallocate(ads_data%Ft2)
+      if (allocated(ads_data%Ft3)) deallocate(ads_data%Ft3)
+end subroutine CleanupDirectionalWorkBuffers
 
 
 

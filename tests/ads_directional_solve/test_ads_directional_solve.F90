@@ -7,7 +7,9 @@ program test_ads_directional_solve
    use communicators, only: CreateCommunicators, Cleanup_Communicators
    use ads_directional_solve, only: solve_problem
    use directional_test_support, only: configure_directional_spies, &
-      compute_calls, solve_calls, compute_contract_ok, solve_contract_ok
+      inject_solver_failure, inject_two_solver_failures, &
+      inject_matrix_size_mismatch, clear_solver_failure, compute_calls, &
+      solve_calls, compute_contract_ok, solve_contract_ok
    implicit none
 
    integer(kind=4), parameter :: TRIAL_TAG = 1
@@ -31,7 +33,7 @@ program test_ads_directional_solve
 
    type(ADS_Setup) :: ads_test, ads_trial
    integer(kind=4) :: process_grid(3), direction(3)
-   integer(kind=4) :: checks, failures, ierr, axis, enrichment_axis
+   integer(kind=4) :: checks, failures, ierr, axis, enrichment_axis, failure_axis
    character(len=96) :: label
 
    call read_process_grid(process_grid)
@@ -67,6 +69,17 @@ program test_ads_directional_solve
                                  failures)
       end do
    end do
+
+   failure_axis = 1
+   if (NRPROCY*NRPROCZ == 1 .and. NRPROCX*NRPROCZ > 1) failure_axis = 2
+   if (NRPROCY*NRPROCZ == 1 .and. NRPROCX*NRPROCZ == 1 .and. &
+       NRPROCX*NRPROCY > 1) failure_axis = 3
+   direction = 0
+   call exercise_solver_failure(failure_axis, direction, failures)
+   call exercise_matrix_size_mismatch(failure_axis, direction, failures)
+   call clear_solver_failure()
+   call exercise_direction('recovery after synchronized solver failure', &
+                           failure_axis, direction, .false., failures)
 
    if (MYRANK == 0) then
       if (failures == 0) then
@@ -166,6 +179,136 @@ contains
       call assert_global(case_label//' solves only on the processor face', &
                          local_ok, failure_count)
    end subroutine exercise_direction
+
+
+   subroutine exercise_solver_failure(a, selected_direction, failure_count)
+      integer(kind=4), intent(in) :: a, selected_direction(3)
+      integer(kind=4), intent(inout) :: failure_count
+      integer(kind=4), parameter :: INJECTED_STATUS = -73
+      integer(kind=4) :: b, c, current_order(3), next_order(3)
+      integer(kind=4) :: expected_local_calls, solve_ierr
+      integer(kind=4) :: first_face_rank, second_face_rank
+      real(kind=8) :: mixA(4), mixB(4), mixBT(4)
+      real(kind=8), allocatable :: F(:, :), F2(:, :), Ft(:, :), Ft2(:, :)
+      real(kind=8), allocatable :: F_before(:, :), expected_F2(:, :)
+      real(kind=8), allocatable :: expected_packed(:, :)
+      logical :: local_ok
+
+      call axis_orders(a, b, c, current_order, next_order)
+      call build_encoded_buffer(ads_trial%ibeg, ads_trial%s, current_order, &
+                                TRIAL_TAG, F)
+      allocate(F_before(size(F, 1), size(F, 2)))
+      F_before = F
+      call build_encoded_buffer(ads_trial%ibeg, ads_trial%s, next_order, &
+                                TRIAL_TAG, expected_F2)
+      allocate(F2(size(expected_F2, 1), size(expected_F2, 2)))
+      F2 = SENTINEL
+
+      call build_expected_packed(a, b, c, selected_direction, .false., &
+                                 expected_packed)
+      call case_mixes(a, selected_direction, mixA, mixB, mixBT)
+      call configure_directional_spies(ads_test, ads_trial, a, mixA, mixB, &
+                                       mixBT, .true., expected_packed)
+      call find_face_failure_ranks(a, first_face_rank, second_face_rank)
+      if (second_face_rank >= 0) then
+         call inject_two_solver_failures(first_face_rank, INJECTED_STATUS, &
+                                         second_face_rank, -91)
+      else
+         call inject_solver_failure(first_face_rank, INJECTED_STATUS)
+      end if
+
+      solve_ierr = 0
+      call solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, &
+                         selected_direction, .false., F, F2, Ft, Ft2, &
+                         solve_ierr)
+
+      local_ok = solve_ierr == INJECTED_STATUS
+      call assert_global('lowest failing face-rank error reaches every world rank', &
+                         local_ok, failure_count)
+
+      local_ok = exact_array(F, F_before) .and. all(F2 == SENTINEL)
+      call assert_global('solver error skips scatter and reorder', local_ok, &
+                         failure_count)
+
+      expected_local_calls = 0
+      if (axis_rank(a) == 0) expected_local_calls = 1
+      local_ok = compute_calls == expected_local_calls .and. &
+                 solve_calls == expected_local_calls
+      call assert_global('solver error remains confined to solving face before synchronization', &
+                         local_ok, failure_count)
+   end subroutine exercise_solver_failure
+
+
+   subroutine exercise_matrix_size_mismatch(a, selected_direction, &
+                                            failure_count)
+      integer(kind=4), intent(in) :: a, selected_direction(3)
+      integer(kind=4), intent(inout) :: failure_count
+      integer(kind=4) :: b, c, current_order(3), next_order(3)
+      integer(kind=4) :: expected_compute_calls, solve_ierr
+      real(kind=8) :: mixA(4), mixB(4), mixBT(4)
+      real(kind=8), allocatable :: F(:, :), F2(:, :), Ft(:, :), Ft2(:, :)
+      real(kind=8), allocatable :: F_before(:, :), expected_F2(:, :)
+      real(kind=8), allocatable :: expected_packed(:, :)
+      logical :: local_ok
+
+      call axis_orders(a, b, c, current_order, next_order)
+      call build_encoded_buffer(ads_trial%ibeg, ads_trial%s, current_order, &
+                                TRIAL_TAG, F)
+      allocate(F_before(size(F, 1), size(F, 2)))
+      F_before = F
+      call build_encoded_buffer(ads_trial%ibeg, ads_trial%s, next_order, &
+                                TRIAL_TAG, expected_F2)
+      allocate(F2(size(expected_F2, 1), size(expected_F2, 2)))
+      F2 = SENTINEL
+
+      call build_expected_packed(a, b, c, selected_direction, .false., &
+                                 expected_packed)
+      call case_mixes(a, selected_direction, mixA, mixB, mixBT)
+      call configure_directional_spies(ads_test, ads_trial, a, mixA, mixB, &
+                                       mixBT, .true., expected_packed)
+      call inject_matrix_size_mismatch(1)
+
+      call solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, &
+                         selected_direction, .false., F, F2, Ft, Ft2, &
+                         solve_ierr)
+
+      local_ok = solve_ierr == -1001
+      call assert_global('matrix size mismatch reaches every world rank', &
+                         local_ok, failure_count)
+      local_ok = exact_array(F, F_before) .and. all(F2 == SENTINEL)
+      call assert_global('matrix size mismatch skips scatter and reorder', &
+                         local_ok, failure_count)
+      expected_compute_calls = 0
+      if (axis_rank(a) == 0) expected_compute_calls = 1
+      local_ok = compute_calls == expected_compute_calls .and. solve_calls == 0
+      call assert_global('matrix size mismatch never enters MUMPS', local_ok, &
+                         failure_count)
+   end subroutine exercise_matrix_size_mismatch
+
+
+   subroutine find_face_failure_ranks(a, first_rank, second_rank)
+      integer(kind=4), intent(in) :: a
+      integer(kind=4), intent(out) :: first_rank, second_rank
+      integer(kind=4) :: candidate, mpi_ierr
+
+      candidate = huge(candidate)
+      if (axis_rank(a) == 0 .and. MYRANK > 0) candidate = MYRANK
+      call MPI_Allreduce(candidate, first_rank, 1, MPI_INTEGER, MPI_MIN, &
+                         MPI_COMM_WORLD, mpi_ierr)
+
+      if (first_rank == huge(first_rank)) then
+         candidate = huge(candidate)
+         if (axis_rank(a) == 0) candidate = MYRANK
+         call MPI_Allreduce(candidate, first_rank, 1, MPI_INTEGER, MPI_MIN, &
+                            MPI_COMM_WORLD, mpi_ierr)
+      end if
+
+      candidate = huge(candidate)
+      if (axis_rank(a) == 0 .and. MYRANK > first_rank) candidate = MYRANK
+      call MPI_Allreduce(candidate, second_rank, 1, MPI_INTEGER, MPI_MIN, &
+                         MPI_COMM_WORLD, mpi_ierr)
+      if (second_rank == huge(second_rank)) second_rank = -1
+   end subroutine find_face_failure_ranks
 
 
    subroutine build_expected_packed(a, b, c, selected_direction, igrm, &

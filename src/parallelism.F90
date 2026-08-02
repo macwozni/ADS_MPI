@@ -231,6 +231,37 @@ end subroutine InitializeParallelism
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
+!> @brief Terminates the complete MPI job after a fatal distributed error.
+!>
+!> @details
+!> Solver errors are synchronized before they reach problem drivers.  This
+!> helper prevents a driver from using a partial result or overwriting the
+!> original status during cleanup.  Rank zero reports the original code and
+!> `MPI_Abort` terminates every rank, including ranks blocked in a collective.
+!
+!---------------------------------------------------------------------------
+subroutine AbortOnError(status, operation)
+   use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT
+   use mpi
+   implicit none
+   integer(kind=4), intent(in) :: status
+   character(len=*), intent(in) :: operation
+   integer(kind=4) :: abort_ierr
+
+   if (status == 0) return
+
+   if (MYRANK == 0) then
+      write (ERROR_UNIT, '(A,A,I0)') trim(operation), &
+         ' failed; aborting MPI job with original status ', status
+      flush (ERROR_UNIT)
+   end if
+   call MPI_Abort(MPI_COMM_WORLD, status, abort_ierr)
+   stop 5
+end subroutine AbortOnError
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
 !> @brief Converts a linear MPI rank into three-dimensional
 !> process-grid coordinates.
 !>

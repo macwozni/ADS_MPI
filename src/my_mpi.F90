@@ -542,7 +542,9 @@ subroutine Gather(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
                      MPI_DOUBLE_PRECISION, &
                      0, comm, ierr)
 
-   call Delinearize(F_out_lin, F_out, n + 1, stride)
+   if (ierr == MPI_SUCCESS) then
+      call Delinearize(F_out_lin, F_out, n + 1, stride)
+   end if
 
    if (allocated(F_lin)) deallocate (F_lin)
    if (allocated(F_out_lin)) deallocate (F_out_lin)
@@ -626,7 +628,9 @@ subroutine Scatter(F, F_out, n, elems, stride, dims, shifts, comm, ierr)
                      MPI_DOUBLE_PRECISION, &
                      0, comm, ierr)
 
-   call Delinearize(F_out_lin, F_out, elems, stride)
+   if (ierr == MPI_SUCCESS) then
+      call Delinearize(F_out_lin, F_out, elems, stride)
+   end if
 
    if (allocated(F_lin)) deallocate (F_lin)
    if (allocated(F_out_lin)) deallocate (F_out_lin)

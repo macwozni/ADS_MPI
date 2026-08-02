@@ -29,6 +29,8 @@ module ads_directional_solve
 
    implicit none
 
+   integer(kind=4), parameter :: MATRIX_SIZE_MISMATCH_ERROR = -1001
+
    private
    public :: solve_problem
 
@@ -153,8 +155,12 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
       integer(kind=4), dimension(3) :: ibeg, iend
       integer(kind=4) :: system_n
       integer(kind=4) :: trial_owned_a, mixed_owned_a
+      integer(kind=4) :: mpi_ierr, solver_ierr, synchronized_ierr
       ! real(kind=8) :: time1, time2
       logical :: equ
+
+      ierr = 0
+      nullify(sprsmtrx)
 
       !  we have identical test and trial spaces if equ=true in given direction
       equ = .TRUE.
@@ -232,11 +238,17 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
       trial_owned_a = ads_trial%s(a)
       mixed_owned_a = (1 - direction(a))*ads_trial%s(a) + direction(a)*ads_test%s(a)
 
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
+      ! This collective also provides the synchronization previously supplied
+      ! by the world barrier, while making every rank start with one status.
+      call SynchronizeFirstError(ierr, synchronized_ierr)
+      ierr = synchronized_ierr
+      if (ierr /= 0) return
 
 #ifdef IINFO
       write (*, *) PRINTRANK, a, 'a) GATHER'
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
+      call SynchronizeFirstError(ierr, synchronized_ierr)
+      ierr = synchronized_ierr
+      if (ierr /= 0) return
 #endif
 
       !  allocate result buffer
@@ -251,7 +263,11 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
       call Gather(F, F_out, ads_trial%n(a), &
                   ads_trial%s(a), &
                   ads_trial%s(b)*ads_trial%s(c), &
-            dimensions_trial, shifts_trial, comm, ierr)
+            dimensions_trial, shifts_trial, comm, mpi_ierr)
+      call RecordFirstError(ierr, mpi_ierr)
+      call SynchronizeFirstError(ierr, synchronized_ierr)
+      ierr = synchronized_ierr
+      if (ierr /= 0) go to 900
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write (*, *) "Gather", a, " : ", time2 - time1
@@ -270,7 +286,11 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
                         (1 - direction(a))*ads_trial%s(a) + direction(a)*ads_test%s(a), &
                         ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
                         ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c)), &
-                        dimensions_test, shifts_test, comm, ierr)
+                        dimensions_test, shifts_test, comm, mpi_ierr)
+            call RecordFirstError(ierr, mpi_ierr)
+            call SynchronizeFirstError(ierr, synchronized_ierr)
+            ierr = synchronized_ierr
+            if (ierr /= 0) go to 900
 #ifdef PERFORMANCE
             time2 = MPI_Wtime()
             write (*, *) "Gather", a, " : ", time2 - time1
@@ -286,9 +306,9 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
       else
             Fs = F_out
       end if
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
 
       !  performed only on face of processors
+      solver_ierr = 0
       if (myrankdim == 0) then
 #ifdef IINFO
             write (*, *) PRINTRANK, a, 'b) SOLVE THE ', a, ' PROBLEM'
@@ -310,9 +330,10 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
             system_n = size(Fs, 1) - 1
             if (sprsmtrx%x /= size(Fs, 1) .or. sprsmtrx%y /= size(Fs, 1)) then
                   write (*, *) 'matrix/Fs size mismatch', sprsmtrx%x, sprsmtrx%y, size(Fs, 1)
-                  stop 1
+                  solver_ierr = MATRIX_SIZE_MISMATCH_ERROR
+            else
+                  call SolveOneDirection(Fs, size(Fs, 2), system_n, system_n, sprsmtrx, solver_ierr)
             end if
-            call SolveOneDirection(Fs, size(Fs, 2), system_n, system_n, sprsmtrx)
       !     clean buffers
             call clear_matrix(sprsmtrx)
 #ifdef PERFORMANCE
@@ -321,7 +342,11 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
 #endif
       end if
 
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
+      ! Only the processor face executes MUMPS. Propagate its status before
+      ! any rank enters the scatter phase so all ranks take the same path.
+      call SynchronizeFirstError(solver_ierr, synchronized_ierr)
+      call RecordFirstError(ierr, synchronized_ierr)
+      if (ierr /= 0) go to 900
 
 #ifdef IINFO
       write (*, *) PRINTRANK, a, 'c) SCATTER'
@@ -347,7 +372,11 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
                         mixed_owned_a, &
                         ((1 - direction(b))*ads_trial%s(b) + direction(b)*ads_test%s(b))* &
                         ((1 - direction(c))*ads_trial%s(c) + direction(c)*ads_test%s(c)), &
-                  dimensions_test, shifts_test, comm, ierr)
+                  dimensions_test, shifts_test, comm, mpi_ierr)
+            call RecordFirstError(ierr, mpi_ierr)
+            call SynchronizeFirstError(ierr, synchronized_ierr)
+            ierr = synchronized_ierr
+            if (ierr /= 0) go to 900
 #ifdef PERFORMANCE
             time2 = MPI_Wtime()
             write (*, *) "Scatter ", a, ": ", time2 - time1
@@ -366,7 +395,11 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
       call Scatter(F_out, F2_out, ads_trial%n(a), &
                         trial_owned_a, &
                   ads_trial%s(b)*ads_trial%s(c), &
-                  dimensions_trial, shifts_trial, comm, ierr)
+                  dimensions_trial, shifts_trial, comm, mpi_ierr)
+      call RecordFirstError(ierr, mpi_ierr)
+      call SynchronizeFirstError(ierr, synchronized_ierr)
+      ierr = synchronized_ierr
+      if (ierr /= 0) go to 900
 #ifdef PERFORMANCE
       time2 = MPI_Wtime()
       write (*, *) "Scatter ", a, ": ", time2 - time1
@@ -374,8 +407,6 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
       !  cleanup
       if (allocated(F_out)) deallocate (F_out)
       if (allocated(Ft_out)) deallocate (Ft_out)
-
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
 
 #ifdef IINFO
       write (*, *) PRINTRANK, a, 'd) REORDER'
@@ -402,8 +433,71 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
       end do
 #endif
 
-      ierr = 0
+900   continue
+
+      if (associated(sprsmtrx)) call clear_matrix(sprsmtrx)
 
 end subroutine solve_problem
+
+!---------------------------------------------------------------------------
+!> @brief Preserves the first nonzero status produced by a staged workflow.
+!---------------------------------------------------------------------------
+subroutine RecordFirstError(first_error, candidate_error)
+      implicit none
+      integer(kind=4), intent(inout) :: first_error
+      integer(kind=4), intent(in) :: candidate_error
+
+      if (first_error == 0 .and. candidate_error /= 0) then
+            first_error = candidate_error
+      end if
+end subroutine RecordFirstError
+
+!---------------------------------------------------------------------------
+!> @brief Makes a local error status identical on every world rank.
+!>
+!> The lowest failing world rank supplies the returned code. With no local
+!> failures, the all-reduction acts as the synchronization point required by
+!> the directional gather/solve/scatter workflow.
+!---------------------------------------------------------------------------
+subroutine SynchronizeFirstError(local_error, global_error)
+      use mpi
+      use parallelism, ONLY: MYRANK
+      implicit none
+      integer(kind=4), intent(in) :: local_error
+      integer(kind=4), intent(out) :: global_error
+      integer(kind=4) :: candidate(2), selected(2)
+      integer(kind=4) :: mpi_ierr, abort_ierr
+
+      candidate(1) = 1
+      if (local_error /= 0) candidate(1) = 0
+      candidate(2) = MYRANK
+
+      call MPI_Allreduce(candidate, selected, 1, MPI_2INTEGER, MPI_MINLOC, &
+                         MPI_COMM_WORLD, mpi_ierr)
+      if (mpi_ierr /= MPI_SUCCESS) then
+            global_error = local_error
+            if (global_error == 0) global_error = mpi_ierr
+            ! A failed world collective cannot be recovered by another
+            ! collective without risking divergent rank paths.
+            call MPI_Abort(MPI_COMM_WORLD, mpi_ierr, abort_ierr)
+            return
+      end if
+
+      if (selected(1) /= 0) then
+            global_error = 0
+            return
+      end if
+
+      global_error = 0
+      if (MYRANK == selected(2)) global_error = local_error
+      call MPI_Bcast(global_error, 1, MPI_INTEGER, selected(2), &
+                     MPI_COMM_WORLD, mpi_ierr)
+      if (mpi_ierr /= MPI_SUCCESS .and. global_error == 0) then
+            global_error = mpi_ierr
+      end if
+      if (mpi_ierr /= MPI_SUCCESS) then
+            call MPI_Abort(MPI_COMM_WORLD, mpi_ierr, abort_ierr)
+      end if
+end subroutine SynchronizeFirstError
 
 end module ads_directional_solve
