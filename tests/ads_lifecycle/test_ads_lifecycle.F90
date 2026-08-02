@@ -24,6 +24,7 @@ program test_ads_lifecycle
    call test_compute_decomposition(failures)
    call test_allocate_data_and_cleanup(failures)
    call test_initialize_setup(failures)
+   call test_one_dof_per_rank(failures)
    call test_full_initialize_and_reinitialize(failures)
 
    if (MYRANK == 0) then
@@ -73,7 +74,8 @@ contains
       type(ADS_Setup) :: ads
       integer(kind=4) :: cleanup_ierr
 
-      ads%n = (/5, 7, 6/)
+      ! N_DOF = 3*P + 1 forces a remainder on every distributed axis.
+      ads%n = 3*(/NRPROCX, NRPROCY, NRPROCZ/)
       ads%p = (/2, 1, 3/)
       call ComputeDecomposition(ads)
 
@@ -158,6 +160,25 @@ contains
                          cleanup_ierr == 0 .and. setup_is_clean(ads), &
                          failure_count)
    end subroutine test_initialize_setup
+
+
+   subroutine test_one_dof_per_rank(failure_count)
+      integer(kind=4), intent(inout) :: failure_count
+      type(ADS_Setup) :: ads
+      integer(kind=4) :: n(3), p(3), cleanup_ierr, setup_ierr
+      integer(kind=4), parameter :: ng(3) = 1
+
+      n = (/NRPROCX, NRPROCY, NRPROCZ/) - 1
+      p = 0
+      where ((/NRPROCX, NRPROCY, NRPROCZ/) > 1) p = 1
+      call initialize_setup(n, p, (/0, 0, 0/), ng, ads, setup_ierr)
+
+      call assert_global('initialize_setup accepts exactly one DOF per rank', &
+         setup_ierr == 0 .and. all(ads%s == 1) .and. &
+         decomposition_matches(ads), failure_count)
+
+      call Cleanup_ADS(ads, cleanup_ierr)
+   end subroutine test_one_dof_per_rank
 
 
    subroutine test_full_initialize_and_reinitialize(failure_count)
@@ -387,10 +408,8 @@ contains
       coords = (/MYRANKX, MYRANKY, MYRANKZ/)
       procs = (/NRPROCX, NRPROCY, NRPROCZ/)
       do axis = 1, 3
-         expected_nrcpp(axis) = (ads%n(axis) + procs(axis))/procs(axis)
-         expected_ibeg(axis) = expected_nrcpp(axis)*coords(axis) + 1
-         expected_iend(axis) = min(expected_nrcpp(axis)*(coords(axis) + 1), &
-                                   ads%n(axis) + 1)
+         call expected_partition(ads%n(axis), procs(axis), coords(axis), &
+            expected_nrcpp(axis), expected_ibeg(axis), expected_iend(axis))
          expected_mine(axis) = max(expected_ibeg(axis) - ads%p(axis) - 1, 1)
          expected_maxe(axis) = min(expected_iend(axis), &
                                    ads%n(axis) + 1 - ads%p(axis))
@@ -407,15 +426,13 @@ contains
 
       stride = expected_s(2)*expected_s(3)
       matches = dim_vector_matches(ads%dimensionsX, ads%shiftsX, &
-         ads%n(1), expected_nrcpp(1), NRPROCX, stride)
+         ads%n(1), NRPROCX, stride)
       stride = expected_s(1)*expected_s(3)
       matches = matches .and. dim_vector_matches( &
-         ads%dimensionsY, ads%shiftsY, ads%n(2), expected_nrcpp(2), &
-         NRPROCY, stride)
+         ads%dimensionsY, ads%shiftsY, ads%n(2), NRPROCY, stride)
       stride = expected_s(1)*expected_s(2)
       matches = matches .and. dim_vector_matches( &
-         ads%dimensionsZ, ads%shiftsZ, ads%n(3), expected_nrcpp(3), &
-         NRPROCZ, stride)
+         ads%dimensionsZ, ads%shiftsZ, ads%n(3), NRPROCZ, stride)
 
       matches = matches .and. neighbour_vector_matches( &
          ads%ibegsx, ads%iendsx, ads%n(1), NRPROCX, MYRANKX)
@@ -426,11 +443,12 @@ contains
    end function decomposition_matches
 
 
-   logical function dim_vector_matches(dims, shifts, n, nrcpp, nrproc, stride) &
+   logical function dim_vector_matches(dims, shifts, n, nrproc, stride) &
       result(matches)
       integer(kind=4), allocatable, intent(in) :: dims(:), shifts(:)
-      integer(kind=4), intent(in) :: n, nrcpp, nrproc, stride
-      integer(kind=4) :: expected_count, expected_shift, i
+      integer(kind=4), intent(in) :: n, nrproc, stride
+      integer(kind=4) :: expected_count, expected_end, expected_nrcpp
+      integer(kind=4) :: expected_begin, expected_shift, i
 
       matches = allocated(dims) .and. allocated(shifts)
       if (.not. matches) return
@@ -439,7 +457,9 @@ contains
 
       expected_shift = 0
       do i = 1, nrproc
-         expected_count = min(nrcpp, n + 1 - nrcpp*(i - 1))*stride
+         call expected_partition(n, nrproc, i - 1, expected_nrcpp, &
+            expected_begin, expected_end)
+         expected_count = (expected_end - expected_begin + 1)*stride
          matches = matches .and. expected_count > 0
          matches = matches .and. dims(i) == expected_count
          matches = matches .and. shifts(i) == expected_shift
@@ -458,15 +478,30 @@ contains
 
       expected_begins = -1
       expected_ends = -1
-      nrcpp = (n + nrproc)/nrproc
       do neighbour = max(rank - 1, 0), min(rank + 1, nrproc - 1)
          slot = neighbour - rank + 2
-         expected_begins(slot) = nrcpp*neighbour + 1
-         expected_ends(slot) = min(nrcpp*(neighbour + 1), n + 1)
+         call expected_partition(n, nrproc, neighbour, nrcpp, &
+            expected_begins(slot), expected_ends(slot))
       end do
       matches = all(begins == expected_begins) .and. &
                 all(ends == expected_ends)
    end function neighbour_vector_matches
+
+
+   pure subroutine expected_partition(n, nrproc, rank, nrcpp, ibeg, iend)
+      integer(kind=4), intent(in) :: n, nrproc, rank
+      integer(kind=4), intent(out) :: nrcpp, ibeg, iend
+      integer(kind=4) :: base, extra, owned
+
+      base = (n + 1)/nrproc
+      extra = mod(n + 1, nrproc)
+      owned = base
+      if (rank < extra) owned = owned + 1
+      ibeg = rank*base + min(rank, extra) + 1
+      iend = ibeg + owned - 1
+      nrcpp = base
+      if (extra > 0) nrcpp = nrcpp + 1
+   end subroutine expected_partition
 
 
    logical function numerical_setup_matches(ads) result(matches)

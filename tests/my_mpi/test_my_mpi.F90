@@ -11,6 +11,21 @@ program test_my_mpi
       InitializeParallelism, Cleanup_Parallelism, Decompose
    implicit none
 
+   integer(kind=4), parameter :: UNEVEN_PROCESS_COUNT = 8
+   integer(kind=4), parameter :: UNEVEN_DOF_COUNT = 25
+   integer(kind=4), parameter :: UNEVEN_TEST_DOF_COUNT = 26
+   integer(kind=4), dimension(UNEVEN_PROCESS_COUNT), parameter :: &
+      UNEVEN_BEGINS = (/1, 5, 8, 11, 14, 17, 20, 23/)
+   integer(kind=4), dimension(UNEVEN_PROCESS_COUNT), parameter :: &
+      UNEVEN_ENDS = (/4, 7, 10, 13, 16, 19, 22, 25/)
+   integer(kind=4), dimension(UNEVEN_PROCESS_COUNT), parameter :: &
+      UNEVEN_OWNED = (/4, 3, 3, 3, 3, 3, 3, 3/)
+   integer(kind=4), dimension(UNEVEN_PROCESS_COUNT), parameter :: &
+      UNEVEN_TEST_BEGINS = (/1, 5, 9, 12, 15, 18, 21, 24/)
+   integer(kind=4), dimension(UNEVEN_PROCESS_COUNT), parameter :: &
+      UNEVEN_TEST_ENDS = (/4, 8, 11, 14, 17, 20, 23, 26/)
+   integer(kind=4), dimension(UNEVEN_PROCESS_COUNT), parameter :: &
+      UNEVEN_TEST_OWNED = (/4, 4, 3, 3, 3, 3, 3, 3/)
    integer(kind=4), dimension(3) :: process_grid
    integer(kind=4) :: checks, failures, ierr
 
@@ -81,10 +96,25 @@ contains
       character(len=96) :: label
 
       call select_axis(axis, axis_rank, axis_size, comm)
-      n = max(4, 2*axis_size - 1)
+      if (axis_size == UNEVEN_PROCESS_COUNT) then
+         n = UNEVEN_DOF_COUNT - 1
+      else
+         n = max(4, 2*axis_size - 1)
+      end if
       call ComputeEndpoints(axis_rank, axis_size, n, p, nrcpp, ibeg, iend, mine, maxe)
       owned = iend - ibeg + 1
       call FillDimVector(dims, shifts, nrcpp, stride, n, axis_size)
+
+      write(label, '(A,I0)') '25-DOF ownership matches fixed oracle on axis ', axis
+      call assert_uneven_partition(trim(label), axis_rank, axis_size, ibeg, &
+         iend, owned, failure_count)
+      if (axis_size == UNEVEN_PROCESS_COUNT) then
+         local_ok = nrcpp == 4 .and. &
+            all(dims == stride*UNEVEN_OWNED) .and. &
+            all(shifts == stride*(UNEVEN_BEGINS - 1))
+         write(label, '(A,I0)') '25-DOF collective layout matches fixed oracle on axis ', axis
+         call assert_global(trim(label), local_ok, failure_count)
+      end if
 
       allocate(local(owned, stride))
       allocate(gathered(n + 1, stride))
@@ -136,11 +166,15 @@ contains
       real(kind=8), allocatable :: part(:,:), full(:,:,:)
       integer(kind=4) :: nrcpp, mine, maxe
       integer(kind=4) :: lx, ly, lz, local_yz, gx, gy, gz
+      integer(kind=4) :: axis, axis_rank, axis_size, comm
       logical :: local_ok
       character(len=96) :: label
 
       n = (/max(4, 2*NRPROCX - 1), max(5, 2*NRPROCY - 1), &
             max(6, 2*NRPROCZ - 1)/)
+      where ((/NRPROCX, NRPROCY, NRPROCZ/) == UNEVEN_PROCESS_COUNT)
+         n = UNEVEN_DOF_COUNT - 1
+      end where
       call ComputeEndpoints(MYRANKX, NRPROCX, n(1), p(1), nrcpp, &
          begs(1), ends(1), mine, maxe)
       call ComputeEndpoints(MYRANKY, NRPROCY, n(2), p(2), nrcpp, &
@@ -148,6 +182,14 @@ contains
       call ComputeEndpoints(MYRANKZ, NRPROCZ, n(3), p(3), nrcpp, &
          begs(3), ends(3), mine, maxe)
       owned = ends - begs + 1
+
+      do axis = 1, 3
+         call select_axis(axis, axis_rank, axis_size, comm)
+         write(label, '(A,I0)') &
+            'GatherFullSolution uses fixed 25-DOF ownership on axis ', axis
+         call assert_uneven_partition(trim(label), axis_rank, axis_size, &
+            begs(axis), ends(axis), owned(axis), failure_count)
+      end do
 
       allocate(part(owned(1), owned(2)*owned(3)))
       do lz = 1, owned(3)
@@ -196,6 +238,7 @@ contains
       integer(kind=4), dimension(3) :: peer_coords, current_coords
       real(kind=8), allocatable :: part(:,:)
       integer(kind=4) :: lx, ly, lz, gx, gy, gz, column, peer, status
+      integer(kind=4) :: axis, axis_rank, axis_size, comm
       integer(kind=4) :: farthest_peer
       logical :: local_ok, wide_peer_seen
 
@@ -204,8 +247,26 @@ contains
       trial_degree = test_degree - 1
       nelem = max((/NRPROCX, NRPROCY, NRPROCZ/), &
                   3*(/NRPROCX, NRPROCY, NRPROCZ/) - 1 - test_degree)
+      where ((/NRPROCX, NRPROCY, NRPROCZ/) == UNEVEN_PROCESS_COUNT)
+         nelem = UNEVEN_DOF_COUNT - trial_degree
+      end where
       call initialize(nelem, test_degree, trial_degree, continuity, test_space, &
                       trial_space, data, status)
+
+      do axis = 1, 3
+         call select_axis(axis, axis_rank, axis_size, comm)
+         if (axis_size /= UNEVEN_PROCESS_COUNT) cycle
+         local_ok = trial_space%n(axis) + 1 == UNEVEN_DOF_COUNT .and. &
+            trial_space%ibeg(axis) == UNEVEN_BEGINS(axis_rank + 1) .and. &
+            trial_space%iend(axis) == UNEVEN_ENDS(axis_rank + 1) .and. &
+            trial_space%s(axis) == UNEVEN_OWNED(axis_rank + 1) .and. &
+            test_space%n(axis) + 1 == UNEVEN_TEST_DOF_COUNT .and. &
+            test_space%ibeg(axis) == UNEVEN_TEST_BEGINS(axis_rank + 1) .and. &
+            test_space%iend(axis) == UNEVEN_TEST_ENDS(axis_rank + 1) .and. &
+            test_space%s(axis) == UNEVEN_TEST_OWNED(axis_rank + 1)
+         call assert_global('mixed-space halo uses fixed 25/26-DOF oracle', &
+            local_ok, failure_count)
+      end do
 
       allocate(part(trial_space%s(1), trial_space%s(2)*trial_space%s(3)))
       do lz = 1, trial_space%s(3)
@@ -259,6 +320,22 @@ contains
       call Cleanup_ADS(test_space, status)
       call Cleanup_ADS(trial_space, status)
    end subroutine test_spline_distribution
+
+
+   subroutine assert_uneven_partition(label, axis_rank, axis_size, ibeg, &
+                                      iend, owned, failure_count)
+      character(len=*), intent(in) :: label
+      integer(kind=4), intent(in) :: axis_rank, axis_size, ibeg, iend, owned
+      integer(kind=4), intent(inout) :: failure_count
+      logical :: local_ok
+
+      if (axis_size /= UNEVEN_PROCESS_COUNT) return
+
+      local_ok = ibeg == UNEVEN_BEGINS(axis_rank + 1) .and. &
+                 iend == UNEVEN_ENDS(axis_rank + 1) .and. &
+                 owned == UNEVEN_OWNED(axis_rank + 1)
+      call assert_global(label, local_ok, failure_count)
+   end subroutine assert_uneven_partition
 
 
    subroutine select_axis(axis, axis_rank, axis_size, comm)

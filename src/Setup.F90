@@ -103,7 +103,8 @@ type ADS_setup
 !> third direction.
       integer(kind=4), allocatable, dimension(:) :: IPIVz
 
-!> @brief Average numbers of columns per processor in each direction.
+!> @brief Maximum numbers of columns owned by one processor in each
+!> direction. The actual balanced local sizes can be one column smaller.
       integer(kind=4), dimension(3) :: nrcpp
 
 !> @brief Lower and upper bounds of the domain fragment assigned to the

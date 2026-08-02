@@ -105,6 +105,7 @@ module parallelism
    character(len=7) :: PRINTRANK
 
    PROTECTED :: MYRANK, NRPROC, NRPROCX, NRPROCY, NRPROCZ, PRINTRANK
+   private :: BalancedBlock
 
 contains
 
@@ -332,6 +333,41 @@ end function LinearIndex
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
+!> @brief Computes one block of a balanced one-dimensional partition.
+!>
+!> @details
+!> The \f$n+1\f$ globally indexed columns are split into contiguous blocks.
+!> Every process receives either
+!> \f$\lfloor(n+1)/\mathit{nrproc}\rfloor\f$ or one more column, with the
+!> remainder assigned to the lowest process ranks.
+!
+!> @param[in] rank Zero-based rank in the selected direction.
+!> @param[in] nrproc Number of processes in the selected direction.
+!> @param[in] n Number of columns minus one.
+!> @param[out] ibeg First owned one-based column index.
+!> @param[out] iend Last owned one-based column index.
+!
+!---------------------------------------------------------------------------
+pure subroutine BalancedBlock(rank, nrproc, n, ibeg, iend)
+   implicit none
+   integer(kind=4), intent(in) :: rank, nrproc, n
+   integer(kind=4), intent(out) :: ibeg, iend
+   integer(kind=4) :: base, owned, remainder
+
+   base = (n + 1)/nrproc
+   remainder = mod(n + 1, nrproc)
+
+   owned = base
+   if (rank < remainder) owned = owned + 1
+
+   ibeg = rank*base + min(rank, remainder) + 1
+   iend = ibeg + owned - 1
+
+end subroutine BalancedBlock
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
 !> @brief Computes the owned basis-function range and corresponding
 !> element range for one process in one coordinate direction.
 !>
@@ -341,9 +377,13 @@ end function LinearIndex
 !> one-dimensional partition with \p nrproc processors.
 !>
 !> The routine computes:
-!> - \p nrcpp, the nominal number of columns per processor,
+!> - \p nrcpp, the maximum number of columns owned by one processor,
 !> - \p ibeg and \p iend, the owned basis-function range,
 !> - \p mine and \p maxe, the element range overlapping that ownership.
+!>
+!> The basis functions are partitioned into contiguous balanced blocks.
+!> The first `mod(n + 1, nrproc)` processors receive one more basis
+!> function than the remaining processors.
 !>
 !> The element count is derived as
 !> \f$\text{elems} = n + 1 - p\f$, consistent with the project
@@ -366,7 +406,8 @@ end function LinearIndex
 ! Output:
 ! -------
 !> @param[out] nrcpp
-!> Nominal number of columns per processor.
+!> Maximum number of columns owned by one processor, equal to
+!> `ceiling((n + 1)/nrproc)`.
 !>
 !> @param[out] ibeg
 !> First owned basis-function index, using one-based indexing.
@@ -383,8 +424,8 @@ end function LinearIndex
 ! Notes:
 ! ------
 !> @note
-!> The last processor in the direction may own fewer columns than
-!> \p nrcpp.
+!> Every processor owns either \p nrcpp or `nrcpp - 1` columns when
+!> `n + 1 >= nrproc`; the larger blocks are assigned to lower ranks.
 !
 !---------------------------------------------------------------------------
 subroutine ComputeEndpoints(rank, nrproc, n, p, nrcpp, ibeg, iend, mine, maxe)
@@ -395,16 +436,9 @@ subroutine ComputeEndpoints(rank, nrproc, n, p, nrcpp, ibeg, iend, mine, maxe)
    integer(kind=4), intent(out) :: nrcpp, ibeg, iend, mine, maxe
 !> @brief Number of elements in the selected direction.
    integer(kind=4) :: elems
-
    elems = n + 1 - p
    nrcpp = (n + 1 + nrproc - 1)/nrproc
-   ibeg = nrcpp*rank + 1
-
-   if (rank == nrproc - 1) then
-      iend = n + 1
-   else
-      iend = nrcpp*(rank + 1)
-   end if
+   call BalancedBlock(rank, nrproc, n, ibeg, iend)
 
    mine = max(ibeg - p - 1, 1)
    maxe = min(iend, elems)
@@ -435,7 +469,9 @@ end subroutine ComputeEndpoints
 ! Input:
 ! ------
 !> @param[in] nrcpp
-!> Nominal number of columns per processor.
+!> Maximum number of columns per processor. Retained in the public
+!> interface for compatibility; exact counts are derived from \p n and
+!> \p nrproc.
 !>
 !> @param[in] stride
 !> Size of the full transverse slice associated with one column.
@@ -457,8 +493,8 @@ end subroutine ComputeEndpoints
 ! Notes:
 ! ------
 !> @note
-!> The last processor may receive a slice size smaller than
-!> \p nrcpp*stride.
+!> The larger blocks are assigned to the lowest process ranks, consistently
+!> with \ref ComputeEndpoints.
 !
 !---------------------------------------------------------------------------
 subroutine FillDimVector(dims, shifts, nrcpp, stride, n, nrproc)
@@ -469,25 +505,17 @@ subroutine FillDimVector(dims, shifts, nrcpp, stride, n, nrproc)
    integer(kind=4), allocatable, dimension(:), intent(out) :: dims, shifts
 !> @brief Loop counter.
    integer(kind=4) :: i
+!> @brief Balanced block bounds for one process.
+   integer(kind=4) :: block_begin, block_end
 
    allocate (dims(nrproc))
    allocate (shifts(nrproc))
 
-   shifts = 0
-   dims = 0
-
-   do i = 1, nrproc - 1
-      dims(i) = nrcpp*stride
-      if (i > 1) shifts(i) = shifts(i - 1) + dims(i - 1)
+   do i = 1, nrproc
+      call BalancedBlock(i - 1, nrproc, n, block_begin, block_end)
+      dims(i) = (block_end - block_begin + 1)*stride
+      shifts(i) = (block_begin - 1)*stride
    end do
-
-   if (nrproc > 1) then
-      dims(nrproc) = ((n + 1) - nrcpp*(nrproc - 1))*stride
-      shifts(nrproc) = shifts(nrproc - 1) + dims(nrproc - 1)
-   else
-      dims(1) = (n + 1)*stride
-      shifts(1) = 0
-   end if
 
 end subroutine FillDimVector
 

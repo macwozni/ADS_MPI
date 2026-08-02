@@ -21,12 +21,20 @@ program test_parallelism
 
    call check_partition('single-rank partition', 6, 3, 1, failures)
    call check_partition('uneven three-way partition', 9, 2, 3, failures)
+   call check_partition('N=25/P=8 remainder partition', 24, 1, 8, failures)
+   call check_partition('N=P one-DOF partition', 7, 1, 8, failures)
+   call check_partition('N=P+1 remainder partition', 8, 1, 8, failures)
+   call check_partition('N=15/P=8 remainder partition', 14, 2, 8, failures)
    call check_partition('X-axis partition', 4, 1, NRPROCX, failures)
    call check_partition('Y-axis partition', 6, 2, NRPROCY, failures)
    call check_partition('Z-axis partition', 8, 3, NRPROCZ, failures)
 
    call check_dim_vectors('single-rank dimension vectors', 6, 1, 4, failures)
    call check_dim_vectors('uneven three-way vectors', 9, 3, 7, failures)
+   call check_dim_vectors('N=25/P=8 dimension vectors', 24, 8, 3, failures)
+   call check_dim_vectors('N=P dimension vectors', 7, 8, 2, failures)
+   call check_dim_vectors('N=P+1 dimension vectors', 8, 8, 5, failures)
+   call check_dim_vectors('N=15/P=8 dimension vectors', 14, 8, 7, failures)
    call check_dim_vectors('X-axis dimension vectors', 4, NRPROCX, 2, failures)
    call check_dim_vectors('Y-axis dimension vectors', 6, NRPROCY, 3, failures)
    call check_dim_vectors('Z-axis dimension vectors', 8, NRPROCZ, 5, failures)
@@ -121,36 +129,47 @@ contains
       integer(kind=4), intent(in) :: n, p, nrproc
       integer(kind=4), intent(inout) :: failure_count
       integer(kind=4), allocatable, dimension(:) :: ownership
+      integer(kind=4), allocatable, dimension(:) :: owned_counts
       integer(kind=4) :: rank, nrcpp, ibeg, iend, mine, maxe
       integer(kind=4) :: expected_nrcpp, expected_ibeg, expected_iend
-      integer(kind=4) :: expected_mine, expected_maxe, elems
-      integer(kind=4) :: previous_end
+      integer(kind=4) :: expected_mine, expected_maxe, expected_count
+      integer(kind=4) :: quotient, remainder, elems, previous_end
       logical :: local_ok
 
       allocate (ownership(n + 1))
+      allocate (owned_counts(nrproc))
       ownership = 0
+      owned_counts = 0
       elems = n + 1 - p
-      expected_nrcpp = (n + nrproc)/nrproc
+      quotient = (n + 1)/nrproc
+      remainder = mod(n + 1, nrproc)
+      expected_nrcpp = quotient
+      if (remainder > 0) expected_nrcpp = expected_nrcpp + 1
       previous_end = 0
-      local_ok = n >= p .and. nrproc > 0
+      local_ok = n >= p .and. nrproc > 0 .and. n + 1 >= nrproc
 
       do rank = 0, nrproc - 1
          call ComputeEndpoints(rank, nrproc, n, p, nrcpp, ibeg, iend, mine, maxe)
 
-         expected_ibeg = expected_nrcpp*rank + 1
-         expected_iend = min(expected_nrcpp*(rank + 1), n + 1)
+         expected_count = quotient
+         if (rank < remainder) expected_count = expected_count + 1
+         expected_ibeg = rank*quotient + min(rank, remainder) + 1
+         expected_iend = expected_ibeg + expected_count - 1
          expected_mine = max(expected_ibeg - p - 1, 1)
          expected_maxe = min(expected_iend, elems)
 
          local_ok = local_ok .and. nrcpp == expected_nrcpp
          local_ok = local_ok .and. ibeg == expected_ibeg
          local_ok = local_ok .and. iend == expected_iend
+         local_ok = local_ok .and. iend - ibeg + 1 == expected_count
          local_ok = local_ok .and. ibeg == previous_end + 1
-         local_ok = local_ok .and. iend >= ibeg
+         local_ok = local_ok .and. expected_count > 0
          local_ok = local_ok .and. mine == expected_mine
          local_ok = local_ok .and. maxe == expected_maxe
          local_ok = local_ok .and. mine >= 1 .and. maxe <= elems
          local_ok = local_ok .and. mine <= maxe
+
+         owned_counts(rank + 1) = iend - ibeg + 1
 
          if (ibeg >= 1 .and. iend <= n + 1 .and. ibeg <= iend) then
             ownership(ibeg:iend) = ownership(ibeg:iend) + 1
@@ -162,8 +181,11 @@ contains
 
       local_ok = local_ok .and. previous_end == n + 1
       local_ok = local_ok .and. all(ownership == 1)
+      local_ok = local_ok .and. all(owned_counts > 0)
+      local_ok = local_ok .and. &
+         maxval(owned_counts) - minval(owned_counts) <= 1
       call assert_global(label, local_ok, failure_count)
-      deallocate (ownership)
+      deallocate (ownership, owned_counts)
    end subroutine check_partition
 
 
@@ -172,10 +194,14 @@ contains
       integer(kind=4), intent(in) :: n, nrproc, stride
       integer(kind=4), intent(inout) :: failure_count
       integer(kind=4), allocatable, dimension(:) :: dims, shifts
-      integer(kind=4) :: i, nrcpp, expected_dim
+      integer(kind=4) :: i, nrcpp, expected_count, expected_shift
+      integer(kind=4) :: quotient, remainder
       logical :: local_ok
 
-      nrcpp = (n + nrproc)/nrproc
+      quotient = (n + 1)/nrproc
+      remainder = mod(n + 1, nrproc)
+      nrcpp = quotient
+      if (remainder > 0) nrcpp = nrcpp + 1
       call FillDimVector(dims, shifts, nrcpp, stride, n, nrproc)
 
       local_ok = allocated(dims) .and. allocated(shifts)
@@ -186,15 +212,18 @@ contains
       local_ok = local_ok .and. all(dims > 0)
       local_ok = local_ok .and. all(mod(dims, stride) == 0)
 
+      expected_shift = 0
       do i = 1, nrproc
-         expected_dim = min(nrcpp, n + 1 - nrcpp*(i - 1))*stride
-         local_ok = local_ok .and. dims(i) == expected_dim
-         if (i > 1) then
-            local_ok = local_ok .and. shifts(i) == shifts(i - 1) + dims(i - 1)
-         end if
+         expected_count = quotient
+         if (i <= remainder) expected_count = expected_count + 1
+         local_ok = local_ok .and. dims(i) == expected_count*stride
+         local_ok = local_ok .and. shifts(i) == expected_shift
+         expected_shift = expected_shift + expected_count*stride
       end do
 
-      local_ok = local_ok .and. shifts(nrproc) + dims(nrproc) == (n + 1)*stride
+      local_ok = local_ok .and. expected_shift == (n + 1)*stride
+      local_ok = local_ok .and. &
+         shifts(nrproc) + dims(nrproc) == (n + 1)*stride
       call assert_global(label, local_ok, failure_count)
       deallocate (dims, shifts)
    end subroutine check_dim_vectors

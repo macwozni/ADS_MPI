@@ -175,9 +175,9 @@ end subroutine initialize
 !> does not use it explicitly in the body of the routine.
 !
 !> @warning
-!> The routine stops execution if the logical problem size in any
+!> The routine stops execution if the number of degrees of freedom in any
 !> direction is smaller than the number of MPI processes assigned to that
-!> direction.
+!> direction. Empty ownership ranges are not supported.
 !
 !---------------------------------------------------------------------------
 subroutine initialize_setup(n, p, continuity, ng, ads, mierr)
@@ -232,9 +232,11 @@ subroutine initialize_setup(n, p, continuity, ng, ads, mierr)
             'size of Ux', n(1) + p2(1) + 2, 'size of Uy', n(2) + p2(2) + 2, 'size of Uz', n(3) + p2(3) + 2
 #endif
 
-      if (n(1) < NRPROCX .or. n(2) < NRPROCY .or. n(3) < NRPROCZ) then
+      if (n(1) < NRPROCX - 1 .or. n(2) < NRPROCY - 1 .or. &
+          n(3) < NRPROCZ - 1) then
             if (MYRANK == 0) then
-                  write (ERROR_UNIT, *) 'Number of elements smaller than number of processors'
+                  write (ERROR_UNIT, *) &
+                     'Number of degrees of freedom smaller than number of processors'
                   flush (ERROR_UNIT)
             end if
             call MPI_Abort(MPI_COMM_WORLD, 4, ierr)
@@ -319,7 +321,7 @@ subroutine ComputeDecomposition(ads)
       type(ADS_setup), intent(inout) :: ads
       integer(kind=4) :: i
       integer(kind=4) :: ix, iy, iz
-      integer(kind=4) :: imine, imaxe
+      integer(kind=4) :: dummy_nrcpp, imine, imaxe
 
       ! number of columns per processors
       call ComputeEndpoints(MYRANKX, NRPROCX, ads%n(1), ads%p(1), ads%nrcpp(1), ads%ibeg(1), &
@@ -355,17 +357,17 @@ subroutine ComputeDecomposition(ads)
 
       do i = max(MYRANKX - 1, 0) + 1, min(MYRANKX + 1, NRPROCX - 1) + 1
             ix = i - MYRANKX + 1
-            call ComputeEndpoints(i - 1, NRPROCX, ads%n(1), ads%p(1), ads%nrcpp(1), ads%ibegsx(ix), &
+            call ComputeEndpoints(i - 1, NRPROCX, ads%n(1), ads%p(1), dummy_nrcpp, ads%ibegsx(ix), &
                                     ads%iendsx(ix), imine, imaxe)
       end do
       do i = max(MYRANKY - 1, 0) + 1, min(MYRANKY + 1, NRPROCY - 1) + 1
             iy = i - MYRANKY + 1
-            call ComputeEndpoints(i - 1, NRPROCY, ads%n(2), ads%p(2), ads%nrcpp(2), ads%ibegsy(iy), &
+            call ComputeEndpoints(i - 1, NRPROCY, ads%n(2), ads%p(2), dummy_nrcpp, ads%ibegsy(iy), &
                                     ads%iendsy(iy), imine, imaxe)
       end do
       do i = max(MYRANKZ - 1, 0) + 1, min(MYRANKZ + 1, NRPROCZ - 1) + 1
             iz = i - MYRANKZ + 1
-            call ComputeEndpoints(i - 1, NRPROCZ, ads%n(3), ads%p(3), ads%nrcpp(3), ads%ibegsz(iz), &
+            call ComputeEndpoints(i - 1, NRPROCZ, ads%n(3), ads%p(3), dummy_nrcpp, ads%ibegsz(iz), &
                                     ads%iendsz(iz), imine, imaxe)
       end do
 

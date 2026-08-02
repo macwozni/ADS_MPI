@@ -12,6 +12,21 @@ program test_ads_directional_solve
 
    integer(kind=4), parameter :: TRIAL_TAG = 1
    integer(kind=4), parameter :: TEST_TAG = 2
+   integer(kind=4), parameter :: UNEVEN_PROCESS_COUNT = 8
+   integer(kind=4), parameter :: TRIAL_DOF_COUNT = 25
+   integer(kind=4), parameter :: TEST_DOF_COUNT = 27
+   integer(kind=4), dimension(UNEVEN_PROCESS_COUNT), parameter :: &
+      TRIAL_BEGINS = (/1, 5, 8, 11, 14, 17, 20, 23/)
+   integer(kind=4), dimension(UNEVEN_PROCESS_COUNT), parameter :: &
+      TRIAL_ENDS = (/4, 7, 10, 13, 16, 19, 22, 25/)
+   integer(kind=4), dimension(UNEVEN_PROCESS_COUNT), parameter :: &
+      TRIAL_OWNED = (/4, 3, 3, 3, 3, 3, 3, 3/)
+   integer(kind=4), dimension(UNEVEN_PROCESS_COUNT), parameter :: &
+      TEST_BEGINS = (/1, 5, 9, 13, 16, 19, 22, 25/)
+   integer(kind=4), dimension(UNEVEN_PROCESS_COUNT), parameter :: &
+      TEST_ENDS = (/4, 8, 12, 15, 18, 21, 24, 27/)
+   integer(kind=4), dimension(UNEVEN_PROCESS_COUNT), parameter :: &
+      TEST_OWNED = (/4, 4, 4, 3, 3, 3, 3, 3/)
    real(kind=8), parameter :: SENTINEL = -987654321.25d0
 
    type(ADS_Setup) :: ads_test, ads_trial
@@ -26,8 +41,10 @@ program test_ads_directional_solve
 
    checks = 0
    failures = 0
-   call prepare_space(ads_trial, (/4, 5, 6/), (/1, 2, 3/), TRIAL_TAG)
-   call prepare_space(ads_test, (/4, 5, 6/), (/2, 4, 5/), TEST_TAG)
+   call prepare_space(ads_trial, (/22, 21, 20/), (/3, 4, 5/), TRIAL_TAG)
+   call prepare_space(ads_test, (/22, 21, 20/), (/5, 6, 7/), TEST_TAG)
+   call assert_uneven_space('trial', ads_trial, TRIAL_TAG, failures)
+   call assert_uneven_space('test', ads_test, TEST_TAG, failures)
 
    direction = 0
    do axis = 1, 3
@@ -301,6 +318,67 @@ contains
    end subroutine release_space
 
 
+   subroutine assert_uneven_space(space_label, ads, tag, failure_count)
+      character(len=*), intent(in) :: space_label
+      type(ADS_Setup), intent(in) :: ads
+      integer(kind=4), intent(in) :: tag
+      integer(kind=4), intent(inout) :: failure_count
+      integer(kind=4) :: axis, rank, process_count, stride
+      integer(kind=4), dimension(UNEVEN_PROCESS_COUNT) :: expected_begins
+      integer(kind=4), dimension(UNEVEN_PROCESS_COUNT) :: expected_ends
+      integer(kind=4), dimension(UNEVEN_PROCESS_COUNT) :: expected_owned
+      integer(kind=4) :: expected_dofs
+      logical :: local_ok
+      character(len=96) :: assertion_label
+
+      select case (tag)
+      case (TRIAL_TAG)
+         expected_dofs = TRIAL_DOF_COUNT
+         expected_begins = TRIAL_BEGINS
+         expected_ends = TRIAL_ENDS
+         expected_owned = TRIAL_OWNED
+      case (TEST_TAG)
+         expected_dofs = TEST_DOF_COUNT
+         expected_begins = TEST_BEGINS
+         expected_ends = TEST_ENDS
+         expected_owned = TEST_OWNED
+      case default
+         stop 74
+      end select
+
+      do axis = 1, 3
+         process_count = axis_process_count(axis)
+         if (process_count /= UNEVEN_PROCESS_COUNT) cycle
+         rank = axis_rank(axis)
+         stride = ads%s(mod(axis, 3) + 1)*ads%s(mod(axis + 1, 3) + 1)
+
+         local_ok = ads%n(axis) + 1 == expected_dofs .and. &
+                    ads%nrcpp(axis) == 4 .and. &
+                    ads%ibeg(axis) == expected_begins(rank + 1) .and. &
+                    ads%iend(axis) == expected_ends(rank + 1) .and. &
+                    ads%s(axis) == expected_owned(rank + 1)
+         select case (axis)
+         case (1)
+            local_ok = local_ok .and. &
+               all(ads%dimensionsX == stride*expected_owned) .and. &
+               all(ads%shiftsX == stride*(expected_begins - 1))
+         case (2)
+            local_ok = local_ok .and. &
+               all(ads%dimensionsY == stride*expected_owned) .and. &
+               all(ads%shiftsY == stride*(expected_begins - 1))
+         case (3)
+            local_ok = local_ok .and. &
+               all(ads%dimensionsZ == stride*expected_owned) .and. &
+               all(ads%shiftsZ == stride*(expected_begins - 1))
+         end select
+
+         write(assertion_label, '(A,A,I0)') trim(space_label), &
+            ' space follows fixed uneven-partition oracle on axis ', axis
+         call assert_global(trim(assertion_label), local_ok, failure_count)
+      end do
+   end subroutine assert_uneven_space
+
+
    subroutine axis_orders(axis, b, c, current_order, next_order)
       integer(kind=4), intent(in) :: axis
       integer(kind=4), intent(out) :: b, c, current_order(3), next_order(3)
@@ -354,6 +432,22 @@ contains
          stop 73
       end select
    end function axis_rank
+
+
+   integer(kind=4) function axis_process_count(axis) result(process_count)
+      integer(kind=4), intent(in) :: axis
+
+      select case (axis)
+      case (1)
+         process_count = NRPROCX
+      case (2)
+         process_count = NRPROCY
+      case (3)
+         process_count = NRPROCZ
+      case default
+         stop 75
+      end select
+   end function axis_process_count
 
 
    logical function exact_array(actual, expected) result(matches)

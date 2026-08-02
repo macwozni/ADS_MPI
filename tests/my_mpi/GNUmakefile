@@ -73,6 +73,8 @@ run: $(TEST_NAME)
 	$(MPIEXEC) -n 4 ./$(TEST_NAME) 1 1 4
 	$(MPIEXEC) -n 8 ./$(TEST_NAME) 4 2 1
 	$(MPIEXEC) -n 8 ./$(TEST_NAME) 8 1 1
+	$(MPIEXEC) -n 8 ./$(TEST_NAME) 1 8 1
+	$(MPIEXEC) -n 8 ./$(TEST_NAME) 1 1 8
 
 clean:
 	$(RM) $(OBJS) $(OBJ_DIR)/*.mod $(TEST_NAME)

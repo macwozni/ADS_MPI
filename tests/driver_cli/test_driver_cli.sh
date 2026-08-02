@@ -270,11 +270,12 @@ expect_failure 'oil huge pump count is rejected before allocation' 1 oil \
     'proper usage with arguments:' 2 1 1 1 1 0 0.1 2147483647 0
 
 # This failure occurs after MPI initialization and used to return success
-# because initialize_setup used an unnumbered STOP.
+# because initialize_setup used an unnumbered STOP. N_DOF, rather than the
+# element count alone, determines whether every rank can own at least one DOF.
 if [[ ${SKIP_MPI_CASES:-0} != 1 ]]; then
-    expect_failure 'elements smaller than process grid' 2 l2 \
-        'Number of elements smaller than number of processors' \
-        1 1 1 1 2 1 1
+    expect_failure 'DOFs smaller than process grid' 2 l2 \
+        'Number of degrees of freedom smaller than number of processors' \
+        1 1 1 0 2 1 1
 fi
 
 if [[ $failures -eq 0 ]]; then
