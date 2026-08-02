@@ -149,9 +149,6 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
       abc(:, 3) = (/3, 1, 2/) ! z x y
       substep = 1
       call FormUn(substep, ads_trial, ads_data)
-      if (allocated(ads_data%R)) deallocate(ads_data%R)
-      allocate (ads_data%R(ads_trial%nrcpp(3)*ads_trial%nrcpp(1)*ads_trial%nrcpp(2), 3, 3, 3))
-      ads_data%R = 0.d0
       if (present(lhs_mix)) then
             call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
                         n, alpha_step, RHS_fun, ads_data, mierr, RHS_point, lhs_mix(:, :, substep))
@@ -182,9 +179,6 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
       abc(:, 3) = (/1, 2, 3/) ! x y z
       substep = 2
       call FormUn(substep, ads_trial, ads_data)
-      if (allocated(ads_data%R)) deallocate(ads_data%R)
-      allocate (ads_data%R(ads_trial%nrcpp(2)*ads_trial%nrcpp(3)*ads_trial%nrcpp(1), 3, 3, 3))
-      ads_data%R = 0.d0
       if (present(lhs_mix)) then
             call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
                         n, alpha_step, RHS_fun, ads_data, mierr, RHS_point, lhs_mix(:, :, substep))
@@ -215,9 +209,6 @@ subroutine MultiStep(iter, mix, RHS_fun, ads_test, ads_trial, ads_data, n, alpha
       abc(:, 3) = (/2, 1, 3/) ! y x z
       substep = 3
       call FormUn(substep, ads_trial, ads_data)
-      if (allocated(ads_data%R)) deallocate(ads_data%R)
-      allocate (ads_data%R(ads_trial%nrcpp(1)*ads_trial%nrcpp(2)*ads_trial%nrcpp(3), 3, 3, 3))
-      ads_data%R = 0.d0
       if (present(lhs_mix)) then
             call Sub_Step(ads_test, ads_trial, iter, mmix, direction, substep, abc, &
                         n, alpha_step, RHS_fun, ads_data, mierr, RHS_point, lhs_mix(:, :, substep))
@@ -312,10 +303,6 @@ subroutine Step(iter, RHS_fun, ads, ads_data, mierr, RHS_point)
       alpha_step = 1.d0
 
 
-      if (allocated(ads_data%R)) deallocate(ads_data%R)
-      allocate (ads_data%R(ads%nrcpp(3)*ads%nrcpp(1)*ads%nrcpp(2), 3, 3, 3))
-      ads_data%R = 0.d0
-
       allocate (ads_data%F (ads%s(1), ads%s(2)*ads%s(3))) !x,y,z
       allocate (ads_data%F2(ads%s(2), ads%s(3)*ads%s(1))) !y,x,z
       allocate (ads_data%F3(ads%s(3), ads%s(1)*ads%s(2))) !z,x,y
@@ -345,9 +332,8 @@ end subroutine Step
 !>   \ref Form3DRHS,
 !> - solves three one-dimensional directional problems through
 !>   \ref solve_problem using the permutation table \p abc,
-!> - injects the resulting coefficients into the central block of
-!>   \p ads_data%R,
-!> - redistributes the updated coefficient block with `DistributeSpline`.
+!> - normalizes the locally owned resulting coefficients,
+!> - assembles the exact coefficient halo with `DistributeSpline`.
 !>
 !> The routine operates both in the standard and iGRM-enriched modes.
 !
@@ -435,13 +421,9 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
       type(ADS_compute_data), intent(inout) :: ads_data
 !> @brief Returned status code.
       integer(kind=4), intent(out) :: mierr
-!> @brief Minimum number of copied values for OpenMP redistribution-buffer fill.
-      integer(kind=4), parameter :: COPY_TO_R_OMP_THRESHOLD = 262144
-      integer(kind=4) :: i,a,b,c
-      integer(kind=4) :: copy_columns, copy_size, copy_width
+      integer(kind=4) :: i,a
       integer(kind=4) :: diridx
       integer(kind=4) :: ierr!, iret
-      integer(kind=4), dimension(3) :: nrcpp
       real(kind=8) :: mass_mix(4)
       real(kind=8) :: solve_mix(4, 3)
       real(kind=8) :: solve_mixA(4), solve_mixB(4), solve_mixBT(4)
@@ -479,8 +461,6 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
 #endif
 
       a=abc(1, 1)
-      b=abc(2, 1)
-      c=abc(3, 1)
 
 !--------------------------------------------------------------------
 ! Solve the first problem
@@ -530,23 +510,7 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
       write (*, *) PRINTRANK, '3e) DISTRIBUTE SOLUTION'
 #endif
       call NormalizeTrialBufferToXYZ(ads_trial, abc(:, 1), ads_data%F)
-      a = 1
-      b = 2
-      c = 3
-
-      !  copy results to proper buffer
-      copy_width = ads_trial%s(a)
-      copy_columns = ads_trial%s(b)*ads_trial%s(c)
-      copy_size = copy_width*copy_columns
-!$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i) SCHEDULE(STATIC) &
-!$OMP IF(copy_size > COPY_TO_R_OMP_THRESHOLD)
-      do i = 1, copy_columns
-            ads_data%R((i - 1)*copy_width + 1:i*copy_width, 2, 2, 2) = ads_data%F(:, i)
-      end do
-!$OMP END PARALLEL DO
-      !  nrcpp - number of columns (average) per processor
-      nrcpp = (/ads_trial%nrcpp(c), ads_trial%nrcpp(a), ads_trial%nrcpp(b)/)
-      call DistributeSpline(ads_data%R, nrcpp)
+      call DistributeSpline(ads_data%F, ads_trial, ads_data)
 
 #ifdef IPRINT
       write (*, *) PRINTRANK, 'Result:'
@@ -554,8 +518,6 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
             write (*, *) PRINTRANK, i, 'row=', ads_trial%F(i, :)
       end do
 #endif
-
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
 
       mierr = 0
 end subroutine Sub_Step

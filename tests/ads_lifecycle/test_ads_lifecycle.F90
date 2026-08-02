@@ -3,7 +3,7 @@ program test_ads_lifecycle
    use mpi
    use Setup, only: ADS_Setup, ADS_compute_data
    use parallelism, only: MYRANK, MYRANKX, MYRANKY, MYRANKZ, &
-      NRPROCX, NRPROCY, NRPROCZ, InitializeParallelism, Cleanup_Parallelism
+      NRPROC, NRPROCX, NRPROCY, NRPROCZ, InitializeParallelism, Cleanup_Parallelism
    use ads_lifecycle, only: initialize, initialize_setup, &
       ComputeDecomposition, AllocateADSdata, AllocateADS, &
       Cleanup_data, Cleanup_ADS
@@ -91,24 +91,26 @@ contains
       integer(kind=4), intent(inout) :: failure_count
       type(ADS_Setup) :: test_space, trial_space
       type(ADS_compute_data) :: data
-      integer(kind=4), parameter :: expected_mine(3) = (/1, 4, 5/)
-      integer(kind=4), parameter :: expected_maxe(3) = (/4, 7, 9/)
-      integer(kind=4), parameter :: expected_ng(3) = (/3, 5, 4/)
-      integer(kind=4) :: cleanup_ierr
+      integer(kind=4), parameter :: nelem(3) = (/8, 7, 9/)
+      integer(kind=4), parameter :: ptest(3) = (/3, 1, 2/)
+      integer(kind=4), parameter :: ptrial(3) = (/1, 3, 1/)
+      integer(kind=4), parameter :: test_ng(3) = (/4, 2, 3/)
+      integer(kind=4), parameter :: trial_ng(3) = (/2, 4, 2/)
+      integer(kind=4) :: cleanup_ierr, setup_ierr
 
-      test_space%mine = (/2, 4, 6/)
-      test_space%maxe = (/4, 7, 7/)
-      test_space%ng = (/3, 2, 4/)
-      test_space%nrcpp = (/9, 8, 7/)
-      trial_space%mine = (/1, 5, 5/)
-      trial_space%maxe = (/3, 6, 9/)
-      trial_space%ng = (/2, 5, 1/)
-      trial_space%nrcpp = (/2, 3, 4/)
+      call initialize_setup(nelem + ptest - 1, ptest, (/0, 0, 0/), &
+                            test_ng, test_space, setup_ierr)
+      call initialize_setup(nelem + ptrial - 1, ptrial, (/0, 0, 0/), &
+                            trial_ng, trial_space, setup_ierr)
 
       call AllocateADSdata(test_space, trial_space, data)
       call assert_global('AllocateADSdata uses union ranges and maximum quadrature', &
-                         data_core_matches(data, expected_mine, expected_maxe, &
-                                           expected_ng, 24), failure_count)
+                         data_core_matches(data, &
+                            min(test_space%mine, trial_space%mine), &
+                            max(test_space%maxe, trial_space%maxe), &
+                            max(test_ng, trial_ng)), failure_count)
+      call assert_global('AllocateADSdata derives an exact reusable halo plan', &
+                         halo_plan_matches(data, trial_space), failure_count)
 
       call allocate_optional_rhs(data)
       call Cleanup_data(data, cleanup_ierr)
@@ -121,6 +123,9 @@ contains
       call assert_global('Cleanup_data is idempotent', &
                          cleanup_ierr == 0 .and. data_is_clean(data), &
                          failure_count)
+
+      call Cleanup_ADS(test_space, cleanup_ierr)
+      call Cleanup_ADS(trial_space, cleanup_ierr)
    end subroutine test_allocate_data_and_cleanup
 
 
@@ -191,8 +196,7 @@ contains
                          data_core_matches(data, &
                             min(test_space%mine, trial_space%mine), &
                             max(test_space%maxe, trial_space%maxe), &
-                            max(test_ng1, trial_ng1), &
-                            product(trial_space%nrcpp)), failure_count)
+                            max(test_ng1, trial_ng1)), failure_count)
 
       call allocate_optional_rhs(data)
       call initialize(nelem2, ptest2, ptrial2, ptrial2 - 1, &
@@ -210,7 +214,7 @@ contains
       local_ok = local_ok .and. data_core_matches(data, &
          min(test_space%mine, trial_space%mine), &
          max(test_space%maxe, trial_space%maxe), &
-         max(test_ng2, trial_ng2), product(trial_space%nrcpp))
+         max(test_ng2, trial_ng2))
       call assert_global('initialize safely replaces existing allocatable state', &
                          local_ok, failure_count)
 
@@ -608,11 +612,11 @@ contains
 
 
    logical function data_core_matches(data, expected_mine, expected_maxe, &
-                                      expected_ng, expected_r_size) &
+                                      expected_ng) &
       result(matches)
       type(ADS_compute_data), intent(in) :: data
       integer(kind=4), intent(in) :: expected_mine(3), expected_maxe(3)
-      integer(kind=4), intent(in) :: expected_ng(3), expected_r_size
+      integer(kind=4), intent(in) :: expected_ng(3)
       integer(kind=4) :: extents(3)
 
       matches = allocated(data%Un) .and. allocated(data%Un13) .and. &
@@ -639,8 +643,40 @@ contains
          (/extents, expected_ng, 3/))
       matches = matches .and. all(shape(data%dUn23) == &
          (/extents, expected_ng, 3/))
-      matches = matches .and. &
-         all(shape(data%R) == (/expected_r_size, 3, 3, 3/))
+      matches = matches .and. all(data%halo_end >= data%halo_begin)
+      matches = matches .and. all(shape(data%R) == &
+         (/data%halo_end - data%halo_begin + 1, 1/))
+      matches = matches .and. allocated(data%halo_send_begin) .and. &
+         allocated(data%halo_send_end) .and. &
+         allocated(data%halo_recv_begin) .and. &
+         allocated(data%halo_recv_end) .and. &
+         allocated(data%halo_send_count) .and. &
+         allocated(data%halo_send_displ) .and. &
+         allocated(data%halo_recv_count) .and. &
+         allocated(data%halo_recv_displ) .and. &
+         allocated(data%halo_send_buffer) .and. &
+         allocated(data%halo_recv_buffer) .and. &
+         allocated(data%halo_requests) .and. &
+         allocated(data%halo_statuses)
+      if (.not. matches) return
+      matches = all(shape(data%halo_send_begin) == (/3, NRPROC/)) .and. &
+         all(shape(data%halo_send_end) == (/3, NRPROC/)) .and. &
+         all(shape(data%halo_recv_begin) == (/3, NRPROC/)) .and. &
+         all(shape(data%halo_recv_end) == (/3, NRPROC/))
+      matches = matches .and. size(data%halo_send_count) == NRPROC .and. &
+         size(data%halo_send_displ) == NRPROC .and. &
+         size(data%halo_recv_count) == NRPROC .and. &
+         size(data%halo_recv_displ) == NRPROC
+      matches = matches .and. all(data%halo_send_count >= 0) .and. &
+         all(data%halo_recv_count >= 0)
+      matches = matches .and. size(data%halo_send_buffer) >= &
+         max(sum(data%halo_send_count), 1)
+      matches = matches .and. size(data%halo_recv_buffer) >= &
+         max(sum(data%halo_recv_count), 1)
+      matches = matches .and. size(data%halo_requests) >= &
+         max(2*(NRPROC - 1), 1)
+      matches = matches .and. all(shape(data%halo_statuses) == &
+         (/MPI_STATUS_SIZE, max(2*(NRPROC - 1), 1)/))
       matches = matches .and. all(lbound(data%Un) == 1) .and. &
          all(lbound(data%Un13) == 1) .and. &
          all(lbound(data%Un23) == 1)
@@ -656,6 +692,27 @@ contains
       matches = matches .and. all(data%rhs_du_state == 0)
       matches = matches .and. optional_rhs_is_unallocated(data)
    end function data_core_matches
+
+
+   logical function halo_plan_matches(data, trial_space) result(matches)
+      type(ADS_compute_data), intent(in) :: data
+      type(ADS_Setup), intent(in) :: trial_space
+      integer(kind=4) :: expected_begin(3), expected_end(3)
+
+      expected_begin = (/ &
+         trial_space%Ox(data%state_mine(1)), &
+         trial_space%Oy(data%state_mine(2)), &
+         trial_space%Oz(data%state_mine(3))/)
+      expected_end = (/ &
+         trial_space%Ox(data%state_maxe(1)) + trial_space%p(1), &
+         trial_space%Oy(data%state_maxe(2)) + trial_space%p(2), &
+         trial_space%Oz(data%state_maxe(3)) + trial_space%p(3)/)
+
+      matches = all(data%halo_begin == expected_begin) .and. &
+         all(data%halo_end == expected_end)
+      matches = matches .and. all(shape(data%R) == &
+         (/expected_end - expected_begin + 1, 1/))
+   end function halo_plan_matches
 
 
    logical function optional_rhs_is_unallocated(data) result(matches)
@@ -716,7 +773,19 @@ contains
          .not. allocated(data%R) .and. .not. allocated(data%Un) .and. &
          .not. allocated(data%Un13) .and. .not. allocated(data%Un23) .and. &
          .not. allocated(data%dUn) .and. .not. allocated(data%dUn0) .and. &
-         .not. allocated(data%dUn13) .and. .not. allocated(data%dUn23)
+         .not. allocated(data%dUn13) .and. .not. allocated(data%dUn23) .and. &
+         .not. allocated(data%halo_send_begin) .and. &
+         .not. allocated(data%halo_send_end) .and. &
+         .not. allocated(data%halo_recv_begin) .and. &
+         .not. allocated(data%halo_recv_end) .and. &
+         .not. allocated(data%halo_send_count) .and. &
+         .not. allocated(data%halo_send_displ) .and. &
+         .not. allocated(data%halo_recv_count) .and. &
+         .not. allocated(data%halo_recv_displ) .and. &
+         .not. allocated(data%halo_send_buffer) .and. &
+         .not. allocated(data%halo_recv_buffer) .and. &
+         .not. allocated(data%halo_requests) .and. &
+         .not. allocated(data%halo_statuses)
    end function data_is_clean
 
 

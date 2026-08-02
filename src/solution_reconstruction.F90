@@ -8,8 +8,8 @@
 !>
 !> @details
 !> This module reconstructs solution values and first derivatives at
-!> quadrature points from the distributed spline coefficient buffers
-!> exchanged between neighbouring MPI ranks.
+!> quadrature points from the distributed spline coefficient halo
+!> assembled from all MPI ranks whose ownership intersects it.
 !>
 !> The reconstructed fields populate the time-history arrays stored in
 !> \ref ADS_compute_data, including the base state and the intermediate
@@ -34,7 +34,7 @@ contains
 !
 ! DESCRIPTION:
 !> @brief Reconstructs solution values and first derivatives at
-!> quadrature points from neighbouring-domain coefficient blocks.
+!> quadrature points from a compact coefficient halo.
 !>
 !> @details
 !> This routine evaluates:
@@ -45,7 +45,7 @@ contains
 !>
 !> For each local element and quadrature point, the procedure loops over
 !> the locally supported tensor-product basis functions, retrieves the
-!> appropriate coefficient from the neighbouring-domain block array
+!> appropriate coefficient from the globally indexed halo
 !> \p ads_data%R, and forms the value and derivatives using the basis
 !> tables stored in \p ads.
 !>
@@ -67,24 +67,17 @@ contains
 !> ADS setup structure containing basis tables and ownership metadata.
 !>
 !> @param[in,out] ads_data
-!> Working data structure containing coefficient blocks and output
+!> Working data structure containing the coefficient halo and output
 !> arrays.
-!
-! Notes:
-! ------
-!> @note
-!> The neighbouring-domain block indices are encoded by the triplet
-!> \f$(r_x,r_y,r_z)\f$ taking values in \f$\{1,2,3\}\f$ for each
-!> direction.
 !
 !> @warning
 !> The procedure assumes that \p ads_data%R and all output arrays have
 !> been allocated consistently with the setup structure.
 !>
-!> @warning
-!> The supported basis functions may reach only the current MPI rank and
-!> its immediate neighbours represented by the 3-by-3-by-3 block stencil
-!> in \p ads_data%R.
+!> @note
+!> The coefficient halo is indexed directly by global basis coordinates;
+!> its width is therefore independent of the number of MPI ranks crossed
+!> by a basis-function support.
 !
 !---------------------------------------------------------------------------
 subroutine FormUn(subun, ads, ads_data)
@@ -105,14 +98,8 @@ subroutine FormUn(subun, ads, ads_data)
    type(ADS_compute_data), intent(inout) :: ads_data
 !> @brief Loop counters over quadrature points and elements.
    integer(kind=4) :: kx, ky, kz, ex, ey, ez, exx, eyy, ezz
-!> @brief Linearized global or local index.
-   integer(kind=4) :: ind
-!> @brief Auxiliary index variables retained for alternate traversal strategies.
-   integer(kind=4) :: tmp, all
-!> @brief Total number of element blocks in the local partition.
-   integer(kind=4) :: total_size
-!> @brief Neighbour-block selectors and local coordinates within these blocks.
-   integer(kind=4) :: rx, ry, rz, ix, iy, iz, sx, sy, sz
+!> @brief Local coordinates within the compact coefficient halo.
+   integer(kind=4) :: ix, iy, iz
 !> @brief Local basis-function indices in the tensor-product basis.
    integer(kind=4) :: bx, by, bz
 !> @brief Reconstructed first derivatives of the solution.
@@ -146,8 +133,8 @@ subroutine FormUn(subun, ads, ads_data)
 
 !      loop over points
 !$OMP PARALLEL DO COLLAPSE(3) DEFAULT(SHARED) &
-!$OMP PRIVATE(ex,ey,ez,kx,ky,kz,ind,statex,statey,statez) &
-!$OMP PRIVATE(bx,by,bz,rx,ry,rz,ix,iy,iz,sx,sy,sz,Ucoeff,dvx,dvy,dvz) &
+!$OMP PRIVATE(ex,ey,ez,kx,ky,kz,statex,statey,statez) &
+!$OMP PRIVATE(bx,by,bz,ix,iy,iz,Ucoeff,dvx,dvy,dvz) &
 !$OMP PRIVATE(indbx,indby,indbz,Uval,dux,duy,duz,v) &
 !$OMP SCHEDULE(STATIC)
    !do all = 1, total_size
@@ -178,44 +165,22 @@ subroutine FormUn(subun, ads, ads_data)
                               indbx = (ads%Ox(ex) + bx)
                               indby = (ads%Oy(ey) + by)
                               indbz = (ads%Oz(ez) + bz)
-                              ind = indbx + (indby + indbz*(ads%n(2) + 1))*(ads%n(1) + 1)
-
-                              rx = 2
-                              ry = 2
-                              rz = 2
-                              if (indbx < ads%ibeg(1) - 1) rx = 1
-                              if (indbx > ads%iend(1) - 1) rx = 3
-                              if (indby < ads%ibeg(2) - 1) ry = 1
-                              if (indby > ads%iend(2) - 1) ry = 3
-                              if (indbz < ads%ibeg(3) - 1) rz = 1
-                              if (indbz > ads%iend(3) - 1) rz = 3
-
-                              ix = indbx - ads%ibegsx(rx) + 1
-                              iy = indby - ads%ibegsy(ry) + 1
-                              iz = indbz - ads%ibegsz(rz) + 1
-                              sx = ads%iendsx(rx) - ads%ibegsx(rx) + 1
-                              sy = ads%iendsy(ry) - ads%ibegsy(ry) + 1
-                              sz = ads%iendsz(rz) - ads%ibegsz(rz) + 1
-                              ind = ix + sx*(iy + sy*iz)
+                              ix = indbx - ads_data%halo_begin(1) + 1
+                              iy = indby - ads_data%halo_begin(2) + 1
+                              iz = indbz - ads_data%halo_begin(3) + 1
 
 #ifdef IDEBUG
-                              if (ind < 0 .or. ind > ads%nrcpp(3)*ads%nrcpp(1)*ads%nrcpp(2) - 1) then
-                                 write (ERROR_UNIT, *) PRINTRANK, 'Oh crap', ix, iy, iz
-                                 write (ERROR_UNIT, *) PRINTRANK, 'r', rx, ry, rz
-                                 write (ERROR_UNIT, *) PRINTRANK, 'x', ads%ibeg(1), ads%iend(1)
-                                 write (ERROR_UNIT, *) PRINTRANK, 'y', ads%ibeg(2), ads%iend(2)
-                                 write (ERROR_UNIT, *) PRINTRANK, 'z', ads%ibeg(3), ads%iend(3)
-                                 write (ERROR_UNIT, *) PRINTRANK, 'sizes=', sx, sy, sz
-                                 write (ERROR_UNIT, *) PRINTRANK, 'begsx=', ads%ibegsx
-                                 write (ERROR_UNIT, *) PRINTRANK, 'endsx=', ads%iendsx
-                                 write (ERROR_UNIT, *) PRINTRANK, 'begsy=', ads%ibegsy
-                                 write (ERROR_UNIT, *) PRINTRANK, 'endsy=', ads%iendsy
-                                 write (ERROR_UNIT, *) PRINTRANK, 'begsz=', ads%ibegsz
-                                 write (ERROR_UNIT, *) PRINTRANK, 'endsz=', ads%iendsz
+                              if (ix < 1 .or. ix > size(ads_data%R, 1) .or. &
+                                  iy < 1 .or. iy > size(ads_data%R, 2) .or. &
+                                  iz < 1 .or. iz > size(ads_data%R, 3)) then
+                                 write (ERROR_UNIT, *) PRINTRANK, &
+                                    'coefficient outside halo:', indbx, indby, indbz
+                                 write (ERROR_UNIT, *) PRINTRANK, &
+                                    'halo bounds:', ads_data%halo_begin, ads_data%halo_end
                               end if
 #endif
 
-                              Ucoeff = ads_data%R(ind + 1, rx, ry, rz)
+                              Ucoeff = ads_data%R(ix, iy, iz, 1)
                               v = ads%NNx(0, bx, kx, ex)*ads%NNy(0, by, ky, ey)*ads%NNz(0, bz, kz, ez)
                               dvx = ads%NNx(1, bx, kx, ex)*ads%NNy(0, by, ky, ey)*ads%NNz(0, bz, kz, ez)
                               dvy = ads%NNx(0, bx, kx, ex)*ads%NNy(1, by, ky, ey)*ads%NNz(0, bz, kz, ez)

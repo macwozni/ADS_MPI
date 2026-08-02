@@ -83,376 +83,104 @@ function neighbour(d) result(idx)
 end function neighbour
 
 !---------------------------------------------------------------------------
-!
-! DESCRIPTION:
-!> @brief Initiates a nonblocking send of one local spline-coefficient
-!> block.
+!> @brief Exchanges exactly the coefficient boxes required for reconstruction.
 !>
-!> @details
-!> This wrapper sends the one-dimensional coefficient buffer \p items to
-!> the destination process \p dst using `mpi_isend`. The number of
-!> transmitted coefficients is computed from the average numbers of
-!> columns per processor stored in \p nrcpp.
-!>
-!> The routine is used internally by \ref DistributeSpline during
-!> neighbour exchange of overlapping spline data.
-!
-! Input:
-! ------
-!> @param[in] items
-!> One-dimensional coefficient buffer to be sent.
-!>
-!> @param[in] dst
-!> Destination process rank.
-!>
-!> @param[in] nrcpp
-!> Average numbers of columns per processor in the three directions.
-!
-! Output:
-! -------
-!> @param[out] req
-!> MPI request handle associated with the nonblocking send.
-!
+!> The communication plan is prepared once by `AllocateADSdata`.  It contains
+!> intersections between the trial-coefficient box owned by every source and
+!> the arbitrarily wide coefficient halo required by every destination.
+!> Consequently, this routine has no nearest-neighbour restriction and sends
+!> neither complete remote blocks nor a globally replicated solution.
 !---------------------------------------------------------------------------
-subroutine send_piece(items, dst, req, nrcpp)
+subroutine DistributeSpline(part, ads_trial, ads_data)
+   use Setup, ONLY: ADS_Setup, ADS_compute_data
+   use parallelism, ONLY: MYRANK, NRPROC
    use mpi
    implicit none
-!> @brief One-dimensional coefficient buffer to be sent.
-   real(kind=8), dimension(:), intent(in) :: items
-!> @brief Destination process rank.
-   integer, intent(in) :: dst
-!> @brief Average numbers of columns per processor.
-   integer(kind=4), dimension(:), intent(in) :: nrcpp
-!> @brief MPI request handle of the nonblocking send.
-   integer, intent(out) :: req
-!> @brief MPI return code.
-   integer :: ierr
+!> @brief Locally owned trial coefficients in normalized X-Y-Z order.
+   real(kind=8), dimension(:, :), intent(in) :: part
+!> @brief Trial-space ownership metadata.
+   type(ADS_setup), intent(in) :: ads_trial
+!> @brief Halo plan, reusable communication buffers, and destination halo.
+   type(ADS_compute_data), intent(inout) :: ads_data
+   integer(kind=4), parameter :: HALO_TAG = 731
+   integer(kind=4) :: peer, count, pos, column
+   integer(kind=4) :: x, y, z, nreq, ierr
+   integer(kind=4), dimension(3) :: owned_begin
 
-   call mpi_isend(items, nrcpp(3)*nrcpp(1)*nrcpp(2), &
-                  MPI_DOUBLE_PRECISION, dst, 0, MPI_COMM_WORLD, req, ierr)
+   owned_begin = ads_trial%ibeg - 1
 
-end subroutine send_piece
-
-!---------------------------------------------------------------------------
-!
-! DESCRIPTION:
-!> @brief Initiates a nonblocking receive of one neighbouring
-!> spline-coefficient block.
-!>
-!> @details
-!> This wrapper receives a one-dimensional coefficient buffer from the
-!> source process \p src using `mpi_irecv`. The expected message length is
-!> computed from the average numbers of columns per processor stored in
-!> \p nrcpp.
-!>
-!> The routine is used internally by \ref DistributeSpline during
-!> neighbour exchange of overlapping spline data.
-!
-! Input:
-! ------
-!> @param[in] src
-!> Source process rank.
-!>
-!> @param[in] nrcpp
-!> Average numbers of columns per processor in the three directions.
-!
-! Input/Output:
-! -------------
-!> @param[inout] items
-!> Receive buffer for the incoming coefficient block.
-!
-! Output:
-! -------
-!> @param[out] req
-!> MPI request handle associated with the nonblocking receive.
-!
-!---------------------------------------------------------------------------
-subroutine recv_piece(items, src, req, nrcpp)
-   use mpi
-   implicit none
-!> @brief Receive buffer for the incoming coefficient block.
-   real(kind=8), dimension(:), intent(inout) :: items
-!> @brief Source process rank.
-   integer(kind=4), intent(in) :: src
-!> @brief MPI request handle of the nonblocking receive.
-   integer(kind=4), intent(out) :: req
-!> @brief Average numbers of columns per processor.
-   integer(kind=4), dimension(:), intent(in) :: nrcpp
-!> @brief MPI return code.
-   integer(kind=4) :: ierr
-
-   call mpi_irecv(items, nrcpp(3)*nrcpp(1)*nrcpp(2), &
-                  MPI_DOUBLE_PRECISION, src, 0, MPI_COMM_WORLD, req, ierr)
-
-end subroutine recv_piece
-
-!---------------------------------------------------------------------------
-!
-! DESCRIPTION:
-!> @brief Exchanges overlapping spline-coefficient blocks between
-!> neighbouring processes.
-!>
-!> @details
-!> This routine distributes the locally available spline coefficients so
-!> that each process possesses enough neighbouring data to evaluate
-!> tensor-product spline fields near subdomain boundaries.
-!>
-!> The exchange proceeds in several directional stages:
-!> - first along the first direction,
-!> - then along the second direction,
-!> - then along the third direction,
-!> - with intermediate waits between stages to preserve the intended
-!>   dependency ordering.
-!>
-!> The communicated coefficient blocks are stored in the four-dimensional
-!> array \p spline, whose second, third, and fourth indices encode the
-!> relative neighbour position in the \f$3\times3\times3\f$ surrounding
-!> process stencil.
-!>
-!> This routine is central for all computations that require neighbouring
-!> solution coefficients, such as local reconstruction at quadrature
-!> points in the ADS workflow.
-!
-! Input:
-! ------
-!> @param[in] nrcpp
-!> Average numbers of columns per processor in the three directions.
-!
-! Input/Output:
-! -------------
-!> @param[inout] spline
-!> Buffer storing coefficient blocks associated with neighbouring domain
-!> fragments.
-!
-! Notes:
-! ------
-!> @note
-!> Communication is implemented with nonblocking point-to-point MPI calls
-!> followed by explicit waits after each directional stage.
-!
-!> @warning
-!> The routine assumes that the storage layout of \p spline is compatible
-!> with the hard-coded neighbour-stencil convention.
-!
-!---------------------------------------------------------------------------
-subroutine DistributeSpline(spline, nrcpp)
-   use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ, NRPROCX, NRPROCY, NRPROCZ
-   use mpi
-   implicit none
-!> @brief Average numbers of columns per processor.
-   integer(kind=4), dimension(:), intent(in) :: nrcpp
-!> @brief Local and neighbouring spline-coefficient blocks.
-   real(kind=8), dimension(:, :, :, :), intent(inout) :: spline
-!> @brief Request counter and wait-loop counter.
-   integer(kind=4) :: s, i
-!> @brief Array of MPI request handles.
-   integer(kind=4), dimension(3*3*3*2) :: request
-!> @brief MPI status buffer used by `mpi_wait`.
-   integer(kind=4), dimension(MPI_STATUS_SIZE) :: stat(MPI_STATUS_SIZE)
-!> @brief MPI return code.
-   integer(kind=4) :: fierr
-!> @brief Destination and source process ranks.
-   integer(kind=4) :: dst, src
-!> @brief Temporary neighbour displacement vector.
-   integer(kind=4), dimension(3) :: temp
-
-   s = 1
-
-! Right
-   if (MYRANKX < NRPROCX - 1) then
-      temp = (/1, 0, 0/)
-      dst = neighbour(temp)
-      call send_piece(spline(:, 2, 2, 2), dst, request(s), nrcpp)
-      s = s + 1
-   end if
-   if (MYRANKX > 0) then
-      temp = (/-1, 0, 0/)
-      src = neighbour(temp)
-      call recv_piece(spline(:, 1, 2, 2), src, request(s), nrcpp)
-      s = s + 1
-   end if
-
-   do i = 1, s - 1
-      call mpi_wait(request(i), stat, fierr)
+   ! Pack each source/destination intersection from the local coefficient
+   ! block.  X is the fastest-changing coordinate in both layouts.
+   do peer = 1, NRPROC
+      count = ads_data%halo_send_count(peer)
+      if (count == 0) cycle
+      pos = ads_data%halo_send_displ(peer) + 1
+      do z = ads_data%halo_send_begin(3, peer), ads_data%halo_send_end(3, peer)
+         do y = ads_data%halo_send_begin(2, peer), ads_data%halo_send_end(2, peer)
+            column = y - owned_begin(2) + &
+                     (z - owned_begin(3))*ads_trial%s(2) + 1
+            do x = ads_data%halo_send_begin(1, peer), ads_data%halo_send_end(1, peer)
+               ads_data%halo_send_buffer(pos) = part(x - owned_begin(1) + 1, column)
+               pos = pos + 1
+            end do
+         end do
+      end do
    end do
-   s = 1
 
-   ! Up
-   if (MYRANKY > 0) then
-      temp = (/0, -1, 0/)
-      dst = neighbour(temp)
-      call send_piece(spline(:, 2, 2, 2), dst, request(s), nrcpp)
-      s = s + 1
-      call send_piece(spline(:, 1, 2, 2), dst, request(s), nrcpp)
-      s = s + 1
-   end if
-   if (MYRANKY < NRPROCY - 1) then
-      temp = (/0, 1, 0/)
-      src = neighbour(temp)
-      call recv_piece(spline(:, 2, 3, 2), src, request(s), nrcpp)
-      s = s + 1
-      call recv_piece(spline(:, 1, 3, 2), src, request(s), nrcpp)
-      s = s + 1
-   end if
+   nreq = 0
 
-   do i = 1, s - 1
-      call mpi_wait(request(i), stat, fierr)
+   ! Post all receives before sends.  The self-intersection is copied without
+   ! entering MPI; every other peer is independent of its distance in the
+   ! logical process grid.
+   do peer = 1, NRPROC
+      count = ads_data%halo_recv_count(peer)
+      if (count == 0 .or. peer == MYRANK + 1) cycle
+      nreq = nreq + 1
+      pos = ads_data%halo_recv_displ(peer) + 1
+      call mpi_irecv(ads_data%halo_recv_buffer(pos:pos + count - 1), count, &
+                     MPI_DOUBLE_PRECISION, peer - 1, HALO_TAG, MPI_COMM_WORLD, &
+                     ads_data%halo_requests(nreq), ierr)
    end do
-   s = 1
 
-! Left
-   if (MYRANKX > 0) then
-      temp = (/-1, 0, 0/)
-      dst = neighbour(temp)
-      call send_piece(spline(:, 2, 2, 2), dst, request(s), nrcpp)
-      s = s + 1
-      call send_piece(spline(:, 2, 3, 2), dst, request(s), nrcpp)
-      s = s + 1
-   end if
-   if (MYRANKX < NRPROCX - 1) then
-      temp = (/1, 0, 0/)
-      src = neighbour(temp)
-      call recv_piece(spline(:, 3, 2, 2), src, request(s), nrcpp)
-      s = s + 1
-      call recv_piece(spline(:, 3, 3, 2), src, request(s), nrcpp)
-      s = s + 1
-   end if
-
-   do i = 1, s - 1
-      call mpi_wait(request(i), stat, fierr)
+   do peer = 1, NRPROC
+      count = ads_data%halo_send_count(peer)
+      if (count == 0 .or. peer == MYRANK + 1) cycle
+      nreq = nreq + 1
+      pos = ads_data%halo_send_displ(peer) + 1
+      call mpi_isend(ads_data%halo_send_buffer(pos:pos + count - 1), count, &
+                     MPI_DOUBLE_PRECISION, peer - 1, HALO_TAG, MPI_COMM_WORLD, &
+                     ads_data%halo_requests(nreq), ierr)
    end do
-   s = 1
 
-! Above
-   if (MYRANKZ < NRPROCZ - 1) then
-      temp = (/0, 0, 1/)
-      dst = neighbour(temp)
-      call send_piece(spline(:, 2, 2, 2), dst, request(s), nrcpp)
-      s = s + 1
-      call send_piece(spline(:, 1, 2, 2), dst, request(s), nrcpp)
-      s = s + 1
-      call send_piece(spline(:, 1, 3, 2), dst, request(s), nrcpp)
-      s = s + 1
-      call send_piece(spline(:, 2, 3, 2), dst, request(s), nrcpp)
-      s = s + 1
-      call send_piece(spline(:, 3, 3, 2), dst, request(s), nrcpp)
-      s = s + 1
-      call send_piece(spline(:, 3, 2, 2), dst, request(s), nrcpp)
-      s = s + 1
-   end if
-   if (MYRANKZ > 0) then
-      temp = (/0, 0, -1/)
-      src = neighbour(temp)
-      call recv_piece(spline(:, 2, 2, 1), src, request(s), nrcpp)
-      s = s + 1
-      call recv_piece(spline(:, 1, 2, 1), src, request(s), nrcpp)
-      s = s + 1
-      call recv_piece(spline(:, 1, 3, 1), src, request(s), nrcpp)
-      s = s + 1
-      call recv_piece(spline(:, 2, 3, 1), src, request(s), nrcpp)
-      s = s + 1
-      call recv_piece(spline(:, 3, 3, 1), src, request(s), nrcpp)
-      s = s + 1
-      call recv_piece(spline(:, 3, 2, 1), src, request(s), nrcpp)
-      s = s + 1
+   peer = MYRANK + 1
+   count = ads_data%halo_recv_count(peer)
+   if (count > 0) then
+      ads_data%halo_recv_buffer( &
+         ads_data%halo_recv_displ(peer) + 1:ads_data%halo_recv_displ(peer) + count) = &
+      ads_data%halo_send_buffer( &
+         ads_data%halo_send_displ(peer) + 1:ads_data%halo_send_displ(peer) + count)
    end if
 
-   do i = 1, s - 1
-      call mpi_wait(request(i), stat, fierr)
+   if (nreq > 0) call mpi_waitall(nreq, ads_data%halo_requests, &
+                                  ads_data%halo_statuses, ierr)
+
+   ! Unpack the received intersections into one compact global-indexed halo.
+   do peer = 1, NRPROC
+      count = ads_data%halo_recv_count(peer)
+      if (count == 0) cycle
+      pos = ads_data%halo_recv_displ(peer) + 1
+      do z = ads_data%halo_recv_begin(3, peer), ads_data%halo_recv_end(3, peer)
+         do y = ads_data%halo_recv_begin(2, peer), ads_data%halo_recv_end(2, peer)
+            do x = ads_data%halo_recv_begin(1, peer), ads_data%halo_recv_end(1, peer)
+               ads_data%R(x - ads_data%halo_begin(1) + 1, &
+                          y - ads_data%halo_begin(2) + 1, &
+                          z - ads_data%halo_begin(3) + 1, 1) = &
+                  ads_data%halo_recv_buffer(pos)
+               pos = pos + 1
+            end do
+         end do
+      end do
    end do
-   s = 1
-
-! Down
-   if (MYRANKY < NRPROCY - 1) then
-      temp = (/0, 1, 0/)
-      dst = neighbour(temp)
-      call send_piece(spline(:, 2, 2, 2), dst, request(s), nrcpp)
-      s = s + 1
-      call send_piece(spline(:, 1, 2, 2), dst, request(s), nrcpp)
-      s = s + 1
-      call send_piece(spline(:, 3, 2, 2), dst, request(s), nrcpp)
-      s = s + 1
-      call send_piece(spline(:, 1, 2, 1), dst, request(s), nrcpp)
-      s = s + 1
-      call send_piece(spline(:, 2, 2, 1), dst, request(s), nrcpp)
-      s = s + 1
-      call send_piece(spline(:, 3, 2, 1), dst, request(s), nrcpp)
-      s = s + 1
-   end if
-   if (MYRANKY > 0) then
-      temp = (/0, -1, 0/)
-      src = neighbour(temp)
-      call recv_piece(spline(:, 2, 1, 2), src, request(s), nrcpp)
-      s = s + 1
-      call recv_piece(spline(:, 1, 1, 2), src, request(s), nrcpp)
-      s = s + 1
-      call recv_piece(spline(:, 3, 1, 2), src, request(s), nrcpp)
-      s = s + 1
-      call recv_piece(spline(:, 1, 1, 1), src, request(s), nrcpp)
-      s = s + 1
-      call recv_piece(spline(:, 2, 1, 1), src, request(s), nrcpp)
-      s = s + 1
-      call recv_piece(spline(:, 3, 1, 1), src, request(s), nrcpp)
-      s = s + 1
-   end if
-
-   do i = 1, s - 1
-      call mpi_wait(request(i), stat, fierr)
-   end do
-   s = 1
-
-! Below
-   if (MYRANKZ > 0) then
-      temp = (/0, 0, -1/)
-      dst = neighbour(temp)
-      call send_piece(spline(:, 1, 1, 2), dst, request(s), nrcpp)
-      s = s + 1
-      call send_piece(spline(:, 1, 2, 2), dst, request(s), nrcpp)
-      s = s + 1
-      call send_piece(spline(:, 1, 3, 2), dst, request(s), nrcpp)
-      s = s + 1
-      call send_piece(spline(:, 2, 1, 2), dst, request(s), nrcpp)
-      s = s + 1
-      call send_piece(spline(:, 2, 2, 2), dst, request(s), nrcpp)
-      s = s + 1
-      call send_piece(spline(:, 2, 3, 2), dst, request(s), nrcpp)
-      s = s + 1
-      call send_piece(spline(:, 3, 1, 2), dst, request(s), nrcpp)
-      s = s + 1
-      call send_piece(spline(:, 3, 2, 2), dst, request(s), nrcpp)
-      s = s + 1
-      call send_piece(spline(:, 3, 3, 2), dst, request(s), nrcpp)
-      s = s + 1
-   end if
-   if (MYRANKZ < NRPROCZ - 1) then
-      temp = (/0, 0, 1/)
-      src = neighbour(temp)
-      call recv_piece(spline(:, 1, 1, 3), src, request(s), nrcpp)
-      s = s + 1
-      call recv_piece(spline(:, 1, 2, 3), src, request(s), nrcpp)
-      s = s + 1
-      call recv_piece(spline(:, 1, 3, 3), src, request(s), nrcpp)
-      s = s + 1
-      call recv_piece(spline(:, 2, 1, 3), src, request(s), nrcpp)
-      s = s + 1
-      call recv_piece(spline(:, 2, 2, 3), src, request(s), nrcpp)
-      s = s + 1
-      call recv_piece(spline(:, 2, 3, 3), src, request(s), nrcpp)
-      s = s + 1
-      call recv_piece(spline(:, 3, 1, 3), src, request(s), nrcpp)
-      s = s + 1
-      call recv_piece(spline(:, 3, 2, 3), src, request(s), nrcpp)
-      s = s + 1
-      call recv_piece(spline(:, 3, 3, 3), src, request(s), nrcpp)
-      s = s + 1
-   end if
-
-   do i = 1, s - 1
-      call mpi_wait(request(i), stat, fierr)
-   end do
-   s = 1
-
-   call mpi_barrier(MPI_COMM_WORLD, fierr)
 
 end subroutine DistributeSpline
 

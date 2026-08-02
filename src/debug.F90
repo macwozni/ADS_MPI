@@ -36,17 +36,8 @@ contains
 !> coefficient-exchange array.
 !>
 !> @details
-!> This routine displays the contents of the neighbour-data buffer
-!> \p ads_data%R for all process neighbours surrounding the current
-!> process in the logical process cube.
-!>
-!> For each neighbouring process block, the routine:
-!> - computes the owned ranges in all three directions using
-!>   \ref ComputeEndpoints,
-!> - reconstructs the logical shape of the redistributed block,
-!> - reshapes the corresponding one-dimensional storage slice of
-!>   \p ads_data%R into a three-dimensional array,
-!> - writes the result to standard output.
+!> This routine displays the compact coefficient halo \p ads_data%R and
+!> its inclusive global-index bounds.
 !>
 !> The printed data are useful when verifying redistribution or halo-like
 !> exchange stages preceding local spline reconstruction.
@@ -59,45 +50,22 @@ contains
 !> @param[in] ads_data
 !> Runtime-data structure containing redistributed neighbour buffers.
 !
-! Notes:
-! ------
-!> @note
-!> The routine prints only the neighbourhood within one process step in
-!> each direction around the current process.
-!
 !---------------------------------------------------------------------------
 subroutine PrintDistributedData(ads, ads_data)
    use Setup, ONLY: ADS_Setup, ADS_compute_data
-   use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ, PRINTRANK, &
-                           NRPROCX, NRPROCY, NRPROCZ, ComputeEndpoints
+   use parallelism, ONLY: PRINTRANK
    implicit none
 !> @brief ADS setup structure containing decomposition metadata.
    type(ADS_setup), intent(inout) :: ads
 !> @brief Runtime-data structure holding redistributed neighbour blocks.
    type(ADS_compute_data), intent(in) :: ads_data
-!> @brief Loop counters over neighbouring process-grid coordinates.
-   integer(kind=4) :: i, j, k
-!> @brief Owned basis-function bounds of a selected neighbour block.
-   integer(kind=4) :: obegx, oendx, obegy, oendy, obegz, oendz
-!> @brief Auxiliary element-range outputs from `ComputeEndpoints`.
-   integer(kind=4) :: mine, maxe
+!> @brief Loop counter over halo planes.
+   integer(kind=4) :: k
 
-   write (*, *) PRINTRANK, 'R:'
-
-   do i = max(MYRANKX - 1, 0) + 1, min(MYRANKX + 1, NRPROCX - 1) + 1
-      do j = max(MYRANKY - 1, 0) + 1, min(MYRANKY + 1, NRPROCY - 1) + 1
-         do k = max(MYRANKZ - 1, 0) + 1, min(MYRANKZ + 1, NRPROCZ - 1) + 1
-            write (*, *) '(i,j,k)=', i + 1, j + 1, k + 1
-
-            call ComputeEndpoints(i - 1, NRPROCX, ads%n(1), ads%p(1), ads%nrcpp(1), obegx, oendx, mine, maxe)
-            call ComputeEndpoints(j - 1, NRPROCY, ads%n(2), ads%p(2), ads%nrcpp(2), obegy, oendy, mine, maxe)
-            call ComputeEndpoints(k - 1, NRPROCZ, ads%n(3), ads%p(3), ads%nrcpp(3), obegz, oendz, mine, maxe)
-
-            write (*, *) reshape( &
-               ads_data%R(:, i - MYRANKX + 1, j - MYRANKY + 1, k - MYRANKZ + 1), &
-               (/oendz - obegz + 1, oendx - obegx + 1, oendy - obegy + 1/))
-         end do
-      end do
+   write (*, *) PRINTRANK, 'R bounds:', ads_data%halo_begin, ads_data%halo_end
+   do k = 1, size(ads_data%R, 3)
+      write (*, *) PRINTRANK, 'R z-index:', ads_data%halo_begin(3) + k - 1
+      write (*, *) ads_data%R(:, :, k, 1)
    end do
 
    write (*, *) '----'

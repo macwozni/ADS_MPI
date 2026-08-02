@@ -379,11 +379,13 @@ end subroutine ComputeDecomposition
 !>
 !> @details
 !> This routine allocates solution buffers sampled on element/quadrature
-!> grids and the neighbor-block coefficient array \p R used during local
-!> reconstruction and communication-driven updates.
+!> grids, the compact coefficient halo \p R, and a reusable sparse MPI
+!> exchange plan used during local reconstruction.
 !>
-!> The sizes are derived from the trial-space element ownership and
-!> quadrature layout.
+!> The halo bounds are derived from the union of test/trial element ranges
+!> and the actual trial-basis support tables.  Ownership and demand boxes
+!> are gathered once so later time steps communicate only their pairwise
+!> intersections.
 !
 ! Input:
 ! ------
@@ -398,16 +400,10 @@ end subroutine ComputeDecomposition
 !> @param[out] ads_data
 !> Runtime-data structure with allocated core buffers.
 !
-! Notes:
-! ------
-!> @warning
-!> The allocation formula for \p ads_data%R is explicitly marked in the
-!> source as a place requiring later revision.
-!
 !---------------------------------------------------------------------------
 subroutine AllocateADSdata(ads_test, ads_trial, ads_data)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
-      ! use parallelism, ONLY: MYRANKX, MYRANKY, MYRANKZ
+      use parallelism, ONLY: NRPROC
       use mpi
       implicit none
 !> @brief Test and trial setup structures.
@@ -416,6 +412,10 @@ subroutine AllocateADSdata(ads_test, ads_trial, ads_data)
       type(ADS_compute_data), intent(out) :: ads_data
       integer :: ierr
       integer(kind=4), dimension(3) :: state_ng
+      integer(kind=4), dimension(3) :: send_extent, recv_extent
+      integer(kind=4), dimension(12) :: local_boxes
+      integer(kind=4), allocatable, dimension(:, :) :: all_boxes
+      integer(kind=4) :: peer, total_send, total_recv
 
       ads_data%state_mine = min(ads_test%mine, ads_trial%mine)
       ads_data%state_maxe = max(ads_test%maxe, ads_trial%maxe)
@@ -445,16 +445,71 @@ subroutine AllocateADSdata(ads_test, ads_trial, ads_data)
       ads_data%dUn23 = 0.d0
       ads_data%rhs_du_state = 0
 
-      ! OLD: MP start with system fully generated along X
-      ! allocate( F((n+1),(sy)*(sz))) !x,y,z
-      !allocate( ads_data % F_test(ads % s(1), ads % s(2) * ads % s(3))) !x,y,z
+      ! The state buffers cover the union of the test and trial element
+      ! ranges.  Reconstructing the trial solution on that union requires
+      ! every trial coefficient supported on those elements.
+      ads_data%halo_begin = (/ &
+            ads_trial%Ox(ads_data%state_mine(1)), &
+            ads_trial%Oy(ads_data%state_mine(2)), &
+            ads_trial%Oz(ads_data%state_mine(3))/)
+      ads_data%halo_end = (/ &
+            ads_trial%Ox(ads_data%state_maxe(1)) + ads_trial%p(1), &
+            ads_trial%Oy(ads_data%state_maxe(2)) + ads_trial%p(2), &
+            ads_trial%Oz(ads_data%state_maxe(3)) + ads_trial%p(3)/)
 
+      ! Gather ownership and demand boxes once.  The resulting peer plan is
+      ! reused by every time step; no global metadata exchange is needed in
+      ! the reconstruction hot path.
+      local_boxes(1:3) = ads_trial%ibeg - 1
+      local_boxes(4:6) = ads_trial%iend - 1
+      local_boxes(7:9) = ads_data%halo_begin
+      local_boxes(10:12) = ads_data%halo_end
+      allocate (all_boxes(12, NRPROC))
+      call mpi_allgather(local_boxes, 12, MPI_INTEGER, all_boxes, 12, &
+                         MPI_INTEGER, MPI_COMM_WORLD, ierr)
 
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TODO CHANGE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      allocate (ads_data%R(ads_trial%nrcpp(3)*ads_trial%nrcpp(1)*ads_trial%nrcpp(2), 3, 3, 3))
+      allocate (ads_data%halo_send_begin(3, NRPROC), ads_data%halo_send_end(3, NRPROC))
+      allocate (ads_data%halo_recv_begin(3, NRPROC), ads_data%halo_recv_end(3, NRPROC))
+      allocate (ads_data%halo_send_count(NRPROC), ads_data%halo_send_displ(NRPROC))
+      allocate (ads_data%halo_recv_count(NRPROC), ads_data%halo_recv_displ(NRPROC))
+
+      do peer = 1, NRPROC
+            ads_data%halo_send_begin(:, peer) = max(local_boxes(1:3), all_boxes(7:9, peer))
+            ads_data%halo_send_end(:, peer) = min(local_boxes(4:6), all_boxes(10:12, peer))
+            send_extent = max(ads_data%halo_send_end(:, peer) - &
+                              ads_data%halo_send_begin(:, peer) + 1, 0)
+            ads_data%halo_send_count(peer) = product(send_extent)
+
+            ads_data%halo_recv_begin(:, peer) = max(all_boxes(1:3, peer), local_boxes(7:9))
+            ads_data%halo_recv_end(:, peer) = min(all_boxes(4:6, peer), local_boxes(10:12))
+            recv_extent = max(ads_data%halo_recv_end(:, peer) - &
+                              ads_data%halo_recv_begin(:, peer) + 1, 0)
+            ads_data%halo_recv_count(peer) = product(recv_extent)
+      end do
+
+      ads_data%halo_send_displ(1) = 0
+      ads_data%halo_recv_displ(1) = 0
+      do peer = 2, NRPROC
+            ads_data%halo_send_displ(peer) = ads_data%halo_send_displ(peer - 1) + &
+                                             ads_data%halo_send_count(peer - 1)
+            ads_data%halo_recv_displ(peer) = ads_data%halo_recv_displ(peer - 1) + &
+                                             ads_data%halo_recv_count(peer - 1)
+      end do
+      total_send = ads_data%halo_send_displ(NRPROC) + ads_data%halo_send_count(NRPROC)
+      total_recv = ads_data%halo_recv_displ(NRPROC) + ads_data%halo_recv_count(NRPROC)
+      allocate (ads_data%halo_send_buffer(max(total_send, 1)))
+      allocate (ads_data%halo_recv_buffer(max(total_recv, 1)))
+      allocate (ads_data%halo_requests(max(2*(NRPROC - 1), 1)))
+      allocate (ads_data%halo_statuses(MPI_STATUS_SIZE, max(2*(NRPROC - 1), 1)))
+      ads_data%halo_send_buffer = 0.d0
+      ads_data%halo_recv_buffer = 0.d0
+      deallocate (all_boxes)
+
+      allocate (ads_data%R( &
+            ads_data%halo_end(1) - ads_data%halo_begin(1) + 1, &
+            ads_data%halo_end(2) - ads_data%halo_begin(2) + 1, &
+            ads_data%halo_end(3) - ads_data%halo_begin(3) + 1, 1))
       ads_data%R = 0.d0
-
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
 
 end subroutine AllocateADSdata
 
@@ -579,6 +634,18 @@ subroutine Cleanup_data(ads_data, mierr)
       if (allocated(ads_data%dUn23)) deallocate (ads_data%dUn23)
 
       if (allocated(ads_data%R)) deallocate (ads_data%R)
+      if (allocated(ads_data%halo_send_begin)) deallocate (ads_data%halo_send_begin)
+      if (allocated(ads_data%halo_send_end)) deallocate (ads_data%halo_send_end)
+      if (allocated(ads_data%halo_recv_begin)) deallocate (ads_data%halo_recv_begin)
+      if (allocated(ads_data%halo_recv_end)) deallocate (ads_data%halo_recv_end)
+      if (allocated(ads_data%halo_send_count)) deallocate (ads_data%halo_send_count)
+      if (allocated(ads_data%halo_send_displ)) deallocate (ads_data%halo_send_displ)
+      if (allocated(ads_data%halo_recv_count)) deallocate (ads_data%halo_recv_count)
+      if (allocated(ads_data%halo_recv_displ)) deallocate (ads_data%halo_recv_displ)
+      if (allocated(ads_data%halo_send_buffer)) deallocate (ads_data%halo_send_buffer)
+      if (allocated(ads_data%halo_recv_buffer)) deallocate (ads_data%halo_recv_buffer)
+      if (allocated(ads_data%halo_requests)) deallocate (ads_data%halo_requests)
+      if (allocated(ads_data%halo_statuses)) deallocate (ads_data%halo_statuses)
 #ifdef IINFO
       write (*, *) PRINTRANK, "Exiting..."
 #endif

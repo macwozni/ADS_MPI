@@ -102,7 +102,7 @@ contains
    subroutine setup_multilinear_case(ads, ads_data)
       type(ADS_Setup), intent(out) :: ads
       type(ADS_compute_data), intent(out) :: ads_data
-      integer(kind=4) :: bx, by, bz, index
+      integer(kind=4) :: bx, by, bz
 
       ads%n = (/1, 1, 1/)
       ads%p = (/1, 1, 1/)
@@ -138,13 +138,14 @@ contains
       call set_linear_basis(ads%NNy, 3, QY)
       call set_linear_basis(ads%NNz, 4, QZ)
 
-      allocate(ads_data%R(8, 3, 3, 3))
+      ads_data%halo_begin = 0
+      ads_data%halo_end = 1
+      allocate(ads_data%R(2, 2, 2, 1))
       ads_data%R = SENTINEL
       do bz = 0, 1
          do by = 0, 1
             do bx = 0, 1
-               index = bx + 2*(by + 2*bz)
-               ads_data%R(index + 1, 2, 2, 2) = &
+               ads_data%R(bx + 1, by + 1, bz + 1, 1) = &
                   exact_field(real(bx, kind=8), real(by, kind=8), &
                               real(bz, kind=8))
             end do
@@ -182,21 +183,16 @@ contains
    subroutine setup_neighbour_case(ads, ads_data)
       type(ADS_Setup), intent(out) :: ads
       type(ADS_compute_data), intent(out) :: ads_data
-      integer(kind=4), parameter :: GLOBAL_INDEX(3) = (/1, 2, 3/)
-      integer(kind=4), parameter :: SELECTED_SLOT(3, 3, 3) = reshape((/ &
-         8, 4, 7, 4, 2, 3, 6, 3, 5, &
-         4, 2, 3, 2, 1, 1, 2, 1, 1, &
-         4, 2, 3, 2, 1, 1, 2, 1, 1 /), (/3, 3, 3/))
-      integer(kind=4) :: k, rx, ry, rz
+      integer(kind=4) :: k, ix, iy, iz
 
-      ads%n = (/4, 4, 4/)
-      ads%p = (/2, 2, 2/)
-      ads%ng = (/3, 3, 3/)
-      ads%ibeg = 3
-      ads%iend = 3
+      ads%n = (/8, 8, 8/)
+      ads%p = (/4, 4, 4/)
+      ads%ng = (/5, 5, 5/)
+      ads%ibeg = 5
+      ads%iend = 5
       ads%nrcpp = 2
-      ads%ibegsx = (/1, 3, 4/)
-      ads%iendsx = (/2, 3, 5/)
+      ads%ibegsx = (/3, 5, 6/)
+      ads%iendsx = (/4, 5, 7/)
       ads%ibegsy = ads%ibegsx
       ads%iendsy = ads%iendsx
       ads%ibegsz = ads%ibegsx
@@ -206,17 +202,17 @@ contains
       ads_data%state_maxe = 1
 
       allocate(ads%Ox(1), ads%Oy(1), ads%Oz(1))
-      ads%Ox = 1
-      ads%Oy = 1
-      ads%Oz = 1
+      ads%Ox = 0
+      ads%Oy = 0
+      ads%Oz = 0
 
-      allocate(ads%NNx(0:1, 0:2, 1:3, 1:1))
-      allocate(ads%NNy(0:1, 0:2, 1:3, 1:1))
-      allocate(ads%NNz(0:1, 0:2, 1:3, 1:1))
+      allocate(ads%NNx(0:1, 0:4, 1:5, 1:1))
+      allocate(ads%NNy(0:1, 0:4, 1:5, 1:1))
+      allocate(ads%NNz(0:1, 0:4, 1:5, 1:1))
       ads%NNx = 0.d0
       ads%NNy = 0.d0
       ads%NNz = 0.d0
-      do k = 1, 3
+      do k = 1, 5
          ads%NNx(0, k - 1, k, 1) = 1.d0
          ads%NNx(1, k - 1, k, 1) = 2.d0
          ads%NNy(0, k - 1, k, 1) = 1.d0
@@ -225,14 +221,15 @@ contains
          ads%NNz(1, k - 1, k, 1) = 5.d0
       end do
 
-      allocate(ads_data%R(8, 3, 3, 3))
+      ads_data%halo_begin = 0
+      ads_data%halo_end = 4
+      allocate(ads_data%R(5, 5, 5, 1))
       ads_data%R = SENTINEL
-      do rz = 1, 3
-         do ry = 1, 3
-            do rx = 1, 3
-               ads_data%R(SELECTED_SLOT(rx, ry, rz), rx, ry, rz) = &
-                  encoded_coefficient(GLOBAL_INDEX(rx), GLOBAL_INDEX(ry), &
-                                      GLOBAL_INDEX(rz))
+      do iz = 1, 5
+         do iy = 1, 5
+            do ix = 1, 5
+               ads_data%R(ix, iy, iz, 1) = &
+                  encoded_coefficient(ix - 1, iy - 1, iz - 1)
             end do
          end do
       end do
@@ -245,7 +242,7 @@ contains
       type(ADS_Setup), intent(out) :: ads
       type(ADS_compute_data), intent(out) :: ads_data
       integer(kind=4), parameter :: EXTENTS(3) = (/4, 3, 2/)
-      integer(kind=4) :: ex, ey, ez, index
+      integer(kind=4) :: ex, ey, ez
 
       ads%n = EXTENTS
       ads%p = 1
@@ -290,13 +287,14 @@ contains
          call set_linear_basis(ads%NNz, ez, QZ)
       end do
 
-      allocate(ads_data%R(product(EXTENTS + 1), 3, 3, 3))
+      ads_data%halo_begin = 0
+      ads_data%halo_end = EXTENTS
+      allocate(ads_data%R(EXTENTS(1) + 1, EXTENTS(2) + 1, EXTENTS(3) + 1, 1))
       ads_data%R = SENTINEL
       do ez = 0, EXTENTS(3)
          do ey = 0, EXTENTS(2)
             do ex = 0, EXTENTS(1)
-               index = ex + (EXTENTS(1) + 1)*(ey + (EXTENTS(2) + 1)*ez)
-               ads_data%R(index + 1, 2, 2, 2) = &
+               ads_data%R(ex + 1, ey + 1, ez + 1, 1) = &
                   encoded_coefficient(ex, ey, ez)
             end do
          end do
@@ -401,7 +399,7 @@ contains
 
 
    @test
-   subroutine test_form_un_routes_all_neighbour_blocks_and_local_offsets()
+   subroutine test_form_un_indexes_an_arbitrarily_wide_compact_halo()
       type(ADS_Setup) :: ads
       type(ADS_compute_data) :: ads_data
       integer(kind=4) :: kx, ky, kz
@@ -412,10 +410,10 @@ contains
       allocate(coefficients, source=ads_data%R)
       call FormUn(1, ads, ads_data)
 
-      do kx = 1, 3
-         do ky = 1, 3
-            do kz = 1, 3
-               expected = encoded_coefficient(kx, ky, kz)
+      do kx = 1, 5
+         do ky = 1, 5
+            do kz = 1, 5
+               expected = encoded_coefficient(kx - 1, ky - 1, kz - 1)
                @assertTrue(ads_data%Un(1, 1, 1, kx, ky, kz) == expected)
                @assertTrue(ads_data%dUn(1, 1, 1, kx, ky, kz, 1) == 2.d0*expected)
                @assertTrue(ads_data%dUn(1, 1, 1, kx, ky, kz, 2) == -3.d0*expected)
@@ -425,7 +423,7 @@ contains
       end do
       @assertTrue(all(ads_data%dUn0 == ads_data%dUn))
       @assertTrue(all(ads_data%R == coefficients))
-   end subroutine test_form_un_routes_all_neighbour_blocks_and_local_offsets
+   end subroutine test_form_un_indexes_an_arbitrarily_wide_compact_halo
 
 
    @test

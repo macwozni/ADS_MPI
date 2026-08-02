@@ -1,12 +1,14 @@
 program test_my_mpi
    use communicators, only: COMMX, COMMY, COMMZ, CreateCommunicators, &
-      Cleanup_Communicators, processors
+      Cleanup_Communicators
+   use Setup, only: ADS_Setup, ADS_compute_data
+   use ads_lifecycle, only: initialize, Cleanup_ADS, Cleanup_data
    use mpi
    use my_mpi, only: AllGather, Delinearize, DistributeSpline, Gather, &
       GatherFullSolution, Linearize, Scatter
    use parallelism, only: MYRANK, MYRANKX, MYRANKY, MYRANKZ, NRPROC, &
       NRPROCX, NRPROCY, NRPROCZ, ComputeEndpoints, FillDimVector, &
-      InitializeParallelism, Cleanup_Parallelism
+      InitializeParallelism, Cleanup_Parallelism, Decompose
    implicit none
 
    integer(kind=4), dimension(3) :: process_grid
@@ -67,19 +69,19 @@ contains
    subroutine test_directional_collectives(axis, failure_count)
       integer(kind=4), intent(in) :: axis
       integer(kind=4), intent(inout) :: failure_count
-      integer(kind=4), parameter :: n = 4
       integer(kind=4), parameter :: p = 1
       integer(kind=4), parameter :: stride = 4
       integer(kind=4), allocatable :: dims(:), shifts(:)
       real(kind=8), allocatable :: local(:,:), gathered(:,:), scattered(:,:), &
          all_gathered(:,:), global_values(:,:)
       integer(kind=4) :: axis_rank, axis_size, comm
-      integer(kind=4) :: nrcpp, ibeg, iend, mine, maxe, owned
+      integer(kind=4) :: n, nrcpp, ibeg, iend, mine, maxe, owned
       integer(kind=4) :: local_row, global_row, lane
       logical :: local_ok
       character(len=96) :: label
 
       call select_axis(axis, axis_rank, axis_size, comm)
+      n = max(4, 2*axis_size - 1)
       call ComputeEndpoints(axis_rank, axis_size, n, p, nrcpp, ibeg, iend, mine, maxe)
       owned = iend - ibeg + 1
       call FillDimVector(dims, shifts, nrcpp, stride, n, axis_size)
@@ -128,8 +130,8 @@ contains
    subroutine test_full_solution_gather(root, failure_count)
       integer(kind=4), intent(in) :: root
       integer(kind=4), intent(inout) :: failure_count
-      integer(kind=4), dimension(3), parameter :: n = (/4, 5, 6/)
       integer(kind=4), dimension(3), parameter :: p = (/1, 2, 3/)
+      integer(kind=4), dimension(3) :: n
       integer(kind=4), dimension(3) :: begs, ends, owned
       real(kind=8), allocatable :: part(:,:), full(:,:,:)
       integer(kind=4) :: nrcpp, mine, maxe
@@ -137,6 +139,8 @@ contains
       logical :: local_ok
       character(len=96) :: label
 
+      n = (/max(4, 2*NRPROCX - 1), max(5, 2*NRPROCY - 1), &
+            max(6, 2*NRPROCZ - 1)/)
       call ComputeEndpoints(MYRANKX, NRPROCX, n(1), p(1), nrcpp, &
          begs(1), ends(1), mine, maxe)
       call ComputeEndpoints(MYRANKY, NRPROCY, n(2), p(2), nrcpp, &
@@ -185,46 +189,75 @@ contains
 
    subroutine test_spline_distribution(failure_count)
       integer(kind=4), intent(inout) :: failure_count
-      integer(kind=4), dimension(3), parameter :: nrcpp = (/2, 2, 2/)
-      real(kind=8), parameter :: sentinel = -987654321.25d0
-      real(kind=8), allocatable :: spline(:,:,:,:)
-      integer(kind=4) :: block_size, i, ix, iy, iz, nx, ny, nz, source_rank
-      logical :: local_ok, neighbour_exists
+      integer(kind=4), dimension(3), parameter :: continuity = (/0, 0, 0/)
+      type(ADS_Setup) :: test_space, trial_space
+      type(ADS_compute_data) :: data
+      integer(kind=4), dimension(3) :: test_degree, trial_degree, nelem
+      integer(kind=4), dimension(3) :: peer_coords, current_coords
+      real(kind=8), allocatable :: part(:,:)
+      integer(kind=4) :: lx, ly, lz, gx, gy, gz, column, peer, status
+      integer(kind=4) :: farthest_peer
+      logical :: local_ok, wide_peer_seen
 
-      block_size = product(nrcpp)
-      allocate(spline(block_size, 3, 3, 3))
-      spline = sentinel
-      do i = 1, block_size
-         spline(i, 2, 2, 2) = neighbour_value(MYRANK, i)
-      end do
+      test_degree = 2
+      where ((/NRPROCX, NRPROCY, NRPROCZ/) >= 4) test_degree = 9
+      trial_degree = test_degree - 1
+      nelem = max((/NRPROCX, NRPROCY, NRPROCZ/), &
+                  3*(/NRPROCX, NRPROCY, NRPROCZ/) - 1 - test_degree)
+      call initialize(nelem, test_degree, trial_degree, continuity, test_space, &
+                      trial_space, data, status)
 
-      call DistributeSpline(spline, nrcpp)
-
-      local_ok = .true.
-      do iz = 1, 3
-         nz = MYRANKZ + iz - 2
-         do iy = 1, 3
-            ny = MYRANKY + iy - 2
-            do ix = 1, 3
-               nx = MYRANKX + ix - 2
-               neighbour_exists = nx >= 0 .and. nx < NRPROCX .and. &
-                  ny >= 0 .and. ny < NRPROCY .and. nz >= 0 .and. nz < NRPROCZ
-               if (neighbour_exists) then
-                  source_rank = processors(nx + 1, ny + 1, nz + 1)
-                  do i = 1, block_size
-                     local_ok = local_ok .and. &
-                        spline(i, ix, iy, iz) == neighbour_value(source_rank, i)
-                  end do
-               else
-                  local_ok = local_ok .and. all(spline(:, ix, iy, iz) == sentinel)
-               end if
+      allocate(part(trial_space%s(1), trial_space%s(2)*trial_space%s(3)))
+      do lz = 1, trial_space%s(3)
+         gz = trial_space%ibeg(3) + lz - 2
+         do ly = 1, trial_space%s(2)
+            gy = trial_space%ibeg(2) + ly - 2
+            column = ly + (lz - 1)*trial_space%s(2)
+            do lx = 1, trial_space%s(1)
+               gx = trial_space%ibeg(1) + lx - 2
+               part(lx, column) = tensor_value(gx, gy, gz)
             end do
          end do
       end do
 
-      call assert_global('DistributeSpline fills valid neighbour blocks', &
+      call DistributeSpline(part, trial_space, data)
+
+      local_ok = all((/size(data%R, 1), size(data%R, 2), size(data%R, 3)/) == &
+                     data%halo_end - data%halo_begin + 1)
+      do gz = data%halo_begin(3), data%halo_end(3)
+         do gy = data%halo_begin(2), data%halo_end(2)
+            do gx = data%halo_begin(1), data%halo_end(1)
+               local_ok = local_ok .and. &
+                  data%R(gx - data%halo_begin(1) + 1, &
+                         gy - data%halo_begin(2) + 1, &
+                         gz - data%halo_begin(3) + 1, 1) == tensor_value(gx, gy, gz)
+            end do
+         end do
+      end do
+      call assert_global('DistributeSpline fills the exact mixed-space halo', &
          local_ok, failure_count)
-      deallocate(spline)
+
+      current_coords = (/MYRANKX, MYRANKY, MYRANKZ/)
+      wide_peer_seen = .false.
+      farthest_peer = 0
+      do peer = 1, NRPROC
+         if (data%halo_recv_count(peer) == 0) cycle
+         call Decompose(peer - 1, peer_coords(1), peer_coords(2), peer_coords(3))
+         farthest_peer = max(farthest_peer, maxval(abs(peer_coords - current_coords)))
+         if (maxval(abs(peer_coords - current_coords)) > 1) wide_peer_seen = .true.
+      end do
+      local_ok = maxval((/NRPROCX, NRPROCY, NRPROCZ/)) < 4 .or. wide_peer_seen
+      call assert_global('DistributeSpline reaches peers beyond immediate neighbours', &
+         local_ok, failure_count)
+      local_ok = maxval((/NRPROCX, NRPROCY, NRPROCZ/)) < 8 .or. &
+                 farthest_peer >= 3
+      call assert_global('mixed-space halo reaches at least three ranks away', &
+         local_ok, failure_count)
+
+      deallocate(part)
+      call Cleanup_data(data, status)
+      call Cleanup_ADS(test_space, status)
+      call Cleanup_ADS(trial_space, status)
    end subroutine test_spline_distribution
 
 
@@ -309,14 +342,6 @@ contains
 
       value = 10000.0d0*z + 100.0d0*y + 3.0d0*x + 0.625d0
    end function tensor_value
-
-
-   pure real(kind=8) function neighbour_value(rank, index) result(value)
-      integer(kind=4), intent(in) :: rank, index
-
-      value = 1000.0d0*rank + 11.0d0*index + 0.75d0
-   end function neighbour_value
-
 
    subroutine read_process_grid(grid)
       integer(kind=4), intent(out), dimension(3) :: grid

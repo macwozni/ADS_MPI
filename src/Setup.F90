@@ -216,14 +216,35 @@ type ADS_compute_data
 !> @brief Auxiliary right-hand-side remnant buffers.
       real(kind=8), allocatable, dimension(:, :) :: FF, FFt
 
-!> @brief Buffer storing solution coefficients from neighbouring parts of
-!> the domain.
+!> @brief Compact coefficient halo required by the local element range.
 !>
 !> @details
-!> This is a \f$ (N_x * N_y * N_z) \times 3 \times 3 \times 3 \f$ array,
-!> where \f$ N_x * N_y * N_z \f$ denotes the size of the solution block
-!> associated with a single domain fragment.
+!> The first three dimensions correspond to the global coefficient box
+!> `halo_begin:halo_end`; the final singleton dimension preserves the
+!> historical four-dimensional declaration of this component.
       real(kind=8), allocatable, dimension(:, :, :, :) :: R
+
+!> @brief Inclusive global coefficient bounds stored in \ref R.
+      integer(kind=4), dimension(3) :: halo_begin, halo_end
+
+!> @brief Inclusive global boxes sent to and received from every MPI rank.
+!>
+!> @details
+!> Column `rank + 1` stores the exact intersection used for that peer.  An
+!> empty intersection is represented by an end smaller than its begin.
+      integer(kind=4), allocatable, dimension(:, :) :: halo_send_begin, halo_send_end
+      integer(kind=4), allocatable, dimension(:, :) :: halo_recv_begin, halo_recv_end
+
+!> @brief Packed-message sizes and zero-based displacements for halo peers.
+      integer(kind=4), allocatable, dimension(:) :: halo_send_count, halo_send_displ
+      integer(kind=4), allocatable, dimension(:) :: halo_recv_count, halo_recv_displ
+
+!> @brief Reusable packed communication buffers for coefficient exchange.
+      real(kind=8), allocatable, dimension(:) :: halo_send_buffer, halo_recv_buffer
+
+!> @brief Reusable MPI request and status storage for halo exchange.
+      integer(kind=4), allocatable, dimension(:) :: halo_requests
+      integer(kind=4), allocatable, dimension(:, :) :: halo_statuses
 
 !> @brief Current time value or time-step position.
       real(kind=8) :: t
