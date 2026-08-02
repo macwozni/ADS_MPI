@@ -13,7 +13,7 @@ current tree is the `mymake` build directory.
 src/        Core ADS, IGA basis, MPI communication, sparse assembly, output
 problems/   Problem drivers and problem-specific data/callbacks
 mymake/     Active make-based build configuration
-tests/      Local/unit-test experiments
+tests/      Unit, integration, MPI, and driver-CLI regression suites
 doxygen/    Generated/documentation support files
 ```
 
@@ -29,6 +29,11 @@ The default `mymake/m_options` expects:
 - METIS
 - ParMETIS
 - GKlib
+
+The complete test procedure additionally expects:
+
+- pFUnit 4 (for the pFUnit-based test suites)
+- Bash and GNU `timeout` (for CLI and MPI error-path tests)
 
 Edit `mymake/m_options` for local library paths and compiler flags.
 
@@ -131,17 +136,17 @@ optional `include_transport` flag for first-derivative transport terms; the
 
 ## Building
 
-Build from `mymake`:
+Build the default L2 projection driver from the repository root:
 
 ```bash
-cd mymake
-make
+make -C mymake clean
+make -C mymake
 ```
 
 The default build uses:
 
 ```make
-SOURCE_ALL = $(SOURCES) $(IGRM_L2)
+SOURCE_ALL = $(SOURCES) $(L2)
 EXEC = l2
 ```
 
@@ -151,13 +156,6 @@ so the default executable is:
 mymake/EXEC/l2
 ```
 
-To clean the default build:
-
-```bash
-cd mymake
-make clean
-```
-
 When building another problem, pass both `SOURCE_ALL` and `EXEC` to `make`.
 Use the same variables for `make clean`, because the object list depends on the
 selected source group.
@@ -165,25 +163,26 @@ selected source group.
 Examples:
 
 ```bash
-cd mymake
+make -C mymake clean SOURCE_ALL='$(SOURCES) $(L2)' EXEC=l2
+make -C mymake       SOURCE_ALL='$(SOURCES) $(L2)' EXEC=l2
 
-make clean SOURCE_ALL='$(SOURCES) $(L2)' EXEC=l2_projection
-make       SOURCE_ALL='$(SOURCES) $(L2)' EXEC=l2_projection
+make -C mymake clean SOURCE_ALL='$(SOURCES) $(HEAT)' EXEC=heat
+make -C mymake       SOURCE_ALL='$(SOURCES) $(HEAT)' EXEC=heat
 
-make clean SOURCE_ALL='$(SOURCES) $(HEAT)' EXEC=heat
-make       SOURCE_ALL='$(SOURCES) $(HEAT)' EXEC=heat
+make -C mymake clean SOURCE_ALL='$(SOURCES) $(ERIKSSON)' EXEC=eriksson
+make -C mymake       SOURCE_ALL='$(SOURCES) $(ERIKSSON)' EXEC=eriksson
 
-make clean SOURCE_ALL='$(SOURCES) $(ERIKSSON)' EXEC=eriksson
-make       SOURCE_ALL='$(SOURCES) $(ERIKSSON)' EXEC=eriksson
+make -C mymake clean SOURCE_ALL='$(SOURCES) $(PURE_DIFFUSION_IGRM)' EXEC=pure_diffusion_igrm
+make -C mymake       SOURCE_ALL='$(SOURCES) $(PURE_DIFFUSION_IGRM)' EXEC=pure_diffusion_igrm
 
-make clean SOURCE_ALL='$(SOURCES) $(PURE_DIFFUSION_IGRM)' EXEC=pure_diffusion_igrm
-make       SOURCE_ALL='$(SOURCES) $(PURE_DIFFUSION_IGRM)' EXEC=pure_diffusion_igrm
+make -C mymake clean SOURCE_ALL='$(SOURCES) $(OIL)' EXEC=oil
+make -C mymake       SOURCE_ALL='$(SOURCES) $(OIL)' EXEC=oil
 
-make clean SOURCE_ALL='$(SOURCES) $(OIL)' EXEC=oil
-make       SOURCE_ALL='$(SOURCES) $(OIL)' EXEC=oil
+make -C mymake clean SOURCE_ALL='$(SOURCES) $(IGRM_L2)' EXEC=igrm_l2
+make -C mymake       SOURCE_ALL='$(SOURCES) $(IGRM_L2)' EXEC=igrm_l2
 
-make clean SOURCE_ALL='$(SOURCES) $(IGRM_L2)' EXEC=igrm_l2
-make       SOURCE_ALL='$(SOURCES) $(IGRM_L2)' EXEC=igrm_l2
+make -C mymake clean SOURCE_ALL='$(SOURCES) $(IGRM_HEAT)' EXEC=igrm_heat
+make -C mymake       SOURCE_ALL='$(SOURCES) $(IGRM_HEAT)' EXEC=igrm_heat
 ```
 
 The CMake files are still present, but this README documents the current
@@ -214,7 +213,7 @@ Arguments:
 Example:
 
 ```bash
-/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/l2_projection 2 2 2 1 1 1 1
+/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/l2 2 2 2 1 1 1 1
 ```
 
 ### Heat
@@ -323,6 +322,30 @@ Example:
 /opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/igrm_l2 2 2 2 3 3 3 1 1 1 1 1 1 1.0 be
 ```
 
+### iGRM Heat
+
+Arguments:
+
+```text
+<nelem_x> <nelem_y> <nelem_z> \
+<ptest_x> <ptest_y> <ptest_z> \
+<ptrial_x> <ptrial_y> <ptrial_z> \
+<procx> <procy> <procz> <steps> <dt> [scheme]
+```
+
+The test-space degree must be greater than the trial-space degree in every
+direction. `steps` is the number of physical heat steps after the initial
+mass-only projection. The optional scheme is `dg` (the default), `pr`, or
+`be`; all three physical schemes are configured without transport terms.
+
+Example with one initial projection and one physical time step:
+
+```bash
+/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/igrm_heat \
+  2 2 2 3 3 3 2 2 2 \
+  1 1 1 1 0.1 dg
+```
+
 ## iGRM Mesh Assumptions
 
 The mixed iGRM matrix path assumes:
@@ -333,6 +356,88 @@ The mixed iGRM matrix path assumes:
 
 In other words, the distinct knot locations must match, while knot
 multiplicities may differ.
+
+## Testing
+
+Run tests from the repository root. The pFUnit suites use
+`PFUNIT_ROOT=/opt/lib/pfunit/PFUNIT-4.16` by default, and the MPI suites use
+`MPIEXEC=/opt/lib/mpich-5.0.0/bin/mpiexec`. Override either variable in the
+shell block below when using another installation.
+
+Every maintained suite has its own `tests/<suite>/GNUmakefile`; the legacy
+top-level `tests/GNUmakefile` is not a complete test runner. The following
+procedure cleans and runs all 18 library/unit/MPI suites, then forcibly
+rebuilds all seven problem drivers and runs the driver-CLI suite:
+
+```bash
+set -eu
+
+MPIEXEC=${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}
+PFUNIT_ROOT=${PFUNIT_ROOT:-/opt/lib/pfunit/PFUNIT-4.16}
+
+for suite in \
+  ads_directional_solve \
+  ads_error_propagation \
+  ads_lifecycle \
+  argument_parser \
+  basis \
+  communicators \
+  igrm_space \
+  int2str \
+  mumps_solver \
+  my_mpi \
+  norm_l2 \
+  operator_assembly \
+  parallelism \
+  reorder_rhs \
+  rhs_assembly \
+  rhs_eq \
+  solution_reconstruction \
+  time_scheme
+do
+  make -j1 -C "tests/${suite}" clean
+  make -j1 -C "tests/${suite}" \
+    MPIEXEC="${MPIEXEC}" PFUNIT_ROOT="${PFUNIT_ROOT}" run
+done
+
+make -j1 -C tests/driver_cli -B MPIEXEC="${MPIEXEC}" run
+```
+
+`-B` is intentional for `driver_cli`: that suite's `clean` target is a no-op,
+and a forced build verifies every current problem group, including
+`IGRM_HEAT`. Several MPI suites exercise up to eight ranks and OpenMP thread
+counts 1, 2, and 4.
+
+Finish the full regression by rebuilding the corrected default target and
+running a positive one-rank smoke test for every driver. The preceding
+`driver_cli` command has already built the six non-default executables.
+
+```bash
+make -j1 -C mymake clean
+make -j1 -C mymake
+"${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}" -n 1 \
+  ./mymake/EXEC/l2 2 2 2 1 1 1 1
+
+"${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}" -n 1 \
+  ./mymake/EXEC/heat 2 1 0 1 1 1 1
+"${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}" -n 1 \
+  ./mymake/EXEC/eriksson 2 1 0 1 1 1 1
+"${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}" -n 1 \
+  ./mymake/EXEC/pure_diffusion_igrm 2 1 1 1 1 0 1 dg
+"${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}" -n 1 \
+  ./mymake/EXEC/oil \
+  2 1 1 1 1 1 0.1 \
+  1 0.5 0.5 0.5 \
+  1 0.25 0.25 0.25
+"${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}" -n 1 \
+  ./mymake/EXEC/igrm_l2 \
+  2 2 2 3 3 3 1 1 1 \
+  1 1 1 pr
+"${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}" -n 1 \
+  ./mymake/EXEC/igrm_heat \
+  2 2 2 3 3 3 2 2 2 \
+  1 1 1 1 0.1 dg
+```
 
 ## Notes
 
