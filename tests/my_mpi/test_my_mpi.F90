@@ -5,10 +5,11 @@ program test_my_mpi
    use ads_lifecycle, only: initialize, Cleanup_ADS, Cleanup_data
    use mpi
    use my_mpi, only: AllGather, Delinearize, DistributeSpline, Gather, &
-      GatherFullSolution, Linearize, Scatter
+      GatherFullSolution, Linearize, neighbour, Scatter, SizeOfPiece
    use parallelism, only: MYRANK, MYRANKX, MYRANKY, MYRANKZ, NRPROC, &
       NRPROCX, NRPROCY, NRPROCZ, ComputeEndpoints, FillDimVector, &
       InitializeParallelism, Cleanup_Parallelism, Decompose
+   use omp_lib, only: omp_get_num_threads, omp_set_dynamic, omp_set_num_threads
    implicit none
 
    integer(kind=4), parameter :: UNEVEN_PROCESS_COUNT = 8
@@ -35,12 +36,15 @@ program test_my_mpi
 
    checks = 0
    failures = 0
+   call test_neighbour_lookup(failures)
+   call test_size_of_piece(failures)
    call test_linear_storage(failures)
    call test_directional_collectives(1, failures)
    call test_directional_collectives(2, failures)
    call test_directional_collectives(3, failures)
    call test_full_solution_gather(0, failures)
    if (NRPROC > 1) call test_full_solution_gather(NRPROC - 1, failures)
+   if (NRPROC == 1) call test_large_full_solution_openmp(failures)
    call test_spline_distribution(failures)
 
    if (MYRANK == 0) then
@@ -57,6 +61,52 @@ program test_my_mpi
    if (failures /= 0) stop 1
 
 contains
+
+   subroutine test_neighbour_lookup(failure_count)
+      integer(kind=4), intent(inout) :: failure_count
+      integer(kind=4) :: dx, dy, dz, expected_rank
+      logical :: local_ok
+
+      local_ok = .true.
+      do dz = -1, 1
+         if (MYRANKZ + dz < 0 .or. MYRANKZ + dz >= NRPROCZ) cycle
+         do dy = -1, 1
+            if (MYRANKY + dy < 0 .or. MYRANKY + dy >= NRPROCY) cycle
+            do dx = -1, 1
+               if (MYRANKX + dx < 0 .or. MYRANKX + dx >= NRPROCX) cycle
+               expected_rank = MYRANKX + dx + (MYRANKY + dy)*NRPROCX + &
+                  (MYRANKZ + dz)*NRPROCX*NRPROCY
+               local_ok = local_ok .and. &
+                  neighbour((/dx, dy, dz/)) == expected_rank
+            end do
+         end do
+      end do
+      call assert_global('neighbour maps every in-bounds local offset', &
+         local_ok, failure_count)
+   end subroutine test_neighbour_lookup
+
+
+   subroutine test_size_of_piece(failure_count)
+      integer(kind=4), intent(inout) :: failure_count
+      integer(kind=4) :: n(3), p(3), point(3), expected_size
+
+      n = 2*(/NRPROCX, NRPROCY, NRPROCZ/) + (/1, 2, 3/)
+      p = (/1, 2, 3/)
+      point = (/MYRANKX, MYRANKY, MYRANKZ/)
+      expected_size = balanced_owned(n(1) + 1, NRPROCX, MYRANKX)* &
+                      balanced_owned(n(2) + 1, NRPROCY, MYRANKY)* &
+                      balanced_owned(n(3) + 1, NRPROCZ, MYRANKZ)
+      call assert_global('SizeOfPiece follows balanced ownership in every axis', &
+         SizeOfPiece(point, n, p) == expected_size, failure_count)
+   end subroutine test_size_of_piece
+
+
+   integer(kind=4) function balanced_owned(total, process_count, coordinate) result(owned)
+      integer(kind=4), intent(in) :: total, process_count, coordinate
+
+      owned = total/process_count
+      if (coordinate < mod(total, process_count)) owned = owned + 1
+   end function balanced_owned
 
    subroutine test_linear_storage(failure_count)
       integer(kind=4), intent(inout) :: failure_count
@@ -227,6 +277,44 @@ contains
       deallocate(part)
       if (allocated(full)) deallocate(full)
    end subroutine test_full_solution_gather
+
+
+   subroutine test_large_full_solution_openmp(failure_count)
+      integer(kind=4), intent(inout) :: failure_count
+      integer(kind=4), parameter :: n(3) = (/64, 64, 64/)
+      integer(kind=4), parameter :: p(3) = (/1, 1, 1/)
+      integer(kind=4), parameter :: owned(3) = n + 1
+      real(kind=8), allocatable :: part(:,:), serial(:,:,:), threaded(:,:,:)
+      integer(kind=4) :: x, y, z, column, threads_seen
+
+      allocate(part(owned(1), owned(2)*owned(3)))
+      do z = 0, n(3)
+         do y = 0, n(2)
+            column = y + 1 + z*owned(2)
+            do x = 0, n(1)
+               part(x + 1, column) = tensor_value(x, y, z)
+            end do
+         end do
+      end do
+
+      call omp_set_dynamic(.false.)
+      call omp_set_num_threads(1)
+      call GatherFullSolution(0, part, serial, n, p, owned)
+      call omp_set_num_threads(4)
+      threads_seen = 0
+!$omp parallel shared(threads_seen)
+!$omp single
+      threads_seen = omp_get_num_threads()
+!$omp end single
+!$omp end parallel
+      call GatherFullSolution(0, part, threaded, n, p, owned)
+
+      call assert_global('OpenMP runtime creates the requested four-thread team', &
+         threads_seen == 4, failure_count)
+      call assert_global('GatherFullSolution OpenMP branch is bitwise deterministic', &
+         all(serial == threaded), failure_count)
+      deallocate(part, serial, threaded)
+   end subroutine test_large_full_solution_openmp
 
 
    subroutine test_spline_distribution(failure_count)

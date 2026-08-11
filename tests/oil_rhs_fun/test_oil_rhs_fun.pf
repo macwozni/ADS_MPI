@@ -1,0 +1,313 @@
+module test_oil_rhs_fun
+   use pfunit
+   use omp_lib, only: omp_get_num_threads, omp_set_dynamic, omp_set_num_threads
+   use Setup, only: ADS_Setup, ADS_compute_data
+   use input_data, only: cN, cL, cx, cy, cz, oil_time => t, mi, npumps, ndrains, &
+                         pumps, drains, Kqvals, drained_by_element, &
+                         InitializeDrainedAccumulator, CleanupDrainedAccumulator, &
+                         initial_state
+   use RHS_fun, only: forcing, oil_rhs_point
+   implicit none
+
+   real(kind=8), parameter :: TOL = 4096.d0*epsilon(1.d0)
+   integer(kind=4) :: forcing_calls = 0
+   real(kind=8) :: recorded_un = 0.d0
+   real(kind=8) :: recorded_du(3) = 0.d0
+   real(kind=8) :: recorded_X(3) = 0.d0
+   real(kind=8) :: callback_value = 0.d0
+
+contains
+
+   logical function close_enough(actual, expected) result(close)
+      real(kind=8), intent(in) :: actual, expected
+
+      close = abs(actual - expected) <= TOL*max(1.d0, abs(expected))
+   end function close_enough
+
+
+   subroutine reset_problem_data()
+      if (allocated(pumps)) deallocate(pumps)
+      if (allocated(drains)) deallocate(drains)
+      if (allocated(Kqvals)) deallocate(Kqvals)
+      call CleanupDrainedAccumulator()
+      npumps = 0
+      ndrains = 0
+      oil_time = 0.d0
+      mi = 10.d0
+      cx = 0.d0
+      cy = 0.d0
+      cz = 0.d0
+      forcing_calls = 0
+      recorded_un = 0.d0
+      recorded_du = 0.d0
+      recorded_X = 0.d0
+      callback_value = 0.d0
+   end subroutine reset_problem_data
+
+
+   subroutine set_straight_curves()
+      integer(kind=4) :: curve, node, offset
+
+      do curve = 0, cN - 1
+         offset = curve*cL
+         do node = 1, cL
+            cx(offset + node) = real(node - 1, kind=8)/real(cL - 1, kind=8)
+            cy(offset + node) = 0.5d0
+            cz(offset + node) = 0.5d0
+         end do
+      end do
+   end subroutine set_straight_curves
+
+
+   function constant_forcing(un, du, X) result(ret)
+      real(kind=8), intent(in) :: un, du(3), X(3)
+      real(kind=8) :: ret
+
+      ret = callback_value
+   end function constant_forcing
+
+
+   function recording_forcing(un, du, X) result(ret)
+      real(kind=8), intent(in) :: un, du(3), X(3)
+      real(kind=8) :: ret
+
+      forcing_calls = forcing_calls + 1
+      recorded_un = un
+      recorded_du = du
+      recorded_X = X
+      ret = callback_value
+   end function recording_forcing
+
+
+   subroutine prepare_point_fixture(ads, e)
+      type(ADS_Setup), intent(out) :: ads
+      integer(kind=4), intent(out) :: e(3)
+
+      e = (/ 2, 3, 4 /)
+      ads%mine = e
+      ads%maxe = e
+      ads%tau = 0.125d0
+      allocate(ads%NNx(0:1, 0:0, 1:1, e(1):e(1)))
+      allocate(ads%NNy(0:1, 0:0, 1:1, e(2):e(2)))
+      allocate(ads%NNz(0:1, 0:0, 1:1, e(3):e(3)))
+      ads%NNx = 0.d0
+      ads%NNy = 0.d0
+      ads%NNz = 0.d0
+      ads%NNx(0, 0, 1, e(1)) = 2.d0
+      ads%NNx(1, 0, 1, e(1)) = 7.d0
+      ads%NNy(0, 0, 1, e(2)) = 3.d0
+      ads%NNy(1, 0, 1, e(2)) = 11.d0
+      ads%NNz(0, 0, 1, e(3)) = 5.d0
+      ads%NNz(1, 0, 1, e(3)) = 13.d0
+
+      allocate(Kqvals(1, 1, 1, 1, 1, 1))
+      Kqvals = 3.d0
+      call InitializeDrainedAccumulator(ads)
+   end subroutine prepare_point_fixture
+
+
+   @test
+   subroutine test_forcing_initial_branch_returns_initial_state()
+      real(kind=8) :: du(3), X(3), actual
+
+      call reset_problem_data()
+      call set_straight_curves()
+      oil_time = 0.d0
+      du = (/ 17.d0, 19.d0, 23.d0 /)
+      X = (/ 0.5d0, 0.5d0, 0.5d0 /)
+
+      actual = forcing(123.d0, du, X)
+      @assertTrue(close_enough(actual, initial_state(X(1), X(2), X(3))))
+      @assertTrue(close_enough(actual, 0.1d0))
+      call reset_problem_data()
+   end subroutine test_forcing_initial_branch_returns_initial_state
+
+
+   @test
+   subroutine test_forcing_combines_pump_and_nonnegative_drain()
+      real(kind=8) :: du(3), X(3)
+
+      call reset_problem_data()
+      npumps = 1
+      ndrains = 1
+      allocate(pumps(3, 1), drains(3, 1))
+      X = (/ 0.25d0, 0.5d0, 0.75d0 /)
+      pumps(:, 1) = X
+      drains(:, 1) = X
+      du = (/ 9.d0, 8.d0, 7.d0 /)
+      oil_time = 1.d0
+
+      @assertTrue(close_enough(forcing(0.25d0, du, X), 0.75d0))
+      @assertTrue(close_enough(forcing(-0.25d0, du, X), 1.d0))
+      X = (/ 1.d0, 1.d0, 1.d0 /)
+      @assertTrue(close_enough(forcing(0.25d0, du, X), 0.d0))
+      call reset_problem_data()
+   end subroutine test_forcing_combines_pump_and_nonnegative_drain
+
+
+   @test
+   subroutine test_initial_rhs_has_no_drain_side_effect()
+      type(ADS_Setup) :: ads
+      type(ADS_compute_data) :: ads_data
+      integer(kind=4) :: e(3), k(3), a(3), direction(3)
+      real(kind=8) :: X(3), du(3), alpha(7, 3), expected, ret
+
+      call reset_problem_data()
+      call set_straight_curves()
+      call prepare_point_fixture(ads, e)
+      oil_time = 0.d0
+      X = (/ 0.5d0, 0.5d0, 0.5d0 /)
+      du = (/ 1.d0, 2.d0, 3.d0 /)
+      k = 1
+      a = 0
+      direction = (/ 1, 0, 0 /)
+      alpha = 99.d0
+      drained_by_element = 7.d0
+
+      call oil_rhs_point(ads, X, k, e, a, du, 17, 2.d0, 3.d0, 5.d0, &
+                         ads_data, 2.d0, 0.25d0, direction, 3, alpha, &
+                         constant_forcing, ret)
+      expected = 2.d0*0.25d0*30.d0*initial_state(X(1), X(2), X(3))
+      @assertTrue(close_enough(ret, expected))
+      @assertTrue(all(drained_by_element == 7.d0))
+      call reset_problem_data()
+   end subroutine test_initial_rhs_has_no_drain_side_effect
+
+
+   @test
+   subroutine test_oil_rhs_exact_nonlinear_term_and_drain_update()
+      type(ADS_Setup) :: ads
+      type(ADS_compute_data) :: ads_data
+      integer(kind=4) :: e(3), k(3), a(3), direction(3)
+      real(kind=8) :: X(3), du(3), alpha(7, 3), expected, grad_term, ret
+
+      call reset_problem_data()
+      call prepare_point_fixture(ads, e)
+      ndrains = 1
+      allocate(drains(3, 1))
+      X = (/ 0.25d0, 0.5d0, 0.75d0 /)
+      drains(:, 1) = X
+      oil_time = 1.d0
+      mi = 0.4d0
+      callback_value = 5.d0
+      du = (/ 0.1d0, 0.2d0, -0.3d0 /)
+      k = 1
+      a = 0
+      direction = (/ 0, 1, 0 /)
+      alpha = -77.d0
+
+      call oil_rhs_point(ads, X, k, e, a, du, 23, 0.2d0, 19.d0, 29.d0, &
+                         ads_data, 2.d0, 0.25d0, direction, 2, alpha, &
+                         recording_forcing, ret)
+      grad_term = 0.1d0*105.d0 + 0.2d0*110.d0 - 0.3d0*78.d0
+      expected = 0.5d0*(30.d0*0.2d0 + 0.125d0*(-3.d0*exp(0.08d0)*grad_term + 30.d0*5.d0))
+      @assertTrue(close_enough(ret, expected))
+      @assertTrue(close_enough(drained_by_element(4, 3, 2), 0.375d0))
+      @assertTrue(forcing_calls == 1)
+      @assertTrue(close_enough(recorded_un, 0.2d0))
+      @assertTrue(all(recorded_du == du))
+      @assertTrue(all(recorded_X == X))
+
+      call oil_rhs_point(ads, X, k, e, a, du, 999, 0.2d0, -19.d0, -29.d0, &
+                         ads_data, 2.d0, 0.25d0, -direction, 1, -alpha, &
+                         recording_forcing, ret)
+      @assertTrue(close_enough(drained_by_element(4, 3, 2), 0.75d0))
+
+      call oil_rhs_point(ads, X, k, e, a, du, 999, -0.2d0, -19.d0, -29.d0, &
+                         ads_data, 2.d0, 0.25d0, -direction, 1, -alpha, &
+                         recording_forcing, ret)
+      @assertTrue(close_enough(drained_by_element(4, 3, 2), 0.75d0))
+      call reset_problem_data()
+   end subroutine test_oil_rhs_exact_nonlinear_term_and_drain_update
+
+
+   subroutine prepare_parallel_fixture(ads, side)
+      type(ADS_Setup), intent(out) :: ads
+      integer(kind=4), intent(in) :: side
+
+      ads%mine = 1
+      ads%maxe = side
+      ads%tau = 0.25d0
+      allocate(ads%NNx(0:1, 0:0, 1:1, 1:side))
+      allocate(ads%NNy(0:1, 0:0, 1:1, 1:side))
+      allocate(ads%NNz(0:1, 0:0, 1:1, 1:side))
+      ads%NNx = 1.d0
+      ads%NNy = 1.d0
+      ads%NNz = 1.d0
+      allocate(Kqvals(1, 1, 1, side, side, side))
+      Kqvals = 2.d0
+      call InitializeDrainedAccumulator(ads)
+   end subroutine prepare_parallel_fixture
+
+
+   subroutine run_parallel_rhs(ads, side, threads, values, threads_seen)
+      type(ADS_Setup), intent(in) :: ads
+      integer(kind=4), intent(in) :: side, threads
+      real(kind=8), intent(out) :: values(side, side, side)
+      integer(kind=4), intent(out) :: threads_seen
+      type(ADS_compute_data) :: ads_data
+      integer(kind=4) :: ex, ey, ez, e(3), k(3), a(3), direction(3)
+      real(kind=8) :: X(3), du(3), alpha(7, 3), ret
+
+      call omp_set_dynamic(.false.)
+      call omp_set_num_threads(threads)
+      X = (/ 0.5d0, 0.5d0, 0.5d0 /)
+      du = (/ 0.1d0, 0.2d0, 0.3d0 /)
+      k = 1
+      a = 0
+      direction = (/ 1, 0, 0 /)
+      alpha = 0.d0
+      threads_seen = 0
+
+      !$omp parallel default(shared) private(ex, ey, ez, e, ret)
+      !$omp single
+      threads_seen = omp_get_num_threads()
+      !$omp end single
+      !$omp do collapse(3) schedule(static)
+      do ex = 1, side
+         do ey = 1, side
+            do ez = 1, side
+               e = (/ ex, ey, ez /)
+               call oil_rhs_point(ads, X, k, e, a, du, 1, 0.2d0, 0.d0, 0.d0, &
+                                  ads_data, 0.5d0, 0.25d0, direction, 1, alpha, &
+                                  constant_forcing, ret)
+               values(ez, ey, ex) = ret
+            end do
+         end do
+      end do
+      !$omp end do
+      !$omp end parallel
+   end subroutine run_parallel_rhs
+
+
+   @test
+   subroutine test_accumulator_is_deterministic_with_four_threads()
+      integer(kind=4), parameter :: side = 5
+      type(ADS_Setup) :: ads
+      real(kind=8) :: values_one(side, side, side), values_four(side, side, side)
+      real(kind=8) :: drained_one(side, side, side)
+      integer(kind=4) :: threads_one, threads_four
+
+      call reset_problem_data()
+      call prepare_parallel_fixture(ads, side)
+      ndrains = 1
+      allocate(drains(3, 1))
+      drains(:, 1) = (/ 0.5d0, 0.5d0, 0.5d0 /)
+      oil_time = 1.d0
+      mi = 0.1d0
+      callback_value = 0.75d0
+
+      call run_parallel_rhs(ads, side, 1, values_one, threads_one)
+      drained_one = drained_by_element
+      drained_by_element = 0.d0
+      call run_parallel_rhs(ads, side, 4, values_four, threads_four)
+
+      @assertEqual(1, threads_one)
+      @assertEqual(4, threads_four)
+      @assertTrue(all(values_four == values_one))
+      @assertTrue(all(drained_by_element == drained_one))
+      @assertTrue(all(drained_by_element > 0.d0))
+      call reset_problem_data()
+   end subroutine test_accumulator_is_deterministic_with_four_threads
+
+end module test_oil_rhs_fun

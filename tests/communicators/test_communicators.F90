@@ -18,6 +18,11 @@ program test_communicators
    call assert_global('InitializeParallelism succeeds', &
       ierr == MPI_SUCCESS, failures)
 
+   call Cleanup_Communicators(ierr)
+   call assert_global('Cleanup_Communicators is safe before first creation', &
+      ierr == MPI_SUCCESS .and. COMMX == MPI_COMM_NULL .and. &
+      COMMY == MPI_COMM_NULL .and. COMMZ == MPI_COMM_NULL, failures)
+
    call CreateCommunicators(ierr)
    call assert_global('first CreateCommunicators succeeds', &
       ierr == MPI_SUCCESS, failures)
@@ -41,6 +46,11 @@ program test_communicators
    call assert_global('second cleanup nulls public handles', &
       COMMX == MPI_COMM_NULL .and. COMMY == MPI_COMM_NULL .and. &
       COMMZ == MPI_COMM_NULL, failures)
+
+   call Cleanup_Communicators(ierr)
+   call assert_global('Cleanup_Communicators is idempotent', &
+      ierr == MPI_SUCCESS .and. COMMX == MPI_COMM_NULL .and. &
+      COMMY == MPI_COMM_NULL .and. COMMZ == MPI_COMM_NULL, failures)
 
    if (MYRANK == 0) then
       if (failures == 0) then

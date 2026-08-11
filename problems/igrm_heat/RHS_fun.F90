@@ -153,6 +153,7 @@ contains
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use Interfaces, ONLY: forcing_fun
       use input_data, ONLY: t
+      use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT
       implicit none
       type(ADS_setup), intent(in) :: ads
       real(kind=8), intent(in), dimension(3) :: X
@@ -188,13 +189,12 @@ contains
               ads%NNy(0, a(2), k(2), e(2))* &
               ads%NNz(1, a(3), k(3), e(3))
 
-      source = forcing_cb(un11, du, X)
       if (t <= 0.d0) then
+         source = forcing_cb(un11, du, X)
          ret = J*W*v*source
          return
       end if
 
-      alpha = alpha_step(:, substep)
       select case (substep)
       case (1)
          u = un11
@@ -203,8 +203,10 @@ contains
       case (3)
          u = un23
       case default
-         stop "wrong substep"
+         write(ERROR_UNIT, '(A,I0)') "wrong substep: ", substep
+         stop 1
       end select
+      alpha = alpha_step(:, substep)
 
       statex = e(1) - ads_data%state_mine(1) + 1
       statey = e(2) - ads_data%state_mine(2) + 1
@@ -221,7 +223,10 @@ contains
          case (3)
             rhs_du(term) = ads_data%dUn23(statex, statey, statez, k(1), k(2), k(3), idir)
          case default
-            stop "wrong RHS derivative state"
+            write(ERROR_UNIT, '(A,I0,A,I0,A,I0)') &
+               "wrong RHS derivative state: ", ads_data%rhs_du_state(term, substep), &
+               ", term: ", term, ", substep: ", substep
+            stop 1
          end select
       end do
 

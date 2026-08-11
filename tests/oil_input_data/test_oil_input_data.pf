@@ -1,0 +1,278 @@
+module test_oil_input_data
+   use pfunit
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+   use Setup, only: ADS_Setup
+   use input_data, only: cN, cL, radius, Kqmin, Kqmax, cx, cy, cz, mi, &
+                         npumps, ndrains, pumps, drains, Kqvals, &
+                         drained_by_element, InitializeDrainedAccumulator, &
+                         CleanupDrainedAccumulator, ComputeResults, InitInputData, &
+                         dist_from_segment, dist_from_curves, pumping, &
+                         draining, kq, bq, initial_state, CacheKqValues, &
+                         PrecomputeKq
+   use parallelism, only: MYRANK
+   use mpi, only: STUB_DOUBLE => MPI_DOUBLE_PRECISION, STUB_SUM => MPI_SUM, &
+                  STUB_WORLD => MPI_COMM_WORLD, reduce_calls, &
+                  recorded_send_value, recorded_count, recorded_datatype, &
+                  recorded_operation, recorded_root, recorded_communicator
+   implicit none
+
+   real(kind=8), parameter :: TOL = 4096.d0*epsilon(1.d0)
+
+contains
+
+   logical function close_enough(actual, expected) result(close)
+      real(kind=8), intent(in) :: actual, expected
+
+      close = abs(actual - expected) <= TOL*max(1.d0, abs(expected))
+   end function close_enough
+
+
+   subroutine reset_problem_data()
+      if (allocated(pumps)) deallocate(pumps)
+      if (allocated(drains)) deallocate(drains)
+      if (allocated(Kqvals)) deallocate(Kqvals)
+      call CleanupDrainedAccumulator()
+      npumps = 0
+      ndrains = 0
+      mi = 10.d0
+      cx = 0.d0
+      cy = 0.d0
+      cz = 0.d0
+   end subroutine reset_problem_data
+
+
+   subroutine set_straight_curves()
+      integer(kind=4) :: curve, node, offset
+
+      do curve = 0, cN - 1
+         offset = curve*cL
+         do node = 1, cL
+            cx(offset + node) = real(node - 1, kind=8)/real(cL - 1, kind=8)
+            cy(offset + node) = 0.5d0
+            cz(offset + node) = 0.5d0
+         end do
+      end do
+   end subroutine set_straight_curves
+
+
+   @test
+   subroutine test_accumulator_bounds_reset_and_cleanup()
+      type(ADS_Setup) :: ads
+
+      call reset_problem_data()
+      ads%mine = (/ 3, 5, 7 /)
+      ads%maxe = (/ 4, 7, 10 /)
+      call InitializeDrainedAccumulator(ads)
+
+      @assertTrue(allocated(drained_by_element))
+      @assertTrue(all(lbound(drained_by_element) == (/ 7, 5, 3 /)))
+      @assertTrue(all(ubound(drained_by_element) == (/ 10, 7, 4 /)))
+      @assertTrue(all(shape(drained_by_element) == (/ 4, 3, 2 /)))
+      @assertTrue(all(drained_by_element == 0.d0))
+
+      drained_by_element(9, 6, 4) = 123.d0
+      call InitializeDrainedAccumulator(ads)
+      @assertTrue(all(drained_by_element == 0.d0))
+
+      ads%mine = (/ 11, 13, 17 /)
+      ads%maxe = ads%mine
+      call InitializeDrainedAccumulator(ads)
+      @assertTrue(all(lbound(drained_by_element) == (/ 17, 13, 11 /)))
+      @assertTrue(all(ubound(drained_by_element) == (/ 17, 13, 11 /)))
+      @assertTrue(drained_by_element(17, 13, 11) == 0.d0)
+
+      call CleanupDrainedAccumulator()
+      @assertFalse(allocated(drained_by_element))
+      call CleanupDrainedAccumulator()
+      @assertFalse(allocated(drained_by_element))
+   end subroutine test_accumulator_bounds_reset_and_cleanup
+
+
+   @test
+   subroutine test_compute_results_reduces_local_element_sum()
+      type(ADS_Setup) :: ads
+
+      call reset_problem_data()
+      ads%mine = (/ 3, 5, 7 /)
+      ads%maxe = (/ 4, 6, 8 /)
+      call InitializeDrainedAccumulator(ads)
+      drained_by_element(:, :, 3) = 1.d0
+      drained_by_element(:, :, 4) = 2.d0
+      MYRANK = 1
+      reduce_calls = 0
+
+      call ComputeResults()
+
+      @assertTrue(reduce_calls == 1)
+      @assertTrue(recorded_send_value == 12.d0)
+      @assertTrue(recorded_count == 1)
+      @assertTrue(recorded_datatype == STUB_DOUBLE)
+      @assertTrue(recorded_operation == STUB_SUM)
+      @assertTrue(recorded_root == 0)
+      @assertTrue(recorded_communicator == STUB_WORLD)
+      call reset_problem_data()
+   end subroutine test_compute_results_reduces_local_element_sum
+
+
+   @test
+   subroutine test_segment_distance_all_projection_regions()
+      real(kind=8), parameter :: begin_point(3) = (/ 0.d0, 0.d0, 0.d0 /)
+      real(kind=8), parameter :: end_point(3) = (/ 2.d0, 0.d0, 0.d0 /)
+      real(kind=8) :: actual
+
+      actual = dist_from_segment((/ 1.d0, 3.d0, 4.d0 /), begin_point, end_point)
+      @assertTrue(close_enough(actual, 25.d0))
+      actual = dist_from_segment((/ -1.d0, 2.d0, 0.d0 /), begin_point, end_point)
+      @assertTrue(close_enough(actual, 5.d0))
+      actual = dist_from_segment((/ 4.d0, 0.d0, 3.d0 /), begin_point, end_point)
+      @assertTrue(close_enough(actual, 13.d0))
+      @assertTrue(close_enough(dist_from_segment(begin_point, begin_point, end_point), 0.d0))
+      @assertTrue(close_enough(dist_from_segment(end_point, begin_point, end_point), 0.d0))
+   end subroutine test_segment_distance_all_projection_regions
+
+
+   @test
+   subroutine test_degenerate_segment_is_treated_as_endpoint()
+      real(kind=8), parameter :: endpoint(3) = (/ 1.d0, 2.d0, 3.d0 /)
+      real(kind=8), parameter :: point(3) = (/ 4.d0, -2.d0, 1.d0 /)
+
+      @assertTrue(close_enough(dist_from_segment(point, endpoint, endpoint), 29.d0))
+   end subroutine test_degenerate_segment_is_treated_as_endpoint
+
+
+   @test
+   subroutine test_curve_distance_selects_minimum()
+      real(kind=8), parameter :: curve_x(6) = (/ 0.d0, 1.d0, 2.d0, 0.d0, 1.d0, 2.d0 /)
+      real(kind=8), parameter :: curve_y(6) = (/ 0.d0, 0.d0, 0.d0, 3.d0, 3.d0, 3.d0 /)
+      real(kind=8), parameter :: curve_z(6) = (/ 0.d0, 0.d0, 0.d0, 0.d0, 0.d0, 0.d0 /)
+      real(kind=8), parameter :: point(3) = (/ 1.5d0, 2.d0, 2.d0 /)
+
+      @assertTrue(close_enough(dist_from_curves(point, curve_x, curve_y, curve_z, 2, 3), 5.d0))
+   end subroutine test_curve_distance_selects_minimum
+
+
+   @test
+   subroutine test_pumping_is_additive_and_compactly_supported()
+      call reset_problem_data()
+      npumps = 2
+      allocate(pumps(3, npumps))
+      pumps(:, 1) = (/ 0.25d0, 0.5d0, 0.75d0 /)
+      pumps(:, 2) = pumps(:, 1)
+
+      @assertTrue(close_enough(pumping(0.25d0, 0.5d0, 0.75d0), 2.d0))
+      @assertTrue(close_enough(pumping(0.25d0 + radius, 0.5d0, 0.75d0), 0.d0))
+      @assertTrue(close_enough(pumping(1.d0, 1.d0, 1.d0), 0.d0))
+
+      deallocate(pumps)
+      npumps = 0
+      allocate(pumps(3, 0))
+      @assertTrue(close_enough(pumping(0.25d0, 0.5d0, 0.75d0), 0.d0))
+      call reset_problem_data()
+   end subroutine test_pumping_is_additive_and_compactly_supported
+
+
+   @test
+   subroutine test_draining_scaling_and_support()
+      call reset_problem_data()
+      ndrains = 2
+      allocate(drains(3, ndrains))
+      drains(:, 1) = (/ 0.25d0, 0.5d0, 0.75d0 /)
+      drains(:, 2) = drains(:, 1)
+
+      @assertTrue(close_enough(draining(3.d0, 0.25d0, 0.5d0, 0.75d0), 6.d0))
+      @assertTrue(close_enough(draining(-2.d0, 0.25d0, 0.5d0, 0.75d0), -4.d0))
+      @assertTrue(close_enough(draining(3.d0, 1.d0, 1.d0, 1.d0), 0.d0))
+
+      deallocate(drains)
+      ndrains = 0
+      allocate(drains(3, 0))
+      @assertTrue(close_enough(draining(3.d0, 0.25d0, 0.5d0, 0.75d0), 0.d0))
+      call reset_problem_data()
+   end subroutine test_draining_scaling_and_support
+
+
+   @test
+   subroutine test_kq_and_initial_state_attain_expected_extrema()
+      call reset_problem_data()
+      call set_straight_curves()
+
+      @assertTrue(close_enough(kq(0.5d0, 0.5d0, 0.5d0), Kqmax))
+      @assertTrue(close_enough(kq(0.5d0, 0.9d0, 0.9d0), Kqmin))
+      @assertTrue(close_enough(initial_state(0.5d0, 0.5d0, 0.5d0), 0.1d0))
+      @assertTrue(close_enough(initial_state(0.5d0, 0.9d0, 0.9d0), 0.d0))
+   end subroutine test_kq_and_initial_state_attain_expected_extrema
+
+
+   @test
+   subroutine test_nonlinear_mobility_uses_configured_exponent()
+      call reset_problem_data()
+      mi = 2.5d0
+
+      @assertTrue(close_enough(bq(-100.d0, 200.d0, 300.d0, 0.d0), 1.d0))
+      @assertTrue(close_enough(bq(1.d0, 2.d0, 3.d0, 0.4d0), exp(1.d0)))
+      call reset_problem_data()
+   end subroutine test_nonlinear_mobility_uses_configured_exponent
+
+
+   @test
+   subroutine test_init_input_data_populates_curves()
+      integer(kind=4) :: seed_size
+      integer(kind=4), allocatable :: seed(:)
+
+      call reset_problem_data()
+      call random_seed(size=seed_size)
+      allocate(seed(seed_size))
+      seed = 314159
+      call random_seed(put=seed)
+      call InitInputData()
+
+      @assertTrue(all(ieee_is_finite(cx)))
+      @assertTrue(all(ieee_is_finite(cy)))
+      @assertTrue(all(ieee_is_finite(cz)))
+      @assertTrue(any(cx(2:cL) /= cx(1)))
+      @assertTrue(any(cy(2:cL) /= cy(1)))
+      @assertTrue(any(cz(2:cL) /= cz(1)))
+   end subroutine test_init_input_data_populates_curves
+
+
+   @test
+   subroutine test_cache_and_precompute_kq_samples()
+      real(kind=8), parameter :: knots(0:3) = (/ 0.d0, 0.d0, 1.d0, 1.d0 /)
+      real(kind=8) :: cached(2, 2, 2, 1, 1, 1)
+      real(kind=8) :: points(2), expected
+      type(ADS_Setup) :: ads
+      integer(kind=4) :: kx, ky, kz
+
+      call reset_problem_data()
+      call set_straight_curves()
+      points = 0.5d0*(/ 1.d0 - 1.d0/sqrt(3.d0), 1.d0 + 1.d0/sqrt(3.d0) /)
+
+      call CacheKqValues(knots, 1, 1, 1, 1, 1, &
+                         knots, 1, 1, 1, 1, 1, &
+                         knots, 1, 1, 1, 1, 1, cached)
+      do kx = 1, 2
+         do ky = 1, 2
+            do kz = 1, 2
+               expected = kq(points(kx), points(ky), points(kz))
+               @assertTrue(close_enough(cached(kx, ky, kz, 1, 1, 1), expected))
+            end do
+         end do
+      end do
+
+      ads%p = 1
+      ads%n = 1
+      ads%nelem = 1
+      ads%mine = 1
+      ads%maxe = 1
+      allocate(ads%Ux(0:3), ads%Uy(0:3), ads%Uz(0:3))
+      ads%Ux = knots
+      ads%Uy = knots
+      ads%Uz = knots
+      allocate(Kqvals(2, 2, 2, 1, 1, 1))
+      Kqvals = -1.d0
+      call PrecomputeKq(ads)
+      @assertTrue(all(abs(Kqvals - cached) <= TOL*max(1.d0, maxval(abs(cached)))))
+      call reset_problem_data()
+   end subroutine test_cache_and_precompute_kq_samples
+
+end module test_oil_input_data

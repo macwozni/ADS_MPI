@@ -1,6 +1,7 @@
 subroutine dmumps(mumps_par)
    use mumps_test_support, only: failure_job, failure_occurrence, failure_code, &
       finalization_code, failure_uses_infog, record_mumps_job
+   use mumps_test_support, only: record_mumps_contract
    implicit none
    include 'dmumps_struc.h'
    type(dmumps_struc), intent(inout) :: mumps_par
@@ -8,6 +9,11 @@ subroutine dmumps(mumps_par)
    logical :: fail_this_call
 
    call record_mumps_job(mumps_par%job, occurrence)
+   if (mumps_par%job == 1) then
+      call record_mumps_contract(mumps_par%comm, mumps_par%sym, mumps_par%par, &
+         mumps_par%n, mumps_par%nz, mumps_par%irn, mumps_par%jcn, &
+         mumps_par%a, mumps_par%icntl)
+   end if
    mumps_par%info = 0
    mumps_par%infog = 0
 

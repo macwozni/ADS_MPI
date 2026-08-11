@@ -25,6 +25,8 @@
 !------------------------------------------------------------------------------
 module communicators
 
+   use mpi, ONLY: MPI_COMM_NULL, MPI_GROUP_NULL
+
    implicit none
 
 !---------------------------------------------------------------------------
@@ -77,7 +79,7 @@ module communicators
 !> with fixed \f$(y,z)\f$ coordinates and varying \f$x\f$ coordinate.
 !
 !---------------------------------------------------------------------------
-   integer(kind=4) :: GROUPX(NRPROCYMAX, NRPROCZMAX)
+   integer(kind=4) :: GROUPX(NRPROCYMAX, NRPROCZMAX) = MPI_GROUP_NULL
 
 !---------------------------------------------------------------------------
 !
@@ -90,7 +92,7 @@ module communicators
 !> with fixed \f$(x,z)\f$ coordinates and varying \f$y\f$ coordinate.
 !
 !---------------------------------------------------------------------------
-   integer(kind=4) :: GROUPY(NRPROCXMAX, NRPROCZMAX)
+   integer(kind=4) :: GROUPY(NRPROCXMAX, NRPROCZMAX) = MPI_GROUP_NULL
 
 !---------------------------------------------------------------------------
 !
@@ -103,7 +105,7 @@ module communicators
 !> with fixed \f$(x,y)\f$ coordinates and varying \f$z\f$ coordinate.
 !
 !---------------------------------------------------------------------------
-   integer(kind=4) :: GROUPZ(NRPROCXMAX, NRPROCYMAX)
+   integer(kind=4) :: GROUPZ(NRPROCXMAX, NRPROCYMAX) = MPI_GROUP_NULL
 
 !---------------------------------------------------------------------------
 !
@@ -116,7 +118,7 @@ module communicators
 !> processes with fixed \f$(y,z)\f$ coordinates.
 !
 !---------------------------------------------------------------------------
-   integer(kind=4) :: COMMXALL(NRPROCYMAX, NRPROCZMAX)
+   integer(kind=4) :: COMMXALL(NRPROCYMAX, NRPROCZMAX) = MPI_COMM_NULL
 
 !---------------------------------------------------------------------------
 !
@@ -129,7 +131,7 @@ module communicators
 !> processes with fixed \f$(x,z)\f$ coordinates.
 !
 !---------------------------------------------------------------------------
-   integer(kind=4) :: COMMYALL(NRPROCXMAX, NRPROCZMAX)
+   integer(kind=4) :: COMMYALL(NRPROCXMAX, NRPROCZMAX) = MPI_COMM_NULL
 
 !---------------------------------------------------------------------------
 !
@@ -142,7 +144,7 @@ module communicators
 !> processes with fixed \f$(x,y)\f$ coordinates.
 !
 !---------------------------------------------------------------------------
-   integer(kind=4) :: COMMZALL(NRPROCXMAX, NRPROCYMAX)
+   integer(kind=4) :: COMMZALL(NRPROCXMAX, NRPROCYMAX) = MPI_COMM_NULL
 
 !---------------------------------------------------------------------------
 !
@@ -151,7 +153,7 @@ module communicators
 !> parallel to the first process-grid direction.
 !
 !---------------------------------------------------------------------------
-   integer(kind=4) :: COMMX
+   integer(kind=4) :: COMMX = MPI_COMM_NULL
 
 !---------------------------------------------------------------------------
 !
@@ -160,7 +162,7 @@ module communicators
 !> parallel to the second process-grid direction.
 !
 !---------------------------------------------------------------------------
-   integer(kind=4) :: COMMY
+   integer(kind=4) :: COMMY = MPI_COMM_NULL
 
 !---------------------------------------------------------------------------
 !
@@ -169,7 +171,7 @@ module communicators
 !> parallel to the third process-grid direction.
 !
 !---------------------------------------------------------------------------
-   integer(kind=4) :: COMMZ
+   integer(kind=4) :: COMMZ = MPI_COMM_NULL
 
    PRIVATE :: GROUPX, GROUPY, GROUPZ
    PRIVATE :: COMMXALL, COMMYALL, COMMZALL
@@ -212,9 +214,9 @@ contains
 !> The implementation assumes that the active process-grid dimensions do
 !> not exceed `NRPROCXMAX`, `NRPROCYMAX`, and `NRPROCZMAX`.
 !
-!> @warning
-!> MPI groups and communicators created here are not released within
-!> this module in the current implementation.
+!> @note
+!> Call \ref Cleanup_Communicators after the fibre communicators are no
+!> longer needed.
 !
 !---------------------------------------------------------------------------
 subroutine CreateCommunicators(mierr)
@@ -294,6 +296,12 @@ subroutine CreateCommunicators(mierr)
          end if
       end do
    end do
+
+   call mpi_group_free(group_comm_world, ierr)
+   if (ierr /= MPI_SUCCESS) then
+      write (ERROR_UNIT, *) MYRANK, ': main: error freeing MPI_COMM_WORLD group'
+      STOP 4
+   end if
 
 #ifdef IPRINT
    call PrintGroups

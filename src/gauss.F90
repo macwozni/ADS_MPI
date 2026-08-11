@@ -29,6 +29,9 @@
 module gauss
 
    implicit none
+   private
+
+   public :: GaussRule
 
 !> @brief Maximum number of points available in the Gauss rule table.
    integer(kind=4), parameter, public :: MAX_GAUSS_POINTS = 10
@@ -130,8 +133,6 @@ contains
       real(kind=8) :: PI, A, D0, D1, Y0, Y1, Y2, Y3, S, M, EPS
       integer(kind=4) :: I, J
       real(kind=8), dimension(0:4) :: WP, Z
-      initialized = .TRUE.
-
       PI = 4.0d0*atan(1.0d0)
 
       ! p = 1
@@ -304,6 +305,9 @@ contains
       W10(7) = W10(2)
       W10(8) = W10(1)
       W10(9) = W10(0)
+
+!$OMP ATOMIC WRITE RELEASE
+      initialized = .TRUE.
    end subroutine initialize
 
 
@@ -354,8 +358,17 @@ contains
       integer(kind=4), intent(in) :: n
       real(kind=8), dimension(0:n - 1), intent(out) :: X
       real(kind=8), dimension(0:n - 1), intent(out) :: W
+      logical :: ready
 
-      if (.NOT. initialized) call initialize()
+!$OMP ATOMIC READ ACQUIRE
+      ready = initialized
+      if (.NOT. ready) then
+!$OMP CRITICAL(gauss_lazy_initialize)
+!$OMP ATOMIC READ ACQUIRE
+         ready = initialized
+         if (.NOT. ready) call initialize()
+!$OMP END CRITICAL(gauss_lazy_initialize)
+      end if
 
       select case (n)
       case (1) ! p = 1

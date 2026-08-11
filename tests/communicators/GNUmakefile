@@ -41,6 +41,7 @@ tests: all
 run: $(TEST_NAME)
 	$(MPIEXEC) -n 1 ./$(TEST_NAME) 1 1 1
 	$(MPIEXEC) -n 6 ./$(TEST_NAME) 3 2 1
+	$(MPIEXEC) -n 6 ./$(TEST_NAME) 2 1 3
 	$(MPIEXEC) -n 8 ./$(TEST_NAME) 2 2 2
 
 clean:

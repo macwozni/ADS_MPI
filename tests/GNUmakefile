@@ -1,26 +1,104 @@
-.PHONY: clean tests
-ifneq ($(BASEMK_INCLUDED),YES)
-include $(PFUNIT)/include/base.mk
-endif
+.DEFAULT_GOAL := all
 
-SRCS = $(wildcard *.pf)
-OBJS = $(SRCS:.pf=$(OBJ_EXT))
+.NOTPARALLEL:
 
-tests: $(OBJS)
+.PHONY: all tests run run-src run-problems run-driver check-layout list clean
 
-testSuites.inc: $(SRCS)
+PFUNIT_ROOT ?= /opt/lib/pfunit/PFUNIT-4.16
+MPIEXEC     ?= /opt/lib/mpich-5.0.0/bin/mpiexec
+MPIFC       ?= /opt/lib/mpich-5.0.0/bin/mpif90
+MUMPS_DIR   ?= /opt/lib/MUMPS_5.8.2
+SUITE_TIMEOUT ?= 600s
 
-FFLAGS += -I$(SRC_DIR) -I$(PFUNIT)/mod
+# Exactly one primary suite for every active source listed in mymake/m_files.
+SRC_SUITES := \
+	setup \
+	interfaces \
+	argument_parser \
+	knot_vector \
+	parallelism \
+	communicators \
+	gauss \
+	basis \
+	math \
+	reorder_rhs \
+	my_mpi \
+	sparse \
+	rhs_eq \
+	igrm_space \
+	operator_assembly \
+	rhs_assembly \
+	solution_reconstruction \
+	projection_engine \
+	ads_lifecycle \
+	mumps_solver \
+	ads_directional_solve \
+	utils \
+	plot \
+	gnuplot \
+	vtk \
+	solution_output \
+	ads \
+	time_scheme
 
-FFLAGS += 
+# Problem modules deliberately live in separate build directories because
+# several problems use the same Fortran module names (input_data/RHS_fun).
+PROBLEM_SUITES := \
+	oil_input_data \
+	oil_rhs_fun \
+	heat_rhs_fun \
+	igrm_heat_rhs_fun
 
-%.F90: %.pf
-	$(PFUNIT)/bin/pFUnitParser.py $<  $@
+DRIVER_SUITES := driver_cli
+SUITES := $(SRC_SUITES) $(PROBLEM_SUITES) $(DRIVER_SUITES)
 
-%$(OBJ_EXT): %.F90
-	$(FC) -c $(FFLAGS) $(FPPFLAGS) $<
+define run_suites
+	@set -eu; \
+	for suite in $(1); do \
+		printf '\n==> tests/%s: %s\n' "$$suite" "$(2)"; \
+		timeout $(SUITE_TIMEOUT) $(MAKE) -j1 -C "$$suite" \
+			PFUNIT_ROOT="$(PFUNIT_ROOT)" MPIEXEC="$(MPIEXEC)" \
+			MPIFC="$(MPIFC)" FC="$(MPIFC)" \
+			MUMPS_DIR="$(MUMPS_DIR)" "$(2)"; \
+	done
+endef
 
-clean: local-E1-clean
+define rebuild_and_run_suites
+	@set -eu; \
+	for suite in $(1); do \
+		printf '\n==> tests/%s: clean + run\n' "$$suite"; \
+		timeout $(SUITE_TIMEOUT) $(MAKE) -j1 -C "$$suite" \
+			PFUNIT_ROOT="$(PFUNIT_ROOT)" MPIEXEC="$(MPIEXEC)" \
+			MPIFC="$(MPIFC)" FC="$(MPIFC)" \
+			MUMPS_DIR="$(MUMPS_DIR)" clean; \
+		timeout $(SUITE_TIMEOUT) $(MAKE) -j1 -C "$$suite" \
+			PFUNIT_ROOT="$(PFUNIT_ROOT)" MPIEXEC="$(MPIEXEC)" \
+			MPIFC="$(MPIFC)" FC="$(MPIFC)" \
+			MUMPS_DIR="$(MUMPS_DIR)" run; \
+	done
+endef
 
-local-E1-clean:
-	$(RM) *$(OBJ_EXT) *.mod
+check-layout:
+	python3 ./check_test_layout.py
+
+all: check-layout
+	$(call run_suites,$(SUITES),all)
+
+tests: all
+
+run-src: check-layout
+	$(call rebuild_and_run_suites,$(SRC_SUITES))
+
+run-problems: check-layout
+	$(call rebuild_and_run_suites,$(PROBLEM_SUITES))
+
+run-driver:
+	$(call rebuild_and_run_suites,$(DRIVER_SUITES))
+
+run: run-src run-problems run-driver
+
+list:
+	@printf '%s\n' $(SUITES)
+
+clean:
+	$(call run_suites,$(SUITES),clean)

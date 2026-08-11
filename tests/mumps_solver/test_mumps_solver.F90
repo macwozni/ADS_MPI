@@ -1,7 +1,10 @@
 program test_mumps_solver
    use sparse, only: sparse_matrix, initialize_sparse, clear_matrix, add
    use mumps_solver, only: SolveOneDirection
-   use mumps_test_support, only: configure_mumps_stub, expected_jobs
+   use mumps_test_support, only: configure_mumps_stub, expected_jobs, contract_recorded, &
+      recorded_comm, recorded_sym, recorded_par, recorded_n, recorded_nz, &
+      recorded_icntl, recorded_irn, recorded_jcn, recorded_a
+   use mpi, only: MPI_COMM_SELF
    implicit none
 
    type(sparse_matrix), pointer :: matrix
@@ -52,6 +55,28 @@ contains
                        failure_count)
       call assert_true('success executes every MUMPS phase', &
                        expected_jobs((/-1, 1, 2, 3, 3, -2/)), failure_count)
+      call assert_true('analysis receives a recorded MUMPS contract', &
+                       contract_recorded, failure_count)
+      call assert_true('each rank solves through MPI_COMM_SELF', &
+                       recorded_comm == MPI_COMM_SELF, failure_count)
+      call assert_true('MUMPS receives unsymmetric host participation', &
+                       recorded_sym == 0 .and. recorded_par == 1, failure_count)
+      call assert_true('MUMPS receives exact matrix dimensions', &
+                       recorded_n == 2 .and. recorded_nz == 2, failure_count)
+      call assert_true('MUMPS receives exact one-based row triplets', &
+                       all(recorded_irn(1:2) == (/1, 2/)), failure_count)
+      call assert_true('MUMPS receives exact one-based column triplets', &
+                       all(recorded_jcn(1:2) == (/1, 2/)), failure_count)
+      call assert_true('MUMPS receives exact matrix values', &
+                       all(recorded_a(1:2) == (/2.d0, 3.d0/)), failure_count)
+      call assert_true('MUMPS receives required analysis controls', &
+                       recorded_icntl(1) == 1 .and. recorded_icntl(2) == 0 .and. &
+                       recorded_icntl(3) == 0 .and. recorded_icntl(4) == 0 .and. &
+                       recorded_icntl(5) == 0 .and. recorded_icntl(7) == 7 .and. &
+                       recorded_icntl(11) == 2 .and. recorded_icntl(12) == 0 .and. &
+                       recorded_icntl(13) == 1 .and. recorded_icntl(14) == 50 .and. &
+                       recorded_icntl(18) == 0 .and. recorded_icntl(19) == 0 .and. &
+                       recorded_icntl(20) == 0, failure_count)
    end subroutine test_success
 
 

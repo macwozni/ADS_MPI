@@ -1,0 +1,7 @@
+/_OBJ/
+/test_oil_rhs_fun
+/test_oil_rhs_fun.F90
+/test_oil_rhs_fun.inc
+/*.o
+/*.mod
+/*.smod

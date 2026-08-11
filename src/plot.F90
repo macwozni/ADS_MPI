@@ -109,13 +109,7 @@ contains
 ! Notes:
 ! ------
 !> @note
-!> The routine assumes at least two sampling points in each direction
-!> when constructing interpolation parameters of the form
-!> \f$(i-1)/(N-1)\f$.
-!
-!> @warning
-!> If any resolution in \p params is equal to one, the interpolation
-!> formula introduces a division by zero.
+!> A direction with unit resolution is sampled at its lower bound.
 !
 !---------------------------------------------------------------------------
 subroutine SavePlot(filename, f, output, params)
@@ -147,14 +141,26 @@ subroutine SavePlot(filename, f, output, params)
 
    ! Compute function values
    do ix = 1, params%resx
-      t = (ix - 1)/dble(params%resx - 1)
-      x = lerp(t, params%startx, params%endx)
+      if (params%resx > 1) then
+         t = dble(ix - 1)/dble(params%resx - 1)
+         x = lerp(t, params%startx, params%endx)
+      else
+         x = params%startx
+      end if
       do iy = 1, params%resy
-         t = (iy - 1)/dble(params%resy - 1)
-         y = lerp(t, params%starty, params%endy)
+         if (params%resy > 1) then
+            t = dble(iy - 1)/dble(params%resy - 1)
+            y = lerp(t, params%starty, params%endy)
+         else
+            y = params%starty
+         end if
          do iz = 1, params%resz
-            t = (iz - 1)/dble(params%resz - 1)
-            z = lerp(t, params%startz, params%endz)
+            if (params%resz > 1) then
+               t = dble(iz - 1)/dble(params%resz - 1)
+               z = lerp(t, params%startz, params%endz)
+            else
+               z = params%startz
+            end if
             vals(ix, iy, iz) = f(x, y, z)
          end do
       end do
@@ -245,9 +251,8 @@ end subroutine SavePlot
 !> The current implementation samples the spline value itself by calling
 !> `EvalSpline` with derivative order equal to zero.
 !
-!> @warning
-!> As in \ref SavePlot, any unit resolution in \p params leads to a
-!> division by zero in the interpolation parameter.
+!> @note
+!> A direction with unit resolution is sampled at its lower bound.
 !
 !---------------------------------------------------------------------------
 subroutine SaveSplinePlot(filename, &
@@ -296,12 +301,24 @@ subroutine SaveSplinePlot(filename, &
    do ix = 1, params%resx
       do iy = 1, params%resy
          do iz = 1, params%resz
-            t = (ix - 1)/dble(params%resx - 1)
-            x = lerp(t, params%startx, params%endx)
-            t = (iy - 1)/dble(params%resy - 1)
-            y = lerp(t, params%starty, params%endy)
-            t = (iz - 1)/dble(params%resz - 1)
-            z = lerp(t, params%startz, params%endz)
+            if (params%resx > 1) then
+               t = dble(ix - 1)/dble(params%resx - 1)
+               x = lerp(t, params%startx, params%endx)
+            else
+               x = params%startx
+            end if
+            if (params%resy > 1) then
+               t = dble(iy - 1)/dble(params%resy - 1)
+               y = lerp(t, params%starty, params%endy)
+            else
+               y = params%starty
+            end if
+            if (params%resz > 1) then
+               t = dble(iz - 1)/dble(params%resz - 1)
+               z = lerp(t, params%startz, params%endz)
+            else
+               z = params%startz
+            end if
             vals(ix, iy, iz) = EvalSpline(0, Ux, px, nx, nelemx, Uy, py, ny, nelemy, &
                                           Uz, pz, nz, nelemz, coeffs, x, y, z)
          end do

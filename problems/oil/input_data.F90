@@ -336,6 +336,8 @@ contains
 ! -------
 !> @return d
 !> Squared Euclidean distance from \p point to the segment.
+!>
+!> A degenerate segment is treated as its single endpoint.
 !
 !---------------------------------------------------------------------------
    function dist_from_segment(point, ibeg, iend) result (d)
@@ -354,6 +356,10 @@ contains
 
       dot = dx * cx + dy * cy + dz * cz
       len2 = dx ** 2 + dy **2 + dz ** 2
+      if (len2 == 0.d0) then
+         d = cx**2 + cy**2 + cz**2
+         return
+      end if
       proj = dot / len2
 
       if (proj < 0) then

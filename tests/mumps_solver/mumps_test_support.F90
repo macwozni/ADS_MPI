@@ -11,6 +11,16 @@ module mumps_test_support
    integer(kind=4) :: finalization_code = 0
    integer(kind=4) :: job_occurrences(-2:3) = 0
    logical :: failure_uses_infog = .false.
+   logical :: contract_recorded = .false.
+   integer(kind=4) :: recorded_comm = 0
+   integer(kind=4) :: recorded_sym = 0
+   integer(kind=4) :: recorded_par = 0
+   integer(kind=4) :: recorded_n = 0
+   integer(kind=4) :: recorded_nz = 0
+   integer(kind=4) :: recorded_icntl(40) = 0
+   integer(kind=4) :: recorded_irn(64) = 0
+   integer(kind=4) :: recorded_jcn(64) = 0
+   real(kind=8) :: recorded_a(64) = 0.d0
 
 contains
 
@@ -27,6 +37,16 @@ contains
       failure_occurrence = 1
       finalization_code = 0
       failure_uses_infog = .false.
+      contract_recorded = .false.
+      recorded_comm = 0
+      recorded_sym = 0
+      recorded_par = 0
+      recorded_n = 0
+      recorded_nz = 0
+      recorded_icntl = 0
+      recorded_irn = 0
+      recorded_jcn = 0
+      recorded_a = 0.d0
       if (present(occurrence)) failure_occurrence = occurrence
       if (present(use_infog)) failure_uses_infog = use_infog
       if (present(finalize_code)) finalization_code = finalize_code
@@ -49,6 +69,29 @@ contains
          occurrence = 0
       end if
    end subroutine record_mumps_job
+
+
+   subroutine record_mumps_contract(comm, sym, par, n, nz, irn, jcn, values, icntl)
+      integer(kind=4), intent(in) :: comm, sym, par, n, nz
+      integer(kind=4), intent(in) :: irn(:), jcn(:), icntl(:)
+      real(kind=8), intent(in) :: values(:)
+      integer(kind=4) :: entry_count, control_count
+
+      contract_recorded = .true.
+      recorded_comm = comm
+      recorded_sym = sym
+      recorded_par = par
+      recorded_n = n
+      recorded_nz = nz
+      entry_count = min(nz, size(recorded_irn), size(irn), size(jcn), size(values))
+      if (entry_count > 0) then
+         recorded_irn(1:entry_count) = irn(1:entry_count)
+         recorded_jcn(1:entry_count) = jcn(1:entry_count)
+         recorded_a(1:entry_count) = values(1:entry_count)
+      end if
+      control_count = min(size(recorded_icntl), size(icntl))
+      recorded_icntl(1:control_count) = icntl(1:control_count)
+   end subroutine record_mumps_contract
 
 
    logical function expected_jobs(actual) result(matches)

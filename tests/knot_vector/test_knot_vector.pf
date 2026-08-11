@@ -1,0 +1,386 @@
+module test_knot_vector
+   use pfunit
+   implicit none
+contains
+
+@test
+subroutine test_prepare_open_knot()
+   use knot_vector, only: PrepareKnot
+   implicit none
+   integer(kind = 4) :: n, p, nelem
+   real (kind = 8), allocatable, dimension(:) :: U
+   real (kind = 8), allocatable, dimension(:) :: res
+
+   ! Number of subintervals is N = n-p+1.
+
+   n = 0
+   p = 0
+   ! N = 1
+   call PrepareKnot(n, p, res, nelem)
+   U = (/ 0.0, 1.0 /)
+   @assertEqual(1, nelem)
+   @assertEqual(U, res)
+   deallocate(res)
+
+   n = 1
+   p = 0
+   ! N = 2
+   call PrepareKnot(n, p, res, nelem)
+   U = (/ 0.0, 0.5, 1.0 /)
+   @assertEqual(2, nelem)
+   @assertEqual(U, res)
+   deallocate(res)
+
+   n = 3
+   p = 0
+   ! N = 4
+   call PrepareKnot(n, p, res, nelem)
+   U = (/0.0, 0.25, 0.5, 0.75, 1.0/)
+   @assertEqual(4, nelem)
+   @assertEqual(U, res)
+   deallocate(res)
+
+   n = 4
+   p = 1
+   ! N = 4
+   call PrepareKnot(n, p, res, nelem)
+   U = (/0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0/)
+   @assertEqual(4, nelem)
+   @assertEqual(U, res)
+   deallocate(res)
+
+   n = 5
+   p = 2
+   ! N = 4
+   call PrepareKnot(n, p, res, nelem)
+   U = (/0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0/)
+   @assertEqual(4, nelem)
+   @assertEqual(U, res)
+   deallocate(res)
+
+   n = 6
+   p = 3
+   ! N = 4
+   call PrepareKnot(n, p, res, nelem)
+   U = (/0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0/)
+   @assertEqual(4, nelem)
+   @assertEqual(U, res)
+   deallocate(res)
+end subroutine test_prepare_open_knot
+
+
+
+@test
+subroutine test_count_spans()
+   use knot_vector, only: CountSpans
+   implicit none
+   integer(kind = 4) :: n, p
+   integer(kind = 4) :: res
+   real (kind = 8), allocatable, dimension(:) :: U
+
+   ! n - number of functions (control points) minus 1
+   ! p - order of basis functions
+   ! U - knot vector
+
+   n = 0
+   p = 0
+   U = (/0.0, 1.0/)
+   res = CountSpans(n, p, U)
+   @assertEqual(n-p+1, res)
+
+   n = 1
+   p = 0
+   U = (/ 0.0, 0.5, 1.0 /)
+   res = CountSpans(n, p, U)
+   @assertEqual(n-p+1, res)
+
+   n = 3
+   p = 0
+   U = (/0.0, 0.25, 0.5, 0.75, 1.0/)
+   res = CountSpans(n, p, U)
+   @assertEqual(n - p + 1, res)
+
+   n = 4
+   p = 1
+   U = (/0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0/)
+   res = CountSpans(n, p, U)
+   @assertEqual(n - p + 1, res)
+
+   n = 5
+   p = 2
+   U = (/0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0/)
+   res = CountSpans(n, p, U)
+   @assertEqual(n - p + 1, res)
+
+   n = 6
+   p = 3
+   U = (/0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0/)
+   res = CountSpans(n, p, U)
+   @assertEqual(n - p + 1, res)
+end subroutine test_count_spans
+
+
+@test
+subroutine test_prepare_knot_overloads_agree()
+   use knot_vector, only: PrepareKnot
+   implicit none
+   integer(kind = 4) :: n, n_repeated, p, nelem, nelem_repeated
+   real (kind = 8), allocatable, dimension(:) :: U, U_repeated
+
+   n = 7
+   p = 2
+   call PrepareKnot(n, p, U, nelem)
+
+   n_repeated = n
+   call PrepareKnot(n_repeated, p, nelem, p - 1, U_repeated, nelem_repeated)
+
+   @assertEqual(n, n_repeated)
+   @assertEqual(nelem, nelem_repeated)
+   @assertEqual(U, U_repeated)
+
+   deallocate(U)
+   deallocate(U_repeated)
+end subroutine test_prepare_knot_overloads_agree
+
+
+
+@test
+subroutine test_prepare_repeated_knot_standard_continuity()
+   use knot_vector, only: PrepareKnot
+   implicit none
+
+   integer(kind=4) :: n, p, iblock, c_continuity, nelem
+   integer(kind=4) :: n_old
+   real(kind=8), allocatable :: U(:)
+   real(kind=8), allocatable :: Uref(:)
+
+   n = 7
+   p = 2
+   iblock = 2
+   c_continuity = 1   ! C^(p-1) = C^1 for p=2
+   n_old = n
+
+   call PrepareKnot(n, p, iblock, c_continuity, U, nelem)
+
+   Uref = (/ 0.0d0, 0.0d0, 0.0d0, &
+             1.0d0/6.0d0, 2.0d0/6.0d0, 3.0d0/6.0d0, 4.0d0/6.0d0, 5.0d0/6.0d0, &
+             1.0d0, 1.0d0, 1.0d0 /)
+
+   @assertEqual(n_old - p + 1, nelem)
+   @assertEqual(7, n)
+   @assertEqual(Uref, U)
+
+   deallocate(U)
+end subroutine test_prepare_repeated_knot_standard_continuity
+
+
+@test
+subroutine test_prepare_repeated_knot_C0()
+   use knot_vector, only: PrepareKnot
+   implicit none
+
+   integer(kind=4) :: n, p, iblock, c_continuity, nelem
+   integer(kind=4) :: n_old
+   real(kind=8), allocatable :: U(:)
+   real(kind=8), allocatable :: Uref(:)
+
+   n = 7
+   p = 2
+   iblock = 2
+   c_continuity = 0
+   n_old = n
+
+   call PrepareKnot(n, p, iblock, c_continuity, U, nelem)
+
+   ! nelem = 7 - 2 + 1 = 6
+   ! block interfaces after elements 2 and 4
+   ! xi = 2/6 and 4/6 repeated twice
+   Uref = (/ 0.0d0, 0.0d0, 0.0d0, &
+             1.0d0/6.0d0, &
+             2.0d0/6.0d0, 2.0d0/6.0d0, &
+             3.0d0/6.0d0, &
+             4.0d0/6.0d0, 4.0d0/6.0d0, &
+             5.0d0/6.0d0, &
+             1.0d0, 1.0d0, 1.0d0 /)
+
+   @assertEqual(n_old - p + 1, nelem)
+   @assertEqual(9, n)
+   @assertEqual(Uref, U)
+
+   deallocate(U)
+end subroutine test_prepare_repeated_knot_C0
+
+
+@test
+subroutine test_prepare_repeated_knot_Cminus1()
+   use knot_vector, only: PrepareKnot
+   implicit none
+
+   integer(kind=4) :: n, p, iblock, c_continuity, nelem
+   integer(kind=4) :: n_old
+   real(kind=8), allocatable :: U(:)
+   real(kind=8), allocatable :: Uref(:)
+
+   n = 7
+   p = 2
+   iblock = 2
+   c_continuity = -1
+   n_old = n
+
+   call PrepareKnot(n, p, iblock, c_continuity, U, nelem)
+
+   ! multiplicity = p - c = 2 - (-1) = 3
+   Uref = (/ 0.0d0, 0.0d0, 0.0d0, &
+             1.0d0/6.0d0, &
+             2.0d0/6.0d0, 2.0d0/6.0d0, 2.0d0/6.0d0, &
+             3.0d0/6.0d0, &
+             4.0d0/6.0d0, 4.0d0/6.0d0, 4.0d0/6.0d0, &
+             5.0d0/6.0d0, &
+             1.0d0, 1.0d0, 1.0d0 /)
+
+   @assertEqual(n_old - p + 1, nelem)
+   @assertEqual(11, n)
+   @assertEqual(Uref, U)
+
+   deallocate(U)
+end subroutine test_prepare_repeated_knot_Cminus1
+
+
+@test
+subroutine test_prepare_repeated_knot_p4_C0()
+   use knot_vector, only: PrepareKnot
+   implicit none
+
+   integer(kind=4) :: n, p, iblock, c_continuity, nelem
+   integer(kind=4) :: n_old
+   real(kind=8), allocatable :: U(:)
+   real(kind=8), allocatable :: Uref(:)
+
+   n = 8
+   p = 4
+   iblock = 2
+   c_continuity = 0
+   n_old = n
+
+   call PrepareKnot(n, p, iblock, c_continuity, U, nelem)
+
+   ! nelem = 8 - 4 + 1 = 5
+   ! interfaces after elements 2 and 4
+   ! multiplicity = p - c = 4
+   Uref = (/ 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, &
+             1.0d0/5.0d0, &
+             2.0d0/5.0d0, 2.0d0/5.0d0, 2.0d0/5.0d0, 2.0d0/5.0d0, &
+             3.0d0/5.0d0, &
+             4.0d0/5.0d0, 4.0d0/5.0d0, 4.0d0/5.0d0, 4.0d0/5.0d0, &
+             1.0d0, 1.0d0, 1.0d0, 1.0d0, 1.0d0 /)
+
+   @assertEqual(n_old - p + 1, nelem)
+   @assertEqual(14, n)
+   @assertEqual(Uref, U)
+
+   deallocate(U)
+end subroutine test_prepare_repeated_knot_p4_C0
+
+
+@test
+subroutine test_prepare_repeated_knot_single_element_has_no_interface()
+   use knot_vector, only: PrepareKnot, CountSpans
+   implicit none
+
+   integer(kind=4) :: n, p, nelem
+   real(kind=8), allocatable :: U(:)
+   real(kind=8), allocatable :: Uref(:)
+
+   n = 2
+   p = 2
+
+   call PrepareKnot(n, p, 1, -1, U, nelem)
+
+   Uref = (/ 0.0d0, 0.0d0, 0.0d0, 1.0d0, 1.0d0, 1.0d0 /)
+   @assertEqual(1, nelem)
+   @assertEqual(2, n)
+   @assertEqual(Uref, U)
+   @assertEqual(nelem, CountSpans(n, p, U))
+
+   deallocate(U)
+end subroutine test_prepare_repeated_knot_single_element_has_no_interface
+
+
+@test
+subroutine test_prepare_repeated_knot_block_covering_mesh_has_no_interface()
+   use knot_vector, only: PrepareKnot, CountSpans
+   implicit none
+
+   integer(kind=4) :: n, p, nelem
+   real(kind=8), allocatable :: U(:)
+   real(kind=8), allocatable :: Uref(:)
+
+   n = 5
+   p = 2
+
+   call PrepareKnot(n, p, 4, 0, U, nelem)
+
+   Uref = (/ 0.0d0, 0.0d0, 0.0d0, &
+             0.25d0, 0.5d0, 0.75d0, &
+             1.0d0, 1.0d0, 1.0d0 /)
+   @assertEqual(4, nelem)
+   @assertEqual(5, n)
+   @assertEqual(Uref, U)
+   @assertEqual(nelem, CountSpans(n, p, U))
+
+   deallocate(U)
+end subroutine test_prepare_repeated_knot_block_covering_mesh_has_no_interface
+
+
+@test
+subroutine test_block_size_one_repeats_every_interface()
+   use knot_vector, only: PrepareKnot, CountSpans
+   implicit none
+
+   integer(kind=4) :: n, p, nelem
+   real(kind=8), allocatable :: U(:)
+   real(kind=8), allocatable :: Uref(:)
+
+   n = 4
+   p = 2
+
+   call PrepareKnot(n, p, 1, 0, U, nelem)
+
+   Uref = (/ 0.0d0, 0.0d0, 0.0d0, &
+             1.0d0/3.0d0, 1.0d0/3.0d0, &
+             2.0d0/3.0d0, 2.0d0/3.0d0, &
+             1.0d0, 1.0d0, 1.0d0 /)
+   @assertEqual(3, nelem)
+   @assertEqual(6, n)
+   @assertEqual(Uref, U)
+   @assertEqual(nelem, CountSpans(n, p, U))
+
+   deallocate(U)
+end subroutine test_block_size_one_repeats_every_interface
+
+
+@test
+subroutine test_prepare_repeated_knot_degree_zero_preserves_open_partition()
+   use knot_vector, only: PrepareKnot, CountSpans
+   implicit none
+
+   integer(kind=4) :: n, p, nelem
+   real(kind=8), allocatable :: U(:)
+   real(kind=8), allocatable :: Uref(:)
+
+   n = 2
+   p = 0
+
+   call PrepareKnot(n, p, 1, -1, U, nelem)
+
+   Uref = (/ 0.0d0, 1.0d0/3.0d0, 2.0d0/3.0d0, 1.0d0 /)
+   @assertEqual(3, nelem)
+   @assertEqual(2, n)
+   @assertEqual(Uref, U)
+   @assertEqual(nelem, CountSpans(n, p, U))
+
+   deallocate(U)
+end subroutine test_prepare_repeated_knot_degree_zero_preserves_open_partition
+
+
+end module test_knot_vector

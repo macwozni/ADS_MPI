@@ -13,6 +13,7 @@ FFLAGS += $(PFUNIT_EXTRA_FFLAGS)
 FFLAGS += -I. -I$(SRC_DIR)
 
 TEST_NAME := test_time_scheme
+PROBE := time_scheme_validation_probe
 PROD_OBJS := setup.o interfaces.o gauss.o time_scheme_test_doubles.o time_scheme.o
 
 setup.o: $(SRC_DIR)/Setup.F90
@@ -31,6 +32,10 @@ time_scheme.o: $(SRC_DIR)/time_scheme.F90 gauss.o time_scheme_test_doubles.o
 	$(FC) -c $(FFLAGS) $< -o $@
 
 $(TEST_NAME).o: $(PROD_OBJS)
+$(PROBE).o: $(PROBE).f90 $(PROD_OBJS)
+
+$(PROBE): $(PROBE).o $(PROD_OBJS)
+	$(FC) -o $@ $^
 
 %.o: %.F90
 	$(FC) -c $(FFLAGS) $< -o $@
@@ -46,12 +51,13 @@ $(TEST_NAME)_OTHER_INCS := -I. -I$(SRC_DIR)
 
 $(eval $(call make_pfunit_test,$(TEST_NAME)))
 
-all: $(TEST_NAME)
+all: $(TEST_NAME) $(PROBE)
 
 tests: $(TEST_NAME)
 
-run: $(TEST_NAME)
+run: all
 	./$(TEST_NAME)
+	bash ./test_time_scheme_validation_cli.sh ./$(PROBE)
 
 clean:
-	$(RM) *.o *.mod *.smod *.inc $(TEST_NAME).F90 $(TEST_NAME)
+	$(RM) *.o *.mod *.smod *.inc $(TEST_NAME).F90 $(TEST_NAME) $(PROBE)

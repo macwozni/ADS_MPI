@@ -359,58 +359,102 @@ multiplicities may differ.
 
 ## Testing
 
-Run tests from the repository root. The pFUnit suites use
-`PFUNIT_ROOT=/opt/lib/pfunit/PFUNIT-4.16` by default, and the MPI suites use
-`MPIEXEC=/opt/lib/mpich-5.0.0/bin/mpiexec`. Override either variable in the
-shell block below when using another installation.
+The authoritative test runner is `tests/GNUmakefile`. Run it from the
+repository root. It uses these defaults, all of which can be overridden on
+the `make` command line:
 
-Every maintained suite has its own `tests/<suite>/GNUmakefile`; the legacy
-top-level `tests/GNUmakefile` is not a complete test runner. The following
-procedure cleans and runs all 18 library/unit/MPI suites, then forcibly
-rebuilds all seven problem drivers and runs the driver-CLI suite:
-
-```bash
-set -eu
-
-MPIEXEC=${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}
-PFUNIT_ROOT=${PFUNIT_ROOT:-/opt/lib/pfunit/PFUNIT-4.16}
-
-for suite in \
-  ads_directional_solve \
-  ads_error_propagation \
-  ads_lifecycle \
-  argument_parser \
-  basis \
-  communicators \
-  igrm_space \
-  int2str \
-  mumps_solver \
-  my_mpi \
-  norm_l2 \
-  operator_assembly \
-  parallelism \
-  reorder_rhs \
-  rhs_assembly \
-  rhs_eq \
-  solution_reconstruction \
-  time_scheme
-do
-  make -j1 -C "tests/${suite}" clean
-  make -j1 -C "tests/${suite}" \
-    MPIEXEC="${MPIEXEC}" PFUNIT_ROOT="${PFUNIT_ROOT}" run
-done
-
-make -j1 -C tests/driver_cli -B MPIEXEC="${MPIEXEC}" run
+```text
+PFUNIT_ROOT=/opt/lib/pfunit/PFUNIT-4.16
+MPIEXEC=/opt/lib/mpich-5.0.0/bin/mpiexec
+MPIFC=/opt/lib/mpich-5.0.0/bin/mpif90
+MUMPS_DIR=/opt/lib/MUMPS_5.8.2
+SUITE_TIMEOUT=600s
 ```
 
-`-B` is intentional for `driver_cli`: that suite's `clean` target is a no-op,
-and a forced build verifies every current problem group, including
-`IGRM_HEAT`. Several MPI suites exercise up to eight ranks and OpenMP thread
-counts 1, 2, and 4.
+### One source file, one primary test file
 
-Finish the full regression by rebuilding the corrected default target and
-running a positive one-rank smoke test for every driver. The preceding
-`driver_cli` command has already built the six non-default executables.
+Every active library source in the `SOURCES` group of `mymake/m_files` has
+exactly one primary, authored test file. The tab-separated mapping is stored
+in `tests/test-map.tsv`. A suite may still use fixtures, stubs, generated
+pFUnit sources, or link other production modules; those support files are not
+additional primary tests for the mapped source.
+
+Validate this invariant before changing or running the suites:
+
+```bash
+make -j1 -C tests check-layout
+```
+
+`check-layout` derives the active source list from `mymake/m_files` and rejects
+missing mappings, inactive sources, duplicate sources or test files, and
+paths that do not exist. It also keeps `SRC_SUITES` synchronized with the map
+and verifies that every library suite references its production source and
+primary test. All registered library, problem, and driver suites must have
+`all`, `run`, and `clean` targets; unregistered suite directories are rejected.
+Problem modules are kept in separate suites because several drivers deliberately
+use the same Fortran module names (`input_data` and `RHS_fun`).
+
+### Test targets
+
+The runner separates library tests, problem-specific callback tests, and
+full-driver tests:
+
+```bash
+# Check only the one-to-one layout.
+make -j1 -C tests check-layout
+
+# Run the 28 suites mapped to src/*.F90.
+make -j1 -C tests run-src
+
+# Run oil, heat, and iGRM-heat problem callback suites.
+make -j1 -C tests run-problems
+
+# Build all seven problem executables and run CLI plus positive smoke tests.
+make -j1 -C tests run-driver
+
+# Run the complete regression above in one command.
+make -j1 -C tests run
+```
+
+`make -j1 -C tests all` validates the layout and builds every suite without
+executing it. `make -C tests list` prints the suite order, and
+`make -j1 -C tests clean` removes suite-local generated test outputs. Driver
+executables built in `mymake/EXEC` are deliberately retained. Individual
+suites remain directly runnable, for example:
+
+```bash
+make -j1 -C tests/rhs_assembly run
+```
+
+The aggregate `run-src`, `run-problems`, and `run-driver` targets clean each
+suite before running it, so compiler or flag changes cannot silently reuse a
+stale test executable. Driver executables are rebuilt unconditionally.
+
+Pass non-default tool locations once at the top level; they are forwarded to
+each suite:
+
+```bash
+make -j1 -C tests \
+  PFUNIT_ROOT=/path/to/pfunit \
+  MPIEXEC=/path/to/mpiexec \
+  MPIFC=/path/to/mpif90 \
+  MUMPS_DIR=/path/to/mumps \
+  run
+```
+
+The runner is deliberately serialized because driver builds share
+`mymake/_OBJ`. Each suite is also protected by `SUITE_TIMEOUT`. MPI suites
+exercise up to eight ranks, and relevant OpenMP tests compare thread counts
+1, 2, 4, and 8. The top-level runner requires a POSIX environment with Bash
+and the coreutils `timeout` command; selected error-path probes additionally
+use POSIX process primitives.
+
+### Positive integration smoke tests
+
+`run` and `run-driver` execute positive one-rank smoke tests for every real
+driver automatically. The equivalent commands are listed below for manual
+diagnostics. Rebuild the documented default target first; `run-driver` has
+already built the six non-default executables.
 
 ```bash
 make -j1 -C mymake clean
@@ -423,7 +467,7 @@ make -j1 -C mymake
 "${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}" -n 1 \
   ./mymake/EXEC/eriksson 2 1 0 1 1 1 1
 "${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}" -n 1 \
-  ./mymake/EXEC/pure_diffusion_igrm 2 1 1 1 1 0 1 dg
+  ./mymake/EXEC/pure_diffusion_igrm 3 1 1 1 1 0 1 dg
 "${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}" -n 1 \
   ./mymake/EXEC/oil \
   2 1 1 1 1 1 0.1 \

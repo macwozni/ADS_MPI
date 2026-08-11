@@ -1,0 +1,7 @@
+/_OBJ/
+/test_oil_input_data
+/test_oil_input_data.F90
+/test_oil_input_data.inc
+/*.o
+/*.mod
+/*.smod

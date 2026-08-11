@@ -239,6 +239,10 @@ subroutine initialize_setup(n, p, continuity, ng, ads, mierr)
                      'Number of degrees of freedom smaller than number of processors'
                   flush (ERROR_UNIT)
             end if
+            ! Every rank evaluates the same global size condition.  Complete
+            ! rank zero's diagnostic before another rank can terminate the
+            ! MPI job, otherwise MPI_Abort may discard the message.
+            call MPI_Barrier(MPI_COMM_WORLD, ierr)
             call MPI_Abort(MPI_COMM_WORLD, 4, ierr)
             STOP 4
       end if
