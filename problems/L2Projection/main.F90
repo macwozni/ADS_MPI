@@ -9,7 +9,8 @@
 !> @details
 !> The program initializes the ADS runtime, projects the constant forcing
 !> supplied by \ref input_data, and checks on rank zero that the resulting
-!> coefficient field remains equal to one within a small tolerance.
+!> coefficient field remains equal to one on every rank within a small
+!> tolerance.
 !
 !------------------------------------------------------------------------------
 program main
@@ -33,6 +34,7 @@ program main
    integer(kind = 4) :: i, j
 
    integer(kind = 4) :: ierr
+   integer(kind = 4) :: global_ok, local_ok
    integer(kind = 4), dimension(3) :: nelem, p
    
    logical :: prnt = .FALSE.
@@ -69,8 +71,7 @@ program main
    call ForwardEuler3DStep(iter, forcing, ads_trial, ads_data, ierr)
    call AbortOnError(ierr, 'ForwardEuler3DStep')
 
-   if (MYRANK == 0) then
-      if (prnt) then
+   if (prnt .AND. MYRANK == 0) then
          write(*, *) 'Result:'
          do i = 1, ads_trial % s(3)
             write(*, *) i, 'row='
@@ -78,17 +79,21 @@ program main
                write(*, *) ads_data % FF(i,j)
             enddo
          enddo
-      endif
-      do i = 1, ads_trial % s(1)
-         do j = 1, ads_trial % s(2) * ads_trial % s(3)
-            if (abs(ads_data % FF(i,j) - 1.d0) > epsilon) then
-               ok = .FALSE.
-            endif
-         enddo
+   endif
+
+   do i = 1, ads_trial % s(1)
+      do j = 1, ads_trial % s(2) * ads_trial % s(3)
+         if (.NOT. (abs(ads_data % FF(i,j) - 1.d0) <= epsilon)) then
+            ok = .FALSE.
+         endif
       enddo
-      if (ok .eqv. .FALSE.) then
-         write(*,*) 'not OK'
-      endif
+   enddo
+   local_ok = merge(1, 0, ok)
+   call MPI_Allreduce(local_ok, global_ok, 1, MPI_INTEGER, MPI_MIN, &
+                      MPI_COMM_WORLD, ierr)
+   call AbortOnError(ierr, 'L2 result validation')
+   if (MYRANK == 0 .AND. global_ok /= 1) then
+      write(*,*) 'not OK'
    endif
 
    call Cleanup_ADS(ads_test, ierr)

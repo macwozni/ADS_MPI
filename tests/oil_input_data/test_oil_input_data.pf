@@ -1,5 +1,6 @@
 module test_oil_input_data
    use pfunit
+   use, intrinsic :: iso_c_binding, only: c_char, c_int, c_null_char
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use Setup, only: ADS_Setup
    use input_data, only: cN, cL, radius, Kqmin, Kqmax, cx, cy, cz, mi, &
@@ -17,6 +18,21 @@ module test_oil_input_data
    implicit none
 
    real(kind=8), parameter :: TOL = 4096.d0*epsilon(1.d0)
+
+   interface
+      integer(c_int) function set_environment(name, value, overwrite) &
+         bind(C, name = "setenv")
+         import :: c_char, c_int
+         character(kind = c_char), intent(in) :: name(*)
+         character(kind = c_char), intent(in) :: value(*)
+         integer(c_int), value, intent(in) :: overwrite
+      end function set_environment
+
+      integer(c_int) function unset_environment(name) bind(C, name = "unsetenv")
+         import :: c_char, c_int
+         character(kind = c_char), intent(in) :: name(*)
+      end function unset_environment
+   end interface
 
 contains
 
@@ -218,21 +234,67 @@ contains
    subroutine test_init_input_data_populates_curves()
       integer(kind=4) :: seed_size
       integer(kind=4), allocatable :: seed(:)
+      integer(c_int) :: environment_status
+      real(kind=8) :: expected_first_point(3)
 
       call reset_problem_data()
+      environment_status = unset_environment( &
+         c_char_"ADS_OIL_RANDOM_SEED" // c_null_char)
       call random_seed(size=seed_size)
       allocate(seed(seed_size))
       seed = 314159
       call random_seed(put=seed)
+      call random_number(expected_first_point)
+      call random_seed(put=seed)
       call InitInputData()
 
+      @assertEqual(0, int(environment_status))
       @assertTrue(all(ieee_is_finite(cx)))
       @assertTrue(all(ieee_is_finite(cy)))
       @assertTrue(all(ieee_is_finite(cz)))
+      @assertTrue(cx(1) == expected_first_point(1))
+      @assertTrue(cy(1) == expected_first_point(2))
+      @assertTrue(cz(1) == expected_first_point(3))
       @assertTrue(any(cx(2:cL) /= cx(1)))
       @assertTrue(any(cy(2:cL) /= cy(1)))
       @assertTrue(any(cz(2:cL) /= cz(1)))
    end subroutine test_init_input_data_populates_curves
+
+
+   @test
+   subroutine test_environment_seed_repeats_identical_curves()
+      real(kind=8) :: first_cx(cN*cL), first_cy(cN*cL), first_cz(cN*cL)
+      logical :: repeated, changed
+      integer(c_int) :: first_status, second_status, cleanup_status
+
+      call reset_problem_data()
+      first_status = set_environment( &
+         c_char_"ADS_OIL_RANDOM_SEED" // c_null_char, &
+         c_char_"271828" // c_null_char, 1_c_int)
+      call InitInputData()
+      first_cx = cx
+      first_cy = cy
+      first_cz = cz
+
+      call InitInputData()
+      repeated = all(cx == first_cx) .AND. all(cy == first_cy) .AND. &
+                 all(cz == first_cz)
+
+      second_status = set_environment( &
+         c_char_"ADS_OIL_RANDOM_SEED" // c_null_char, &
+         c_char_"271829" // c_null_char, 1_c_int)
+      call InitInputData()
+      changed = any(cx /= first_cx) .OR. any(cy /= first_cy) .OR. &
+                any(cz /= first_cz)
+      cleanup_status = unset_environment( &
+         c_char_"ADS_OIL_RANDOM_SEED" // c_null_char)
+
+      @assertEqual(0, int(first_status))
+      @assertEqual(0, int(second_status))
+      @assertEqual(0, int(cleanup_status))
+      @assertTrue(repeated)
+      @assertTrue(changed)
+   end subroutine test_environment_seed_repeats_identical_curves
 
 
    @test

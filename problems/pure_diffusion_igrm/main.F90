@@ -27,6 +27,7 @@ program main
    use RHS_fun
    use input_data
    use mpi
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
 
    implicit none
 
@@ -37,6 +38,7 @@ program main
    integer(kind = 4) :: ierr
    integer(kind = 4), dimension(3) :: nelem, p_test, p_trial
    integer(kind = 4) :: nn
+   real(kind = 8) :: global_solution_max, local_solution_max
    integer(kind = 4), parameter :: SCHEME_DG = 1, SCHEME_PR = 2, SCHEME_BE = 3
    integer(kind = 4) :: selected_scheme
 
@@ -107,8 +109,18 @@ program main
          call BackwardEuler3DStep(scheme, iter, forcing, ads_test, ads_trial, ads_data, nn, ierr)
       end select
       call AbortOnError(ierr, 'iGRM time step')
+      if (all(ieee_is_finite(ads_data%FF))) then
+         local_solution_max = maxval(abs(ads_data%FF))
+      else
+         local_solution_max = huge(1.d0)
+      end if
+      call MPI_Allreduce(local_solution_max, global_solution_max, 1, &
+                         MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierr)
+      call AbortOnError(ierr, 'pure-diffusion result validation')
       if (MYRANK == 0) then
          write(*, *) iter
+         write(*, '(A,I0,A,ES24.16)') 'solution max abs iter ', iter, &
+                                      ': ', global_solution_max
       endif
       t = t + Dt
 

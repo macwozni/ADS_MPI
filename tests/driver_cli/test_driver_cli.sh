@@ -268,6 +268,8 @@ expect_failure 'oil extra suffix argument' 1 oil 'proper usage with arguments:' 
     2 1 1 1 1 0 0.1 0 0 extra
 expect_failure 'oil huge pump count is rejected before allocation' 1 oil \
     'proper usage with arguments:' 2 1 1 1 1 0 0.1 2147483647 0
+ADS_OIL_RANDOM_SEED=invalid expect_failure 'oil invalid deterministic seed' 1 oil \
+    'invalid ADS_OIL_RANDOM_SEED' 2 1 1 1 1 0 0.1 0 0
 
 # This failure occurs after MPI initialization and used to return success
 # because initialize_setup used an unnumbered STOP. N_DOF, rather than the

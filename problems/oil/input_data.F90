@@ -63,6 +63,9 @@ module input_data
 !> @brief Numbers of MPI processes in the three process-grid directions.
    integer(kind = 4) :: procx, procy, procz
 
+   private :: ConfigureRandomSeedFromEnvironment
+   private :: IsNonnegativeIntegerToken
+
 !> @brief Per-element partial sums of material drained over the simulation.
 !>
 !> Each local element is owned by exactly one OpenMP iteration while the
@@ -283,7 +286,10 @@ contains
 !> @details
 !> The routine fills the global curve coordinate arrays with short random
 !> walks. Pump and drain data have already been read by
-!> \ref InitializeParameters before MPI initialization.
+!> \ref InitializeParameters before MPI initialization. If the
+!> `ADS_OIL_RANDOM_SEED` environment variable is present, every process seeds
+!> its local generator from that value and therefore generates identical
+!> curves. Without the variable, the existing generator state is left intact.
 !
 !---------------------------------------------------------------------------
    subroutine InitInputData()
@@ -291,6 +297,8 @@ contains
       integer(kind = 4) :: i, j
       real (kind = 8) :: t(3), x(3), dx(3), ddx(3)
       real (kind = 8) :: f = 0.1d0, step = 0.05d0
+
+      call ConfigureRandomSeedFromEnvironment()
 
       do i = 0, cN - 1
          call random_number(x)
@@ -310,6 +318,78 @@ contains
          end do
       end do
    end subroutine InitInputData
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Optionally initializes the random generator from the environment.
+!>
+!> @details
+!> A missing `ADS_OIL_RANDOM_SEED` leaves the generator untouched. A present
+!> value must be a nonnegative default integer. Filling every element of the
+!> processor-defined seed array with the same value gives every MPI process
+!> the same random stream without adding communication or synchronization.
+!
+!---------------------------------------------------------------------------
+   subroutine ConfigureRandomSeedFromEnvironment()
+      implicit none
+      character(len = 100) :: seed_text
+      integer(kind = 4) :: environment_length, environment_status
+      integer(kind = 4) :: read_status, seed_size, seed_value
+      integer(kind = 4), allocatable :: seed(:)
+
+      call get_environment_variable("ADS_OIL_RANDOM_SEED", seed_text, &
+                                    environment_length, environment_status)
+
+      if (environment_status == 1 .OR. environment_status == 2) return
+      if (environment_status /= 0 .OR. environment_length <= 0) then
+         write(*,*) "invalid ADS_OIL_RANDOM_SEED"
+         STOP 5
+      end if
+      if (.NOT. IsNonnegativeIntegerToken(seed_text(1:environment_length))) then
+         write(*,*) "invalid ADS_OIL_RANDOM_SEED"
+         STOP 5
+      end if
+
+      read(seed_text(1:environment_length), *, iostat = read_status) seed_value
+      if (read_status /= 0) then
+         write(*,*) "invalid ADS_OIL_RANDOM_SEED"
+         STOP 5
+      end if
+
+      call random_seed(size = seed_size)
+      allocate(seed(seed_size))
+      seed = seed_value
+      call random_seed(put = seed)
+
+   end subroutine ConfigureRandomSeedFromEnvironment
+
+!---------------------------------------------------------------------------
+!
+! DESCRIPTION:
+!> @brief Checks whether text contains one nonnegative integer token.
+!
+!---------------------------------------------------------------------------
+   logical function IsNonnegativeIntegerToken(input) result(valid)
+      implicit none
+      character(*), intent(in) :: input
+      character(len = len(input)) :: token
+      integer(kind = 4) :: first, i, last
+
+      token = adjustl(input)
+      last = len_trim(token)
+      first = 1
+      if (last >= 1 .AND. token(1:1) == "+") first = 2
+
+      valid = first <= last
+      do i = first, last
+         if (token(i:i) < "0" .OR. token(i:i) > "9") then
+            valid = .FALSE.
+            return
+         end if
+      end do
+
+   end function IsNonnegativeIntegerToken
 
 !---------------------------------------------------------------------------
 !

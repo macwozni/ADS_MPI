@@ -50,9 +50,9 @@ run_smoke() {
 }
 
 run_smoke L2 l2 2 2 2 1 1 1 1
-run_smoke heat heat 2 1 0 1 1 1 1
-run_smoke Eriksson eriksson 2 1 0 1 1 1 1
-run_smoke pure-diffusion-iGRM pure_diffusion_igrm 3 1 1 1 1 0 1 dg
+run_smoke heat heat 2 1 1 0.01 1 1 1
+run_smoke Eriksson eriksson 2 1 1 0.01 1 1 1
+run_smoke pure-diffusion-iGRM pure_diffusion_igrm 3 1 1 1 1 1 0.1 dg
 run_smoke oil oil \
     2 1 1 1 1 1 0.1 \
     1 0.5 0.5 0.5 \
@@ -62,7 +62,7 @@ run_smoke iGRM-L2 igrm_l2 \
     1 1 1 pr
 run_smoke iGRM-heat igrm_heat \
     2 2 2 3 3 3 2 2 2 \
-    1 1 1 1 0.1 dg
+    1 1 1 1 0.001 dg
 
 if [[ $failures -ne 0 ]]; then
     printf 'FAILED (%d/%d positive driver smoke checks)\n' "$failures" "$checks"

@@ -33,6 +33,7 @@ The default `mymake/m_options` expects:
 The complete test procedure additionally expects:
 
 - pFUnit 4 (for the pFUnit-based test suites)
+- Python 3.10 or newer (for layout checks and numerical VTI integration checks)
 - Bash and GNU `timeout` (for CLI and MPI error-path tests)
 
 Edit `mymake/m_options` for local library paths and compiler flags.
@@ -409,8 +410,12 @@ make -j1 -C tests run-src
 # Run oil, heat, and iGRM-heat problem callback suites.
 make -j1 -C tests run-problems
 
-# Build all seven problem executables and run CLI plus positive smoke tests.
+# Build all seven problem executables and run CLI, smoke, and numerical
+# integration tests.
 make -j1 -C tests run-driver
+
+# Build the real drivers and run only their numerical integration matrix.
+make -j1 -C tests run-integration
 
 # Run the complete regression above in one command.
 make -j1 -C tests run
@@ -449,12 +454,30 @@ exercise up to eight ranks, and relevant OpenMP tests compare thread counts
 and the coreutils `timeout` command; selected error-path probes additionally
 use POSIX process primitives.
 
-### Positive integration smoke tests
+### Positive smoke and numerical integration tests
 
 `run` and `run-driver` execute positive one-rank smoke tests for every real
-driver automatically. The equivalent commands are listed below for manual
-diagnostics. Rebuild the documented default target first; `run-driver` has
-already built the six non-default executables.
+driver and the numerical integration matrix automatically. The integration
+matrix does more than check process status:
+
+- transient drivers use `steps=1`, so iteration 1 executes with `t>0`;
+- L2 runs with degree-four support and a `2x2x2` MPI grid, validates local
+  coefficients on every rank through a global reduction, and treats `not OK`
+  as a test failure even though the driver itself currently exits successfully;
+- heat and Eriksson VTI files must be valid `Float64` XML with exactly
+  `31^3` finite values, change after initialization, and agree between serial
+  and hybrid MPI/OpenMP runs;
+- DG, PR, and BE run through the real MUMPS path for every iGRM driver, with
+  a global finite zero-solution oracle for the pure-diffusion example;
+- the iGRM-heat DG case must be dissipative for the tested time step, and all
+  three schemes' serial and hybrid VTI results must agree;
+- oil uses the opt-in `ADS_OIL_RANDOM_SEED` test seed and compares a positive
+  drained result across one/four OpenMP threads and a hybrid MPI run.
+
+Normal oil runs remain stochastic when `ADS_OIL_RANDOM_SEED` is unset. The
+equivalent smoke commands are listed below for manual diagnostics. Rebuild the
+documented default target first; `run-driver` has already built the six
+non-default executables.
 
 ```bash
 make -j1 -C mymake clean
@@ -463,11 +486,11 @@ make -j1 -C mymake
   ./mymake/EXEC/l2 2 2 2 1 1 1 1
 
 "${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}" -n 1 \
-  ./mymake/EXEC/heat 2 1 0 1 1 1 1
+  ./mymake/EXEC/heat 2 1 1 0.01 1 1 1
 "${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}" -n 1 \
-  ./mymake/EXEC/eriksson 2 1 0 1 1 1 1
+  ./mymake/EXEC/eriksson 2 1 1 0.01 1 1 1
 "${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}" -n 1 \
-  ./mymake/EXEC/pure_diffusion_igrm 3 1 1 1 1 0 1 dg
+  ./mymake/EXEC/pure_diffusion_igrm 3 1 1 1 1 1 0.1 dg
 "${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}" -n 1 \
   ./mymake/EXEC/oil \
   2 1 1 1 1 1 0.1 \
@@ -480,7 +503,7 @@ make -j1 -C mymake
 "${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}" -n 1 \
   ./mymake/EXEC/igrm_heat \
   2 2 2 3 3 3 2 2 2 \
-  1 1 1 1 0.1 dg
+  1 1 1 1 0.001 dg
 ```
 
 ## Notes

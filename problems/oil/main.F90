@@ -61,6 +61,10 @@ program main
    ! -------------------------------------------------------------------
 
    call InitializeParameters
+   ! Generate the stochastic geometry before MPI initialization. Besides
+   ! avoiding MPI resources during this local setup, this keeps validation of
+   ! the optional deterministic seed on a safe pre-MPI error path.
+   call InitInputData
 
    ! prepare the problem dimensions
 
@@ -74,7 +78,6 @@ program main
    ads_trial % maxe(1) - ads_trial % mine(1) + 1, &
    ads_trial % maxe(2) - ads_trial % mine(2) + 1, ads_trial % maxe(3) - ads_trial % mine(3) + 1))
    call InitializeDrainedAccumulator(ads_trial)
-   call InitInputData
    call PrecomputeKq(ads_trial)
 
    ! Iterations

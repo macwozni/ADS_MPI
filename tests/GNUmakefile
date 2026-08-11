@@ -2,7 +2,7 @@
 
 .NOTPARALLEL:
 
-.PHONY: all tests run run-src run-problems run-driver check-layout list clean
+.PHONY: all tests run run-src run-problems run-driver run-integration check-layout list clean
 
 PFUNIT_ROOT ?= /opt/lib/pfunit/PFUNIT-4.16
 MPIEXEC     ?= /opt/lib/mpich-5.0.0/bin/mpiexec
@@ -94,6 +94,9 @@ run-problems: check-layout
 
 run-driver:
 	$(call rebuild_and_run_suites,$(DRIVER_SUITES))
+
+run-integration: check-layout
+	$(call run_suites,$(DRIVER_SUITES),run-integration)
 
 run: run-src run-problems run-driver
 

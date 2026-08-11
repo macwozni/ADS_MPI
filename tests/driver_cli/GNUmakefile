@@ -2,7 +2,7 @@
 
 .NOTPARALLEL:
 
-.PHONY: all tests run clean
+.PHONY: all tests run run-cli run-smoke run-integration clean
 
 MYMAKE_DIR ?= ../../mymake
 SRC_DIR    ?= ../../src
@@ -60,9 +60,16 @@ all: $(DRIVERS)
 
 tests: all
 
-run: all
+run-cli: all
 	MPIEXEC='$(MPIEXEC)' EXEC_DIR='$(abspath $(EXEC_DIR))' bash ./test_driver_cli.sh
+
+run-smoke: all
 	MPIEXEC='$(MPIEXEC)' EXEC_DIR='$(abspath $(EXEC_DIR))' bash ./test_driver_smoke.sh
+
+run-integration: all
+	MPIEXEC='$(MPIEXEC)' EXEC_DIR='$(abspath $(EXEC_DIR))' python3 ./test_driver_integration.py
+
+run: run-cli run-smoke run-integration
 
 clean:
 	@:
