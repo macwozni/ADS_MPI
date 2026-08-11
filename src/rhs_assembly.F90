@@ -269,17 +269,6 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
                                  X(2) = ads%Xy(k(2), ey)
                                  X(3) = ads%Xz(k(3), ez)
 
-
-                                 ! call RHS_fun(&
-                                 ! ads, &
-                                 ! X, &
-                                 ! k, &
-                                 ! e, &
-                                 ! a, &
-                                 ! du, &
-                                 ! 1, Uval_m, Uval13,Uval23, &
-                                 ! ads_data, J, W, direction, substep, resvalue)
-
                                  call active_rhs_point( &
                                     ads, &
                                     X, &
