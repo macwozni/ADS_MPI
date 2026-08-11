@@ -13,7 +13,7 @@ program parallelism_probe
       call AbortOnError(injected_status, 'parallelism probe')
    end if
    call Cleanup_Parallelism(ierr)
-   write (*, '(A)') 'UNEXPECTED SUCCESS'
+   write (*, '(A)') 'SUCCESS'
 
 contains
 

@@ -39,6 +39,7 @@ program test_my_mpi
    call test_neighbour_lookup(failures)
    call test_size_of_piece(failures)
    call test_linear_storage(failures)
+   call test_collective_error_paths(failures)
    call test_directional_collectives(1, failures)
    call test_directional_collectives(2, failures)
    call test_directional_collectives(3, failures)
@@ -129,6 +130,63 @@ contains
       call assert_global('Delinearize reverses Linearize', &
          all(reconstructed == original), failure_count)
    end subroutine test_linear_storage
+
+
+   subroutine test_collective_error_paths(failure_count)
+      integer(kind=4), intent(inout) :: failure_count
+      integer(kind=4) :: error_comm, setup_ierr, gather_ierr, scatter_ierr
+      integer(kind=4) :: error_class, class_ierr
+      integer(kind=4), dimension(1) :: dims, shifts
+      real(kind=8), dimension(1, 1) :: local_values
+      real(kind=8), dimension(2, 1) :: global_values
+      real(kind=8), dimension(1, 1) :: gather_out, scatter_out
+
+      call MPI_Comm_dup(MPI_COMM_SELF, error_comm, setup_ierr)
+      if (setup_ierr /= MPI_SUCCESS) then
+         call assert_global('MPI_Comm_dup for collective error tests succeeds', &
+            .false., failure_count)
+         return
+      end if
+      call MPI_Comm_set_errhandler(error_comm, MPI_ERRORS_RETURN, setup_ierr)
+      if (setup_ierr /= MPI_SUCCESS) then
+         call assert_global('MPI_ERRORS_RETURN setup for collective error tests succeeds', &
+            .false., failure_count)
+         call MPI_Comm_free(error_comm, setup_ierr)
+         return
+      end if
+
+      dims = -1
+      shifts = 0
+      local_values = 3.0d0
+      global_values = reshape((/5.0d0, 7.0d0/), shape(global_values))
+
+      ! Both output arrays are deliberately one row too small. With bounds
+      ! checking enabled, an erroneous Delinearize call after MPI failure aborts
+      ! the test instead of being hidden by an unchanged sentinel value.
+      call Gather(local_values, gather_out, 1, 1, 1, dims, shifts, &
+                  error_comm, gather_ierr)
+      error_class = MPI_SUCCESS
+      class_ierr = MPI_SUCCESS
+      if (gather_ierr /= MPI_SUCCESS) then
+         call MPI_Error_class(gather_ierr, error_class, class_ierr)
+      end if
+      call assert_global('Gather returns MPI_ERR_COUNT for a negative receive count', &
+         gather_ierr /= MPI_SUCCESS .and. class_ierr == MPI_SUCCESS .and. &
+         error_class == MPI_ERR_COUNT, failure_count)
+
+      call Scatter(global_values, scatter_out, 1, 2, 1, dims, shifts, &
+                   error_comm, scatter_ierr)
+      error_class = MPI_SUCCESS
+      class_ierr = MPI_SUCCESS
+      if (scatter_ierr /= MPI_SUCCESS) then
+         call MPI_Error_class(scatter_ierr, error_class, class_ierr)
+      end if
+      call assert_global('Scatter returns MPI_ERR_COUNT for a negative send count', &
+         scatter_ierr /= MPI_SUCCESS .and. class_ierr == MPI_SUCCESS .and. &
+         error_class == MPI_ERR_COUNT, failure_count)
+
+      call MPI_Comm_free(error_comm, setup_ierr)
+   end subroutine test_collective_error_paths
 
 
    subroutine test_directional_collectives(axis, failure_count)

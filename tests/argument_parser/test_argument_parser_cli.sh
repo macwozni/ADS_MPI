@@ -73,9 +73,21 @@ assert_failure "invalid integer argument" "$probe" integer "12 34"
 assert_failure "invalid integer argument" "$probe" integer "12,34"
 assert_failure "invalid integer argument" "$probe" integer "12,"
 assert_failure "invalid integer argument" "$probe" integer "12 /"
+assert_failure "invalid integer argument" "$probe" integer ""
+assert_failure "invalid integer argument" "$probe" integer "+"
+assert_failure "invalid integer argument" "$probe" integer "-"
 assert_failure "invalid integer argument" "$probe" integer "2147483648"
 assert_failure "invalid command argument" "$probe" integer
 assert_failure "invalid real argument" "$probe" real "not-a-real"
+assert_failure "invalid real argument" "$probe" real "" unused
+assert_failure "invalid real argument" "$probe" real "+" unused
+assert_failure "invalid real argument" "$probe" real "-" unused
+assert_failure "invalid real argument" "$probe" real "." unused
+assert_failure "invalid real argument" "$probe" real "+." unused
+assert_failure "invalid real argument" "$probe" real "1e" unused
+assert_failure "invalid real argument" "$probe" real "1e+" unused
+assert_failure "invalid real argument" "$probe" real "1d-" unused
+assert_failure "invalid real argument" "$probe" real "1e9999" unused
 assert_failure "invalid real argument" "$probe" real "1.0 junk" unused
 assert_failure "invalid real argument" "$probe" real "1.0 2.0" unused
 assert_failure "invalid real argument" "$probe" real "1.0,2.0" unused
@@ -89,12 +101,17 @@ assert_failure "probe integer must be positive" "$probe" positive-integer "-1"
 assert_failure "probe integer must be non-negative" "$probe" nonnegative-integer "-1"
 assert_failure "probe real must be positive" "$probe" positive-real "0"
 assert_failure "probe real must be positive" "$probe" positive-real "-0.5"
+assert_failure "probe real must be positive" "$probe" positive-real-nonfinite
 assert_failure "spline dimensions exceed supported integer range" \
     "$probe" safe-spline 2147483647 0
 assert_failure "spline dimensions exceed supported integer range" \
     "$probe" safe-spline 1 1073741823
 assert_failure "spline dimensions exceed supported integer range" \
     "$probe" safe-spline 2147483645 0 1
+assert_failure "spline dimensions exceed supported integer range" \
+    "$probe" safe-spline 1 0 -1
+assert_failure "spline dimensions exceed supported integer range" \
+    "$probe" safe-spline 1 2147483647 1
 for forward_euler_alias in fe forward-euler Forward_Euler ForwardEuler; do
     assert_failure "forward euler is not an iGRM time-scheme option" \
         "$probe" scheme "$forward_euler_alias"

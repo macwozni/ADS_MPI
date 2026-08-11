@@ -7,6 +7,14 @@ module test_gauss
 
 contains
 
+   @test
+   subroutine test_public_maximum_matches_available_rules()
+      use gauss, only: MAX_GAUSS_POINTS
+
+      @assertEqual(10, MAX_GAUSS_POINTS)
+   end subroutine test_public_maximum_matches_available_rules
+
+
    subroutine assert_vec_near(a, b, tol)
       real(kind=8), intent(in) :: a(:), b(:)
       real(kind=8), intent(in) :: tol
@@ -55,6 +63,20 @@ contains
       @assertEqual(8, threads_seen)
       @assertEqual(0, failures)
    end subroutine test_concurrent_first_use_returns_complete_rules
+
+
+   @test
+   subroutine test_zero_point_rule_returns_empty_arrays()
+      use gauss, only: GaussRule
+      real(kind=8), allocatable :: X(:), W(:)
+
+      allocate(X(0:-1), W(0:-1))
+      call GaussRule(0, X, W)
+
+      @assertEqual(0, size(X))
+      @assertEqual(0, size(W))
+      deallocate(X, W)
+   end subroutine test_zero_point_rule_returns_empty_arrays
 
 
    @test

@@ -19,12 +19,14 @@ program test_mumps_solver
    call test_success(matrix, failures)
    call test_legacy_success_interface(matrix, failures)
    call test_initialization_error(matrix, failures)
+   call test_initialization_error_without_instance(matrix, failures)
    call test_analysis_error(matrix, failures)
    call test_factorization_error(matrix, failures)
    call test_solve_error(matrix, failures)
    call test_later_rhs_error(matrix, failures)
    call test_finalization_error(matrix, failures)
    call test_first_error_survives_finalization(matrix, failures)
+   call test_zero_right_hand_sides(matrix, failures)
    call test_success(matrix, failures)
 
    call clear_matrix(matrix)
@@ -115,6 +117,27 @@ contains
       call assert_true('failed initialization is finalized without later phases', &
                        expected_jobs((/-1, -2/)), failure_count)
    end subroutine test_initialization_error
+
+
+   subroutine test_initialization_error_without_instance(sparse_matrix_ptr, &
+                                                         failure_count)
+      type(sparse_matrix), pointer, intent(in) :: sparse_matrix_ptr
+      integer(kind=4), intent(inout) :: failure_count
+      real(kind=8) :: rhs(2, 2), before(2, 2)
+      integer(kind=4) :: status
+
+      rhs = reshape((/1.d0, 2.d0, 3.d0, 4.d0/), shape(rhs))
+      before = rhs
+      call configure_mumps_stub(-1, -23, start_instance=.false.)
+      call SolveOneDirection(rhs, 2, 1, 1, sparse_matrix_ptr, status)
+
+      call assert_true('pre-instance initialization error is returned', &
+                       status == -23, failure_count)
+      call assert_true('pre-instance initialization error leaves RHS untouched', &
+                       all(rhs == before), failure_count)
+      call assert_true('an instance which never started is not finalized', &
+                       expected_jobs((/-1/)), failure_count)
+   end subroutine test_initialization_error_without_instance
 
 
    subroutine test_analysis_error(sparse_matrix_ptr, failure_count)
@@ -223,6 +246,22 @@ contains
       call assert_true('first-error path finalizes exactly once', &
                        expected_jobs((/-1, 1, 2, -2/)), failure_count)
    end subroutine test_first_error_survives_finalization
+
+
+   subroutine test_zero_right_hand_sides(sparse_matrix_ptr, failure_count)
+      type(sparse_matrix), pointer, intent(in) :: sparse_matrix_ptr
+      integer(kind=4), intent(inout) :: failure_count
+      real(kind=8) :: rhs(2, 0)
+      integer(kind=4) :: status
+
+      call configure_mumps_stub(999, 0)
+      call SolveOneDirection(rhs, 0, 1, 1, sparse_matrix_ptr, status)
+
+      call assert_true('zero RHS columns return success', status == 0, &
+                       failure_count)
+      call assert_true('zero RHS columns skip solve jobs but finalize', &
+                       expected_jobs((/-1, 1, 2, -2/)), failure_count)
+   end subroutine test_zero_right_hand_sides
 
 
    subroutine assert_true(label, condition, failure_count)

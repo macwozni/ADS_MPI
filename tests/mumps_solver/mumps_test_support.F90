@@ -11,6 +11,7 @@ module mumps_test_support
    integer(kind=4) :: finalization_code = 0
    integer(kind=4) :: job_occurrences(-2:3) = 0
    logical :: failure_uses_infog = .false.
+   logical :: initialization_starts_instance = .true.
    logical :: contract_recorded = .false.
    integer(kind=4) :: recorded_comm = 0
    integer(kind=4) :: recorded_sym = 0
@@ -24,10 +25,11 @@ module mumps_test_support
 
 contains
 
-   subroutine configure_mumps_stub(job, code, occurrence, use_infog, finalize_code)
+   subroutine configure_mumps_stub(job, code, occurrence, use_infog, finalize_code, &
+                                   start_instance)
       integer(kind=4), intent(in) :: job, code
       integer(kind=4), intent(in), optional :: occurrence, finalize_code
-      logical, intent(in), optional :: use_infog
+      logical, intent(in), optional :: use_infog, start_instance
 
       recorded_jobs = 0
       recorded_job_count = 0
@@ -37,6 +39,7 @@ contains
       failure_occurrence = 1
       finalization_code = 0
       failure_uses_infog = .false.
+      initialization_starts_instance = .true.
       contract_recorded = .false.
       recorded_comm = 0
       recorded_sym = 0
@@ -50,6 +53,7 @@ contains
       if (present(occurrence)) failure_occurrence = occurrence
       if (present(use_infog)) failure_uses_infog = use_infog
       if (present(finalize_code)) finalization_code = finalize_code
+      if (present(start_instance)) initialization_starts_instance = start_instance
    end subroutine configure_mumps_stub
 
 

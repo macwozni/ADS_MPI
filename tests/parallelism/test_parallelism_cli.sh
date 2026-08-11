@@ -8,6 +8,29 @@ PROBE=${PROBE:-./parallelism_probe}
 checks=0
 failures=0
 
+expect_success() {
+    local label=$1
+    local expected_message=$2
+    shift 2
+
+    local output_file status
+    output_file=$(mktemp)
+
+    "$MPIEXEC" -n 1 "$PROBE" "$@" >"$output_file" 2>&1
+    status=$?
+    checks=$((checks + 1))
+
+    if [[ $status -eq 0 ]] && grep -Fq -- "$expected_message" "$output_file"; then
+        printf 'PASS %s\n' "$label"
+    else
+        printf 'FAIL %s (status %d)\n' "$label" "$status"
+        sed 's/^/  /' "$output_file"
+        failures=$((failures + 1))
+    fi
+
+    rm -f "$output_file"
+}
+
 expect_failure() {
     local label=$1
     local expected_message=$2
@@ -41,6 +64,8 @@ expect_failure() {
     rm -f "$output_file"
 }
 
+expect_success 'zero distributed status returns without aborting' \
+    'SUCCESS' 1 1 1 0
 expect_failure 'zero X process-grid dimension' \
     'Process-grid dimensions must be positive:' 0 1 1
 expect_failure 'negative Y process-grid dimension' \

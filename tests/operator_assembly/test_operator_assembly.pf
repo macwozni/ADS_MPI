@@ -1,4 +1,5 @@
 module test_operator_assembly
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use pfunit
    use knot_vector, only: PrepareKnot
    use omp_lib, only: omp_set_dynamic, omp_set_num_threads
@@ -247,6 +248,27 @@ contains
 
 
    @test
+   subroutine test_small_supports_maximum_degree_nine()
+      integer(kind=4), parameter :: nelem = 1
+      real(kind=8), parameter :: MASS(4) = (/1.d0, 0.d0, 0.d0, 0.d0/)
+      integer(kind=4) :: n
+      integer(kind=8) :: entries
+      real(kind=8), allocatable :: actual(:, :), U(:)
+
+      call make_open_knots(nelem, 9, n, U)
+      call assemble_small(U, 9, n, nelem, MASS, actual, entries)
+
+      @assertTrue(n == 9)
+      @assertTrue(all(shape(actual) == (/10, 10/)))
+      @assertTrue(entries == 100_8)
+      @assertTrue(all(ieee_is_finite(actual)))
+      @assertTrue(maxval(abs(actual - transpose(actual))) <= TOL)
+      @assertTrue(abs(sum(actual) - 1.d0) <= TOL)
+      @assertTrue(maxval(abs(sum(actual, dim=2) - 0.1d0)) <= TOL)
+   end subroutine test_small_supports_maximum_degree_nine
+
+
+   @test
    subroutine test_small_is_deterministic_with_openmp()
       integer(kind=4), parameter :: nelem = 8
       integer(kind=4) :: n
@@ -343,6 +365,32 @@ contains
       @assertTrue(abs(sum(actual(4:8, 1:3)) - 1.d0) <= TOL)
       @assertTrue(maxval(abs(sum(actual, dim=2) - EXPECTED_ROW_SUMS)) <= TOL)
    end subroutine test_large_handles_mixed_knot_multiplicity
+
+
+   @test
+   subroutine test_large_supports_maximum_test_degree_nine()
+      integer(kind=4), parameter :: nelem = 1
+      real(kind=8), parameter :: MASS(4) = (/1.d0, 0.d0, 0.d0, 0.d0/)
+      integer(kind=4) :: n1, n2
+      integer(kind=8) :: entries
+      real(kind=8), allocatable :: actual(:, :), U1(:), U2(:)
+
+      call make_open_knots(nelem, 9, n1, U1)
+      call make_open_knots(nelem, 1, n2, U2)
+      call assemble_large(U1, 9, n1, U2, 1, n2, nelem, &
+                          MASS, MASS, MASS, actual, entries)
+
+      @assertTrue(n1 == 9)
+      @assertTrue(n2 == 1)
+      @assertTrue(all(shape(actual) == (/12, 12/)))
+      @assertTrue(entries == 44_8)
+      @assertTrue(all(ieee_is_finite(actual)))
+      @assertTrue(maxval(abs(actual - transpose(actual))) <= TOL)
+      @assertTrue(abs(sum(actual(1:2, 1:2)) - 1.d0) <= TOL)
+      @assertTrue(abs(sum(actual(1:2, 3:12)) - 1.d0) <= TOL)
+      @assertTrue(abs(sum(actual(3:12, 1:2)) - 1.d0) <= TOL)
+      @assertTrue(maxval(abs(actual(3:12, 3:12))) == 0.d0)
+   end subroutine test_large_supports_maximum_test_degree_nine
 
 
    @test

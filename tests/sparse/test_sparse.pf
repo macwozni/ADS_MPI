@@ -789,6 +789,31 @@ contains
 
 
    @test
+   subroutine test_to_mumps_format_transposed_uses_row_dimension_when_larger()
+      include 'dmumps_struc.h'
+      type(sparse_matrix), pointer :: matrix
+      type(dmumps_struc) :: mumps_par
+
+      call initialize_mumps_triplets(mumps_par)
+      call initialize_sparse(5, 2, matrix)
+      call add(matrix, 4, 1, 3.5d0)
+
+      call to_mumps_format_transposed(matrix, mumps_par)
+
+      @assertTrue(mumps_par%N == 5)
+      @assertTrue(mumps_par%NZ == 1)
+      @assertTrue(mumps_par%irn(1) == 2)
+      @assertTrue(mumps_par%jcn(1) == 5)
+      call assert_real_close(mumps_par%a(1), 3.5d0, tol)
+
+      deallocate(mumps_par%irn)
+      deallocate(mumps_par%jcn)
+      deallocate(mumps_par%a)
+      call clear_matrix(matrix)
+   end subroutine test_to_mumps_format_transposed_uses_row_dimension_when_larger
+
+
+   @test
    subroutine test_to_mumps_format_transposed_accumulates_duplicate_entries()
       include 'dmumps_struc.h'
       type(sparse_matrix), pointer :: matrix

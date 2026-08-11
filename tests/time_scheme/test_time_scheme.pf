@@ -424,6 +424,24 @@ contains
 
 
    @test
+   subroutine test_validate_igrm_time_scheme_spaces_direct_entry_point()
+      type(ADS_Setup) :: ads_test, ads_trial
+
+      call make_distinct_spaces(ads_test, ads_trial)
+      call reset_validation_spy()
+      call ValidateIGRMTimeSchemeSpaces(ads_test, ads_trial)
+
+      @assertTrue(validation_call_count == 3)
+      @assertTrue(all(recorded_test_p == ads_test%p))
+      @assertTrue(all(recorded_test_n == ads_test%n))
+      @assertTrue(all(recorded_test_nelem == ads_test%nelem))
+      @assertTrue(all(recorded_trial_p == ads_trial%p))
+      @assertTrue(all(recorded_trial_n == ads_trial%n))
+      @assertTrue(all(recorded_trial_nelem == ads_trial%nelem))
+   end subroutine test_validate_igrm_time_scheme_spaces_direct_entry_point
+
+
+   @test
    subroutine test_forward_euler_delegates_without_rhs_point()
       type(ADS_Setup) :: ads
       type(ADS_compute_data) :: ads_data

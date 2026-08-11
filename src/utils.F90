@@ -227,14 +227,14 @@ end subroutine ComputeL2Norm
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
-!> @brief Assembles local contributions associated with a distributed
-!> \f$L_2\f$-norm-related quantity.
+!> @brief Assembles the distributed tensor-product load vector for a
+!> unit-valued field.
 !>
 !> @details
 !> This procedure prepares one-dimensional basis-function data for
 !> the three parametric directions, traverses the local element range
-!> assigned to the current process, and accumulates contributions into
-!> the output array \p F.
+!> assigned to the current process, and accumulates the integrals of the
+!> tensor-product basis functions into the output array \p F.
 !>
 !> The routine uses knot vectors, spline orders, problem dimensions,
 !> local index extents, and process-grid metadata to map global basis
@@ -346,14 +346,9 @@ subroutine Norm_L2( &
    real(kind=8), dimension(0:0, 0:p(1), p(1) + 1, nelem(1)) :: NNx
    real(kind=8), dimension(0:0, 0:p(2), p(2) + 1, nelem(2)) :: NNy
    real(kind=8), dimension(0:0, 0:p(3), p(3) + 1, nelem(3)) :: NNz
-   real(kind=8) :: J, W, value
-   integer(kind=4) :: nreppx, nreppy, nreppz !# elements per proc along x,y,z
-   integer(kind=4) :: ind, ind1, ind23, indx, indy, indz
-   integer(kind=4) :: iprint
-
-   iprint = 0
-
-   d = 0
+   real(kind=8) :: J, W
+   integer(kind=4), dimension(3) :: first_element, last_element
+   integer(kind=4) :: ind1, ind23, indx, indy, indz
    mx = n(1) + p(1) + 1
    ngx = p(1) + 1
    my = n(2) + p(2) + 1
@@ -365,14 +360,15 @@ subroutine Norm_L2( &
    call BasisData(p(2), my, Uy, 0, ngy, nelem(2), Oy, Jy, Wy, Xy, NNy)
    call BasisData(p(3), mz, Uz, 0, ngz, nelem(3), Oz, Jz, Wz, Xz, NNz)
 
-   ! parallel number of elements per processors
-   nreppx = nelem(1)/nrp(1)
-   nreppy = nelem(2)/nrp(2)
-   nreppz = nelem(3)/nrp(3)
+   ! Select every element whose active basis functions overlap the local
+   ! ownership range.  Deriving these bounds from ibeg/iend also handles
+   ! process partitions for which nelem is not divisible by nrp.
+   first_element = max(ibeg - p - 1, 1)
+   last_element = min(iend, nelem)
    F = 0
-   do ex = max(nreppx*nrank(1) - p(1) + 1, 1), min(nelem(1), nreppx*(nrank(1) + 1) + p(1))
-      do ey = max(nreppy*nrank(2) - p(2) + 1, 1), min(nelem(2), nreppy*(nrank(2) + 1) + p(2))
-         do ez = max(nreppz*nrank(3) - p(3) + 1, 1), min(nelem(3), nreppz*(nrank(3) + 1) + p(3))
+   do ex = first_element(1), last_element(1)
+      do ey = first_element(2), last_element(2)
+         do ez = first_element(3), last_element(3)
             J = Jx(ex)*Jy(ey)*Jz(ez)
             do kx = 1, ngx
                do ky = 1, ngy
@@ -382,7 +378,7 @@ subroutine Norm_L2( &
                         do ay = 0, p(2)
                            do az = 0, p(3)
                               d = (Ox(ex) + ax) + (Oy(ey) + ay)*(n(1) + 1) + (Oz(ez) + az)*(n(2) + 1)*(n(1) + 1)
-                              call global2local(ind, [n(1), n(2), n(3)], indx, indy, indz)
+                              call global2local(d, [n(1), n(2), n(3)], indx, indy, indz)
                               if (indx < ibeg(1) - 1 .or. indx > iend(1) - 1) cycle
                               if (indy < ibeg(2) - 1 .or. indy > iend(2) - 1) cycle
                               if (indz < ibeg(3) - 1 .or. indz > iend(3) - 1) cycle
@@ -394,7 +390,7 @@ subroutine Norm_L2( &
 
                               ! parallel
                               F(ind1, ind23) = F(ind1, ind23) + &
-                                                NNx(0, ax, kx, ex)*NNy(0, ay, ky, ey)*NNz(0, az, kz, ez)*J*W*value
+                                                NNx(0, ax, kx, ex)*NNy(0, ay, ky, ey)*NNz(0, az, kz, ez)*J*W
                            end do
                         end do
                      end do

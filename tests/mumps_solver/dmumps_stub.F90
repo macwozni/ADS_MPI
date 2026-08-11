@@ -1,6 +1,7 @@
 subroutine dmumps(mumps_par)
    use mumps_test_support, only: failure_job, failure_occurrence, failure_code, &
-      finalization_code, failure_uses_infog, record_mumps_job
+      finalization_code, failure_uses_infog, initialization_starts_instance, &
+      record_mumps_job
    use mumps_test_support, only: record_mumps_contract
    implicit none
    include 'dmumps_struc.h'
@@ -17,7 +18,7 @@ subroutine dmumps(mumps_par)
    mumps_par%info = 0
    mumps_par%infog = 0
 
-   if (mumps_par%job == -1) then
+   if (mumps_par%job == -1 .and. initialization_starts_instance) then
       allocate(mumps_par%intr_encoding(1))
    else if (mumps_par%job == -2) then
       if (associated(mumps_par%intr_encoding)) then

@@ -1,4 +1,5 @@
 program argument_parser_probe
+   use, intrinsic :: ieee_arithmetic, only: ieee_positive_inf, ieee_value
    use argument_parser, only: ReadArgument, ReadIntegerArgument, ReadRealArgument, &
                               ReadStringArgument, ReadTimeSchemeArgument, &
                               RequireNonnegativeInteger, RequirePositiveInteger, RequirePositiveReal, &
@@ -53,6 +54,10 @@ program argument_parser_probe
       call ReadRealArgument(2, real_value)
       call RequirePositiveReal(real_value, "probe real")
       write(*, '(A)') "positive-real:ok"
+   case ("positive-real-nonfinite")
+      real_value = ieee_value(0.0d0, ieee_positive_inf)
+      call RequirePositiveReal(real_value, "probe real")
+      write(*, '(A)') "positive-real-nonfinite:unexpected-success"
    case ("safe-spline")
       call ReadIntegerArgument(2, integer_value)
       call ReadIntegerArgument(3, selected_scheme)

@@ -327,4 +327,22 @@ contains
       @assertTrue(abs(actual - 1.0d0) <= tol)
    end subroutine test_eval_spline_mixed_first_derivative
 
+
+   @test
+   subroutine test_eval_spline_mixed_second_derivative()
+      use basis, only: EvalSpline
+      integer(kind=4), parameter :: n = 2, p = 2, nelem = 1
+      real(kind=8) :: U(0:n + p + 1), coeffs(0:n, 0:n, 0:n), actual
+
+      U = (/0.0d0, 0.0d0, 0.0d0, 1.0d0, 1.0d0, 1.0d0/)
+      coeffs = 0.0d0
+      coeffs(2, 2, 2) = 1.0d0
+
+      actual = EvalSpline(2, U, p, n, nelem, U, p, n, nelem, U, p, n, nelem, &
+                          coeffs, 0.2d0, 0.4d0, 0.7d0)
+
+      ! coeffs represent x^2*y^2*z^2 in the quadratic Bernstein basis.
+      @assertTrue(abs(actual - 8.0d0) <= 32.0d0*tol)
+   end subroutine test_eval_spline_mixed_second_derivative
+
 end module test_basis

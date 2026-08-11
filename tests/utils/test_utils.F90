@@ -131,7 +131,8 @@ program test_utils
    use communicators, only: CreateCommunicators, Cleanup_Communicators
    use norm_l2_test_support
    use parallelism, only: MYRANK, NRPROC, InitializeParallelism, Cleanup_Parallelism
-   use utils, only: NormL2, int2str
+   use projection_engine, only: global2local_call_count, reset_global2local_spy
+   use utils, only: NormL2, Norm_L2, int2str
    use mpi
    implicit none
 
@@ -155,6 +156,8 @@ program test_utils
    allocate(part(ads%s(1), ads%s(2)*ads%s(3)))
    failures = 0
    call check_int2str(failures)
+   call check_legacy_norm_l2(failures)
+   call reset_global2local_spy()
 
    call fill_affine_coefficients(ads, part)
    call NormL2(ads, part, norm)
@@ -183,12 +186,15 @@ program test_utils
    call NormL2(ads, part, norm, zero_field)
    call check_norm('zero error', norm, 0.0d0, 1.0d-12, failures)
 
+   if (global2local_call_count /= 0) failures = failures + 1
+
    call MPI_Allreduce(failures, global_failures, 1, MPI_INTEGER, &
       MPI_SUM, MPI_COMM_WORLD, ierr)
 
    if (MYRANK == 0) then
       if (global_failures == 0) then
-         write(*, '(A,I0,A,I0,A)') 'OK (', 8, ' NormL2 checks plus int2str, ', NRPROC, ' MPI ranks)'
+         write(*, '(A,I0,A,I0,A)') 'OK (', 8, &
+            ' NormL2 checks plus legacy assembly and int2str, ', NRPROC, ' MPI ranks)'
       else
          write(*, '(A,I0,A)') 'FAILED (', global_failures, ' accumulated failures)'
       end if
@@ -202,6 +208,120 @@ program test_utils
    if (global_failures /= 0) stop 1
 
 contains
+
+   subroutine check_legacy_norm_l2(local_failures)
+      use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+      integer(kind=4), intent(inout) :: local_failures
+      integer(kind=4), parameter :: legacy_n = 2, legacy_p = 1
+      integer(kind=4), dimension(3) :: legacy_shape, legacy_degree
+      integer(kind=4), dimension(3) :: legacy_elements, legacy_begin, legacy_end
+      integer(kind=4), dimension(3) :: legacy_rank, legacy_processes
+      real(kind=8), dimension(0:legacy_n + legacy_p + 1) :: knots
+      real(kind=8), dimension(0:legacy_n, 0:(legacy_n + 1)*(legacy_n + 1) - 1) :: assembled
+      real(kind=8), dimension(0:0, 0:0) :: centre
+      real(kind=8), dimension(0:legacy_n) :: one_dimensional_integral
+      real(kind=8) :: expected
+      integer(kind=4) :: x, y, z, yz
+
+      call reset_global2local_spy()
+      legacy_shape = legacy_n
+      legacy_degree = legacy_p
+      legacy_elements = 2
+      legacy_begin = 1
+      legacy_end = legacy_n + 1
+      legacy_rank = 0
+      legacy_processes = 1
+      knots = (/0.0d0, 0.0d0, 0.5d0, 1.0d0, 1.0d0/)
+      one_dimensional_integral = (/0.25d0, 0.5d0, 0.25d0/)
+
+      call Norm_L2(knots, knots, knots, legacy_degree, legacy_shape, &
+         legacy_elements, legacy_begin, legacy_end, legacy_rank, &
+         legacy_processes, assembled)
+
+      do z = 0, legacy_n
+         do y = 0, legacy_n
+            yz = y + z*(legacy_n + 1)
+            do x = 0, legacy_n
+               expected = one_dimensional_integral(x)*one_dimensional_integral(y)* &
+                  one_dimensional_integral(z)
+               if (.not. (ieee_is_finite(assembled(x, yz)) .and. &
+                          abs(assembled(x, yz) - expected) <= 1.0d-13)) then
+                  local_failures = local_failures + 1
+               end if
+            end do
+         end do
+      end do
+
+      legacy_begin = 2
+      legacy_end = 2
+      call Norm_L2(knots, knots, knots, legacy_degree, legacy_shape, &
+         legacy_elements, legacy_begin, legacy_end, legacy_rank, &
+         legacy_processes, centre)
+      if (.not. (ieee_is_finite(centre(0, 0)) .and. &
+                 abs(centre(0, 0) - 0.125d0) <= 1.0d-13)) then
+         local_failures = local_failures + 1
+      end if
+      if (global2local_call_count == 0) local_failures = local_failures + 1
+
+      call check_legacy_norm_l2_uneven_partition(local_failures)
+   end subroutine check_legacy_norm_l2
+
+
+   subroutine check_legacy_norm_l2_uneven_partition(local_failures)
+      use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+      integer(kind=4), intent(inout) :: local_failures
+      integer(kind=4), parameter :: uneven_n = 8, transverse_n = 2, degree = 1
+      integer(kind=4), parameter :: virtual_ranks = 3
+      integer(kind=4), dimension(3) :: shape, degrees, elements
+      integer(kind=4), dimension(3) :: local_begin, local_end
+      integer(kind=4), dimension(3) :: virtual_rank, process_grid
+      real(kind=8), dimension(0:uneven_n + degree + 1) :: knots_x
+      real(kind=8), dimension(0:transverse_n + degree + 1) :: knots_yz
+      real(kind=8), dimension(0:2, 0:8) :: local_assembly
+      real(kind=8), dimension(0:uneven_n) :: integral_x
+      real(kind=8), dimension(0:transverse_n) :: integral_yz
+      real(kind=8) :: expected
+      integer(kind=4) :: global_x, local_x, rank_x, y, yz, z
+
+      shape = (/uneven_n, transverse_n, transverse_n/)
+      degrees = degree
+      elements = (/uneven_n, transverse_n, transverse_n/)
+      process_grid = (/virtual_ranks, 1, 1/)
+      local_begin = 1
+      local_end = (/3, transverse_n + 1, transverse_n + 1/)
+      virtual_rank = 0
+      knots_x = (/0.0d0, 0.0d0, 0.125d0, 0.25d0, 0.375d0, &
+         0.5d0, 0.625d0, 0.75d0, 0.875d0, 1.0d0, 1.0d0/)
+      knots_yz = (/0.0d0, 0.0d0, 0.5d0, 1.0d0, 1.0d0/)
+      integral_x = 0.125d0
+      integral_x(0) = 0.0625d0
+      integral_x(uneven_n) = 0.0625d0
+      integral_yz = (/0.25d0, 0.5d0, 0.25d0/)
+
+      do rank_x = 0, virtual_ranks - 1
+         virtual_rank(1) = rank_x
+         local_begin(1) = 3*rank_x + 1
+         local_end(1) = 3*rank_x + 3
+         call Norm_L2(knots_x, knots_yz, knots_yz, degrees, shape, &
+            elements, local_begin, local_end, virtual_rank, process_grid, &
+            local_assembly)
+
+         do z = 0, transverse_n
+            do y = 0, transverse_n
+               yz = y + z*(transverse_n + 1)
+               do local_x = 0, 2
+                  global_x = 3*rank_x + local_x
+                  expected = integral_x(global_x)*integral_yz(y)*integral_yz(z)
+                  if (.not. (ieee_is_finite(local_assembly(local_x, yz)) .and. &
+                             abs(local_assembly(local_x, yz) - expected) <= &
+                             1.0d-13)) then
+                     local_failures = local_failures + 1
+                  end if
+               end do
+            end do
+         end do
+      end do
+   end subroutine check_legacy_norm_l2_uneven_partition
 
    subroutine check_int2str(local_failures)
       integer(kind=4), intent(inout) :: local_failures
