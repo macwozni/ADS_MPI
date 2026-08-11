@@ -89,8 +89,12 @@ contains
 !> @brief Evaluates the initial state \f$u(0)\f$.
 !>
 !> @details
-!> The current profile is a scaled compact-support bump centered inside
-!> the unit cube.
+!> The profile is the compactly supported radial datum used by the
+!> `iga-ads` `heat_3d` example.  With
+!> \f$r^2=\min(8\lVert(x,y,z)-(1/2,1/2,1/2)\rVert^2,1)\f$, it is
+!> \f$u_0=(r^2-1)^2(r^2+1)^2\f$.  Keeping this definition identical makes
+!> the two heat drivers directly comparable for the same discretization
+!> and time-step parameters.
 !
 ! Input:
 ! ------
@@ -110,17 +114,15 @@ contains
 !
 !---------------------------------------------------------------------------
    function initial_state(x, y, z) result (val)
-      use math, ONLY: falloff, bump3d, lerp
       implicit none
       real (kind = 8), intent(in) :: x, y, z
-      real (kind = 8) :: dist, val
-      real (kind = 8), dimension(3) :: p1
+      real (kind = 8) :: dx, dy, dz, r2, val
 
-      p1 = (/ x, y, z/)
-      !dist = sqrt(dist_from_curves(p1, cx, cy, cz, cN, cL))
-      dist = 0 !!!!!!
-      !val = 1.d0 * lerp(falloff(0.d0, 0.2d0, dist), 0.d0, 1.d0) * bump3d(0.2d0, 0.6d0, x, y, z)
-      val = 2.d0  * bump3d(0.05d0, 0.4d0, x, y, z)
+      dx = x - 0.5d0
+      dy = y - 0.5d0
+      dz = z - 0.5d0
+      r2 = min(8.d0*(dx*dx + dy*dy + dz*dz), 1.d0)
+      val = (r2 - 1.d0)*(r2 - 1.d0)*(r2 + 1.d0)*(r2 + 1.d0)
 
    end function initial_state
 

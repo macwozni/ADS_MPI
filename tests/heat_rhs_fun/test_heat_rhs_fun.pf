@@ -11,6 +11,7 @@ module test_heat_rhs_fun
    integer(kind=4), parameter :: DIRECTION(3) = (/ 7, 8, 9 /)
    real(kind=8), parameter :: DU_INPUT(3) = (/ 17.0d0, 19.0d0, 23.0d0 /)
    real(kind=8), parameter :: X_INPUT(3) = (/ 29.0d0, 31.0d0, 37.0d0 /)
+   real(kind=8), parameter :: PROFILE_POINT(3) = (/ 0.75d0, 0.5d0, 0.5d0 /)
    real(kind=8), parameter :: TEST_VALUE = 110.0d0
    real(kind=8), parameter :: TEST_DERIVATIVES(3) = (/ 165.0d0, 154.0d0, 130.0d0 /)
 
@@ -76,17 +77,42 @@ contains
 
 
    @test
+   subroutine test_upstream_initial_profile_oracles()
+      real(kind=8), parameter :: center(3) = (/ 0.5d0, 0.5d0, 0.5d0 /)
+      real(kind=8), parameter :: axis_point(3) = (/ 0.625d0, 0.5d0, 0.5d0 /)
+      real(kind=8), parameter :: diagonal_point(3) = (/ 0.625d0, 0.625d0, 0.625d0 /)
+      real(kind=8), parameter :: support_edge(3) = (/ 0.25d0, 0.25d0, 0.5d0 /)
+      real(kind=8), parameter :: reflected(3) = (/ 0.375d0, 0.5d0, 0.5d0 /)
+      real(kind=8) :: actual, mirror
+
+      actual = initial_state(center(1), center(2), center(3))
+      @assertTrue(close_enough(actual, 1.0d0))
+      actual = initial_state(axis_point(1), axis_point(2), axis_point(3))
+      @assertTrue(close_enough(actual, 3969.0d0/4096.0d0))
+      actual = initial_state(diagonal_point(1), diagonal_point(2), diagonal_point(3))
+      @assertTrue(close_enough(actual, 3025.0d0/4096.0d0))
+      actual = initial_state(PROFILE_POINT(1), PROFILE_POINT(2), PROFILE_POINT(3))
+      @assertTrue(close_enough(actual, 9.0d0/16.0d0))
+      actual = initial_state(support_edge(1), support_edge(2), support_edge(3))
+      @assertTrue(actual == 0.0d0)
+      actual = initial_state(reflected(1), reflected(2), reflected(3))
+      mirror = initial_state(axis_point(1), axis_point(2), axis_point(3))
+      @assertTrue(close_enough(actual, mirror))
+   end subroutine test_upstream_initial_profile_oracles
+
+
+   @test
    subroutine test_forcing_switches_from_initial_state_to_zero()
       real(kind=8) :: expected
 
-      expected = initial_state(X_INPUT(1), X_INPUT(2), X_INPUT(3))
+      expected = 9.0d0/16.0d0
 
       problem_time = 0.0d0
-      @assertTrue(close_enough(heat_forcing(41.0d0, DU_INPUT, X_INPUT), expected))
+      @assertTrue(close_enough(heat_forcing(41.0d0, DU_INPUT, PROFILE_POINT), expected))
       problem_time = -0.5d0
-      @assertTrue(close_enough(heat_forcing(-7.0d0, -DU_INPUT, X_INPUT), expected))
+      @assertTrue(close_enough(heat_forcing(-7.0d0, -DU_INPUT, PROFILE_POINT), expected))
       problem_time = 0.5d0
-      @assertTrue(heat_forcing(41.0d0, DU_INPUT, X_INPUT) == 0.0d0)
+      @assertTrue(heat_forcing(41.0d0, DU_INPUT, PROFILE_POINT) == 0.0d0)
    end subroutine test_forcing_switches_from_initial_state_to_zero
 
 
@@ -99,14 +125,15 @@ contains
       call initialize_fixture(ads, ads_data)
       problem_time = 0.0d0
       alpha_step = 999.0d0
-      source = initial_state(X_INPUT(1), X_INPUT(2), X_INPUT(3))
+      source = initial_state(PROFILE_POINT(1), PROFILE_POINT(2), PROFILE_POINT(3))
 
-      call heat_rhs_point(ads, X_INPUT, K_INDEX, E_INDEX, A_INDEX, DU_INPUT, 123, &
+      call heat_rhs_point(ads, PROFILE_POINT, K_INDEX, E_INDEX, A_INDEX, DU_INPUT, 123, &
                           41.0d0, 43.0d0, 47.0d0, ads_data, 1.5d0, 0.4d0, &
                           DIRECTION, 2, alpha_step, heat_forcing, ret)
 
       expected = 1.5d0*0.4d0*TEST_VALUE*source
       @assertTrue(close_enough(ret, expected))
+      @assertTrue(close_enough(ret, 37.125d0))
    end subroutine test_initial_step_is_weighted_mass_projection
 
 
@@ -131,10 +158,31 @@ contains
                  ads%tau*(-grad_term + TEST_VALUE*configured_source))
 
       @assertTrue(close_enough(ret, expected))
+      @assertTrue(close_enough(ret, 1278.225d0))
       @assertEqual(1, forcing_calls)
       @assertTrue(close_enough(recorded_un, 41.0d0))
       @assertTrue(all(recorded_du == DU_INPUT))
       @assertTrue(all(recorded_X == X_INPUT))
    end subroutine test_forward_step_has_mass_diffusion_and_source_terms
+
+
+   @test
+   subroutine test_upstream_zero_source_forward_oracle()
+      type(ADS_Setup) :: ads
+      type(ADS_compute_data) :: ads_data
+      real(kind=8) :: alpha_step(7, 3), ret
+
+      call initialize_fixture(ads, ads_data)
+      call reset_recorder(0.0d0)
+      problem_time = 2.0d0
+      alpha_step = 0.0d0
+
+      call heat_rhs_point(ads, PROFILE_POINT, K_INDEX, E_INDEX, A_INDEX, DU_INPUT, 321, &
+                          41.0d0, -900.0d0, 800.0d0, ads_data, 1.5d0, 0.4d0, &
+                          DIRECTION, 1, alpha_step, recording_forcing, ret)
+
+      @assertTrue(close_enough(ret, 1397.85d0))
+      @assertEqual(1, forcing_calls)
+   end subroutine test_upstream_zero_source_forward_oracle
 
 end module test_heat_rhs_fun

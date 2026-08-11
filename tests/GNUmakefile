@@ -56,6 +56,7 @@ SRC_SUITES := \
 PROBLEM_SUITES := \
 	oil_input_data \
 	oil_rhs_fun \
+	heat_input_data \
 	heat_rhs_fun \
 	igrm_heat_rhs_fun
 
