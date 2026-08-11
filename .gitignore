@@ -4,6 +4,7 @@
 *.x
 EXEC
 _OBJ
+/mymake/LIB/
 output
 fort.1
 nohup.out

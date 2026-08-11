@@ -1,0 +1,78 @@
+###########################################################
+# ADS MPI local build configuration
+#
+# This is the canonical configuration used by the root Makefile. Adjust the
+# compiler, dependency paths, and tools below for the local machine.
+###########################################################
+
+
+###########################################################
+#     dependency directories
+###########################################################
+
+MUMPS_DIR = /opt/lib/MUMPS_5.8.2/
+LAPACK_DIR = /opt/lib/lapack-3.12.1/lib64
+SCALAPACK_DIR = /opt/lib/scalapack-2.3.2/lib64
+BLAS_DIR = /opt/lib/lapack-3.12.1/lib64
+PARMETIS_DIR = /opt/lib/parmetis/lib
+METIS_DIR = /opt/lib/metis/lib
+GKLIB_DIR = /opt/lib/GKlib/lib64
+
+
+###########################################################
+#     compiler and build mode
+###########################################################
+
+COMPILER = /opt/lib/mpich-5.0.0/bin/mpif90
+DIALECT = -std=f2003 -fimplicit-none -cpp -pthread -fopenmp -pedantic
+MODULE_OUTPUT = -J.
+BOUNDS = -fbounds-check
+RELEASE_OPTS = -funroll-all-loops -O3
+DEBUG_OPTS = -O0 -g -fcheck=all $(BOUNDS) -fsanitize=address
+BUILD ?= debug
+# Optional diagnostics: -fbacktrace -ffpe-trap=zero,overflow,underflow
+
+ifeq ($(BUILD),debug)
+BUILD_OPTS = $(DEBUG_OPTS)
+else ifeq ($(BUILD),release)
+BUILD_OPTS = $(RELEASE_OPTS)
+else
+$(error unsupported BUILD='$(BUILD)'; expected debug or release)
+endif
+
+INCLUDE = -I$(MUMPS_DIR)/include/ -I$(PARMETIS_DIR)/include
+FF = $(COMPILER) $(DIALECT) $(BUILD_OPTS) $(INCLUDE)
+FPP = fpp -O3
+
+
+###########################################################
+#     top-level build, test, run, and documentation tools
+###########################################################
+
+MPIFC ?= $(COMPILER)
+MPIEXEC ?= $(if $(findstring /,$(COMPILER)),$(dir $(COMPILER))mpiexec,mpiexec)
+PFUNIT_ROOT ?= /opt/lib/pfunit/PFUNIT-4.16
+PYTHON ?= python3
+DOXYGEN ?= doxygen
+SUITE_TIMEOUT ?= 600s
+DRIVER_CLI_TIMEOUT ?= 20s
+DRIVER_SMOKE_TIMEOUT ?= 60s
+DRIVER_INTEGRATION_TIMEOUT ?= 90
+SKIP_MPI_CASES ?= 0
+
+
+###########################################################
+#     libraries
+###########################################################
+
+BLAS_LIB = $(BLAS_DIR)/libblas.a
+LAPACK_LIB = $(LAPACK_DIR)/liblapack.a
+SCALAPACK_LIB = $(SCALAPACK_DIR)/libscalapack.a
+METIS_LIB = $(METIS_DIR)/libmetis.a $(GKLIB_DIR)/libGKlib.a
+PARMETIS_LIB = $(PARMETIS_DIR)/libparmetis.a
+MUMPS_LIB = $(MUMPS_DIR)/lib/libdmumps.a \
+	$(MUMPS_DIR)/lib/libmumps_common.a \
+	$(MUMPS_DIR)/lib/libpord.a
+
+USER_LIB = $(MUMPS_LIB) $(LAPACK_LIB) $(SCALAPACK_LIB) \
+	$(PARMETIS_LIB) $(METIS_LIB) $(BLAS_LIB)

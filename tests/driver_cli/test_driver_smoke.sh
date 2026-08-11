@@ -4,6 +4,7 @@ set -u
 
 MPIEXEC=${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}
 EXEC_DIR=${EXEC_DIR:-../../mymake/EXEC}
+DRIVER_SMOKE_TIMEOUT=${DRIVER_SMOKE_TIMEOUT:-60s}
 ASAN_OPTIONS="${ASAN_OPTIONS:+${ASAN_OPTIONS}:}detect_leaks=0"
 export ASAN_OPTIONS
 
@@ -31,7 +32,7 @@ run_smoke() {
     (
         cd "$work_dir" || exit 1
         OMP_DYNAMIC=FALSE OMP_NUM_THREADS=2 \
-            timeout 60s "$MPIEXEC" -n 1 "$EXEC_DIR/$driver" "$@"
+            timeout "$DRIVER_SMOKE_TIMEOUT" "$MPIEXEC" -n 1 "$EXEC_DIR/$driver" "$@"
     ) >"$output_file" 2>&1
     status=$?
     checks=$((checks + 1))

@@ -54,10 +54,8 @@ contains
 !>
 !> In symbolic form, the mapping is:
 !>
-!> \f[
-!> F(i_x,\, i_y + n_y i_z) \;\longrightarrow\;
-!> F2(i_y,\, i_x + n_x i_z),
-!> \f]
+!> \f[ F(i_x,\, i_y + n_y i_z) \longrightarrow
+!> F2(i_y,\, i_x + n_x i_z), \f]
 !>
 !> where the local extents \f$n_x\f$ and \f$n_y\f$ are implied by the
 !> ownership bounds \p ibeg and \p iend.
@@ -149,10 +147,8 @@ end subroutine ReorderRHSForY
 !>
 !> In symbolic form, the mapping is:
 !>
-!> \f[
-!> F(i_y,\, i_x + n_x i_z) \;\longrightarrow\;
-!> F2(i_z,\, i_x + n_x i_y),
-!> \f]
+!> \f[ F(i_y,\, i_x + n_x i_z) \longrightarrow
+!> F2(i_z,\, i_x + n_x i_y), \f]
 !>
 !> with local extents derived from \p ibeg and \p iend.
 !
@@ -237,10 +233,8 @@ end subroutine ReorderRHSForZ
 !>
 !> In symbolic form, the mapping is:
 !>
-!> \f[
-!> F(i_z,\, i_x + n_x i_y) \;\longrightarrow\;
-!> F2(i_x,\, i_y + n_y i_z).
-!> \f]
+!> \f[ F(i_z,\, i_x + n_x i_y) \longrightarrow
+!> F2(i_x,\, i_y + n_y i_z). \f]
 !>
 !> This permutation closes the cyclic sequence of storage reorders used
 !> between successive directional solves.

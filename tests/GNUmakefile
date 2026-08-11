@@ -2,13 +2,23 @@
 
 .NOTPARALLEL:
 
-.PHONY: all tests run run-src run-problems run-driver run-integration check-layout list clean
+.PHONY: all tests run run-src run-problems run-driver run-integration run-suite \
+	check-layout list clean
+
+CONFIG      ?= ../m_options
+CONFIG_PATH := $(abspath $(CONFIG))
+include $(CONFIG_PATH)
 
 PFUNIT_ROOT ?= /opt/lib/pfunit/PFUNIT-4.16
 MPIEXEC     ?= /opt/lib/mpich-5.0.0/bin/mpiexec
 MPIFC       ?= /opt/lib/mpich-5.0.0/bin/mpif90
 MUMPS_DIR   ?= /opt/lib/MUMPS_5.8.2
+PYTHON      ?= python3
 SUITE_TIMEOUT ?= 600s
+DRIVER_CLI_TIMEOUT ?= 20s
+DRIVER_SMOKE_TIMEOUT ?= 60s
+DRIVER_INTEGRATION_TIMEOUT ?= 90
+SKIP_MPI_CASES ?= 0
 
 # Exactly one primary suite for every active source listed in mymake/m_files.
 SRC_SUITES := \
@@ -57,8 +67,13 @@ define run_suites
 	for suite in $(1); do \
 		printf '\n==> tests/%s: %s\n' "$$suite" "$(2)"; \
 		timeout $(SUITE_TIMEOUT) $(MAKE) -j1 -C "$$suite" \
+			CONFIG="$(CONFIG_PATH)" PYTHON="$(PYTHON)" \
 			PFUNIT_ROOT="$(PFUNIT_ROOT)" MPIEXEC="$(MPIEXEC)" \
 			MPIFC="$(MPIFC)" FC="$(MPIFC)" \
+			DRIVER_CLI_TIMEOUT="$(DRIVER_CLI_TIMEOUT)" \
+			DRIVER_SMOKE_TIMEOUT="$(DRIVER_SMOKE_TIMEOUT)" \
+			DRIVER_INTEGRATION_TIMEOUT="$(DRIVER_INTEGRATION_TIMEOUT)" \
+			SKIP_MPI_CASES="$(SKIP_MPI_CASES)" \
 			MUMPS_DIR="$(MUMPS_DIR)" "$(2)"; \
 	done
 endef
@@ -68,18 +83,28 @@ define rebuild_and_run_suites
 	for suite in $(1); do \
 		printf '\n==> tests/%s: clean + run\n' "$$suite"; \
 		timeout $(SUITE_TIMEOUT) $(MAKE) -j1 -C "$$suite" \
+			CONFIG="$(CONFIG_PATH)" PYTHON="$(PYTHON)" \
 			PFUNIT_ROOT="$(PFUNIT_ROOT)" MPIEXEC="$(MPIEXEC)" \
 			MPIFC="$(MPIFC)" FC="$(MPIFC)" \
+			DRIVER_CLI_TIMEOUT="$(DRIVER_CLI_TIMEOUT)" \
+			DRIVER_SMOKE_TIMEOUT="$(DRIVER_SMOKE_TIMEOUT)" \
+			DRIVER_INTEGRATION_TIMEOUT="$(DRIVER_INTEGRATION_TIMEOUT)" \
+			SKIP_MPI_CASES="$(SKIP_MPI_CASES)" \
 			MUMPS_DIR="$(MUMPS_DIR)" clean; \
 		timeout $(SUITE_TIMEOUT) $(MAKE) -j1 -C "$$suite" \
+			CONFIG="$(CONFIG_PATH)" PYTHON="$(PYTHON)" \
 			PFUNIT_ROOT="$(PFUNIT_ROOT)" MPIEXEC="$(MPIEXEC)" \
 			MPIFC="$(MPIFC)" FC="$(MPIFC)" \
+			DRIVER_CLI_TIMEOUT="$(DRIVER_CLI_TIMEOUT)" \
+			DRIVER_SMOKE_TIMEOUT="$(DRIVER_SMOKE_TIMEOUT)" \
+			DRIVER_INTEGRATION_TIMEOUT="$(DRIVER_INTEGRATION_TIMEOUT)" \
+			SKIP_MPI_CASES="$(SKIP_MPI_CASES)" \
 			MUMPS_DIR="$(MUMPS_DIR)" run; \
 	done
 endef
 
 check-layout:
-	python3 ./check_test_layout.py
+	$(PYTHON) ./check_test_layout.py
 
 all: check-layout
 	$(call run_suites,$(SUITES),all)
@@ -97,6 +122,18 @@ run-driver:
 
 run-integration: check-layout
 	$(call run_suites,$(DRIVER_SUITES),run-integration)
+
+run-suite:
+	@if [ -z "$(TEST_SUITE)" ]; then \
+		printf '%s\n' 'TEST_SUITE is required, for example: make test-suite TEST_SUITE=rhs_assembly'; \
+		exit 2; \
+	fi
+	@case ' $(SUITES) ' in \
+		*' $(TEST_SUITE) '*) ;; \
+		*) printf 'Unknown test suite: %s\nAvailable: %s\n' \
+			'$(TEST_SUITE)' '$(SUITES)'; exit 2 ;; \
+	esac
+	$(call rebuild_and_run_suites,$(TEST_SUITE))
 
 run: run-src run-problems run-driver
 

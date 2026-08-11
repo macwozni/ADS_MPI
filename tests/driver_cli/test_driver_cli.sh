@@ -4,6 +4,7 @@ set -u
 
 MPIEXEC=${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}
 EXEC_DIR=${EXEC_DIR:-../../mymake/EXEC}
+DRIVER_CLI_TIMEOUT=${DRIVER_CLI_TIMEOUT:-20s}
 ASAN_OPTIONS="${ASAN_OPTIONS:+${ASAN_OPTIONS}:}detect_leaks=0"
 export ASAN_OPTIONS
 
@@ -28,9 +29,9 @@ expect_failure() {
     temp_files+=("$output_file")
 
     if [[ $ranks -eq 1 ]]; then
-        timeout 20s "$EXEC_DIR/$driver" "$@" >"$output_file" 2>&1
+        timeout "$DRIVER_CLI_TIMEOUT" "$EXEC_DIR/$driver" "$@" >"$output_file" 2>&1
     else
-        timeout 20s "$MPIEXEC" -n "$ranks" "$EXEC_DIR/$driver" "$@" \
+        timeout "$DRIVER_CLI_TIMEOUT" "$MPIEXEC" -n "$ranks" "$EXEC_DIR/$driver" "$@" \
             >"$output_file" 2>&1
     fi
     status=$?

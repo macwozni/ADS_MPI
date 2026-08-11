@@ -4,22 +4,25 @@ This repository contains a Fortran/MPI implementation of the alternating
 direction solver (ADS) for isogeometric analysis (IGA), including the current
 iGRM-oriented workflow and several example problems.
 
-The code is research software. The actively maintained build path in the
-current tree is the `mymake` build directory.
+The code is research software. The repository-root `Makefile` is the public
+interface; it delegates low-level compilation to the `mymake` directory.
 
 ## Repository Layout
 
 ```text
-src/        Core ADS, IGA basis, MPI communication, sparse assembly, output
-problems/   Problem drivers and problem-specific data/callbacks
-mymake/     Active make-based build configuration
-tests/      Unit, integration, MPI, and driver-CLI regression suites
-doxygen/    Generated/documentation support files
+Makefile     Public hierarchical build/run/test/documentation interface
+m_options    Active local compiler, dependency, and tool configuration
+makeconfig/  Selectable GNU and Intel example configurations
+src/         Core ADS, IGA basis, MPI communication, sparse assembly, output
+problems/    Problem drivers and problem-specific data/callbacks
+mymake/      Low-level build implementation and generated artifacts
+tests/       Unit, integration, MPI, and driver-CLI regression suites
+doxygen/     Generated/documentation support files
 ```
 
 ## Dependencies
 
-The default `mymake/m_options` expects:
+The default repository-root `m_options` expects:
 
 - an MPI Fortran compiler
 - MUMPS
@@ -36,11 +39,11 @@ The complete test procedure additionally expects:
 - Python 3.10 or newer (for layout checks and numerical VTI integration checks)
 - Bash and GNU `timeout` (for CLI and MPI error-path tests)
 
-Edit `mymake/m_options` for local library paths and compiler flags.
+Edit `m_options` for local library paths and compiler flags.
 
 ### Library Versions In The Current Local Configuration
 
-The active `mymake/m_options` currently points to:
+The active `m_options` currently points to:
 
 ```text
 MPI compiler: /opt/lib/mpich-5.0.0/bin/mpif90
@@ -137,53 +140,100 @@ optional `include_transport` flag for first-derivative transport terms; the
 
 ## Building
 
-Build the default L2 projection driver from the repository root:
+The repository-root `Makefile` is the public build interface. Run `make help`
+to list every target and `make show-config` to display the effective tool and
+library paths.
+
+The tracked repository-root `m_options` is the single active configuration
+file for the compiler, build profile, MPI launcher, numerical libraries,
+pFUnit, Python, Doxygen, and test timeouts. The old `mymake/m_options` path is
+retained as a compatibility wrapper which includes that same root file, so
+there are no duplicate settings to keep synchronized. Command-line
+assignments still override values for one invocation:
 
 ```bash
-make -C mymake clean
-make -C mymake
+make show-config
+make BUILD=release
+make MPIEXEC=/path/to/mpiexec MPIFC=/path/to/mpif90 test
 ```
 
-The default build uses:
+Ready-to-select examples live in `makeconfig/`:
 
-```make
-SOURCE_ALL = $(SOURCES) $(L2)
-EXEC = l2
+```bash
+make list-configs
+make CONFIG=makeconfig/gnu-debug.mk show-config
+make CONFIG=makeconfig/gnu-release.mk all
+make CONFIG=makeconfig/intel-oneapi-debug.mk all
+make CONFIG=makeconfig/intel-oneapi-release.mk all
 ```
 
-so the default executable is:
+The GNU examples use `mpif90`/`mpiexec` from `PATH`. The Intel examples use
+the oneAPI `mpiifx` wrapper and Intel-specific module, checking, and OpenMP
+flags. They cover library and problem builds. The individual test-suite
+Makefiles still contain GNU-only diagnostic flags, so a complete Intel test
+run additionally requires parameterizing those flags and using an Intel-built
+pFUnit. Numerical libraries must likewise match the selected compiler; their
+local paths remain centralized in root `m_options`.
+
+The default `BUILD=debug` preserves the existing bounds checks and
+AddressSanitizer flags. `BUILD=release` selects `RELEASE_OPTS` from the same
+configuration file.
+
+### Build targets
+
+The default command builds the static ADS library and all seven problem
+drivers. Problem builds are deliberately serialized because problem-local
+Fortran modules reuse the names `input_data`, `RHS_fun`, and `main`.
+
+```bash
+# Static library plus every problem.
+make
+make all
+make build-all
+
+# Individual layers.
+make library
+make problems
+
+# One selected problem: equivalent forms.
+make build PROBLEM=heat
+make build-heat
+make heat
+
+make list-problems
+```
+
+Generated files are placed in:
 
 ```text
+mymake/LIB/libads.a
 mymake/EXEC/l2
+mymake/EXEC/heat
+mymake/EXEC/eriksson
+mymake/EXEC/pure_diffusion_igrm
+mymake/EXEC/oil
+mymake/EXEC/igrm_l2
+mymake/EXEC/igrm_heat
 ```
 
-When building another problem, pass both `SOURCE_ALL` and `EXEC` to `make`.
-Use the same variables for `make clean`, because the object list depends on the
-selected source group.
+The lower-level `mymake/makefile` remains usable. It provides `library`,
+`problems`, all seven named problem targets, and the legacy `SOURCE_ALL`/`EXEC`
+interface.
 
-Examples:
+The public `library` target intentionally rebuilds all core objects before
+creating the archive. This prevents a debug/release or GNU/Intel switch from
+silently mixing objects produced by different configurations.
+
+### Cleanup targets
 
 ```bash
-make -C mymake clean SOURCE_ALL='$(SOURCES) $(L2)' EXEC=l2
-make -C mymake       SOURCE_ALL='$(SOURCES) $(L2)' EXEC=l2
-
-make -C mymake clean SOURCE_ALL='$(SOURCES) $(HEAT)' EXEC=heat
-make -C mymake       SOURCE_ALL='$(SOURCES) $(HEAT)' EXEC=heat
-
-make -C mymake clean SOURCE_ALL='$(SOURCES) $(ERIKSSON)' EXEC=eriksson
-make -C mymake       SOURCE_ALL='$(SOURCES) $(ERIKSSON)' EXEC=eriksson
-
-make -C mymake clean SOURCE_ALL='$(SOURCES) $(PURE_DIFFUSION_IGRM)' EXEC=pure_diffusion_igrm
-make -C mymake       SOURCE_ALL='$(SOURCES) $(PURE_DIFFUSION_IGRM)' EXEC=pure_diffusion_igrm
-
-make -C mymake clean SOURCE_ALL='$(SOURCES) $(OIL)' EXEC=oil
-make -C mymake       SOURCE_ALL='$(SOURCES) $(OIL)' EXEC=oil
-
-make -C mymake clean SOURCE_ALL='$(SOURCES) $(IGRM_L2)' EXEC=igrm_l2
-make -C mymake       SOURCE_ALL='$(SOURCES) $(IGRM_L2)' EXEC=igrm_l2
-
-make -C mymake clean SOURCE_ALL='$(SOURCES) $(IGRM_HEAT)' EXEC=igrm_heat
-make -C mymake       SOURCE_ALL='$(SOURCES) $(IGRM_HEAT)' EXEC=igrm_heat
+make clean-build
+make clean-problems
+make clean-library
+make clean-tests
+make clean-docs
+make clean          # all generated build, test, and documentation artifacts
+make distclean      # same as clean; m_options and makeconfig/ are preserved
 ```
 
 The CMake files are still present, but this README documents the current
@@ -191,13 +241,53 @@ make-based workflow.
 
 ## Running
 
-Run executables with MPI. The number of MPI ranks must match:
+Every problem has a root-level `run-<problem>` target. The generic form is:
+
+```bash
+make run PROBLEM=heat
+make run-heat
+make run-heat ARGS='4 2 3 0.01 2 1 1' NP=2 OMP_NUM_THREADS=4
+```
+
+Use `make run-help` to print the complete argument syntax and defaults for all
+seven problems. `make show-run PROBLEM=heat` prints the effective executable,
+arguments, MPI/OpenMP settings, environment, and output directory without
+building or launching it.
+
+If `ARGS` is omitted, each target uses a small one-rank example with
+`steps=1` for transient problems. Output is written to `output/<problem>` by
+default; set `RUN_DIR` to choose another directory.
+
+All runtime controls can be supplied on the make command line:
+
+```text
+ARGS                 raw problem command-line arguments
+NP                   MPI rank count, default 1
+MPIEXEC              MPI launcher from m_options
+MPIEXEC_FLAGS        additional launcher flags
+MPI_NP_FLAG          rank-count flag, default -n
+OMP_NUM_THREADS      OpenMP thread count, default 1
+OMP_DYNAMIC          OpenMP dynamic teams, default FALSE
+OMP_PROC_BIND        OpenMP binding policy, default close
+RUN_DIR              output working directory, default output/<problem>
+RUN_ENV              additional environment assignments
+OIL_SEED             shortcut for ADS_OIL_RANDOM_SEED on run-oil
+```
+
+For example:
+
+```bash
+make run-oil OIL_SEED=20260811 OMP_NUM_THREADS=4
+make run-igrm_heat ARGS='2 2 2 3 3 3 2 2 2 2 1 1 1 0.001 be' NP=2
+```
+
+The number of MPI ranks must match:
 
 ```text
 procx * procy * procz
 ```
 
-For one-rank smoke tests:
+The executables may also be invoked directly:
 
 ```bash
 /opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/l2 2 2 2 1 1 1 1
@@ -228,7 +318,7 @@ Arguments:
 Example:
 
 ```bash
-/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/heat 2 1 0 1 1 1 1
+/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/heat 2 1 1 0.01 1 1 1
 ```
 
 ### Eriksson
@@ -242,7 +332,7 @@ Arguments:
 Example:
 
 ```bash
-/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/eriksson 2 1 0 1 1 1 1
+/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/eriksson 2 1 1 0.01 1 1 1
 ```
 
 ### Pure Diffusion iGRM
@@ -264,7 +354,7 @@ be    Backward Euler
 Example:
 
 ```bash
-/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/pure_diffusion_igrm 2 1 1 1 1 0 1
+/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/pure_diffusion_igrm 3 1 1 1 1 1 0.1 dg
 ```
 
 Scheme-selection examples:
@@ -360,9 +450,9 @@ multiplicities may differ.
 
 ## Testing
 
-The authoritative test runner is `tests/GNUmakefile`. Run it from the
-repository root. It uses these defaults, all of which can be overridden on
-the `make` command line:
+The root Makefile delegates to the authoritative `tests/GNUmakefile` and
+forwards the active configuration. The defaults below live in
+root `m_options` and may be overridden on the command line:
 
 ```text
 PFUNIT_ROOT=/opt/lib/pfunit/PFUNIT-4.16
@@ -370,6 +460,10 @@ MPIEXEC=/opt/lib/mpich-5.0.0/bin/mpiexec
 MPIFC=/opt/lib/mpich-5.0.0/bin/mpif90
 MUMPS_DIR=/opt/lib/MUMPS_5.8.2
 SUITE_TIMEOUT=600s
+DRIVER_CLI_TIMEOUT=20s
+DRIVER_SMOKE_TIMEOUT=60s
+DRIVER_INTEGRATION_TIMEOUT=90
+SKIP_MPI_CASES=0
 ```
 
 ### One source file, one primary test file
@@ -383,7 +477,7 @@ additional primary tests for the mapped source.
 Validate this invariant before changing or running the suites:
 
 ```bash
-make -j1 -C tests check-layout
+make test-layout
 ```
 
 `check-layout` derives the active source list from `mymake/m_files` and rejects
@@ -402,30 +496,36 @@ full-driver tests:
 
 ```bash
 # Check only the one-to-one layout.
-make -j1 -C tests check-layout
+make test-layout
 
 # Run the 28 suites mapped to src/*.F90.
-make -j1 -C tests run-src
+make test-src
 
 # Run oil, heat, and iGRM-heat problem callback suites.
-make -j1 -C tests run-problems
+make test-problems
 
 # Build all seven problem executables and run CLI, smoke, and numerical
 # integration tests.
-make -j1 -C tests run-driver
+make test-driver
 
-# Build the real drivers and run only their numerical integration matrix.
-make -j1 -C tests run-integration
+# Individual driver layers.
+make test-cli
+make test-smoke
+make test-integration
 
 # Run the complete regression above in one command.
-make -j1 -C tests run
+make test
+make check
+
+# Clean-build every test without executing it, list suites, or clean-run one.
+make test-build
+make test-list
+make test-suite TEST_SUITE=rhs_assembly
 ```
 
-`make -j1 -C tests all` validates the layout and builds every suite without
-executing it. `make -C tests list` prints the suite order, and
-`make -j1 -C tests clean` removes suite-local generated test outputs. Driver
-executables built in `mymake/EXEC` are deliberately retained. Individual
-suites remain directly runnable, for example:
+The lower-level `make -j1 -C tests ...` targets remain available. Driver
+executables built in `mymake/EXEC` are deliberately retained by `clean-tests`;
+use `clean-build` or `clean` to remove them.
 
 ```bash
 make -j1 -C tests/rhs_assembly run
@@ -435,16 +535,15 @@ The aggregate `run-src`, `run-problems`, and `run-driver` targets clean each
 suite before running it, so compiler or flag changes cannot silently reuse a
 stale test executable. Driver executables are rebuilt unconditionally.
 
-Pass non-default tool locations once at the top level; they are forwarded to
-each suite:
+Pass non-default tool locations once at the root; they are forwarded to every
+suite:
 
 ```bash
-make -j1 -C tests \
+make test \
   PFUNIT_ROOT=/path/to/pfunit \
   MPIEXEC=/path/to/mpiexec \
   MPIFC=/path/to/mpif90 \
-  MUMPS_DIR=/path/to/mumps \
-  run
+  MUMPS_DIR=/path/to/mumps
 ```
 
 The runner is deliberately serialized because driver builds share
@@ -456,7 +555,7 @@ use POSIX process primitives.
 
 ### Positive smoke and numerical integration tests
 
-`run` and `run-driver` execute positive one-rank smoke tests for every real
+`test` and `test-driver` execute positive one-rank smoke tests for every real
 driver and the numerical integration matrix automatically. The integration
 matrix does more than check process status:
 
@@ -475,13 +574,11 @@ matrix does more than check process status:
   drained result across one/four OpenMP threads and a hybrid MPI run.
 
 Normal oil runs remain stochastic when `ADS_OIL_RANDOM_SEED` is unset. The
-equivalent smoke commands are listed below for manual diagnostics. Rebuild the
-documented default target first; `run-driver` has already built the six
-non-default executables.
+equivalent smoke commands are listed below for manual diagnostics. `make
+problems` builds all required executables first.
 
 ```bash
-make -j1 -C mymake clean
-make -j1 -C mymake
+make problems
 "${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}" -n 1 \
   ./mymake/EXEC/l2 2 2 2 1 1 1 1
 
@@ -506,11 +603,29 @@ make -j1 -C mymake
   1 1 1 1 0.001 dg
 ```
 
+## Documentation
+
+Documentation uses the tracked `doxygen.conf`. Doxygen must run from the
+repository root because its input and output paths are relative.
+
+```bash
+make docs-check   # validate/expand the Doxygen configuration
+make docs-html    # doxygen/html/index.html
+make docs-pdf     # HTML plus doxygen/latex/refman.pdf
+make docs         # same complete HTML+PDF documentation build
+make clean-docs
+```
+
+`DOXYGEN` can be overridden in `m_options` or on the command line. PDF
+generation additionally requires a LaTeX installation with `pdflatex` and
+`makeindex`.
+
 ## Notes
 
 - A warning about `/opt/lib/parmetis/lib/include` may appear if that include
   directory does not exist locally. The builds used during recent smoke tests
   still completed with this warning.
-- `mymake/EXEC/` and `mymake/_OBJ/` contain generated build outputs.
+- `mymake/EXEC/`, `mymake/LIB/`, and `mymake/_OBJ/` contain generated build
+  outputs.
 - Doxygen-style comments are used throughout `src` and the migrated problem
   drivers.
