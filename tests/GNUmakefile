@@ -58,7 +58,10 @@ PROBLEM_SUITES := \
 	oil_rhs_fun \
 	heat_input_data \
 	heat_rhs_fun \
-	igrm_heat_rhs_fun
+	igrm_heat_rhs_fun \
+	igrm_eirksson_input_data \
+	igrm_eirksson_rhs_fun \
+	igrm_eirksson_solver
 
 DRIVER_SUITES := driver_cli
 SUITES := $(SRC_SUITES) $(PROBLEM_SUITES) $(DRIVER_SUITES)

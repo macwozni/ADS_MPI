@@ -369,6 +369,160 @@ class IntegrationSuite:
                 return
         self.report(True, f"{candidate.label} {filename} matches serial")
 
+    def expect_zero_boundary(self, case: DriverCase, filename: str) -> None:
+        """Check the six strongly constrained faces of the unit cube."""
+        try:
+            data = self.read_vti(case.directory / filename)
+        except ValueError as error:
+            self.report(False, f"{case.label} homogeneous boundary", str(error))
+            return
+
+        boundary_values = []
+        for z in range(31):
+            for y in range(31):
+                for x in range(31):
+                    if x in (0, 30) or y in (0, 30) or z in (0, 30):
+                        boundary_values.append(data.values[x + 31 * (y + 31 * z)])
+        maximum = max(abs(value) for value in boundary_values)
+        self.report(
+            maximum <= ZERO_SOLUTION_TOL,
+            f"{case.label} homogeneous boundary",
+            f"maximum boundary magnitude is {maximum:.8g}",
+        )
+
+    def expect_nonzero_interior(self, case: DriverCase, filename: str) -> None:
+        """Require a resolved, nontrivial field away from the boundary."""
+        try:
+            data = self.read_vti(case.directory / filename)
+        except ValueError as error:
+            self.report(False, f"{case.label} nonzero interior", str(error))
+            return
+
+        maximum = max(
+            abs(data.values[x + 31 * (y + 31 * z)])
+            for z in range(1, 30)
+            for y in range(1, 30)
+            for x in range(1, 30)
+        )
+        self.report(
+            maximum > ZERO_SOLUTION_TOL,
+            f"{case.label} nonzero interior",
+            f"maximum interior magnitude is {maximum:.8g}",
+        )
+
+    @staticmethod
+    def labeled_scalar(case: DriverCase, label: str) -> float:
+        pattern = re.compile(rf"^\s*{re.escape(label)}\s*(\S+)\s*$")
+        for line in case.output.splitlines():
+            match = pattern.match(line)
+            if match:
+                text = match.group(1).replace("D", "E").replace("d", "e")
+                try:
+                    return float(text)
+                except ValueError as error:
+                    raise ValueError(
+                        f"invalid value after {label!r}: {match.group(1)!r}"
+                    ) from error
+        raise ValueError(f"missing {label!r} diagnostic")
+
+    def expect_igrm_mumps_metrics(
+        self, reference: DriverCase, candidate: DriverCase | None = None
+    ) -> None:
+        case = reference if candidate is None else candidate
+        try:
+            residual = self.labeled_scalar(case, "iGRM-MUMPS residual RMS:")
+            relative_residual = self.labeled_scalar(
+                case, "iGRM-MUMPS relative residual:"
+            )
+            error = self.labeled_scalar(case, "L2 error:")
+            reference_residual = (
+                residual
+                if candidate is None
+                else self.labeled_scalar(
+                    reference, "iGRM-MUMPS residual RMS:"
+                )
+            )
+            reference_relative_residual = (
+                relative_residual
+                if candidate is None
+                else self.labeled_scalar(
+                    reference, "iGRM-MUMPS relative residual:"
+                )
+            )
+            reference_error = (
+                error
+                if candidate is None
+                else self.labeled_scalar(reference, "L2 error:")
+            )
+        except ValueError as diagnostic:
+            self.report(False, f"{case.label} numerical diagnostics", str(diagnostic))
+            return
+
+        residual_ok = (
+            math.isfinite(residual)
+            and 0.0 <= residual <= 1.0e-8
+            and math.isfinite(relative_residual)
+            and 0.0 <= relative_residual <= 1.0e-8
+        )
+        error_ok = math.isfinite(error) and 0.0 < error < 1.0
+        if candidate is not None:
+            residual_ok = residual_ok and math.isclose(
+                residual,
+                reference_residual,
+                rel_tol=SCALAR_REL_TOL,
+                abs_tol=SCALAR_ABS_TOL,
+            )
+            residual_ok = residual_ok and math.isclose(
+                relative_residual,
+                reference_relative_residual,
+                rel_tol=SCALAR_REL_TOL,
+                abs_tol=SCALAR_ABS_TOL,
+            )
+            error_ok = error_ok and math.isclose(
+                error,
+                reference_error,
+                rel_tol=SCALAR_REL_TOL,
+                abs_tol=SCALAR_ABS_TOL,
+            )
+        details = (
+            f"residual RMS {residual:.8g}, relative residual "
+            f"{relative_residual:.8g}, L2 error {error:.8g}"
+        )
+        if candidate is not None:
+            details += (
+                f", serial residual RMS {reference_residual:.8g}, "
+                f"serial relative residual {reference_relative_residual:.8g}, "
+                f"serial L2 error {reference_error:.8g}"
+            )
+        self.report(
+            case.ok and residual_ok and error_ok,
+            f"{case.label} numerical diagnostics",
+            details,
+        )
+
+    def expect_igrm_mumps_refinement(
+        self, coarse: DriverCase, refined: DriverCase
+    ) -> None:
+        try:
+            coarse_error = self.labeled_scalar(coarse, "L2 error:")
+            refined_error = self.labeled_scalar(refined, "L2 error:")
+        except ValueError as diagnostic:
+            self.report(False, f"{refined.label} reduces L2 error", str(diagnostic))
+            return
+
+        passed = (
+            coarse.ok
+            and refined.ok
+            and math.isfinite(coarse_error)
+            and math.isfinite(refined_error)
+            and 0.0 < refined_error < coarse_error
+        )
+        self.report(
+            passed,
+            f"{refined.label} reduces L2 error",
+            f"coarse {coarse_error:.8g}, refined {refined_error:.8g}",
+        )
+
     def expect_solution_changed(self, case: DriverCase) -> None:
         try:
             initial = self.read_vti(case.directory / "step0.vti")
@@ -549,6 +703,45 @@ def run_suite(suite: IntegrationSuite) -> None:
     suite.expect_iterations(eriksson_hybrid, [0, 1])
     suite.expect_matching_vti(eriksson_serial, eriksson_hybrid, "step0.vti")
     suite.expect_matching_vti(eriksson_serial, eriksson_hybrid, "step1.vti")
+
+    # Stationary 3D Eriksson iGRM saddle problem.  It is assembled and solved
+    # once through MUMPS, so require an actual nonzero field, a small algebraic
+    # residual, homogeneous faces, and rank-independent numerical output.
+    igrm_eriksson_serial = suite.run_driver(
+        "iGRM Eriksson MUMPS serial",
+        1,
+        1,
+        "igrm_eirksson",
+        [2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1],
+    )
+    suite.expect_igrm_mumps_metrics(igrm_eriksson_serial)
+    suite.expect_valid_vti(igrm_eriksson_serial, "step0.vti")
+    suite.expect_nonzero_interior(igrm_eriksson_serial, "step0.vti")
+    suite.expect_zero_boundary(igrm_eriksson_serial, "step0.vti")
+    igrm_eriksson_refined = suite.run_driver(
+        "iGRM Eriksson MUMPS refined serial",
+        1,
+        1,
+        "igrm_eirksson",
+        [4, 4, 4, 2, 2, 2, 1, 1, 1, 1, 1, 1],
+    )
+    suite.expect_igrm_mumps_metrics(igrm_eriksson_refined)
+    suite.expect_igrm_mumps_refinement(
+        igrm_eriksson_serial, igrm_eriksson_refined
+    )
+    igrm_eriksson_hybrid = suite.run_driver(
+        "iGRM Eriksson MUMPS hybrid",
+        2,
+        2,
+        "igrm_eirksson",
+        [2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1],
+    )
+    suite.expect_igrm_mumps_metrics(
+        igrm_eriksson_serial, igrm_eriksson_hybrid
+    )
+    suite.expect_matching_vti(
+        igrm_eriksson_serial, igrm_eriksson_hybrid, "step0.vti"
+    )
 
     # The pure-diffusion driver has no result file, so require every real
     # scheme to complete both initialization and the t>0 step on MPI ranks.

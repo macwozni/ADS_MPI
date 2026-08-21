@@ -1,0 +1,109 @@
+module test_igrm_eirksson_input_data
+   use pfunit
+   use input_data, only: EPSILON_VALUE, BETA, RESIDUAL_TOLERANCE, &
+                         eriksson_profile, eriksson_profile_derivative, &
+                         eriksson_profile_second_derivative, exact_solution, &
+                         exact_forcing
+   implicit none
+
+   real(kind=8), parameter :: TOL = 512.d0*epsilon(1.d0)
+
+contains
+
+   logical function close_enough(actual, expected) result(close)
+      real(kind=8), intent(in) :: actual, expected
+
+      close = abs(actual - expected) <= TOL*max(1.d0, abs(expected))
+   end function close_enough
+
+
+   @test
+   subroutine test_physical_and_solver_constants()
+      @assertTrue(EPSILON_VALUE == 1.d-2)
+      @assertTrue(all(BETA == (/ 1.d0, 1.d0, 1.d0 /)))
+      @assertTrue(RESIDUAL_TOLERANCE == 1.d-8)
+   end subroutine test_physical_and_solver_constants
+
+
+   @test
+   subroutine test_profile_satisfies_boundary_data_and_layer_oracles()
+      real(kind=8) :: expected
+
+      @assertTrue(eriksson_profile(0.d0) == 0.d0)
+      @assertTrue(eriksson_profile(1.d0) == 0.d0)
+      expected = 0.7499999999861120561350359794d0
+      @assertTrue(close_enough(eriksson_profile(0.75d0), expected))
+      expected = 0.9432620530009145329033639516d0
+      @assertTrue(close_enough(eriksson_profile(0.95d0), expected))
+      expected = 0.6221205588285576784044762298d0
+      @assertTrue(close_enough(eriksson_profile(0.99d0), expected))
+      expected = 0.09416258196404042683575094055d0
+      @assertTrue(close_enough(eriksson_profile(0.999d0), expected))
+   end subroutine test_profile_satisfies_boundary_data_and_layer_oracles
+
+
+   @test
+   subroutine test_profile_derivatives_and_operator_identity()
+      real(kind=8) :: coordinate, expected, operator_value
+
+      coordinate = 0.99d0
+      expected = -35.78794411714423216d0
+      @assertTrue(close_enough(eriksson_profile_derivative(coordinate), expected))
+      expected = -3678.794411714423216d0
+      @assertTrue(close_enough(eriksson_profile_second_derivative(coordinate), expected))
+      operator_value = -EPSILON_VALUE* &
+         eriksson_profile_second_derivative(coordinate) + &
+         eriksson_profile_derivative(coordinate)
+      @assertTrue(close_enough(operator_value, 1.d0))
+
+      coordinate = 0.5d0
+      operator_value = -EPSILON_VALUE* &
+         eriksson_profile_second_derivative(coordinate) + &
+         eriksson_profile_derivative(coordinate)
+      @assertTrue(close_enough(operator_value, 1.d0))
+   end subroutine test_profile_derivatives_and_operator_identity
+
+
+   @test
+   subroutine test_exact_solution_and_forcing_oracles()
+      real(kind=8) :: X(3), expected
+
+      X = (/ 0.5d0, 0.5d0, 0.5d0 /)
+      @assertTrue(close_enough(exact_solution(X), 0.125d0))
+      @assertTrue(close_enough(exact_forcing(X), 0.75d0))
+
+      X = (/ 0.25d0, 0.5d0, 0.75d0 /)
+      expected = 0.09374999999826400701687949743d0
+      @assertTrue(close_enough(exact_solution(X), expected))
+      expected = 0.6874999999895840421012762200d0
+      @assertTrue(close_enough(exact_forcing(X), expected))
+
+      X = (/ 0.9d0, 0.9d0, 0.9d0 /)
+      expected = 0.7288896837356983891710399420d0
+      @assertTrue(close_enough(exact_solution(X), expected))
+      expected = 2.429754846562743293551847375d0
+      @assertTrue(close_enough(exact_forcing(X), expected))
+
+      X = (/ 0.99d0, 0.5d0, 0.5d0 /)
+      expected = 0.1555301397071394196011190574d0
+      @assertTrue(close_enough(exact_solution(X), expected))
+      expected = 0.8721205588285576784044762298d0
+      @assertTrue(close_enough(exact_forcing(X), expected))
+   end subroutine test_exact_solution_and_forcing_oracles
+
+
+   @test
+   subroutine test_exact_solution_is_zero_on_all_cube_faces()
+      real(kind=8) :: X(3)
+      integer(kind=4) :: direction
+
+      do direction = 1, 3
+         X = (/ 0.23d0, 0.47d0, 0.81d0 /)
+         X(direction) = 0.d0
+         @assertTrue(exact_solution(X) == 0.d0)
+         X(direction) = 1.d0
+         @assertTrue(exact_solution(X) == 0.d0)
+      end do
+   end subroutine test_exact_solution_is_zero_on_all_cube_faces
+
+end module test_igrm_eirksson_input_data

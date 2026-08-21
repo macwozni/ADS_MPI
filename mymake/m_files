@@ -63,4 +63,10 @@ IGRM_HEAT = \
     ../problems/igrm_heat/input_data.F90 \
     ../problems/igrm_heat/RHS_fun.F90 \
     ../problems/igrm_heat/main.F90
+
+IGRM_EIRKSSON = \
+    ../problems/igrm_eirksson/input_data.F90 \
+    ../problems/igrm_eirksson/RHS_fun.F90 \
+    ../problems/igrm_eirksson/igrm_mumps_solver.F90 \
+    ../problems/igrm_eirksson/main.F90
   

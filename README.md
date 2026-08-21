@@ -73,6 +73,7 @@ Each migrated problem follows this structure:
 ```text
 problems/<problem>/input_data.F90   Command-line parameters and problem data
 problems/<problem>/RHS_fun.F90      Pointwise forcing callback
+problems/<problem>/*_solver.F90     Optional problem-local solver
 problems/<problem>/main.F90         Driver
 ```
 
@@ -181,7 +182,7 @@ configuration file.
 
 ### Build targets
 
-The default command builds the static ADS library and all seven problem
+The default command builds the static ADS library and all eight problem
 drivers. Problem builds are deliberately serialized because problem-local
 Fortran modules reuse the names `input_data`, `RHS_fun`, and `main`.
 
@@ -214,10 +215,11 @@ mymake/EXEC/pure_diffusion_igrm
 mymake/EXEC/oil
 mymake/EXEC/igrm_l2
 mymake/EXEC/igrm_heat
+mymake/EXEC/igrm_eirksson
 ```
 
 The lower-level `mymake/makefile` remains usable. It provides `library`,
-`problems`, all seven named problem targets, and the legacy `SOURCE_ALL`/`EXEC`
+`problems`, all eight named problem targets, and the legacy `SOURCE_ALL`/`EXEC`
 interface.
 
 The public `library` target intentionally rebuilds all core objects before
@@ -250,7 +252,7 @@ make run-heat ARGS='4 2 3 0.01 2 1 1' NP=2 OMP_NUM_THREADS=4
 ```
 
 Use `make run-help` to print the complete argument syntax and defaults for all
-seven problems. `make show-run PROBLEM=heat` prints the effective executable,
+eight problems. `make show-run PROBLEM=heat` prints the effective executable,
 arguments, MPI/OpenMP settings, environment, and output directory without
 building or launching it.
 
@@ -279,6 +281,7 @@ For example:
 ```bash
 make run-oil OIL_SEED=20260811 OMP_NUM_THREADS=4
 make run-igrm_heat ARGS='2 2 2 3 3 3 2 2 2 2 1 1 1 0.001 be' NP=2
+make run-igrm_eirksson NP=1
 ```
 
 The number of MPI ranks must match:
@@ -469,6 +472,63 @@ Example with one initial projection and one physical time step:
   1 1 1 1 0.1 dg
 ```
 
+### iGRM Eriksson (MUMPS)
+
+The executable is named `igrm_eirksson` to match the repository target name.
+It is a stationary 3D tensor-product extension of the upstream 2D Eriksson
+iGRM problem on the unit cube:
+
+```text
+-0.01 Laplace(u) + (1, 1, 1) dot grad(u) = f,
+u = 0 on the boundary.
+```
+
+The manufactured solution is `u(x,y,z) = g(x)g(y)g(z)`, where
+`g(x) = x - (exp(-(1-x)/0.01) - exp(-100))/(1-exp(-100))`. This retains the
+Eriksson outflow layer while evaluating its exponential without overflow.
+The driver assembles the complete saddle-point system
+
+```text
+[ G   -B ] [ r ] = [ -f ]
+[ B^T  0 ] [ u ]   [  0 ]
+```
+
+and performs one MUMPS factorization and solve. This is a direct iGRM-MUMPS
+driver; it has no time-step or iterative defect-correction loop.
+The test and trial spaces share one uniform mesh and differ by polynomial
+enrichment. Upstream subdivision/adaptation modes are not exposed by this
+baseline driver.
+
+The saddle formulation and one-shot direct solve follow
+[`examples/erikkson/erikkson_mumps.hpp`](https://github.com/marcinlos/iga-ads/blob/959ac6e03b6b0e7332c1e253c1907bc502269d74/examples/erikkson/erikkson_mumps.hpp)
+at upstream revision `959ac6e03b6b0e7332c1e253c1907bc502269d74`; this repository extends
+that two-dimensional reference problem tensorially to three dimensions.
+
+Arguments:
+
+```text
+<nelem_x> <nelem_y> <nelem_z> \
+<ptest_x> <ptest_y> <ptest_z> \
+<ptrial_x> <ptrial_y> <ptrial_z> \
+<procx> <procy> <procz>
+```
+
+Trial-space degrees must be positive, and each test-space degree must be
+strictly greater than the corresponding trial-space degree.
+
+The reference implementation assembles and solves the complete system on MPI
+rank zero with MUMPS on `MPI_COMM_SELF`, then broadcasts the solution to the
+other ranks. It is intended as a correctness baseline and is not scalable to
+large distributed 3D systems. A scalable version requires distributed matrix
+assembly and a collective MUMPS solve.
+
+Example:
+
+```bash
+/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/igrm_eirksson \
+  4 4 4 3 3 3 2 2 2 1 1 1
+```
+
 ## iGRM Mesh Assumptions
 
 The mixed iGRM matrix path assumes:
@@ -533,10 +593,10 @@ make test-layout
 # Run the 28 suites mapped to src/*.F90.
 make test-src
 
-# Run oil input/RHS, heat input/RHS, and iGRM-heat RHS suites.
+# Run all problem-specific input, RHS, and solver suites.
 make test-problems
 
-# Build all seven problem executables and run CLI, smoke, and numerical
+# Build all eight problem executables and run CLI, smoke, and numerical
 # integration tests.
 make test-driver
 
@@ -605,6 +665,9 @@ matrix does more than check process status:
   a global finite zero-solution oracle for the pure-diffusion example;
 - the iGRM-heat DG case must be dissipative for the tested time step, and all
   three schemes' serial and hybrid VTI results must agree;
+- iGRM Eriksson requires finite, small algebraic residuals, a nonzero interior,
+  six homogeneous faces, decreasing L2 error after refinement, and identical
+  serial and hybrid VTI output;
 - oil uses the opt-in `ADS_OIL_RANDOM_SEED` test seed and compares a positive
   drained result across one/four OpenMP threads and a hybrid MPI run.
 
@@ -636,6 +699,10 @@ make problems
   ./mymake/EXEC/igrm_heat \
   2 2 2 3 3 3 2 2 2 \
   1 1 1 1 0.001 dg
+"${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}" -n 1 \
+  ./mymake/EXEC/igrm_eirksson \
+  4 4 4 3 3 3 2 2 2 \
+  1 1 1
 ```
 
 ## Documentation
