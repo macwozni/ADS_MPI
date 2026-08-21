@@ -73,6 +73,14 @@ expect_failure 'iGRM Eriksson missing integer' 1 igrm_eirksson \
 expect_failure 'iGRM Eriksson extra integer' 1 igrm_eirksson \
     'proper usage with arguments:' \
     2 2 2 2 2 2 1 1 1 1 1 1 99
+expect_failure 'iGRM Stokes argument count' 1 igrm_stokes \
+    'proper usage with arguments:'
+expect_failure 'iGRM Stokes missing integer' 1 igrm_stokes \
+    'proper usage with arguments:' \
+    2 2 2 2 2 2 2 2 2 1 1
+expect_failure 'iGRM Stokes extra integer' 1 igrm_stokes \
+    'proper usage with arguments:' \
+    2 2 2 2 2 2 2 2 2 1 1 1 99
 
 # A command-line argument must contain exactly one integer token.
 expect_failure 'L2 partial integer' 1 l2 'invalid integer argument:' \
@@ -92,6 +100,9 @@ expect_failure 'iGRM heat partial integer' 1 igrm_heat 'invalid integer argument
 expect_failure 'iGRM Eriksson partial integer' 1 igrm_eirksson \
     'invalid integer argument:' \
     '2 junk' 2 2 2 2 2 1 1 1 1 1 1
+expect_failure 'iGRM Stokes partial integer' 1 igrm_stokes \
+    'invalid integer argument:' \
+    '2 junk' 2 2 2 2 2 2 2 2 1 1 1
 
 # The same exact-token rule applies to all real-valued driver arguments.
 expect_failure 'heat partial real' 1 heat 'invalid real argument:' \
@@ -228,6 +239,28 @@ expect_failure 'iGRM Eriksson zero process-grid dimension' 1 igrm_eirksson \
     'process-grid dimension must be positive' \
     2 2 2 2 2 2 1 1 1 1 0 1
 
+expect_failure 'iGRM Stokes zero elements' 1 igrm_stokes \
+    'number of elements must be positive' \
+    0 2 2 2 2 2 2 2 2 1 1 1
+expect_failure 'iGRM Stokes negative test degree' 1 igrm_stokes \
+    'test polynomial degree must be positive' \
+    2 2 2 -1 2 2 2 2 2 1 1 1
+expect_failure 'iGRM Stokes zero test degree' 1 igrm_stokes \
+    'test polynomial degree must be positive' \
+    2 2 2 0 2 2 2 2 2 1 1 1
+expect_failure 'iGRM Stokes negative trial degree' 1 igrm_stokes \
+    'trial polynomial degree must be positive' \
+    2 2 2 2 2 2 -1 2 2 1 1 1
+expect_failure 'iGRM Stokes zero trial degree' 1 igrm_stokes \
+    'trial polynomial degree must be positive' \
+    2 2 2 2 2 2 0 2 2 1 1 1
+expect_failure 'iGRM Stokes test degree below trial degree' 1 igrm_stokes \
+    'test polynomial degree must be greater than or equal to trial polynomial degree' \
+    2 2 2 1 2 2 2 2 2 1 1 1
+expect_failure 'iGRM Stokes zero process-grid dimension' 1 igrm_stokes \
+    'process-grid dimension must be positive' \
+    2 2 2 2 2 2 2 2 2 1 0 1
+
 expect_failure 'iGRM L2 overflowing spline extent' 1 igrm_l2 \
     'spline dimensions exceed supported integer range' \
     2147483647 3 3 2 2 2 1 1 1 1 1 1
@@ -237,6 +270,12 @@ expect_failure 'iGRM heat overflowing spline extent' 1 igrm_heat \
 expect_failure 'iGRM Eriksson overflowing spline extent' 1 igrm_eirksson \
     'spline dimensions exceed supported integer range' \
     2147483647 2 2 2 2 2 1 1 1 1 1 1
+expect_failure 'iGRM Stokes overflowing spline extent' 1 igrm_stokes \
+    'spline dimensions exceed supported integer range' \
+    2147483647 2 2 2 2 2 2 2 2 1 1 1
+expect_failure 'iGRM Stokes overflowing discontinuous extent' 1 igrm_stokes \
+    'discontinuous test-space dimensions exceed supported integer range' \
+    214748365 2 2 9 2 2 1 1 1 1 1 1
 
 # Space validation rejects degrees requiring unavailable Gauss rules.
 expect_failure 'L2 unsupported degree' 1 l2 \
@@ -275,6 +314,12 @@ expect_failure 'iGRM Eriksson unsupported y degree' 1 igrm_eirksson \
 expect_failure 'iGRM Eriksson unsupported z degree' 1 igrm_eirksson \
     'iGRM test space along z: 10' \
     1 1 1 2 2 10 1 1 9 1 1 1
+expect_failure 'iGRM Stokes unsupported test degree' 1 igrm_stokes \
+    'unsupported polynomial degree in iGRM test space' \
+    1 1 1 10 10 10 10 10 10 1 1 1
+expect_failure 'iGRM Stokes unsupported trial degree' 1 igrm_stokes \
+    'unsupported polynomial degree in iGRM trial space' \
+    1 1 1 9 9 9 9 9 10 1 1 1
 
 # iGRM drivers accept DG/PR/BE only; Forward Euler has its own diagnostic.
 expect_failure 'pure diffusion unknown scheme' 1 pure_diffusion_igrm 'unknown time scheme:' \

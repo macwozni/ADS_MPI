@@ -18,6 +18,9 @@ import xml.etree.ElementTree as ET
 
 EXPECTED_EXTENT = (0, 30, 0, 30, 0, 30)
 EXPECTED_POINT_COUNT = 31**3
+STOKES_EXPECTED_EXTENT = (0, 50, 0, 50, 0, 50)
+STOKES_EXPECTED_ORIGIN = (0.0, 0.0, 0.0)
+STOKES_EXPECTED_SPACING = (0.02, 0.02, 0.02)
 VTK_ABS_TOL = 1.0e-9
 VTK_REL_TOL = 1.0e-9
 SCALAR_ABS_TOL = 1.0e-12
@@ -95,6 +98,15 @@ class VTIData:
     values: tuple[float, ...]
 
 
+@dataclass(frozen=True)
+class StokesVTIData:
+    extent: tuple[int, ...]
+    origin: tuple[float, ...]
+    spacing: tuple[float, ...]
+    velocity: tuple[float, ...]
+    pressure: tuple[float, ...]
+
+
 class IntegrationSuite:
     def __init__(self) -> None:
         mpi_command = shlex.split(
@@ -110,6 +122,7 @@ class IntegrationSuite:
         self.checks = 0
         self.failures = 0
         self._vti_cache: dict[Path, VTIData] = {}
+        self._stokes_vti_cache: dict[Path, StokesVTIData] = {}
 
     def close(self) -> None:
         self.work.cleanup()
@@ -369,6 +382,169 @@ class IntegrationSuite:
                 return
         self.report(True, f"{candidate.label} {filename} matches serial")
 
+    @staticmethod
+    def _image_attribute(image: ET.Element, name: str) -> str:
+        """Read VTK metadata emitted with either standard or legacy casing."""
+        for key, value in image.attrib.items():
+            if key.lower() == name.lower():
+                return value
+        raise ValueError(f"missing ImageData {name} attribute")
+
+    @classmethod
+    def _named_data_array(cls, root: ET.Element, name: str) -> ET.Element:
+        for element in root.iter():
+            if cls._tag(element) == "DataArray" and element.get("Name") == name:
+                return element
+        raise ValueError(f"missing {name} DataArray")
+
+    def read_stokes_vti(self, path: Path) -> StokesVTIData:
+        path = path.resolve()
+        if path in self._stokes_vti_cache:
+            return self._stokes_vti_cache[path]
+        if not path.is_file():
+            raise ValueError("file does not exist")
+
+        try:
+            root = ET.parse(path).getroot()
+        except ET.ParseError as error:
+            raise ValueError(f"invalid XML: {error}") from error
+        if self._tag(root) != "VTKFile" or root.get("type") != "ImageData":
+            raise ValueError("root is not a VTK ImageData file")
+
+        image = self._first_tag(root, "ImageData")
+        try:
+            extent = tuple(
+                int(item)
+                for item in self._image_attribute(image, "WholeExtent").split()
+            )
+            origin = tuple(
+                float(item)
+                for item in self._image_attribute(image, "Origin").split()
+            )
+            spacing = tuple(
+                float(item)
+                for item in self._image_attribute(image, "Spacing").split()
+            )
+        except ValueError as error:
+            raise ValueError(f"invalid ImageData metadata: {error}") from error
+        if len(extent) != 6 or any(
+            extent[2 * axis + 1] < extent[2 * axis] for axis in range(3)
+        ):
+            raise ValueError(f"invalid extent {extent}")
+        if len(origin) != 3 or len(spacing) != 3:
+            raise ValueError("origin and spacing must have three components")
+        if not all(math.isfinite(item) for item in (*origin, *spacing)):
+            raise ValueError("origin or spacing contains NaN/Inf")
+        point_count = math.prod(
+            extent[2 * axis + 1] - extent[2 * axis] + 1 for axis in range(3)
+        )
+
+        velocity_array = self._named_data_array(root, "Velocity")
+        pressure_array = self._named_data_array(root, "Pressure")
+        if (
+            velocity_array.get("type") not in ("Float32", "Float64")
+            or velocity_array.get("format") != "ascii"
+            or velocity_array.get("NumberOfComponents") != "3"
+        ):
+            raise ValueError("Velocity must be an ASCII three-component float array")
+        if (
+            pressure_array.get("type") not in ("Float32", "Float64")
+            or pressure_array.get("format") != "ascii"
+            or pressure_array.get("NumberOfComponents", "1") != "1"
+        ):
+            raise ValueError("Pressure must be an ASCII scalar float array")
+        try:
+            velocity = tuple(float(item) for item in (velocity_array.text or "").split())
+            pressure = tuple(float(item) for item in (pressure_array.text or "").split())
+        except ValueError as error:
+            raise ValueError(f"invalid field value: {error}") from error
+        if len(velocity) != 3 * point_count:
+            raise ValueError(
+                f"Velocity contains {len(velocity)} values, expected {3 * point_count}"
+            )
+        if len(pressure) != point_count:
+            raise ValueError(
+                f"Pressure contains {len(pressure)} values, expected {point_count}"
+            )
+        if not all(math.isfinite(item) for item in (*velocity, *pressure)):
+            raise ValueError("Velocity or Pressure contains NaN/Inf")
+        if not any(item != 0.0 for item in velocity):
+            raise ValueError("Velocity is identically zero")
+        if not any(item != 0.0 for item in pressure):
+            raise ValueError("Pressure is identically zero")
+
+        data = StokesVTIData(extent, origin, spacing, velocity, pressure)
+        self._stokes_vti_cache[path] = data
+        return data
+
+    def expect_valid_stokes_vti(
+        self, case: DriverCase, filename: str
+    ) -> StokesVTIData | None:
+        try:
+            data = self.read_stokes_vti(case.directory / filename)
+        except ValueError as error:
+            self.report(False, f"{case.label} {filename} velocity/pressure VTI", str(error))
+            return None
+        metadata_ok = (
+            data.extent == STOKES_EXPECTED_EXTENT
+            and data.origin == STOKES_EXPECTED_ORIGIN
+            and all(
+                math.isclose(actual, expected, rel_tol=0.0, abs_tol=1.0e-14)
+                for actual, expected in zip(data.spacing, STOKES_EXPECTED_SPACING)
+            )
+        )
+        self.report(
+            metadata_ok,
+            f"{case.label} {filename} velocity/pressure VTI",
+            (
+                f"expected extent {STOKES_EXPECTED_EXTENT}, origin "
+                f"{STOKES_EXPECTED_ORIGIN}, spacing {STOKES_EXPECTED_SPACING}; "
+                f"got {data.extent}, {data.origin}, {data.spacing}"
+                if not metadata_ok
+                else ""
+            ),
+        )
+        return data
+
+    def expect_matching_stokes_vti(
+        self, reference: DriverCase, candidate: DriverCase, filename: str
+    ) -> None:
+        try:
+            left = self.read_stokes_vti(reference.directory / filename)
+            right = self.read_stokes_vti(candidate.directory / filename)
+        except ValueError as error:
+            self.report(False, f"{candidate.label} {filename} matches serial", str(error))
+            return
+        if (
+            left.extent != right.extent
+            or left.origin != right.origin
+            or left.spacing != right.spacing
+        ):
+            self.report(
+                False,
+                f"{candidate.label} {filename} matches serial",
+                "VTK grid metadata differs",
+            )
+            return
+        for field, expected_values, actual_values in (
+            ("Velocity", left.velocity, right.velocity),
+            ("Pressure", left.pressure, right.pressure),
+        ):
+            for index, (expected, actual) in enumerate(
+                zip(expected_values, actual_values)
+            ):
+                if not math.isclose(
+                    actual, expected, rel_tol=VTK_REL_TOL, abs_tol=VTK_ABS_TOL
+                ):
+                    self.report(
+                        False,
+                        f"{candidate.label} {filename} matches serial",
+                        f"{field} value {index}: expected {expected:.12g}, "
+                        f"got {actual:.12g}",
+                    )
+                    return
+        self.report(True, f"{candidate.label} {filename} matches serial")
+
     def expect_zero_boundary(self, case: DriverCase, filename: str) -> None:
         """Check the six strongly constrained faces of the unit cube."""
         try:
@@ -521,6 +697,113 @@ class IntegrationSuite:
             passed,
             f"{refined.label} reduces L2 error",
             f"coarse {coarse_error:.8g}, refined {refined_error:.8g}",
+        )
+
+    def expect_igrm_stokes_metrics(
+        self, reference: DriverCase, candidate: DriverCase | None = None
+    ) -> None:
+        case = reference if candidate is None else candidate
+        labels = (
+            "iGRM-Stokes residual RMS:",
+            "iGRM-Stokes relative residual:",
+            "L2 velocity error:",
+            "L2 pressure error:",
+            "L2 divergence:",
+        )
+        try:
+            values = tuple(self.labeled_scalar(case, label) for label in labels)
+            reference_values = (
+                values
+                if candidate is None
+                else tuple(self.labeled_scalar(reference, label) for label in labels)
+            )
+        except ValueError as diagnostic:
+            self.report(False, f"{case.label} numerical diagnostics", str(diagnostic))
+            return
+
+        residual, relative_residual, velocity_error, pressure_error, divergence = values
+        passed = (
+            case.ok
+            and math.isfinite(residual)
+            and 0.0 <= residual <= 1.0e-8
+            and math.isfinite(relative_residual)
+            and 0.0 <= relative_residual <= 1.0e-8
+            and math.isfinite(velocity_error)
+            and 0.0 <= velocity_error < 10.0
+            and math.isfinite(pressure_error)
+            and 0.0 <= pressure_error < 10.0
+            and math.isfinite(divergence)
+            and 0.0 <= divergence < 10.0
+        )
+        if candidate is not None:
+            passed = passed and all(
+                math.isclose(
+                    actual,
+                    expected,
+                    rel_tol=SCALAR_REL_TOL,
+                    abs_tol=SCALAR_ABS_TOL,
+                )
+                for actual, expected in zip(values, reference_values)
+            )
+        details = (
+            f"residual RMS {residual:.8g}, relative residual "
+            f"{relative_residual:.8g}, velocity L2 {velocity_error:.8g}, "
+            f"pressure L2 {pressure_error:.8g}, divergence L2 {divergence:.8g}"
+        )
+        if candidate is not None:
+            details += ", serial " + ", ".join(
+                f"{value:.8g}" for value in reference_values
+            )
+        self.report(passed, f"{case.label} numerical diagnostics", details)
+
+    def expect_igrm_stokes_refinement(
+        self, coarse: DriverCase, refined: DriverCase
+    ) -> None:
+        labels = ("L2 velocity error:", "L2 pressure error:", "L2 divergence:")
+        try:
+            coarse_values = tuple(self.labeled_scalar(coarse, label) for label in labels)
+            refined_values = tuple(self.labeled_scalar(refined, label) for label in labels)
+        except ValueError as diagnostic:
+            self.report(False, f"{refined.label} improves errors", str(diagnostic))
+            return
+
+        finite = all(
+            math.isfinite(value) and value >= 0.0
+            for value in (*coarse_values, *refined_values)
+        )
+        not_worse = all(
+            fine <= coarse * (1.0 + 1.0e-8) + SCALAR_ABS_TOL
+            for coarse, fine in zip(coarse_values, refined_values)
+        )
+        improved = sum(refined_values[:2]) < sum(coarse_values[:2])
+        self.report(
+            coarse.ok and refined.ok and finite and not_worse and improved,
+            f"{refined.label} improves errors",
+            f"coarse {coarse_values}, refined {refined_values}",
+        )
+
+    def expect_igrm_stokes_polynomial_exactness(self, case: DriverCase) -> None:
+        labels = (
+            "iGRM-Stokes relative residual:",
+            "L2 velocity error:",
+            "L2 pressure error:",
+            "L2 divergence:",
+        )
+        try:
+            values = tuple(self.labeled_scalar(case, label) for label in labels)
+        except ValueError as diagnostic:
+            self.report(False, f"{case.label} polynomial exactness", str(diagnostic))
+            return
+
+        passed = case.ok and all(
+            math.isfinite(value) and 0.0 <= value <= 1.0e-9
+            for value in values
+        )
+        self.report(
+            passed,
+            f"{case.label} polynomial exactness",
+            "relative residual, velocity, pressure, divergence = "
+            + ", ".join(f"{value:.8g}" for value in values),
         )
 
     def expect_solution_changed(self, case: DriverCase) -> None:
@@ -741,6 +1024,50 @@ def run_suite(suite: IntegrationSuite) -> None:
     )
     suite.expect_matching_vti(
         igrm_eriksson_serial, igrm_eriksson_hybrid, "step0.vti"
+    )
+
+    # The 3D DG-iGRM Stokes problem has discontinuous residual spaces and
+    # conforming trial spaces for three velocity components and pressure.
+    # Exercise the complete mixed MUMPS system, its manufactured-solution
+    # diagnostics, coupled VTI output, refinement, and root-only MPI broadcast.
+    igrm_stokes_coarse = suite.run_driver(
+        "iGRM Stokes coarse serial",
+        1,
+        1,
+        "igrm_stokes",
+        [2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1],
+    )
+    suite.expect_igrm_stokes_metrics(igrm_stokes_coarse)
+    suite.expect_valid_stokes_vti(igrm_stokes_coarse, "result.vti")
+    igrm_stokes_refined = suite.run_driver(
+        "iGRM Stokes refined serial",
+        1,
+        1,
+        "igrm_stokes",
+        [3, 3, 3, 2, 2, 2, 2, 2, 2, 1, 1, 1],
+    )
+    suite.expect_igrm_stokes_metrics(igrm_stokes_refined)
+    suite.expect_valid_stokes_vti(igrm_stokes_refined, "result.vti")
+    suite.expect_igrm_stokes_refinement(igrm_stokes_coarse, igrm_stokes_refined)
+    igrm_stokes_exact = suite.run_driver(
+        "iGRM Stokes represented polynomial",
+        1,
+        1,
+        "igrm_stokes",
+        [1, 1, 1, 4, 4, 4, 4, 4, 4, 1, 1, 1],
+    )
+    suite.expect_igrm_stokes_polynomial_exactness(igrm_stokes_exact)
+    suite.expect_valid_stokes_vti(igrm_stokes_exact, "result.vti")
+    igrm_stokes_hybrid = suite.run_driver(
+        "iGRM Stokes hybrid",
+        2,
+        2,
+        "igrm_stokes",
+        [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1],
+    )
+    suite.expect_igrm_stokes_metrics(igrm_stokes_coarse, igrm_stokes_hybrid)
+    suite.expect_matching_stokes_vti(
+        igrm_stokes_coarse, igrm_stokes_hybrid, "result.vti"
     )
 
     # The pure-diffusion driver has no result file, so require every real

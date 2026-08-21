@@ -32,7 +32,8 @@ DRIVERS := \
    $(EXEC_DIR)/oil \
    $(EXEC_DIR)/igrm_l2 \
    $(EXEC_DIR)/igrm_heat \
-   $(EXEC_DIR)/igrm_eirksson
+   $(EXEC_DIR)/igrm_eirksson \
+   $(EXEC_DIR)/igrm_stokes
 
 # A driver test is also a clean-build test. This deliberately avoids reusing
 # an executable produced with a different compiler or build configuration.
@@ -61,6 +62,9 @@ $(EXEC_DIR)/igrm_heat: $(BUILD_INPUTS) $(wildcard ../../problems/igrm_heat/*.F90
 
 $(EXEC_DIR)/igrm_eirksson: $(BUILD_INPUTS) $(wildcard ../../problems/igrm_eirksson/*.F90)
 	$(MAKE) -j1 -C $(MYMAKE_DIR) CONFIG='$(CONFIG_PATH)' $(MYMAKE_COMPILER) igrm_eirksson
+
+$(EXEC_DIR)/igrm_stokes: $(BUILD_INPUTS) $(wildcard ../../problems/igrm_stokes/*.F90)
+	$(MAKE) -j1 -C $(MYMAKE_DIR) CONFIG='$(CONFIG_PATH)' $(MYMAKE_COMPILER) igrm_stokes
 
 all: $(DRIVERS)
 

@@ -1,0 +1,253 @@
+module test_igrm_stokes_input_data
+   use pfunit
+   use input_data, only: VISCOSITY_VALUE, PENALTY_FACTOR, &
+                         RESIDUAL_TOLERANCE, MAX_POLYNOMIAL_DEGREE, &
+                         stokes_profile, &
+                         stokes_profile_derivative, &
+                         stokes_profile_second_derivative, &
+                         stokes_profile_third_derivative, exact_velocity, &
+                         exact_velocity_divergence, exact_vx, exact_vy, &
+                         exact_vz, exact_pressure, body_force, exact_force
+   implicit none
+
+   real(kind=8), parameter :: ROUND_TOL = 1024.d0*epsilon(1.d0)
+
+contains
+
+   logical function close_enough(actual, expected, tolerance) result(close)
+      real(kind=8), intent(in) :: actual, expected
+      real(kind=8), intent(in), optional :: tolerance
+      real(kind=8) :: selected_tolerance
+
+      selected_tolerance = ROUND_TOL
+      if (present(tolerance)) selected_tolerance = tolerance
+      close = abs(actual - expected) <= &
+              selected_tolerance*max(1.d0, abs(expected))
+   end function close_enough
+
+
+   function reference_velocity(X) result(value)
+      real(kind=8), intent(in) :: X(3)
+      real(kind=8) :: value(3)
+      real(kind=8) :: coord_x, coord_y, coord_z, x2, y2, z2
+      real(kind=8) :: xm12, ym12, zm12
+
+      coord_x = X(1)
+      coord_y = X(2)
+      coord_z = X(3)
+      x2 = coord_x*coord_x
+      y2 = coord_y*coord_y
+      z2 = coord_z*coord_z
+      xm12 = (1.d0 - coord_x)*(1.d0 - coord_x)
+      ym12 = (1.d0 - coord_y)*(1.d0 - coord_y)
+      zm12 = (1.d0 - coord_z)*(1.d0 - coord_z)
+
+      value(1) = x2*y2*xm12*(2.d0*coord_y - 2.d0) + &
+                 2.d0*x2*coord_y*xm12*ym12 - &
+                 x2*z2*xm12*(2.d0*coord_z - 2.d0) - &
+                 2.d0*x2*coord_z*xm12*zm12
+      value(2) = -x2*y2*ym12*(2.d0*coord_x - 2.d0) - &
+                 2.d0*coord_x*y2*xm12*ym12 + &
+                 y2*z2*ym12*(2.d0*coord_z - 2.d0) + &
+                 2.d0*y2*coord_z*ym12*zm12
+      value(3) = x2*z2*zm12*(2.d0*coord_x - 2.d0) + &
+                 2.d0*coord_x*z2*xm12*zm12 - &
+                 y2*z2*zm12*(2.d0*coord_y - 2.d0) - &
+                 2.d0*coord_y*z2*ym12*zm12
+   end function reference_velocity
+
+
+   function finite_difference_divergence(X) result(value)
+      real(kind=8), intent(in) :: X(3)
+      real(kind=8) :: value
+      real(kind=8), parameter :: H = 1.d-4
+      real(kind=8) :: plus(3), minus(3), point(3)
+      integer(kind=4) :: direction
+
+      value = 0.d0
+      do direction = 1, 3
+         point = X
+         point(direction) = X(direction) + H
+         plus = exact_velocity(point)
+         point(direction) = X(direction) - H
+         minus = exact_velocity(point)
+         value = value + (plus(direction) - minus(direction))/(2.d0*H)
+      end do
+   end function finite_difference_divergence
+
+
+   function finite_difference_force(X) result(value)
+      real(kind=8), intent(in) :: X(3)
+      real(kind=8) :: value(3)
+      real(kind=8), parameter :: H = 1.d-3
+      real(kind=8) :: center(3), minus_one(3), minus_two(3)
+      real(kind=8) :: plus_one(3), plus_two(3), point(3)
+      real(kind=8) :: laplacian(3), pressure_derivative
+      integer(kind=4) :: component, direction
+
+      center = exact_velocity(X)
+      laplacian = 0.d0
+      do direction = 1, 3
+         point = X
+         point(direction) = X(direction) - 2.d0*H
+         minus_two = exact_velocity(point)
+         point(direction) = X(direction) - H
+         minus_one = exact_velocity(point)
+         point(direction) = X(direction) + H
+         plus_one = exact_velocity(point)
+         point(direction) = X(direction) + 2.d0*H
+         plus_two = exact_velocity(point)
+         laplacian = laplacian + &
+            (-plus_two + 16.d0*plus_one - 30.d0*center + &
+             16.d0*minus_one - minus_two)/(12.d0*H*H)
+      end do
+
+      do component = 1, 3
+         point = X
+         point(component) = X(component) - 2.d0*H
+         pressure_derivative = exact_pressure(point)
+         point(component) = X(component) - H
+         pressure_derivative = pressure_derivative - &
+                               8.d0*exact_pressure(point)
+         point(component) = X(component) + H
+         pressure_derivative = pressure_derivative + &
+                               8.d0*exact_pressure(point)
+         point(component) = X(component) + 2.d0*H
+         pressure_derivative = pressure_derivative - exact_pressure(point)
+         pressure_derivative = pressure_derivative/(12.d0*H)
+         value(component) = -VISCOSITY_VALUE*laplacian(component) + &
+                            pressure_derivative
+      end do
+   end function finite_difference_force
+
+
+   @test
+   subroutine test_problem_constants_match_reference_configuration()
+      @assertTrue(VISCOSITY_VALUE == 1.d0)
+      @assertTrue(PENALTY_FACTOR == 1.d0)
+      @assertTrue(RESIDUAL_TOLERANCE == 1.d-8)
+      @assertEqual(9, MAX_POLYNOMIAL_DEGREE)
+   end subroutine test_problem_constants_match_reference_configuration
+
+
+   @test
+   subroutine test_profile_and_derivatives_have_polynomial_oracles()
+      real(kind=8), parameter :: coordinate = 0.25d0
+      real(kind=8) :: actual
+
+      @assertTrue(close_enough(stokes_profile(coordinate), 0.03515625d0))
+      actual = stokes_profile_derivative(coordinate)
+      @assertTrue(close_enough(actual, 0.1875d0))
+      actual = stokes_profile_second_derivative(coordinate)
+      @assertTrue(close_enough(actual, -0.25d0))
+      actual = stokes_profile_third_derivative(coordinate)
+      @assertTrue(close_enough(actual, -6.d0))
+      @assertTrue(stokes_profile(0.d0) == 0.d0)
+      @assertTrue(stokes_profile(1.d0) == 0.d0)
+   end subroutine test_profile_and_derivatives_have_polynomial_oracles
+
+
+   @test
+   subroutine test_velocity_matches_independently_expanded_reference()
+      real(kind=8) :: X(3), actual(3), expected(3)
+
+      X = (/ 0.2d0, 0.3d0, 0.4d0 /)
+      actual = exact_velocity(X)
+      expected = reference_velocity(X)
+      @assertTrue(all(abs(actual - expected) <= ROUND_TOL))
+      @assertTrue(close_enough(actual(1), 0.0018432d0))
+      @assertTrue(close_enough(actual(2), -0.0042336d0))
+      @assertTrue(close_enough(actual(3), 0.0013824d0))
+      @assertTrue(exact_vx(X) == actual(1))
+      @assertTrue(exact_vy(X) == actual(2))
+      @assertTrue(exact_vz(X) == actual(3))
+
+      X = (/ 0.73d0, 0.19d0, 0.61d0 /)
+      actual = exact_velocity(X)
+      expected = reference_velocity(X)
+      @assertTrue(all(abs(actual - expected) <= ROUND_TOL))
+   end subroutine test_velocity_matches_independently_expanded_reference
+
+
+   @test
+   subroutine test_velocity_is_divergence_free_analytically_and_by_fd()
+      real(kind=8) :: X(3), fd_divergence
+
+      X = (/ 0.31d0, 0.43d0, 0.67d0 /)
+      @assertTrue(close_enough(exact_velocity_divergence(X), 0.d0))
+      fd_divergence = finite_difference_divergence(X)
+      @assertTrue(close_enough(fd_divergence, 0.d0, 2.d-8))
+
+      X = (/ 0.11d0, 0.79d0, 0.52d0 /)
+      @assertTrue(close_enough(exact_velocity_divergence(X), 0.d0))
+      fd_divergence = finite_difference_divergence(X)
+      @assertTrue(close_enough(fd_divergence, 0.d0, 2.d-8))
+   end subroutine test_velocity_is_divergence_free_analytically_and_by_fd
+
+
+   @test
+   subroutine test_normal_velocity_is_zero_on_every_cube_face()
+      real(kind=8) :: X(3), velocity(3)
+      integer(kind=4) :: direction
+
+      do direction = 1, 3
+         X = (/ 0.23d0, 0.47d0, 0.81d0 /)
+         X(direction) = 0.d0
+         velocity = exact_velocity(X)
+         @assertTrue(velocity(direction) == 0.d0)
+         X(direction) = 1.d0
+         velocity = exact_velocity(X)
+         @assertTrue(velocity(direction) == 0.d0)
+      end do
+   end subroutine test_normal_velocity_is_zero_on_every_cube_face
+
+
+   @test
+   subroutine test_pressure_oracle_and_mean_zero_normalization()
+      real(kind=8), parameter :: nodes(5) = (/ &
+         0.046910077030668d0, 0.230765344947158d0, 0.5d0, &
+         0.769234655052842d0, 0.953089922969332d0 /)
+      real(kind=8), parameter :: weights(5) = (/ &
+         0.118463442528095d0, 0.239314335249683d0, &
+         0.284444444444444d0, 0.239314335249683d0, &
+         0.118463442528095d0 /)
+      real(kind=8) :: X(3), integral, actual
+      integer(kind=4) :: ix, iy, iz
+
+      X = (/ 0.2d0, 0.3d0, 0.4d0 /)
+      actual = exact_pressure(X)
+      @assertTrue(close_enough(actual, -0.0925285925925925926d0))
+      X = (/ 0.25d0, 0.5d0, 0.75d0 /)
+      @assertTrue(close_enough(exact_pressure(X), -5.d0/54.d0))
+
+      integral = 0.d0
+      do iz = 1, 5
+         do iy = 1, 5
+            do ix = 1, 5
+               X = (/ nodes(ix), nodes(iy), nodes(iz) /)
+               integral = integral + weights(ix)*weights(iy)*weights(iz)* &
+                                      exact_pressure(X)
+            end do
+         end do
+      end do
+      @assertTrue(close_enough(integral, 0.d0, 2.d-14))
+   end subroutine test_pressure_oracle_and_mean_zero_normalization
+
+
+   @test
+   subroutine test_force_satisfies_stokes_equation_by_finite_differences()
+      real(kind=8) :: X(3), actual(3), expected(3)
+
+      X = (/ 0.31d0, 0.43d0, 0.67d0 /)
+      actual = body_force(X)
+      expected = finite_difference_force(X)
+      @assertTrue(all(abs(actual - expected) <= 2.d-8))
+      @assertTrue(all(exact_force(X) == actual))
+
+      X = (/ 0.17d0, 0.72d0, 0.38d0 /)
+      actual = body_force(X)
+      expected = finite_difference_force(X)
+      @assertTrue(all(abs(actual - expected) <= 2.d-8))
+   end subroutine test_force_satisfies_stokes_equation_by_finite_differences
+
+end module test_igrm_stokes_input_data

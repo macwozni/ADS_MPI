@@ -14,7 +14,7 @@ EXEC_DIR := $(abspath $(MYMAKE_DIR)/EXEC)
 DOXYFILE ?= doxygen.conf
 
 PROBLEMS := l2 heat eriksson pure_diffusion_igrm oil igrm_l2 igrm_heat \
-	igrm_eirksson
+	igrm_eirksson igrm_stokes
 PROBLEM ?= l2
 
 NP ?= 1
@@ -37,6 +37,7 @@ oil_ARGS ?= 2 1 1 1 1 1 0.1 1 0.5 0.5 0.5 1 0.25 0.25 0.25
 igrm_l2_ARGS ?= 2 2 2 3 3 3 1 1 1 1 1 1 dg
 igrm_heat_ARGS ?= 2 2 2 3 3 3 2 2 2 1 1 1 1 0.001 dg
 igrm_eirksson_ARGS ?= 4 4 4 3 3 3 2 2 2 1 1 1
+igrm_stokes_ARGS ?= 4 4 4 2 2 2 2 2 2 1 1 1
 
 TEST_OPTIONS = \
 	CONFIG="$(CONFIG_PATH)" \
@@ -145,6 +146,10 @@ run-help:
 		'  <nelem_x> <nelem_y> <nelem_z> <ptest_x> <ptest_y> <ptest_z>' \
 		'  <ptrial_x> <ptrial_y> <ptrial_z> <procx> <procy> <procz>' \
 		'  ($(igrm_eirksson_ARGS))' \
+		'igrm_stokes:' \
+		'  <nelem_x> <nelem_y> <nelem_z> <ptest_x> <ptest_y> <ptest_z>' \
+		'  <ptrial_x> <ptrial_y> <ptrial_z> <procx> <procy> <procz>' \
+		'  ($(igrm_stokes_ARGS))' \
 		'' \
 		'Use: make run[-<problem>] ARGS="..." NP=<procx*procy*procz>' \
 		'Run make help for launcher, OpenMP, environment, and output controls.'
@@ -271,7 +276,7 @@ targets help:
 		'ADS MPI unified make interface' \
 		'' \
 		'Build:' \
-		'  make | make all | make build-all  static library + all eight problems' \
+		'  make | make all | make build-all  static library + all nine problems' \
 		'  make library                      build mymake/LIB/libads.a' \
 		'  make problems                     build all problem executables' \
 		'  make build PROBLEM=heat           build one selected problem' \

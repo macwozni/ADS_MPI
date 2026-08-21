@@ -69,4 +69,10 @@ IGRM_EIRKSSON = \
     ../problems/igrm_eirksson/RHS_fun.F90 \
     ../problems/igrm_eirksson/igrm_mumps_solver.F90 \
     ../problems/igrm_eirksson/main.F90
+
+IGRM_STOKES = \
+    ../problems/igrm_stokes/input_data.F90 \
+    ../problems/igrm_stokes/RHS_fun.F90 \
+    ../problems/igrm_stokes/igrm_stokes_solver.F90 \
+    ../problems/igrm_stokes/main.F90
   

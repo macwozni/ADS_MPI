@@ -182,7 +182,7 @@ configuration file.
 
 ### Build targets
 
-The default command builds the static ADS library and all eight problem
+The default command builds the static ADS library and all nine problem
 drivers. Problem builds are deliberately serialized because problem-local
 Fortran modules reuse the names `input_data`, `RHS_fun`, and `main`.
 
@@ -216,10 +216,11 @@ mymake/EXEC/oil
 mymake/EXEC/igrm_l2
 mymake/EXEC/igrm_heat
 mymake/EXEC/igrm_eirksson
+mymake/EXEC/igrm_stokes
 ```
 
 The lower-level `mymake/makefile` remains usable. It provides `library`,
-`problems`, all eight named problem targets, and the legacy `SOURCE_ALL`/`EXEC`
+`problems`, all nine named problem targets, and the legacy `SOURCE_ALL`/`EXEC`
 interface.
 
 The public `library` target intentionally rebuilds all core objects before
@@ -252,7 +253,7 @@ make run-heat ARGS='4 2 3 0.01 2 1 1' NP=2 OMP_NUM_THREADS=4
 ```
 
 Use `make run-help` to print the complete argument syntax and defaults for all
-eight problems. `make show-run PROBLEM=heat` prints the effective executable,
+nine problems. `make show-run PROBLEM=heat` prints the effective executable,
 arguments, MPI/OpenMP settings, environment, and output directory without
 building or launching it.
 
@@ -282,6 +283,7 @@ For example:
 make run-oil OIL_SEED=20260811 OMP_NUM_THREADS=4
 make run-igrm_heat ARGS='2 2 2 3 3 3 2 2 2 2 1 1 1 0.001 be' NP=2
 make run-igrm_eirksson NP=1
+make run-igrm_stokes NP=1
 ```
 
 The number of MPI ranks must match:
@@ -529,16 +531,65 @@ Example:
   4 4 4 3 3 3 2 2 2 1 1 1
 ```
 
+### 3D DG-iGRM Stokes
+
+`igrm_stokes` implements the manufactured, stationary three-dimensional
+Stokes problem from the upstream `DGiGRM_stokes_3D` example:
+
+```text
+-Laplace(v) + grad(p) = f,
+div(v) = 0
+```
+
+The manufactured velocity boundary values are imposed weakly with Nitsche
+terms. The residual/test fields are discontinuous between elements, while the
+trial velocity and pressure use conforming tensor-product B-spline spaces. The
+problem-local assembler includes the volume velocity/pressure coupling and the
+DG facet jump, average, and penalty terms. It forms the complete mixed iGRM
+saddle system, augments it with a Lagrange multiplier enforcing zero mean
+trial pressure, and solves it once with MUMPS.
+
+The formulation follows
+[`DGiGRM_stokes_3D`](https://github.com/marcinlos/iga-ads/blob/959ac6e03b6b0e7332c1e253c1907bc502269d74/examples/dg/laplace.cpp#L1552)
+at upstream revision `959ac6e03b6b0e7332c1e253c1907bc502269d74`.
+
+Arguments:
+
+```text
+<nelem_x> <nelem_y> <nelem_z> \
+<ptest_x> <ptest_y> <ptest_z> \
+<ptrial_x> <ptrial_y> <ptrial_z> \
+<procx> <procy> <procz>
+```
+
+All polynomial degrees must be positive. Each test-space degree must be
+greater than or equal to its trial-space counterpart. The test space is
+discontinuous and the trial space uses the upstream `C1` continuity (`C0` for
+linear splines, where `C1` is impossible). The default of four elements and
+equal degree two in every direction exactly selects the upstream spaces.
+
+The root rank assembles and solves this correctness baseline, then broadcasts
+the four trial fields. `result.vti` contains a three-component `Velocity`
+array and a scalar `Pressure` array. The driver also reports algebraic RMS and
+relative residuals, velocity and pressure L2 errors, and the L2 divergence.
+
+```bash
+/opt/lib/mpich-5.0.0/bin/mpiexec -n 1 ./mymake/EXEC/igrm_stokes \
+  4 4 4 2 2 2 2 2 2 1 1 1
+```
+
 ## iGRM Mesh Assumptions
 
-The mixed iGRM matrix path assumes:
+The shared mixed iGRM matrix path used by the scalar problems assumes:
 
 - the test and trial spaces use the same geometric mesh,
 - repeated knots are allowed and do not change the geometric mesh,
 - the test degree is greater than the trial degree.
 
 In other words, the distinct knot locations must match, while knot
-multiplicities may differ.
+multiplicities may differ. `igrm_stokes` uses its own DG facet assembler and
+therefore permits equal test and trial degrees while retaining different
+continuities.
 
 ## Testing
 
@@ -596,7 +647,7 @@ make test-src
 # Run all problem-specific input, RHS, and solver suites.
 make test-problems
 
-# Build all eight problem executables and run CLI, smoke, and numerical
+# Build all nine problem executables and run CLI, smoke, and numerical
 # integration tests.
 make test-driver
 
@@ -668,6 +719,9 @@ matrix does more than check process status:
 - iGRM Eriksson requires finite, small algebraic residuals, a nonzero interior,
   six homogeneous faces, decreasing L2 error after refinement, and identical
   serial and hybrid VTI output;
+- iGRM Stokes requires finite, small algebraic residuals, finite velocity,
+  pressure, and divergence errors, improving refined errors, valid coupled
+  velocity/pressure VTI output, and identical serial and hybrid results;
 - oil uses the opt-in `ADS_OIL_RANDOM_SEED` test seed and compares a positive
   drained result across one/four OpenMP threads and a hybrid MPI run.
 
@@ -702,6 +756,10 @@ make problems
 "${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}" -n 1 \
   ./mymake/EXEC/igrm_eirksson \
   4 4 4 3 3 3 2 2 2 \
+  1 1 1
+"${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}" -n 1 \
+  ./mymake/EXEC/igrm_stokes \
+  2 2 2 2 2 2 2 2 2 \
   1 1 1
 ```
 
