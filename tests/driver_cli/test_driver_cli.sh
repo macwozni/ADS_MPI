@@ -81,6 +81,14 @@ expect_failure 'iGRM Stokes missing integer' 1 igrm_stokes \
 expect_failure 'iGRM Stokes extra integer' 1 igrm_stokes \
     'proper usage with arguments:' \
     2 2 2 2 2 2 2 2 2 1 1 1 99
+expect_failure 'iGRM pollution argument count' 1 igrm_pollution \
+    'proper usage with arguments:'
+expect_failure 'iGRM pollution missing integer' 1 igrm_pollution \
+    'proper usage with arguments:' \
+    4 0 1 0 2 1 1 1 1
+expect_failure 'iGRM pollution extra integer' 1 igrm_pollution \
+    'proper usage with arguments:' \
+    4 0 1 0 2 1 1 1 1 1 99
 
 # A command-line argument must contain exactly one integer token.
 expect_failure 'L2 partial integer' 1 l2 'invalid integer argument:' \
@@ -103,6 +111,9 @@ expect_failure 'iGRM Eriksson partial integer' 1 igrm_eirksson \
 expect_failure 'iGRM Stokes partial integer' 1 igrm_stokes \
     'invalid integer argument:' \
     '2 junk' 2 2 2 2 2 2 2 2 1 1 1
+expect_failure 'iGRM pollution partial integer' 1 igrm_pollution \
+    'invalid integer argument:' \
+    '4 junk' 0 1 0 2 1 1 1 1 1
 
 # The same exact-token rule applies to all real-valued driver arguments.
 expect_failure 'heat partial real' 1 heat 'invalid real argument:' \
@@ -261,6 +272,38 @@ expect_failure 'iGRM Stokes zero process-grid dimension' 1 igrm_stokes \
     'process-grid dimension must be positive' \
     2 2 2 2 2 2 2 2 2 1 0 1
 
+expect_failure 'iGRM pollution zero elements' 1 igrm_pollution \
+    'number of elements must be positive' \
+    0 0 1 0 2 1 1 1 1 1
+expect_failure 'iGRM pollution invalid adapt flag' 1 igrm_pollution \
+    'adapt flag must be zero or one' \
+    4 2 1 0 2 1 1 1 1 1
+expect_failure 'iGRM pollution zero trial degree' 1 igrm_pollution \
+    'trial polynomial degree must be positive' \
+    4 0 0 0 2 1 1 1 1 1
+expect_failure 'iGRM pollution zero test degree' 1 igrm_pollution \
+    'test polynomial degree must be positive' \
+    4 0 1 0 0 0 1 1 1 1
+expect_failure 'iGRM pollution invalid trial continuity' 1 igrm_pollution \
+    'trial continuity must be between zero and polynomial degree minus one' \
+    4 0 1 -1 2 1 1 1 1 1
+expect_failure 'iGRM pollution invalid test continuity' 1 igrm_pollution \
+    'test continuity must be between zero and polynomial degree minus one' \
+    4 0 1 0 2 -1 1 1 1 1
+expect_failure 'iGRM pollution test space smaller than trial space' 1 igrm_pollution \
+    'test-space dimension must be greater than or equal to trial-space dimension' \
+    4 0 2 0 2 1 1 1 1 1
+expect_failure 'iGRM pollution zero physical steps' 1 igrm_pollution \
+    'number of time steps must be positive' \
+    4 0 1 0 2 1 0 1 1 1
+expect_failure 'iGRM pollution zero process-grid dimension' 1 igrm_pollution \
+    'process-grid dimension must be positive' \
+    4 0 1 0 2 1 1 1 0 1
+ADS_POLLUTION_OUTPUT_RESOLUTION=0 expect_failure \
+    'iGRM pollution invalid output resolution' 1 igrm_pollution \
+    'ADS_POLLUTION_OUTPUT_RESOLUTION must be a positive integer' \
+    4 0 1 0 2 1 1 1 1 1
+
 expect_failure 'iGRM L2 overflowing spline extent' 1 igrm_l2 \
     'spline dimensions exceed supported integer range' \
     2147483647 3 3 2 2 2 1 1 1 1 1 1
@@ -276,6 +319,9 @@ expect_failure 'iGRM Stokes overflowing spline extent' 1 igrm_stokes \
 expect_failure 'iGRM Stokes overflowing discontinuous extent' 1 igrm_stokes \
     'discontinuous test-space dimensions exceed supported integer range' \
     214748365 2 2 9 2 2 1 1 1 1 1 1
+expect_failure 'iGRM pollution overflowing spline extent' 1 igrm_pollution \
+    'spline dimensions exceed supported integer range' \
+    2147483647 0 1 0 2 1 1 1 1 1
 
 # Space validation rejects degrees requiring unavailable Gauss rules.
 expect_failure 'L2 unsupported degree' 1 l2 \
@@ -320,6 +366,12 @@ expect_failure 'iGRM Stokes unsupported test degree' 1 igrm_stokes \
 expect_failure 'iGRM Stokes unsupported trial degree' 1 igrm_stokes \
     'unsupported polynomial degree in iGRM trial space' \
     1 1 1 9 9 9 9 9 10 1 1 1
+expect_failure 'iGRM pollution unsupported trial degree' 1 igrm_pollution \
+    'unsupported polynomial degree in iGRM trial space' \
+    4 0 10 0 2 1 1 1 1 1
+expect_failure 'iGRM pollution unsupported test degree' 1 igrm_pollution \
+    'unsupported polynomial degree in iGRM test space' \
+    4 0 1 0 10 9 1 1 1 1
 
 # iGRM drivers accept DG/PR/BE only; Forward Euler has its own diagnostic.
 expect_failure 'pure diffusion unknown scheme' 1 pure_diffusion_igrm 'unknown time scheme:' \

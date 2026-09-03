@@ -182,7 +182,7 @@ configuration file.
 
 ### Build targets
 
-The default command builds the static ADS library and all nine problem
+The default command builds the static ADS library and all ten problem
 drivers. Problem builds are deliberately serialized because problem-local
 Fortran modules reuse the names `input_data`, `RHS_fun`, and `main`.
 
@@ -217,10 +217,11 @@ mymake/EXEC/igrm_l2
 mymake/EXEC/igrm_heat
 mymake/EXEC/igrm_eirksson
 mymake/EXEC/igrm_stokes
+mymake/EXEC/igrm_pollution
 ```
 
 The lower-level `mymake/makefile` remains usable. It provides `library`,
-`problems`, all nine named problem targets, and the legacy `SOURCE_ALL`/`EXEC`
+`problems`, all ten named problem targets, and the legacy `SOURCE_ALL`/`EXEC`
 interface.
 
 The public `library` target intentionally rebuilds all core objects before
@@ -253,7 +254,7 @@ make run-heat ARGS='4 2 3 0.01 2 1 1' NP=2 OMP_NUM_THREADS=4
 ```
 
 Use `make run-help` to print the complete argument syntax and defaults for all
-nine problems. `make show-run PROBLEM=heat` prints the effective executable,
+ten problems. `make show-run PROBLEM=heat` prints the effective executable,
 arguments, MPI/OpenMP settings, environment, and output directory without
 building or launching it.
 
@@ -284,6 +285,7 @@ make run-oil OIL_SEED=20260811 OMP_NUM_THREADS=4
 make run-igrm_heat ARGS='2 2 2 3 3 3 2 2 2 2 1 1 1 0.001 be' NP=2
 make run-igrm_eirksson NP=1
 make run-igrm_stokes NP=1
+make run-igrm_pollution NP=1
 ```
 
 The number of MPI ranks must match:
@@ -578,6 +580,75 @@ relative residuals, velocity and pressure L2 errors, and the L2 divergence.
   4 4 4 2 2 2 2 2 2 1 1 1
 ```
 
+### 3D DPG/iGRM Pollution
+
+`igrm_pollution` implements the transient three-dimensional
+advection-diffusion source problem from the upstream `pollution_dpg_3d`
+example on the cube `[0, 5000]^3`:
+
+```text
+du/dt - div(D grad(u)) + wind(t) dot grad(u) = emission,
+u(0) = 0,
+D = (50, 50, 0.5).
+```
+
+The compact source is centered at `(3000, 2000, 2000)` with radius `25`.
+For `r2 = min(sum(((x - center) / 25)^2), 1)`, its value is
+`(r2 - 1)^2 (r2 + 1)^2`. The time step is the upstream value `1.8`; the
+three directional substeps use `dt/3`. The time-dependent upstream wind law
+is evaluated consistently at the beginning of every physical step, including
+`t=0`, removing the prototype's discontinuous first update.
+
+The trial and enriched test spaces have independently selectable degrees and
+conforming continuities (`0 <= C <= p-1`). The upstream parser also permits
+`C=-1`, but that broken space is deliberately rejected here: the prototype
+does not contain the facet flux and trace terms required for a DG diffusion
+formulation. `adapt=1` enables the upstream nonuniform knot map in the x
+direction; `adapt=0` uses a uniform mesh. The implementation uses only the
+existing ADS interfaces and keeps all pollution-specific assembly and model
+data inside `problems/igrm_pollution`.
+
+As in the upstream prototype, diffusion uses the natural zero-flux boundary
+condition. Advection remains in the strong volume form and has no separately
+imposed inflow value. These conditions are part of the comparison model.
+
+The formulation follows
+[`pollution_dpg_3d.hpp`](https://github.com/marcinlos/iga-ads/blob/959ac6e03b6b0e7332c1e253c1907bc502269d74/examples/pollution/pollution_dpg_3d.hpp)
+and
+[`dpg3d.cpp`](https://github.com/marcinlos/iga-ads/blob/959ac6e03b6b0e7332c1e253c1907bc502269d74/examples/pollution/dpg3d.cpp)
+at upstream revision `959ac6e03b6b0e7332c1e253c1907bc502269d74`.
+Obvious prototype copy-and-paste defects in the z-direction indexing and
+temporary-buffer selection are corrected rather than reproduced.
+
+Arguments:
+
+```text
+<N> <adapt:0|1> <p_trial> <C_trial> <p_test> <C_test> \
+<steps> <procx> <procy> <procz>
+```
+
+`N` is the number of elements in every direction. `steps` is the number of
+physical updates and must be at least one for an actual simulation. The
+process-grid product must equal the number of MPI ranks.
+
+The initial field is written to `out_0.vti`, followed by `out_1.vti` through
+`out_<steps>.vti`. The default output resolution is 100 intervals per
+direction, matching upstream. Set `ADS_POLLUTION_OUTPUT_RESOLUTION` to a
+positive integer for smaller diagnostic files; automated tests use `4`.
+
+The current problem-local direct implementation computes the dense
+directional solves on MPI rank zero and broadcasts the final coefficients.
+Multiple ranks therefore verify deterministic replication but do not yet
+accelerate this problem. The reported `maximum coefficient abs` diagnostic is
+the largest trial coefficient magnitude, not a separately sampled field
+maximum.
+
+```bash
+ADS_POLLUTION_OUTPUT_RESOLUTION=4 \
+  /opt/lib/mpich-5.0.0/bin/mpiexec -n 1 \
+  ./mymake/EXEC/igrm_pollution 4 0 1 0 2 1 1 1 1 1
+```
+
 ## iGRM Mesh Assumptions
 
 The shared mixed iGRM matrix path used by the scalar problems assumes:
@@ -589,7 +660,8 @@ The shared mixed iGRM matrix path used by the scalar problems assumes:
 In other words, the distinct knot locations must match, while knot
 multiplicities may differ. `igrm_stokes` uses its own DG facet assembler and
 therefore permits equal test and trial degrees while retaining different
-continuities.
+continuities. `igrm_pollution` likewise owns its DPG assembly locally and
+accepts independently configured conforming trial/test continuities.
 
 ## Testing
 
@@ -647,7 +719,7 @@ make test-src
 # Run all problem-specific input, RHS, and solver suites.
 make test-problems
 
-# Build all nine problem executables and run CLI, smoke, and numerical
+# Build all ten problem executables and run CLI, smoke, and numerical
 # integration tests.
 make test-driver
 
@@ -722,6 +794,9 @@ matrix does more than check process status:
 - iGRM Stokes requires finite, small algebraic residuals, finite velocity,
   pressure, and divergence errors, improving refined errors, valid coupled
   velocity/pressure VTI output, and identical serial and hybrid results;
+- iGRM pollution executes a real physical source step, validates the zero
+  initial state and nonzero finite concentration in `out_1.vti`, and compares
+  the serial and hybrid MPI/OpenMP fields on a reduced `5^3` output grid;
 - oil uses the opt-in `ADS_OIL_RANDOM_SEED` test seed and compares a positive
   drained result across one/four OpenMP threads and a hybrid MPI run.
 
@@ -761,6 +836,10 @@ make problems
   ./mymake/EXEC/igrm_stokes \
   2 2 2 2 2 2 2 2 2 \
   1 1 1
+ADS_POLLUTION_OUTPUT_RESOLUTION=4 \
+  "${MPIEXEC:-/opt/lib/mpich-5.0.0/bin/mpiexec}" -n 1 \
+  ./mymake/EXEC/igrm_pollution \
+  4 0 1 0 2 1 1 1 1 1
 ```
 
 ## Documentation

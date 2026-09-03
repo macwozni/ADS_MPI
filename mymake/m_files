@@ -75,4 +75,9 @@ IGRM_STOKES = \
     ../problems/igrm_stokes/RHS_fun.F90 \
     ../problems/igrm_stokes/igrm_stokes_solver.F90 \
     ../problems/igrm_stokes/main.F90
-  
+
+IGRM_POLLUTION = \
+    ../problems/igrm_pollution/input_data.F90 \
+    ../problems/igrm_pollution/RHS_fun.F90 \
+    ../problems/igrm_pollution/pollution_dpg_solver.F90 \
+    ../problems/igrm_pollution/main.F90

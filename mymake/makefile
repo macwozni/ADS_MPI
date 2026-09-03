@@ -26,7 +26,7 @@ core_objF90 := $(notdir $(filter %$(dot_o),$(SOURCES:.F90=$(dot_o))))
 CORE_OBJECTS := $(addprefix $(obj_path)/,$(core_objF90))
 
 PROBLEMS := l2 heat eriksson pure_diffusion_igrm oil igrm_l2 igrm_heat \
-	igrm_eirksson igrm_stokes
+	igrm_eirksson igrm_stokes igrm_pollution
 
 .PHONY: all build library problems list-problems clean clean-all \
 	clean-problems clean-library clean-library-build help $(PROBLEMS)
@@ -66,6 +66,7 @@ igrm_l2: PROBLEM_SOURCES := $(IGRM_L2)
 igrm_heat: PROBLEM_SOURCES := $(IGRM_HEAT)
 igrm_eirksson: PROBLEM_SOURCES := $(IGRM_EIRKSSON)
 igrm_stokes: PROBLEM_SOURCES := $(IGRM_STOKES)
+igrm_pollution: PROBLEM_SOURCES := $(IGRM_POLLUTION)
 
 # The problem-local modules have identical names. Always clean and rebuild one
 # complete executable before moving to the next problem.
@@ -91,9 +92,9 @@ clean-problems:
 	$(RM) -- $(addprefix EXEC/,$(PROBLEMS))
 	$(RM) -- $(obj_path)/input_data.o $(obj_path)/RHS_fun.o \
 		$(obj_path)/igrm_mumps_solver.o $(obj_path)/igrm_stokes_solver.o \
-		$(obj_path)/main.o
+		$(obj_path)/pollution_dpg_solver.o $(obj_path)/main.o
 	$(RM) -- input_data.mod rhs_fun.mod igrm_mumps_solver.mod \
-		igrm_stokes_solver.mod
+		igrm_stokes_solver.mod pollution_dpg_solver.mod
 
 clean-library:
 	$(RM) -- $(library_target)
@@ -115,7 +116,7 @@ help:
 	@printf '%s\n' \
 		'make                         build current SOURCE_ALL/EXEC (default L2)' \
 		'make library                 build LIB/libads.a' \
-		'make problems                clean-build all nine problem drivers' \
+		'make problems                clean-build all ten problem drivers' \
 		'make <problem>               clean-build one named driver' \
 		'make list-problems' \
 		'make clean                   clean current SOURCE_ALL/EXEC selection' \

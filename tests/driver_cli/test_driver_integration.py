@@ -21,6 +21,11 @@ EXPECTED_POINT_COUNT = 31**3
 STOKES_EXPECTED_EXTENT = (0, 50, 0, 50, 0, 50)
 STOKES_EXPECTED_ORIGIN = (0.0, 0.0, 0.0)
 STOKES_EXPECTED_SPACING = (0.02, 0.02, 0.02)
+POLLUTION_EXPECTED_EXTENT = (0, 4, 0, 4, 0, 4)
+POLLUTION_EXPECTED_ORIGIN = (0.0, 0.0, 0.0)
+POLLUTION_EXPECTED_SPACING = (1250.0, 1250.0, 1250.0)
+POLLUTION_EXPECTED_POINT_COUNT = 5**3
+POLLUTION_EXACT_SOURCE_INTEGRAL = 2_000_000.0 * math.pi / 231.0
 VTK_ABS_TOL = 1.0e-9
 VTK_REL_TOL = 1.0e-9
 SCALAR_ABS_TOL = 1.0e-12
@@ -123,6 +128,7 @@ class IntegrationSuite:
         self.failures = 0
         self._vti_cache: dict[Path, VTIData] = {}
         self._stokes_vti_cache: dict[Path, StokesVTIData] = {}
+        self._pollution_vti_cache: dict[Path, VTIData] = {}
 
     def close(self) -> None:
         self.work.cleanup()
@@ -389,6 +395,198 @@ class IntegrationSuite:
             if key.lower() == name.lower():
                 return value
         raise ValueError(f"missing ImageData {name} attribute")
+
+    def read_pollution_vti(self, path: Path) -> VTIData:
+        path = path.resolve()
+        if path in self._pollution_vti_cache:
+            return self._pollution_vti_cache[path]
+        if not path.is_file():
+            raise ValueError("file does not exist")
+
+        try:
+            root = ET.parse(path).getroot()
+        except ET.ParseError as error:
+            raise ValueError(f"invalid XML: {error}") from error
+        if self._tag(root) != "VTKFile" or root.get("type") != "ImageData":
+            raise ValueError("root is not a VTK ImageData file")
+
+        image = self._first_tag(root, "ImageData")
+        try:
+            extent = tuple(
+                int(item)
+                for item in self._image_attribute(image, "WholeExtent").split()
+            )
+            origin = tuple(
+                float(item)
+                for item in self._image_attribute(image, "Origin").split()
+            )
+            spacing = tuple(
+                float(item)
+                for item in self._image_attribute(image, "Spacing").split()
+            )
+        except ValueError as error:
+            raise ValueError(f"invalid ImageData metadata: {error}") from error
+
+        result = self._named_data_array(root, "Result")
+        if (
+            result.get("type") != "Float64"
+            or result.get("format") != "ascii"
+            or result.get("NumberOfComponents", "1") != "1"
+        ):
+            raise ValueError("Result must be an ASCII scalar Float64 array")
+        try:
+            values = tuple(float(item) for item in (result.text or "").split())
+        except ValueError as error:
+            raise ValueError(f"invalid Result value: {error}") from error
+        if len(values) != POLLUTION_EXPECTED_POINT_COUNT:
+            raise ValueError(
+                f"Result contains {len(values)} values, expected "
+                f"{POLLUTION_EXPECTED_POINT_COUNT}"
+            )
+        if not all(math.isfinite(item) for item in values):
+            raise ValueError("Result contains NaN/Inf")
+
+        data = VTIData(extent, origin, spacing, values)
+        self._pollution_vti_cache[path] = data
+        return data
+
+    def expect_valid_pollution_vti(
+        self, case: DriverCase, filename: str
+    ) -> VTIData | None:
+        try:
+            data = self.read_pollution_vti(case.directory / filename)
+        except ValueError as error:
+            self.report(False, f"{case.label} {filename} pollution VTI", str(error))
+            return None
+        metadata_ok = (
+            data.extent == POLLUTION_EXPECTED_EXTENT
+            and data.origin == POLLUTION_EXPECTED_ORIGIN
+            and all(
+                math.isclose(actual, expected, rel_tol=0.0, abs_tol=1.0e-12)
+                for actual, expected in zip(
+                    data.spacing, POLLUTION_EXPECTED_SPACING
+                )
+            )
+        )
+        self.report(
+            metadata_ok,
+            f"{case.label} {filename} pollution VTI",
+            (
+                f"expected extent {POLLUTION_EXPECTED_EXTENT}, origin "
+                f"{POLLUTION_EXPECTED_ORIGIN}, spacing "
+                f"{POLLUTION_EXPECTED_SPACING}; got {data.extent}, "
+                f"{data.origin}, {data.spacing}"
+                if not metadata_ok
+                else ""
+            ),
+        )
+        return data
+
+    def expect_pollution_evolution(self, case: DriverCase) -> None:
+        try:
+            initial = self.read_pollution_vti(case.directory / "out_0.vti")
+            final = self.read_pollution_vti(case.directory / "out_1.vti")
+        except ValueError as error:
+            self.report(False, f"{case.label} physical source step", str(error))
+            return
+        initial_max = max(abs(value) for value in initial.values)
+        final_max = max(abs(value) for value in final.values)
+        self.report(
+            case.ok and initial_max <= ZERO_SOLUTION_TOL and final_max > ZERO_SOLUTION_TOL,
+            f"{case.label} physical source step",
+            f"max abs concentration {initial_max:.8g} -> {final_max:.8g}",
+        )
+
+    def expect_pollution_metrics(
+        self, reference: DriverCase, candidate: DriverCase | None = None
+    ) -> None:
+        case = reference if candidate is None else candidate
+        labels = (
+            "iGRM pollution completed steps:",
+            "iGRM pollution time:",
+            "iGRM pollution source integral:",
+            "iGRM pollution L2 norm:",
+            "iGRM pollution total mass:",
+            "iGRM pollution maximum coefficient abs:",
+            "iGRM pollution relative residual:",
+        )
+        try:
+            values = tuple(self.labeled_scalar(case, label) for label in labels)
+            reference_values = (
+                values
+                if candidate is None
+                else tuple(self.labeled_scalar(reference, label) for label in labels)
+            )
+        except ValueError as diagnostic:
+            self.report(False, f"{case.label} numerical diagnostics", str(diagnostic))
+            return
+
+        completed, time, source, l2_norm, mass, maximum, residual = values
+        passed = (
+            case.ok
+            and completed == 1.0
+            and math.isclose(time, 1.8, rel_tol=0.0, abs_tol=SCALAR_ABS_TOL)
+            and math.isclose(
+                source,
+                POLLUTION_EXACT_SOURCE_INTEGRAL,
+                rel_tol=5.0e-6,
+                abs_tol=0.0,
+            )
+            and all(
+                math.isfinite(value) and value > 0.0
+                for value in (l2_norm, mass, maximum)
+            )
+            and math.isfinite(residual)
+            and 0.0 <= residual <= 1.0e-10
+        )
+        if candidate is not None:
+            passed = passed and all(
+                math.isclose(
+                    actual,
+                    expected,
+                    rel_tol=SCALAR_REL_TOL,
+                    abs_tol=SCALAR_ABS_TOL,
+                )
+                for actual, expected in zip(values, reference_values)
+            )
+        details = (
+            f"source {source:.8g} (exact {POLLUTION_EXACT_SOURCE_INTEGRAL:.8g}), "
+            f"L2 {l2_norm:.8g}, mass {mass:.8g}, maximum {maximum:.8g}, "
+            f"relative residual {residual:.8g}"
+        )
+        self.report(passed, f"{case.label} numerical diagnostics", details)
+
+    def expect_matching_pollution_vti(
+        self, reference: DriverCase, candidate: DriverCase, filename: str
+    ) -> None:
+        try:
+            left = self.read_pollution_vti(reference.directory / filename)
+            right = self.read_pollution_vti(candidate.directory / filename)
+        except ValueError as error:
+            self.report(False, f"{candidate.label} {filename} matches serial", str(error))
+            return
+        if (
+            left.extent != right.extent
+            or left.origin != right.origin
+            or left.spacing != right.spacing
+        ):
+            self.report(
+                False,
+                f"{candidate.label} {filename} matches serial",
+                "VTK grid metadata differs",
+            )
+            return
+        for index, (expected, actual) in enumerate(zip(left.values, right.values)):
+            if not math.isclose(
+                actual, expected, rel_tol=VTK_REL_TOL, abs_tol=VTK_ABS_TOL
+            ):
+                self.report(
+                    False,
+                    f"{candidate.label} {filename} matches serial",
+                    f"value {index}: expected {expected:.12g}, got {actual:.12g}",
+                )
+                return
+        self.report(True, f"{candidate.label} {filename} matches serial")
 
     @classmethod
     def _named_data_array(cls, root: ET.Element, name: str) -> ET.Element:
@@ -1068,6 +1266,41 @@ def run_suite(suite: IntegrationSuite) -> None:
     suite.expect_igrm_stokes_metrics(igrm_stokes_coarse, igrm_stokes_hybrid)
     suite.expect_matching_stokes_vti(
         igrm_stokes_coarse, igrm_stokes_hybrid, "result.vti"
+    )
+
+    # Exercise one physical DPG step with a genuinely enriched test space.
+    # Source-aware quadrature resolves the radius-25 source independently of
+    # the coarse mesh, and the output override limits each file to 5^3 points.
+    pollution_environment = {"ADS_POLLUTION_OUTPUT_RESOLUTION": "4"}
+    igrm_pollution_serial = suite.run_driver(
+        "iGRM pollution serial",
+        1,
+        1,
+        "igrm_pollution",
+        [4, 0, 1, 0, 2, 1, 1, 1, 1, 1],
+        pollution_environment,
+    )
+    suite.expect_pollution_metrics(igrm_pollution_serial)
+    suite.expect_valid_pollution_vti(igrm_pollution_serial, "out_0.vti")
+    suite.expect_valid_pollution_vti(igrm_pollution_serial, "out_1.vti")
+    suite.expect_pollution_evolution(igrm_pollution_serial)
+    igrm_pollution_hybrid = suite.run_driver(
+        "iGRM pollution hybrid",
+        2,
+        2,
+        "igrm_pollution",
+        [4, 0, 1, 0, 2, 1, 1, 2, 1, 1],
+        pollution_environment,
+    )
+    suite.expect_pollution_metrics(igrm_pollution_serial, igrm_pollution_hybrid)
+    suite.expect_valid_pollution_vti(igrm_pollution_hybrid, "out_0.vti")
+    suite.expect_valid_pollution_vti(igrm_pollution_hybrid, "out_1.vti")
+    suite.expect_pollution_evolution(igrm_pollution_hybrid)
+    suite.expect_matching_pollution_vti(
+        igrm_pollution_serial, igrm_pollution_hybrid, "out_0.vti"
+    )
+    suite.expect_matching_pollution_vti(
+        igrm_pollution_serial, igrm_pollution_hybrid, "out_1.vti"
     )
 
     # The pure-diffusion driver has no result file, so require every real

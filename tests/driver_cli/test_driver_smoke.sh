@@ -70,6 +70,9 @@ run_smoke iGRM-Eriksson-MUMPS igrm_eirksson \
 run_smoke iGRM-Stokes igrm_stokes \
     2 2 2 2 2 2 2 2 2 \
     1 1 1
+ADS_POLLUTION_OUTPUT_RESOLUTION=4 \
+    run_smoke iGRM-pollution igrm_pollution \
+    4 0 1 0 2 1 1 1 1 1
 
 if [[ $failures -ne 0 ]]; then
     printf 'FAILED (%d/%d positive driver smoke checks)\n' "$failures" "$checks"

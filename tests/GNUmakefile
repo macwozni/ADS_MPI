@@ -64,7 +64,10 @@ PROBLEM_SUITES := \
 	igrm_eirksson_solver \
 	igrm_stokes_input_data \
 	igrm_stokes_rhs_fun \
-	igrm_stokes_solver
+	igrm_stokes_solver \
+	igrm_pollution_input_data \
+	igrm_pollution_rhs_fun \
+	igrm_pollution_solver
 
 DRIVER_SUITES := driver_cli
 SUITES := $(SRC_SUITES) $(PROBLEM_SUITES) $(DRIVER_SUITES)
