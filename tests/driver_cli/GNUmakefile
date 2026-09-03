@@ -4,11 +4,19 @@
 
 .PHONY: all tests run run-cli run-smoke run-integration clean
 
-MYMAKE_DIR ?= ../../mymake
-SRC_DIR    ?= ../../src
 CONFIG     ?= ../../m_options
 CONFIG_PATH := $(abspath $(CONFIG))
 include $(CONFIG_PATH)
+
+MYMAKE_DIR ?= ../../mymake
+SRC_DIR    ?= ../../src
+PROBLEMS_DIR ?= ../../problems
+MYMAKE_PATH := $(abspath $(MYMAKE_DIR))
+SRC_PATH := $(abspath $(SRC_DIR))
+PROBLEMS_PATH := $(abspath $(PROBLEMS_DIR))
+BUILD_ROOT ?= $(MYMAKE_PATH)
+BUILD_ROOT_PATH := $(abspath $(BUILD_ROOT))
+include $(PROBLEMS_PATH)/problems.mk
 
 MPIEXEC    ?= /opt/lib/mpich-5.0.0/bin/mpiexec
 MPIFC      ?= /opt/lib/mpich-5.0.0/bin/mpif90
@@ -17,58 +25,34 @@ DRIVER_CLI_TIMEOUT ?= 20s
 DRIVER_SMOKE_TIMEOUT ?= 60s
 DRIVER_INTEGRATION_TIMEOUT ?= 90
 SKIP_MPI_CASES ?= 0
-EXEC_DIR   := $(MYMAKE_DIR)/EXEC
-MYMAKE_COMPILER := COMPILER='$(MPIFC)'
+EXEC_DIR   := $(BUILD_ROOT_PATH)/EXEC
+PROBLEM_BUILD_OPTIONS := CONFIG='$(CONFIG_PATH)' \
+	                         BUILD_ROOT='$(BUILD_ROOT_PATH)' \
+	                         COMPILER='$(MPIFC)' MPIFC='$(MPIFC)'
 
-COMMON_SOURCES := $(wildcard $(SRC_DIR)/*.F90)
-BUILD_INPUTS   := GNUmakefile $(COMMON_SOURCES) $(MYMAKE_DIR)/makefile \
-                  $(MYMAKE_DIR)/m_files $(CONFIG_PATH)
+COMMON_SOURCES := $(wildcard $(SRC_PATH)/*.F90)
+BUILD_INPUTS   := GNUmakefile $(COMMON_SOURCES) $(SRC_PATH)/GNUmakefile \
+	                  $(SRC_PATH)/sources.mk $(PROBLEMS_PATH)/GNUmakefile \
+	                  $(PROBLEMS_PATH)/problem.mk $(PROBLEMS_PATH)/problems.mk \
+	                  $(CONFIG_PATH)
 
-DRIVERS := \
-   $(EXEC_DIR)/l2 \
-   $(EXEC_DIR)/heat \
-   $(EXEC_DIR)/eriksson \
-   $(EXEC_DIR)/pure_diffusion_igrm \
-   $(EXEC_DIR)/oil \
-   $(EXEC_DIR)/igrm_l2 \
-   $(EXEC_DIR)/igrm_heat \
-   $(EXEC_DIR)/igrm_eirksson \
-   $(EXEC_DIR)/igrm_stokes \
-   $(EXEC_DIR)/igrm_pollution
+DRIVERS := $(addprefix $(EXEC_DIR)/,$(PROBLEMS))
 
-# A driver test is also a clean-build test. This deliberately avoids reusing
-# an executable produced with a different compiler or build configuration.
+# A driver test is also a clean-build test.  Every executable is rebuilt via
+# its owning problem makefile, with the test compiler/configuration forwarded.
 .PHONY: $(DRIVERS)
 
-$(EXEC_DIR)/l2: $(BUILD_INPUTS) $(wildcard ../../problems/L2Projection/*.F90)
-	$(MAKE) -j1 -C $(MYMAKE_DIR) CONFIG='$(CONFIG_PATH)' $(MYMAKE_COMPILER) l2
+define DEFINE_DRIVER_BUILD
+$(EXEC_DIR)/$(1): $(BUILD_INPUTS) \
+		$(wildcard $(PROBLEMS_PATH)/$($(1)_DIR)/*.F90) \
+		$(PROBLEMS_PATH)/$($(1)_DIR)/GNUmakefile
+	+$$(MAKE) --no-print-directory -j1 -C $$(PROBLEMS_PATH) \
+		$$(PROBLEM_BUILD_OPTIONS) clean-$(1)
+	+$$(MAKE) --no-print-directory -j1 -C $$(PROBLEMS_PATH) \
+		$$(PROBLEM_BUILD_OPTIONS) build-$(1)
+endef
 
-$(EXEC_DIR)/heat: $(BUILD_INPUTS) $(wildcard ../../problems/heat/*.F90)
-	$(MAKE) -j1 -C $(MYMAKE_DIR) CONFIG='$(CONFIG_PATH)' $(MYMAKE_COMPILER) heat
-
-$(EXEC_DIR)/eriksson: $(BUILD_INPUTS) $(wildcard ../../problems/eriksson/*.F90)
-	$(MAKE) -j1 -C $(MYMAKE_DIR) CONFIG='$(CONFIG_PATH)' $(MYMAKE_COMPILER) eriksson
-
-$(EXEC_DIR)/pure_diffusion_igrm: $(BUILD_INPUTS) $(wildcard ../../problems/pure_diffusion_igrm/*.F90)
-	$(MAKE) -j1 -C $(MYMAKE_DIR) CONFIG='$(CONFIG_PATH)' $(MYMAKE_COMPILER) pure_diffusion_igrm
-
-$(EXEC_DIR)/oil: $(BUILD_INPUTS) $(wildcard ../../problems/oil/*.F90)
-	$(MAKE) -j1 -C $(MYMAKE_DIR) CONFIG='$(CONFIG_PATH)' $(MYMAKE_COMPILER) oil
-
-$(EXEC_DIR)/igrm_l2: $(BUILD_INPUTS) $(wildcard ../../problems/igrm_L2Projection/*.F90)
-	$(MAKE) -j1 -C $(MYMAKE_DIR) CONFIG='$(CONFIG_PATH)' $(MYMAKE_COMPILER) igrm_l2
-
-$(EXEC_DIR)/igrm_heat: $(BUILD_INPUTS) $(wildcard ../../problems/igrm_heat/*.F90)
-	$(MAKE) -j1 -C $(MYMAKE_DIR) CONFIG='$(CONFIG_PATH)' $(MYMAKE_COMPILER) igrm_heat
-
-$(EXEC_DIR)/igrm_eirksson: $(BUILD_INPUTS) $(wildcard ../../problems/igrm_eirksson/*.F90)
-	$(MAKE) -j1 -C $(MYMAKE_DIR) CONFIG='$(CONFIG_PATH)' $(MYMAKE_COMPILER) igrm_eirksson
-
-$(EXEC_DIR)/igrm_stokes: $(BUILD_INPUTS) $(wildcard ../../problems/igrm_stokes/*.F90)
-	$(MAKE) -j1 -C $(MYMAKE_DIR) CONFIG='$(CONFIG_PATH)' $(MYMAKE_COMPILER) igrm_stokes
-
-$(EXEC_DIR)/igrm_pollution: $(BUILD_INPUTS) $(wildcard ../../problems/igrm_pollution/*.F90)
-	$(MAKE) -j1 -C $(MYMAKE_DIR) CONFIG='$(CONFIG_PATH)' $(MYMAKE_COMPILER) igrm_pollution
+$(foreach problem,$(PROBLEMS),$(eval $(call DEFINE_DRIVER_BUILD,$(problem))))
 
 all: $(DRIVERS)
 

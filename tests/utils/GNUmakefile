@@ -26,6 +26,22 @@ OBJS := \
    $(OBJ_DIR)/utils.o \
    $(OBJ_DIR)/test_utils.o
 
+MODULES := $(addprefix $(OBJ_DIR)/, \
+   setup.mod \
+   knot_vector.mod \
+   parallelism.mod \
+   communicators.mod \
+   gauss.mod \
+   basis.mod \
+   my_mpi.mod \
+   projection_engine.mod \
+   ads_lifecycle.mod \
+   utils.mod \
+   norm_l2_test_support.mod)
+
+# Object name used before the MPI norm test was consolidated into test_utils.
+STALE_OBJS := $(OBJ_DIR)/test_norm_l2_mpi.o
+
 $(OBJ_DIR):
 	mkdir -p $@
 
@@ -90,4 +106,5 @@ run: all
 	bash ./test_int2str_cli.sh ./$(PROBE)
 
 clean:
-	$(RM) $(OBJS) $(OBJ_DIR)/$(PROBE).o $(OBJ_DIR)/*.mod $(TEST_NAME) $(PROBE)
+	$(RM) -- $(OBJS) $(OBJ_DIR)/$(PROBE).o $(STALE_OBJS) $(MODULES) \
+		$(TEST_NAME) $(PROBE)

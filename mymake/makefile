@@ -1,124 +1,122 @@
-CONFIG ?= m_options
-CONFIG_PATH := $(abspath $(CONFIG))
-include $(CONFIG_PATH)
-include m_files
-
+# Compatibility entry point for historical `make -C mymake ...` commands.
+# Official build knowledge belongs to src/ and problems/.  Only an explicitly
+# supplied SOURCE_ALL selects the isolated legacy adapter.
 .DEFAULT_GOAL := all
 .NOTPARALLEL:
 
-obj_path := _OBJ
-lib_path := LIB
-library_name := libads.a
-library_target := $(lib_path)/$(library_name)
+MYMAKE_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+ROOT_DIR := $(abspath $(MYMAKE_DIR)/..)
+SRC_DIR := $(ROOT_DIR)/src
+PROBLEMS_DIR := $(ROOT_DIR)/problems
 
-MODULE_OUTPUT ?= -J.
-FFLAGS += $(MODULE_OUTPUT) -I. -I./$(obj_path)
-ARFLAGS = rcs
+CONFIG ?= $(ROOT_DIR)/m_options
+CONFIG_PATH := $(abspath $(CONFIG))
+include $(CONFIG_PATH)
+
+# A configuration may deliberately select another artifact tree, so resolve
+# this only after loading CONFIG.
+BUILD_ROOT ?= $(MYMAKE_DIR)
+BUILD_ROOT_PATH := $(abspath $(BUILD_ROOT))
+
+include $(PROBLEMS_DIR)/problems.mk
+include $(MYMAKE_DIR)/legacy-source-build.mk
 
 EXEC ?= l2
-SOURCE_ALL ?= $(SOURCES) $(L2)
-VPATH = $(dir $(SOURCE_ALL))
+DELEGATE_OPTIONS = CONFIG="$(CONFIG_PATH)" BUILD_ROOT="$(BUILD_ROOT_PATH)"
 
-dot_o := .o
-objF90 := $(notdir $(filter %$(dot_o),$(SOURCE_ALL:.F90=$(dot_o))))
-OBJECT_ALL := $(addprefix $(obj_path)/,$(objF90))
-core_objF90 := $(notdir $(filter %$(dot_o),$(SOURCES:.F90=$(dot_o))))
-CORE_OBJECTS := $(addprefix $(obj_path)/,$(core_objF90))
+.PHONY: all build library problems list-problems show-config clean clean-all \
+	clean-problems clean-library clean-library-build help validate-exec \
+	$(PROBLEMS)
 
-PROBLEMS := l2 heat eriksson pure_diffusion_igrm oil igrm_l2 igrm_heat \
-	igrm_eirksson igrm_stokes igrm_pollution
+validate-exec:
+	@case ' $(PROBLEMS) ' in \
+		*' $(EXEC) '*) ;; \
+		*) printf 'Unknown EXEC: %s\nAvailable: %s\n' \
+			'$(EXEC)' '$(PROBLEMS)' >&2; exit 2 ;; \
+	esac
 
-.PHONY: all build library problems list-problems clean clean-all \
-	clean-problems clean-library clean-library-build help $(PROBLEMS)
+ifeq ($(origin SOURCE_ALL),undefined)
+# Historical default: build the named EXEC (l2 unless overridden) through its
+# owning problem makefile.
+all build: validate-exec
+	+$(MAKE) --no-print-directory -j1 -C $(PROBLEMS_DIR) \
+		$(DELEGATE_OPTIONS) build-$(EXEC)
 
-# Backward-compatible low-level build: callers may still supply SOURCE_ALL and
-# EXEC explicitly. The top-level Makefile uses the named clean-build targets.
-all: build
+# Without SOURCE_ALL, clean retains the historical selected-EXEC/core-object
+# scope, split between the two directories that now own those artifacts.
+clean: validate-exec
+	+$(MAKE) --no-print-directory -j1 -C $(PROBLEMS_DIR) \
+		$(DELEGATE_OPTIONS) clean-$(EXEC)
+	+$(MAKE) --no-print-directory -j1 -C $(SRC_DIR) \
+		$(DELEGATE_OPTIONS) clean-objects
+else
+# Arbitrary legacy builds remain available, but they never populate or alter
+# the official src/problem object directories.
+all build: legacy-build
 
-build: EXEC/$(EXEC)
+clean: legacy-clean
+endif
 
+# These public targets always delegate, even when SOURCE_ALL was inherited or
+# supplied on the command line.
 library:
-	+$(MAKE) --no-print-directory -j1 clean-library-build \
-		CONFIG="$(CONFIG_PATH)"
-	+$(MAKE) --no-print-directory -j1 $(library_target) \
-		CONFIG="$(CONFIG_PATH)"
+	+$(MAKE) --no-print-directory -j1 -C $(SRC_DIR) \
+		$(DELEGATE_OPTIONS) library
 
-EXEC/$(EXEC): $(OBJECT_ALL) | EXEC
-	$(FF) $(FFLAGS) -o $@ $(OBJECT_ALL) $(USER_LIB)
-	@printf 'Built %s\n' '$@'
+problems:
+	+$(MAKE) --no-print-directory -j1 -C $(PROBLEMS_DIR) \
+		$(DELEGATE_OPTIONS) problems
 
-$(library_target): $(CORE_OBJECTS) | $(lib_path)
-	$(AR) $(ARFLAGS) $@ $(CORE_OBJECTS)
-	@printf 'Built %s\n' '$@'
-
-$(obj_path)/%$(dot_o): %.F90 $(MAKEFILE_LIST) | $(obj_path)
-	$(FF) $(FFLAGS) -o $@ -c $<
-
-EXEC $(obj_path) $(lib_path):
-	mkdir -p $@
-
-l2: PROBLEM_SOURCES := $(L2)
-heat: PROBLEM_SOURCES := $(HEAT)
-eriksson: PROBLEM_SOURCES := $(ERIKSSON)
-pure_diffusion_igrm: PROBLEM_SOURCES := $(PURE_DIFFUSION_IGRM)
-oil: PROBLEM_SOURCES := $(OIL)
-igrm_l2: PROBLEM_SOURCES := $(IGRM_L2)
-igrm_heat: PROBLEM_SOURCES := $(IGRM_HEAT)
-igrm_eirksson: PROBLEM_SOURCES := $(IGRM_EIRKSSON)
-igrm_stokes: PROBLEM_SOURCES := $(IGRM_STOKES)
-igrm_pollution: PROBLEM_SOURCES := $(IGRM_POLLUTION)
-
-# The problem-local modules have identical names. Always clean and rebuild one
-# complete executable before moving to the next problem.
-$(PROBLEMS):
-	+$(MAKE) --no-print-directory -j1 clean \
-		CONFIG="$(CONFIG_PATH)" \
-		SOURCE_ALL='$(SOURCES) $(PROBLEM_SOURCES)' EXEC=$@
-	+$(MAKE) --no-print-directory -j1 build \
-		CONFIG="$(CONFIG_PATH)" \
-		SOURCE_ALL='$(SOURCES) $(PROBLEM_SOURCES)' EXEC=$@
-
-problems: $(PROBLEMS)
+define DEFINE_PROBLEM_TARGET
+$(1):
+	+$$(MAKE) --no-print-directory -j1 -C $$(PROBLEMS_DIR) \
+		$$(DELEGATE_OPTIONS) build-$(1)
+endef
+$(foreach problem,$(PROBLEMS),$(eval $(call DEFINE_PROBLEM_TARGET,$(problem))))
 
 list-problems:
-	@printf '%s\n' $(PROBLEMS)
+	+@$(MAKE) --no-print-directory -s -C $(PROBLEMS_DIR) \
+		$(DELEGATE_OPTIONS) list-problems
 
-# Selective cleanup retained for backward compatibility with SOURCE_ALL/EXEC.
-clean:
-	$(RM) -- $(OBJECT_ALL) $(dep_files) EXEC/$(EXEC)
-	$(RM) -- *.o *.mod */*.o */*.mod fort.1
+show-config:
+	+@$(MAKE) --no-print-directory -s -C $(SRC_DIR) \
+		$(DELEGATE_OPTIONS) show-config
 
 clean-problems:
-	$(RM) -- $(addprefix EXEC/,$(PROBLEMS))
-	$(RM) -- $(obj_path)/input_data.o $(obj_path)/RHS_fun.o \
-		$(obj_path)/igrm_mumps_solver.o $(obj_path)/igrm_stokes_solver.o \
-		$(obj_path)/pollution_dpg_solver.o $(obj_path)/main.o
-	$(RM) -- input_data.mod rhs_fun.mod igrm_mumps_solver.mod \
-		igrm_stokes_solver.mod pollution_dpg_solver.mod
+	+$(MAKE) --no-print-directory -j1 -C $(PROBLEMS_DIR) \
+		$(DELEGATE_OPTIONS) clean
 
 clean-library:
-	$(RM) -- $(library_target)
+	+$(MAKE) --no-print-directory -j1 -C $(SRC_DIR) \
+		$(DELEGATE_OPTIONS) clean-library
 
-# A library cannot safely reuse Fortran objects produced with another
-# compiler, profile, or example configuration. Rebuild its complete object
-# set on every public `library` invocation.
+# Historical alias: remove the complete core-library build, not configuration.
 clean-library-build:
-	$(RM) -r -- $(obj_path)
-	$(RM) -- $(library_target)
-	$(RM) -- *.o *.mod */*.o */*.mod fort.1
+	+$(MAKE) --no-print-directory -j1 -C $(SRC_DIR) \
+		$(DELEGATE_OPTIONS) clean
 
-clean-all:
-	$(RM) -r -- $(obj_path)
-	$(RM) -- $(addprefix EXEC/,$(PROBLEMS)) $(library_target)
-	$(RM) -- *.o *.mod */*.o */*.mod fort.1
+# Also remove every private legacy object tree and the executables registered
+# by those trees.  The adapter verifies ownership markers before recursion.
+clean-all: clean-problems clean-library-build legacy-clean-all
 
 help:
 	@printf '%s\n' \
-		'make                         build current SOURCE_ALL/EXEC (default L2)' \
-		'make library                 build LIB/libads.a' \
-		'make problems                clean-build all ten problem drivers' \
-		'make <problem>               clean-build one named driver' \
-		'make list-problems' \
-		'make clean                   clean current SOURCE_ALL/EXEC selection' \
-		'make clean-problems|clean-library|clean-all' \
-		'Configuration: $(CONFIG_PATH)'
+		'mymake compatibility delegator' \
+		'' \
+		'  make                         build l2 (or a named EXEC override)' \
+		'  make library                 delegate to ../src' \
+		'  make problems                delegate all drivers to ../problems' \
+		'  make <problem>               build one named driver' \
+		'  make list-problems | show-config' \
+		'  make clean                   clean the named EXEC and core objects' \
+		'  make clean-problems|clean-library|clean-library-build|clean-all' \
+		'' \
+		'Legacy custom build:' \
+		'  make SOURCE_ALL="../src/a.F90 ../app/main.F90" EXEC=my_app' \
+		'  make clean SOURCE_ALL="..." EXEC=my_app' \
+		'  Objects/modules: $(BUILD_ROOT_PATH)/_LEGACY_OBJ/<EXEC>' \
+		'  Executable:      $(BUILD_ROOT_PATH)/EXEC/<EXEC>' \
+		'' \
+		'For new named builds, prefer the repository-root Makefile.' \
+		'Configuration: $(CONFIG_PATH)' \
+		'Build root:    $(BUILD_ROOT_PATH)'

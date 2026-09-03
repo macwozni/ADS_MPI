@@ -5,19 +5,27 @@ direction solver (ADS) for isogeometric analysis (IGA), including the current
 iGRM-oriented workflow and several example problems.
 
 The code is research software. The repository-root `Makefile` is the public
-interface; it delegates low-level compilation to the `mymake` directory.
+interface and only orchestrates builds owned by `src/`, `problems/`, and
+`tests/`.
 
 ## Repository Layout
 
 ```text
-Makefile     Public hierarchical build/run/test/documentation interface
-m_options    Active local compiler, dependency, and tool configuration
-makeconfig/  Selectable GNU and Intel example configurations
-src/         Core ADS, IGA basis, MPI communication, sparse assembly, output
-problems/    Problem drivers and problem-specific data/callbacks
-mymake/      Low-level build implementation and generated artifacts
-tests/       Unit, integration, MPI, and driver-CLI regression suites
-doxygen/     Generated/documentation support files
+Makefile              Public orchestration, configuration, and documentation
+m_options             Active local compiler, dependency, and tool configuration
+makeconfig/           Selectable GNU and Intel example configurations
+src/GNUmakefile       Core-library build
+src/sources.mk        Ordered core-source manifest
+problems/GNUmakefile  Problem-build aggregator
+problems/problems.mk  Public problem-name/directory manifest
+problems/*/GNUmakefile
+                      Local source list, arguments, build, run, and cleanup
+tests/GNUmakefile     Test-group aggregator
+tests/{src,problems,driver}/GNUmakefile
+                      Test-suite manifests for each group
+tests/*/GNUmakefile   Build, run, and cleanup for one concrete suite
+mymake/               Compatibility entry point and generated artifacts
+doxygen/              Generated/documentation support files
 ```
 
 ## Dependencies
@@ -75,6 +83,7 @@ problems/<problem>/input_data.F90   Command-line parameters and problem data
 problems/<problem>/RHS_fun.F90      Pointwise forcing callback
 problems/<problem>/*_solver.F90     Optional problem-local solver
 problems/<problem>/main.F90         Driver
+problems/<problem>/GNUmakefile      Local build/run contract
 ```
 
 The active callback has the signature:
@@ -89,8 +98,8 @@ end function forcing
 ```
 
 Problem-local legacy `RHS_eq.F90` files may still exist as references, but the
-current `mymake/m_files` problem groups use `RHS_fun.F90`. The shared
-quadrature-level RHS assembly lives in `src/RHS_eq.F90`.
+active source lists in the problem-local GNUmakefiles use `RHS_fun.F90`. The
+shared quadrature-level RHS assembly lives in `src/RHS_eq.F90`.
 
 ## Time Integration Schemes
 
@@ -180,6 +189,30 @@ The default `BUILD=debug` preserves the existing bounds checks and
 AddressSanitizer flags. `BUILD=release` selects `RELEASE_OPTS` from the same
 configuration file.
 
+The make hierarchy is executable at every level:
+
+```text
+Makefile
+|-- src/GNUmakefile -- src/sources.mk
+|-- problems/GNUmakefile -- problems/problems.mk
+|   `-- problems/<problem>/GNUmakefile
+`-- tests/GNUmakefile
+    |-- tests/src/GNUmakefile ------ tests/<source-suite>/GNUmakefile
+    |-- tests/problems/GNUmakefile - tests/<problem-suite>/GNUmakefile
+    `-- tests/driver/GNUmakefile --- tests/driver_cli/GNUmakefile
+```
+
+The root does not own core or problem source lists, per-problem defaults, or
+test-suite registration. Consequently the corresponding subtree can also be
+used directly, for example:
+
+```bash
+make -C src library
+make -C problems build PROBLEM=heat
+make -C problems/heat show-run
+make -C tests/src run-suite TEST_SUITE=rhs_assembly
+```
+
 ### Build targets
 
 The default command builds the static ADS library and all ten problem
@@ -220,13 +253,19 @@ mymake/EXEC/igrm_stokes
 mymake/EXEC/igrm_pollution
 ```
 
-The lower-level `mymake/makefile` remains usable. It provides `library`,
-`problems`, all ten named problem targets, and the legacy `SOURCE_ALL`/`EXEC`
-interface.
+The lower-level `mymake/makefile` remains usable as a compatibility entry
+point. It delegates `library` to `src/` and problem targets to `problems/`; it
+no longer owns a duplicate source list or compilation implementation.
+Historical named `EXEC=<problem>` builds remain supported. Explicit
+`SOURCE_ALL` builds use a deliberately isolated compatibility adapter: it
+compiles only the caller-supplied ordered list, puts its objects and modules in
+`<BUILD_ROOT>/_LEGACY_OBJ/<EXEC>` (by default below `mymake/`), and never
+reuses the official core or problem object directories. Thus legacy custom
+programs remain buildable without moving source ownership back into `mymake`.
 
-The public `library` target intentionally rebuilds all core objects before
-creating the archive. This prevents a debug/release or GNU/Intel switch from
-silently mixing objects produced by different configurations.
+Both the core and each problem keep a stamp of their effective compiler and
+flags. A debug/release or GNU/Intel switch therefore rebuilds incompatible
+objects, while an unchanged second invocation remains incremental.
 
 ### Cleanup targets
 
@@ -234,6 +273,7 @@ silently mixing objects produced by different configurations.
 make clean-build
 make clean-problems
 make clean-library
+make clean-legacy
 make clean-tests
 make clean-docs
 make clean          # all generated build, test, and documentation artifacts
@@ -261,6 +301,8 @@ building or launching it.
 If `ARGS` is omitted, each target uses a small one-rank example with
 `steps=1` for transient problems. Output is written to `output/<problem>` by
 default; set `RUN_DIR` to choose another directory.
+The historical per-problem form, for example `heat_ARGS='...'`, is also
+accepted when the common `ARGS` variable is empty.
 
 All runtime controls can be supplied on the make command line:
 
@@ -665,9 +707,11 @@ accepts independently configured conforming trial/test continuities.
 
 ## Testing
 
-The root Makefile delegates to the authoritative `tests/GNUmakefile` and
-forwards the active configuration. The defaults below live in
-root `m_options` and may be overridden on the command line:
+The root Makefile delegates to `tests/GNUmakefile`, which delegates to the
+`src`, `problems`, and `driver` group GNUmakefiles; those in turn delegate to
+the individual suites. The active configuration is forwarded through every
+level. The defaults below live in root `m_options` and may be overridden on
+the command line:
 
 ```text
 PFUNIT_ROOT=/opt/lib/pfunit/PFUNIT-4.16
@@ -683,7 +727,7 @@ SKIP_MPI_CASES=0
 
 ### One source file, one primary test file
 
-Every active library source in the `SOURCES` group of `mymake/m_files` has
+Every active library source in the `SRC_FILES` manifest in `src/sources.mk` has
 exactly one primary, authored test file. The tab-separated mapping is stored
 in `tests/test-map.tsv`. A suite may still use fixtures, stubs, generated
 pFUnit sources, or link other production modules; those support files are not
@@ -695,14 +739,15 @@ Validate this invariant before changing or running the suites:
 make test-layout
 ```
 
-`check-layout` derives the active source list from `mymake/m_files` and rejects
+`check-layout` asks `src/GNUmakefile` for its active source list and rejects
 missing mappings, inactive sources, duplicate sources or test files, and
-paths that do not exist. It also keeps `SRC_SUITES` synchronized with the map
-and verifies that every library suite references its production source and
-primary test. All registered library, problem, and driver suites must have
-`all`, `run`, and `clean` targets; unregistered suite directories are rejected.
-Problem modules are kept in separate suites because several drivers deliberately
-use the same Fortran module names (`input_data` and `RHS_fun`).
+paths that do not exist. It also keeps the `tests/src` suite manifest
+synchronized with the map, validates the three group runners, and verifies
+that every library suite references its production source and primary test.
+All registered library, problem, and driver suites must have `all`, `run`, and
+`clean` targets; unregistered suite directories are rejected. Problem modules
+are kept in separate suites because several drivers deliberately use the same
+Fortran module names (`input_data` and `RHS_fun`).
 
 ### Test targets
 
@@ -738,11 +783,13 @@ make test-list
 make test-suite TEST_SUITE=rhs_assembly
 ```
 
-The lower-level `make -j1 -C tests ...` targets remain available. Driver
-executables built in `mymake/EXEC` are deliberately retained by `clean-tests`;
-use `clean-build` or `clean` to remove them.
+Every test level can be invoked directly. Driver executables built in
+`mymake/EXEC` are deliberately retained by `clean-tests`; use `clean-build` or
+`clean` to remove them.
 
 ```bash
+make -j1 -C tests run-src
+make -j1 -C tests/problems run-suite TEST_SUITE=heat_rhs_fun
 make -j1 -C tests/rhs_assembly run
 ```
 
@@ -761,12 +808,14 @@ make test \
   MUMPS_DIR=/path/to/mumps
 ```
 
-The runner is deliberately serialized because driver builds share
-`mymake/_OBJ`. Each suite is also protected by `SUITE_TIMEOUT`. MPI suites
-exercise up to eight ranks, and relevant OpenMP tests compare thread counts
-1, 2, 4, and 8. The top-level runner requires a POSIX environment with Bash
-and the coreutils `timeout` command; selected error-path probes additionally
-use POSIX process primitives.
+The runner is deliberately serialized to keep diagnostics deterministic and
+avoid oversubscribing MPI/OpenMP test jobs. Each problem build nevertheless
+has a private `_OBJ` directory, so identically named problem modules cannot be
+reused accidentally. Each suite is also protected by `SUITE_TIMEOUT`. MPI
+suites exercise up to eight ranks, and relevant OpenMP tests compare thread
+counts 1, 2, 4, and 8. The top-level runner requires a POSIX environment with
+Bash and the coreutils `timeout` command; selected error-path probes
+additionally use POSIX process primitives.
 
 ### Positive smoke and numerical integration tests
 
@@ -864,7 +913,9 @@ generation additionally requires a LaTeX installation with `pdflatex` and
 - A warning about `/opt/lib/parmetis/lib/include` may appear if that include
   directory does not exist locally. The builds used during recent smoke tests
   still completed with this warning.
-- `mymake/EXEC/`, `mymake/LIB/`, and `mymake/_OBJ/` contain generated build
-  outputs.
+- `mymake/EXEC/`, `mymake/LIB/`, and `mymake/_OBJ/` contain the public
+  generated executables, library, and core objects; each problem keeps its
+  own generated `_OBJ/` directory. Explicit legacy `SOURCE_ALL` builds use
+  marker-protected `<BUILD_ROOT>/_LEGACY_OBJ/<EXEC>` directories.
 - Doxygen-style comments are used throughout `src` and the migrated problem
   drivers.

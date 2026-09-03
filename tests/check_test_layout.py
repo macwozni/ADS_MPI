@@ -2,30 +2,54 @@
 """Verify the one-to-one mapping between active src files and primary tests."""
 
 from pathlib import Path
+import subprocess
 import sys
 
 
 REPO = Path(__file__).resolve().parent.parent
 RUNNER = Path(__file__).resolve().parent / "GNUmakefile"
-SOURCE_LIST = REPO / "mymake" / "m_files"
+SOURCE_RUNNER = REPO / "src"
 TEST_MAP = Path(__file__).resolve().parent / "test-map.tsv"
+GROUP_RUNNERS = {
+    "src": RUNNER.parent / "src" / "GNUmakefile",
+    "problems": RUNNER.parent / "problems" / "GNUmakefile",
+    "driver": RUNNER.parent / "driver" / "GNUmakefile",
+}
 
 
 def active_sources():
+    """Ask the src build owner for its public list of production sources."""
+    result = subprocess.run(
+        [
+            "make",
+            "--no-print-directory",
+            "-s",
+            "-C",
+            str(SOURCE_RUNNER),
+            "list-sources",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     sources = []
-    in_sources = False
-    for raw_line in SOURCE_LIST.read_text(encoding="utf-8").splitlines():
+    for raw_line in result.stdout.splitlines():
         line = raw_line.strip()
-        if line.startswith("SOURCES"):
-            in_sources = True
+        if not line:
             continue
-        if in_sources and not line:
-            break
-        if not in_sources:
-            continue
-        item = line.removesuffix("\\").strip()
-        if item.startswith("../src/"):
-            sources.append(item.removeprefix("../"))
+        path = Path(line)
+        if path.is_absolute():
+            try:
+                line = path.relative_to(REPO).as_posix()
+            except ValueError as error:
+                raise ValueError(
+                    f"src list-sources returned a path outside the repository: {line}"
+                ) from error
+        elif line.startswith("../src/"):
+            line = line.removeprefix("../")
+        elif not line.startswith("src/"):
+            line = f"src/{line}"
+        sources.append(line)
     return sources
 
 
@@ -90,7 +114,14 @@ def primary_tests(suite_dir):
 
 def main():
     errors = []
-    sources = active_sources()
+    try:
+        sources = active_sources()
+    except (OSError, subprocess.CalledProcessError, ValueError) as error:
+        print(
+            f"ERROR: cannot obtain active sources from src/GNUmakefile: {error}",
+            file=sys.stderr,
+        )
+        return 1
     pairs = declared_pairs()
     mapped_sources = [source for source, _ in pairs]
     mapped_tests = [test for _, test in pairs]
@@ -146,19 +177,32 @@ def main():
                 + (", ".join(candidates) if candidates else "none")
             )
 
-    runner_suites = make_list(RUNNER, "SRC_SUITES")
-    problem_suites = make_list(RUNNER, "PROBLEM_SUITES")
-    driver_suites = make_list(RUNNER, "DRIVER_SUITES")
+    runner_groups = make_list(RUNNER, "GROUPS")
+    expected_groups = list(GROUP_RUNNERS)
+    if runner_groups != expected_groups:
+        errors.append(
+            "tests/GNUmakefile GROUPS must be exactly: " + " ".join(expected_groups)
+        )
+
+    missing_group_runners = [
+        group for group, path in GROUP_RUNNERS.items() if not path.is_file()
+    ]
+    for group in missing_group_runners:
+        errors.append(f"test group has no GNUmakefile: {group}")
+
+    runner_suites = make_list(GROUP_RUNNERS["src"], "SUITES")
+    problem_suites = make_list(GROUP_RUNNERS["problems"], "SUITES")
+    driver_suites = make_list(GROUP_RUNNERS["driver"], "SUITES")
     all_runner_suites = runner_suites + problem_suites + driver_suites
 
     for suite in sorted(set(mapped_suites) - set(runner_suites)):
-        errors.append(f"mapped suite is missing from SRC_SUITES: {suite}")
+        errors.append(f"mapped suite is missing from tests/src SUITES: {suite}")
     for suite in sorted(set(runner_suites) - set(mapped_suites)):
-        errors.append(f"SRC_SUITES contains an unmapped suite: {suite}")
+        errors.append(f"tests/src SUITES contains an unmapped suite: {suite}")
     for suite in duplicates(mapped_suites):
         errors.append(f"suite contains more than one mapped source: {suite}")
     for suite in duplicates(runner_suites):
-        errors.append(f"suite is listed more than once in SRC_SUITES: {suite}")
+        errors.append(f"suite is listed more than once in tests/src SUITES: {suite}")
 
     for suite in duplicates(all_runner_suites):
         errors.append(f"suite is registered in more than one runner group: {suite}")
@@ -167,7 +211,9 @@ def main():
     suite_directories = {
         path.name
         for path in RUNNER.parent.iterdir()
-        if path.is_dir() and (path / "GNUmakefile").is_file()
+        if path.is_dir()
+        and path.name not in GROUP_RUNNERS
+        and (path / "GNUmakefile").is_file()
     }
     for suite in sorted(registered - suite_directories):
         errors.append(f"registered suite directory does not exist: {suite}")
@@ -179,6 +225,37 @@ def main():
         for target in ("all", "run", "clean"):
             if f"{target}:" not in make_text:
                 errors.append(f"suite has no {target} target: {suite}")
+
+    group_implementation = RUNNER.parent / "make" / "group.mk"
+    if not group_implementation.is_file():
+        errors.append("shared test-group implementation is missing: tests/make/group.mk")
+    else:
+        implementation_text = group_implementation.read_text(encoding="utf-8")
+        for target in ("all", "run", "run-suite", "list", "clean"):
+            if f"{target}:" not in implementation_text:
+                errors.append(f"test groups have no {target} target")
+
+    for group, group_runner in GROUP_RUNNERS.items():
+        if not group_runner.is_file():
+            continue
+        group_text = group_runner.read_text(encoding="utf-8")
+        if "include ../make/group.mk" not in group_text:
+            errors.append(f"test group does not use the shared runner: {group}")
+
+    runner_text = RUNNER.read_text(encoding="utf-8")
+    for target in (
+        "all",
+        "run",
+        "run-src",
+        "run-problems",
+        "run-driver",
+        "run-integration",
+        "run-suite",
+        "list",
+        "clean",
+    ):
+        if f"{target}:" not in runner_text:
+            errors.append(f"tests/GNUmakefile has no {target} target")
 
     if errors:
         for error in errors:

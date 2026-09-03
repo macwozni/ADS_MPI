@@ -2,114 +2,52 @@
 
 .NOTPARALLEL:
 
-.PHONY: all tests run run-src run-problems run-driver run-integration run-suite \
-	check-layout list clean
+.PHONY: all tests run run-src run-problems run-driver run-cli run-smoke \
+	run-integration run-suite check-layout list clean
 
 CONFIG      ?= ../m_options
 CONFIG_PATH := $(abspath $(CONFIG))
 include $(CONFIG_PATH)
 
+BUILD_ROOT  ?= ../mymake
+BUILD_ROOT_PATH := $(abspath $(BUILD_ROOT))
+
+PYTHON      ?= python3
 PFUNIT_ROOT ?= /opt/lib/pfunit/PFUNIT-4.16
 MPIEXEC     ?= /opt/lib/mpich-5.0.0/bin/mpiexec
 MPIFC       ?= /opt/lib/mpich-5.0.0/bin/mpif90
 MUMPS_DIR   ?= /opt/lib/MUMPS_5.8.2
-PYTHON      ?= python3
 SUITE_TIMEOUT ?= 600s
 DRIVER_CLI_TIMEOUT ?= 20s
 DRIVER_SMOKE_TIMEOUT ?= 60s
 DRIVER_INTEGRATION_TIMEOUT ?= 90
 SKIP_MPI_CASES ?= 0
 
-# Exactly one primary suite for every active source listed in mymake/m_files.
-SRC_SUITES := \
-	setup \
-	interfaces \
-	argument_parser \
-	knot_vector \
-	parallelism \
-	communicators \
-	gauss \
-	basis \
-	math \
-	reorder_rhs \
-	my_mpi \
-	sparse \
-	rhs_eq \
-	igrm_space \
-	operator_assembly \
-	rhs_assembly \
-	solution_reconstruction \
-	projection_engine \
-	ads_lifecycle \
-	mumps_solver \
-	ads_directional_solve \
-	utils \
-	plot \
-	gnuplot \
-	vtk \
-	solution_output \
-	ads \
-	time_scheme
+# This runner knows only the test groups.  Suite registration and execution
+# belong to the group makefiles, while each suite owns its actual build rules.
+GROUPS := src problems driver
 
-# Problem modules deliberately live in separate build directories because
-# several problems use the same Fortran module names (input_data/RHS_fun).
-PROBLEM_SUITES := \
-	oil_input_data \
-	oil_rhs_fun \
-	heat_input_data \
-	heat_rhs_fun \
-	igrm_heat_rhs_fun \
-	igrm_eirksson_input_data \
-	igrm_eirksson_rhs_fun \
-	igrm_eirksson_solver \
-	igrm_stokes_input_data \
-	igrm_stokes_rhs_fun \
-	igrm_stokes_solver \
-	igrm_pollution_input_data \
-	igrm_pollution_rhs_fun \
-	igrm_pollution_solver
+GROUP_OPTIONS = \
+	CONFIG="$(CONFIG_PATH)" \
+	BUILD_ROOT="$(BUILD_ROOT_PATH)" \
+	PFUNIT_ROOT="$(PFUNIT_ROOT)" \
+	MPIEXEC="$(MPIEXEC)" \
+	MPIFC="$(MPIFC)" \
+	FC="$(MPIFC)" \
+	MUMPS_DIR="$(MUMPS_DIR)" \
+	PYTHON="$(PYTHON)" \
+	SUITE_TIMEOUT="$(SUITE_TIMEOUT)" \
+	DRIVER_CLI_TIMEOUT="$(DRIVER_CLI_TIMEOUT)" \
+	DRIVER_SMOKE_TIMEOUT="$(DRIVER_SMOKE_TIMEOUT)" \
+	DRIVER_INTEGRATION_TIMEOUT="$(DRIVER_INTEGRATION_TIMEOUT)" \
+	SKIP_MPI_CASES="$(SKIP_MPI_CASES)"
 
-DRIVER_SUITES := driver_cli
-SUITES := $(SRC_SUITES) $(PROBLEM_SUITES) $(DRIVER_SUITES)
-
-define run_suites
+define delegate_groups
 	@set -eu; \
-	for suite in $(1); do \
-		printf '\n==> tests/%s: %s\n' "$$suite" "$(2)"; \
-		timeout $(SUITE_TIMEOUT) $(MAKE) -j1 -C "$$suite" \
-			CONFIG="$(CONFIG_PATH)" PYTHON="$(PYTHON)" \
-			PFUNIT_ROOT="$(PFUNIT_ROOT)" MPIEXEC="$(MPIEXEC)" \
-			MPIFC="$(MPIFC)" FC="$(MPIFC)" \
-			DRIVER_CLI_TIMEOUT="$(DRIVER_CLI_TIMEOUT)" \
-			DRIVER_SMOKE_TIMEOUT="$(DRIVER_SMOKE_TIMEOUT)" \
-			DRIVER_INTEGRATION_TIMEOUT="$(DRIVER_INTEGRATION_TIMEOUT)" \
-			SKIP_MPI_CASES="$(SKIP_MPI_CASES)" \
-			MUMPS_DIR="$(MUMPS_DIR)" "$(2)"; \
-	done
-endef
-
-define rebuild_and_run_suites
-	@set -eu; \
-	for suite in $(1); do \
-		printf '\n==> tests/%s: clean + run\n' "$$suite"; \
-		timeout $(SUITE_TIMEOUT) $(MAKE) -j1 -C "$$suite" \
-			CONFIG="$(CONFIG_PATH)" PYTHON="$(PYTHON)" \
-			PFUNIT_ROOT="$(PFUNIT_ROOT)" MPIEXEC="$(MPIEXEC)" \
-			MPIFC="$(MPIFC)" FC="$(MPIFC)" \
-			DRIVER_CLI_TIMEOUT="$(DRIVER_CLI_TIMEOUT)" \
-			DRIVER_SMOKE_TIMEOUT="$(DRIVER_SMOKE_TIMEOUT)" \
-			DRIVER_INTEGRATION_TIMEOUT="$(DRIVER_INTEGRATION_TIMEOUT)" \
-			SKIP_MPI_CASES="$(SKIP_MPI_CASES)" \
-			MUMPS_DIR="$(MUMPS_DIR)" clean; \
-		timeout $(SUITE_TIMEOUT) $(MAKE) -j1 -C "$$suite" \
-			CONFIG="$(CONFIG_PATH)" PYTHON="$(PYTHON)" \
-			PFUNIT_ROOT="$(PFUNIT_ROOT)" MPIEXEC="$(MPIEXEC)" \
-			MPIFC="$(MPIFC)" FC="$(MPIFC)" \
-			DRIVER_CLI_TIMEOUT="$(DRIVER_CLI_TIMEOUT)" \
-			DRIVER_SMOKE_TIMEOUT="$(DRIVER_SMOKE_TIMEOUT)" \
-			DRIVER_INTEGRATION_TIMEOUT="$(DRIVER_INTEGRATION_TIMEOUT)" \
-			SKIP_MPI_CASES="$(SKIP_MPI_CASES)" \
-			MUMPS_DIR="$(MUMPS_DIR)" run; \
+	for group in $(1); do \
+		printf '\n==> tests/%s: %s\n' "$$group" "$(2)"; \
+		$(MAKE) --no-print-directory -j1 -C "$$group" \
+			$(GROUP_OPTIONS) "$(2)"; \
 	done
 endef
 
@@ -117,38 +55,62 @@ check-layout:
 	$(PYTHON) ./check_test_layout.py
 
 all: check-layout
-	$(call run_suites,$(SUITES),all)
+	$(call delegate_groups,$(GROUPS),all)
 
 tests: all
 
 run-src: check-layout
-	$(call rebuild_and_run_suites,$(SRC_SUITES))
+	+$(MAKE) --no-print-directory -j1 -C src $(GROUP_OPTIONS) run
 
 run-problems: check-layout
-	$(call rebuild_and_run_suites,$(PROBLEM_SUITES))
+	+$(MAKE) --no-print-directory -j1 -C problems $(GROUP_OPTIONS) run
 
 run-driver:
-	$(call rebuild_and_run_suites,$(DRIVER_SUITES))
+	+$(MAKE) --no-print-directory -j1 -C driver $(GROUP_OPTIONS) run
+
+run-cli:
+	+$(MAKE) --no-print-directory -j1 -C driver $(GROUP_OPTIONS) run-cli
+
+run-smoke:
+	+$(MAKE) --no-print-directory -j1 -C driver $(GROUP_OPTIONS) run-smoke
 
 run-integration: check-layout
-	$(call run_suites,$(DRIVER_SUITES),run-integration)
+	+$(MAKE) --no-print-directory -j1 -C driver \
+		$(GROUP_OPTIONS) run-integration
 
 run-suite:
 	@if [ -z "$(TEST_SUITE)" ]; then \
-		printf '%s\n' 'TEST_SUITE is required, for example: make test-suite TEST_SUITE=rhs_assembly'; \
+		printf '%s\n' \
+			'TEST_SUITE is required, for example: make run-suite TEST_SUITE=rhs_assembly'; \
 		exit 2; \
 	fi
-	@case ' $(SUITES) ' in \
-		*' $(TEST_SUITE) '*) ;; \
-		*) printf 'Unknown test suite: %s\nAvailable: %s\n' \
-			'$(TEST_SUITE)' '$(SUITES)'; exit 2 ;; \
-	esac
-	$(call rebuild_and_run_suites,$(TEST_SUITE))
+	@set -eu; \
+	found=0; \
+	available=''; \
+	for group in $(GROUPS); do \
+		suites="$$( $(MAKE) --no-print-directory -s -C "$$group" list-inline )"; \
+		available="$$available $$suites"; \
+		case " $$suites " in \
+			*" $(TEST_SUITE) "*) \
+				$(MAKE) --no-print-directory -j1 -C "$$group" \
+					$(GROUP_OPTIONS) TEST_SUITE="$(TEST_SUITE)" run-suite; \
+				found=1; \
+				break ;; \
+		esac; \
+	done; \
+	if [ "$$found" -eq 0 ]; then \
+		printf 'Unknown test suite: %s\nAvailable: %s\n' \
+			'$(TEST_SUITE)' "$${available# }"; \
+		exit 2; \
+	fi
 
 run: run-src run-problems run-driver
 
 list:
-	@printf '%s\n' $(SUITES)
+	@set -eu; \
+	for group in $(GROUPS); do \
+		$(MAKE) --no-print-directory -s -C "$$group" list; \
+	done
 
 clean:
-	$(call run_suites,$(SUITES),clean)
+	$(call delegate_groups,$(GROUPS),clean)

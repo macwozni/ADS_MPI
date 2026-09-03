@@ -18,6 +18,24 @@ OBJS := \
    $(OBJ_DIR)/ADS.o \
    $(OBJ_DIR)/test_ads.o
 
+MODULES := $(addprefix $(OBJ_DIR)/, \
+   setup.mod \
+   interfaces.mod \
+   workflow_test_support.mod \
+   mpi.mod \
+   sparse.mod \
+   ads_lifecycle.mod \
+   mumps_solver.mod \
+   solution_output.mod \
+   projection_engine.mod \
+   ads_directional_solve.mod \
+   reorderrhs.mod \
+   my_mpi.mod \
+   adss.mod)
+
+# Object name used before the ADS error-propagation test was consolidated.
+STALE_OBJS := $(OBJ_DIR)/test_ads_error_propagation.o
+
 $(OBJ_DIR):
 	mkdir -p $@
 
@@ -48,4 +66,4 @@ run: $(TEST_NAME)
 	./$(TEST_NAME)
 
 clean:
-	$(RM) $(OBJS) $(OBJ_DIR)/*.mod $(OBJ_DIR)/*.smod $(TEST_NAME)
+	$(RM) -- $(OBJS) $(STALE_OBJS) $(MODULES) $(TEST_NAME)

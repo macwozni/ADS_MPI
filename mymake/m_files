@@ -1,83 +1,31 @@
+# Deprecated compatibility view of the hierarchical source manifests.
+#
+# New builds must use src/GNUmakefile and the problem-local GNUmakefiles.  The
+# variables below remain available to read-only legacy tooling, but no source
+# list is maintained in mymake anymore.
 
-SOURCES = \
-    ../src/Setup.F90 \
-    ../src/Interfaces.F90 \
-    ../src/argument_parser.F90 \
-    ../src/knot_vector.F90 \
-    ../src/parallelism.F90 \
-    ../src/communicators.F90 \
-    ../src/gauss.F90 \
-    ../src/basis.F90 \
-    ../src/math.F90 \
-    ../src/reorderRHS.F90 \
-    ../src/my_mpi.F90 \
-    ../src/sparse.F90 \
-    ../src/RHS_eq.F90 \
-    ../src/igrm_space.F90 \
-    ../src/operator_assembly.F90 \
-    ../src/rhs_assembly.F90 \
-    ../src/solution_reconstruction.F90 \
-    ../src/projection_engine.F90 \
-    ../src/ads_lifecycle.F90 \
-    ../src/mumps_solver.F90 \
-    ../src/ads_directional_solve.F90 \
-    ../src/utils.F90 \
-    ../src/plot.F90 \
-    ../src/gnuplot.F90 \
-    ../src/vtk.F90 \
-    ../src/solution_output.F90 \
-    ../src/ADS.F90 \
-    ../src/time_scheme.F90
+_ADS_M_FILES_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+_ADS_ROOT_DIR := $(abspath $(_ADS_M_FILES_DIR)/..)
+_ADS_CONFIG_PATH := $(abspath $(if $(CONFIG),$(CONFIG),$(_ADS_ROOT_DIR)/m_options))
 
-OIL = \
-    ../problems/oil/input_data.F90 \
-    ../problems/oil/RHS_fun.F90 \
-    ../problems/oil/main.F90
+include $(_ADS_ROOT_DIR)/src/sources.mk
+include $(_ADS_ROOT_DIR)/problems/problems.mk
 
-L2 = \
-    ../problems/L2Projection/input_data.F90 \
-    ../problems/L2Projection/RHS_fun.F90 \
-    ../problems/L2Projection/main.F90
+SOURCES = $(addprefix $(_ADS_ROOT_DIR)/src/,$(SRC_FILES))
 
-HEAT = \
-    ../problems/heat/input_data.F90 \
-    ../problems/heat/RHS_fun.F90 \
-    ../problems/heat/main.F90
+define _ADS_PROBLEM_SOURCES
+$(addprefix $(_ADS_ROOT_DIR)/problems/$($(1)_DIR)/,$(shell \
+	$(MAKE) --no-print-directory -s -C $(_ADS_ROOT_DIR)/problems/$($(1)_DIR) \
+	CONFIG="$(_ADS_CONFIG_PATH)" list-sources))
+endef
 
-ERIKSSON = \
-    ../problems/eriksson/input_data.F90 \
-    ../problems/eriksson/RHS_fun.F90 \
-    ../problems/eriksson/main.F90
-
-PURE_DIFFUSION_IGRM = \
-    ../problems/pure_diffusion_igrm/input_data.F90 \
-    ../problems/pure_diffusion_igrm/RHS_fun.F90 \
-    ../problems/pure_diffusion_igrm/main.F90
-
-IGRM_L2 = \
-    ../problems/igrm_L2Projection/input_data.F90 \
-    ../problems/igrm_L2Projection/RHS_fun.F90 \
-    ../problems/igrm_L2Projection/main.F90
-
-IGRM_HEAT = \
-    ../problems/igrm_heat/input_data.F90 \
-    ../problems/igrm_heat/RHS_fun.F90 \
-    ../problems/igrm_heat/main.F90
-
-IGRM_EIRKSSON = \
-    ../problems/igrm_eirksson/input_data.F90 \
-    ../problems/igrm_eirksson/RHS_fun.F90 \
-    ../problems/igrm_eirksson/igrm_mumps_solver.F90 \
-    ../problems/igrm_eirksson/main.F90
-
-IGRM_STOKES = \
-    ../problems/igrm_stokes/input_data.F90 \
-    ../problems/igrm_stokes/RHS_fun.F90 \
-    ../problems/igrm_stokes/igrm_stokes_solver.F90 \
-    ../problems/igrm_stokes/main.F90
-
-IGRM_POLLUTION = \
-    ../problems/igrm_pollution/input_data.F90 \
-    ../problems/igrm_pollution/RHS_fun.F90 \
-    ../problems/igrm_pollution/pollution_dpg_solver.F90 \
-    ../problems/igrm_pollution/main.F90
+L2 = $(call _ADS_PROBLEM_SOURCES,l2)
+HEAT = $(call _ADS_PROBLEM_SOURCES,heat)
+ERIKSSON = $(call _ADS_PROBLEM_SOURCES,eriksson)
+PURE_DIFFUSION_IGRM = $(call _ADS_PROBLEM_SOURCES,pure_diffusion_igrm)
+OIL = $(call _ADS_PROBLEM_SOURCES,oil)
+IGRM_L2 = $(call _ADS_PROBLEM_SOURCES,igrm_l2)
+IGRM_HEAT = $(call _ADS_PROBLEM_SOURCES,igrm_heat)
+IGRM_EIRKSSON = $(call _ADS_PROBLEM_SOURCES,igrm_eirksson)
+IGRM_STOKES = $(call _ADS_PROBLEM_SOURCES,igrm_stokes)
+IGRM_POLLUTION = $(call _ADS_PROBLEM_SOURCES,igrm_pollution)
