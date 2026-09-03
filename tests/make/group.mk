@@ -1,4 +1,4 @@
-# Shared implementation for the three test-group runners.  The including
+# Shared implementation for the test-group runners.  The including
 # makefile supplies TEST_GROUP_NAME and SUITES; individual suites continue to
 # own all compilation, execution, and cleanup details.
 

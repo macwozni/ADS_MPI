@@ -14,6 +14,7 @@ GROUP_RUNNERS = {
     "src": RUNNER.parent / "src" / "GNUmakefile",
     "problems": RUNNER.parent / "problems" / "GNUmakefile",
     "driver": RUNNER.parent / "driver" / "GNUmakefile",
+    "build": RUNNER.parent / "build" / "GNUmakefile",
 }
 
 
@@ -193,7 +194,10 @@ def main():
     runner_suites = make_list(GROUP_RUNNERS["src"], "SUITES")
     problem_suites = make_list(GROUP_RUNNERS["problems"], "SUITES")
     driver_suites = make_list(GROUP_RUNNERS["driver"], "SUITES")
-    all_runner_suites = runner_suites + problem_suites + driver_suites
+    build_suites = make_list(GROUP_RUNNERS["build"], "SUITES")
+    all_runner_suites = (
+        runner_suites + problem_suites + driver_suites + build_suites
+    )
 
     for suite in sorted(set(mapped_suites) - set(runner_suites)):
         errors.append(f"mapped suite is missing from tests/src SUITES: {suite}")
@@ -249,6 +253,7 @@ def main():
         "run-src",
         "run-problems",
         "run-driver",
+        "run-build-system",
         "run-integration",
         "run-suite",
         "list",
@@ -262,7 +267,10 @@ def main():
             print(f"ERROR: {error}", file=sys.stderr)
         return 1
 
-    print(f"OK ({len(sources)} active src files mapped one-to-one to primary tests)")
+    print(
+        f"OK ({len(sources)} active src files mapped one-to-one to primary tests; "
+        f"{len(all_runner_suites)} suites in {len(GROUP_RUNNERS)} groups)"
+    )
     return 0
 
 

@@ -65,6 +65,7 @@ TEST_OPTIONS = \
 .PHONY: all build build-all library problems list-problems list-configs help targets \
 	show-config config rebuild run run-help show-run \
 	test check test-build test-layout test-src test-problems test-driver \
+	test-build-system \
 	test-cli test-smoke test-integration test-list test-suite \
 	docs doc docs-html docs-pdf docs-check \
 	clean clean-build clean-problems clean-library clean-legacy clean-tests clean-docs \
@@ -137,6 +138,10 @@ test-problems:
 
 test-driver:
 	+$(MAKE) --no-print-directory -j1 -C $(TESTS_DIR) $(TEST_OPTIONS) run-driver
+
+test-build-system:
+	+$(MAKE) --no-print-directory -j1 -C $(TESTS_DIR) \
+		$(TEST_OPTIONS) run-build-system
 
 test-cli:
 	+$(MAKE) --no-print-directory -j1 -C $(TESTS_DIR) $(TEST_OPTIONS) run-cli
@@ -244,6 +249,7 @@ targets help:
 		'  make test-build                    build all tests without running' \
 		'  make test-layout                   verify one-to-one src/test layout' \
 		'  make test-src | test-problems | test-driver' \
+		'  make test-build-system             test the hierarchical Make interface' \
 		'  make test-cli | test-smoke | test-integration' \
 		'  make test-suite TEST_SUITE=rhs_assembly' \
 		'  make test-list' \

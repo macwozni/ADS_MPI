@@ -21,7 +21,7 @@ problems/problems.mk  Public problem-name/directory manifest
 problems/*/GNUmakefile
                       Local source list, arguments, build, run, and cleanup
 tests/GNUmakefile     Test-group aggregator
-tests/{src,problems,driver}/GNUmakefile
+tests/{src,problems,driver,build}/GNUmakefile
                       Test-suite manifests for each group
 tests/*/GNUmakefile   Build, run, and cleanup for one concrete suite
 mymake/               Compatibility entry point and generated artifacts
@@ -199,7 +199,8 @@ Makefile
 `-- tests/GNUmakefile
     |-- tests/src/GNUmakefile ------ tests/<source-suite>/GNUmakefile
     |-- tests/problems/GNUmakefile - tests/<problem-suite>/GNUmakefile
-    `-- tests/driver/GNUmakefile --- tests/driver_cli/GNUmakefile
+    |-- tests/driver/GNUmakefile --- tests/driver_cli/GNUmakefile
+    `-- tests/build/GNUmakefile ---- tests/make_hierarchy/GNUmakefile
 ```
 
 The root does not own core or problem source lists, per-problem defaults, or
@@ -708,10 +709,10 @@ accepts independently configured conforming trial/test continuities.
 ## Testing
 
 The root Makefile delegates to `tests/GNUmakefile`, which delegates to the
-`src`, `problems`, and `driver` group GNUmakefiles; those in turn delegate to
-the individual suites. The active configuration is forwarded through every
-level. The defaults below live in root `m_options` and may be overridden on
-the command line:
+`src`, `problems`, `driver`, and `build` group GNUmakefiles; those in turn
+delegate to the individual suites. The active configuration is forwarded
+through every level. The defaults below live in root `m_options` and may be
+overridden on the command line:
 
 ```text
 PFUNIT_ROOT=/opt/lib/pfunit/PFUNIT-4.16
@@ -742,17 +743,19 @@ make test-layout
 `check-layout` asks `src/GNUmakefile` for its active source list and rejects
 missing mappings, inactive sources, duplicate sources or test files, and
 paths that do not exist. It also keeps the `tests/src` suite manifest
-synchronized with the map, validates the three group runners, and verifies
+synchronized with the map, validates the four group runners, and verifies
 that every library suite references its production source and primary test.
-All registered library, problem, and driver suites must have `all`, `run`, and
-`clean` targets; unregistered suite directories are rejected. Problem modules
-are kept in separate suites because several drivers deliberately use the same
-Fortran module names (`input_data` and `RHS_fun`).
+All registered library, problem, driver, and build-system suites must have
+`all`, `run`, and `clean` targets; unregistered suite directories are
+rejected. The four group manifests currently register 44 suites: 28 library,
+14 problem, one driver, and one build-system suite. Problem modules are kept
+in separate suites because several drivers deliberately use the same Fortran
+module names (`input_data` and `RHS_fun`).
 
 ### Test targets
 
-The runner separates library tests, problem-specific callback tests, and
-full-driver tests:
+The runner separates library tests, problem-specific callback tests,
+full-driver tests, and build-system tests:
 
 ```bash
 # Check only the one-to-one layout.
@@ -767,6 +770,9 @@ make test-problems
 # Build all ten problem executables and run CLI, smoke, and numerical
 # integration tests.
 make test-driver
+
+# Exercise the hierarchical Make interface in an isolated build tree.
+make test-build-system
 
 # Individual driver layers.
 make test-cli
@@ -790,12 +796,14 @@ Every test level can be invoked directly. Driver executables built in
 ```bash
 make -j1 -C tests run-src
 make -j1 -C tests/problems run-suite TEST_SUITE=heat_rhs_fun
+make -j1 -C tests/build run-suite TEST_SUITE=make_hierarchy
 make -j1 -C tests/rhs_assembly run
 ```
 
-The aggregate `run-src`, `run-problems`, and `run-driver` targets clean each
-suite before running it, so compiler or flag changes cannot silently reuse a
-stale test executable. Driver executables are rebuilt unconditionally.
+The aggregate `run-src`, `run-problems`, `run-driver`, and `run-build-system`
+targets clean each suite before running it, so compiler or flag changes cannot
+silently reuse a stale test executable. Driver executables are rebuilt
+unconditionally.
 
 Pass non-default tool locations once at the root; they are forwarded to every
 suite:

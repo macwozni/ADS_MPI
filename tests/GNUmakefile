@@ -2,8 +2,8 @@
 
 .NOTPARALLEL:
 
-.PHONY: all tests run run-src run-problems run-driver run-cli run-smoke \
-	run-integration run-suite check-layout list clean
+.PHONY: all tests run run-src run-problems run-driver run-build-system \
+	run-cli run-smoke run-integration run-suite check-layout list clean
 
 CONFIG      ?= ../m_options
 CONFIG_PATH := $(abspath $(CONFIG))
@@ -25,7 +25,7 @@ SKIP_MPI_CASES ?= 0
 
 # This runner knows only the test groups.  Suite registration and execution
 # belong to the group makefiles, while each suite owns its actual build rules.
-GROUPS := src problems driver
+GROUPS := src problems driver build
 
 GROUP_OPTIONS = \
 	CONFIG="$(CONFIG_PATH)" \
@@ -68,6 +68,9 @@ run-problems: check-layout
 run-driver:
 	+$(MAKE) --no-print-directory -j1 -C driver $(GROUP_OPTIONS) run
 
+run-build-system: check-layout
+	+$(MAKE) --no-print-directory -j1 -C build $(GROUP_OPTIONS) run
+
 run-cli:
 	+$(MAKE) --no-print-directory -j1 -C driver $(GROUP_OPTIONS) run-cli
 
@@ -104,7 +107,7 @@ run-suite:
 		exit 2; \
 	fi
 
-run: run-src run-problems run-driver
+run: run-src run-problems run-driver run-build-system
 
 list:
 	@set -eu; \
