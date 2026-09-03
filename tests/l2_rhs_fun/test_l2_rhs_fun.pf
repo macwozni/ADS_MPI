@@ -1,0 +1,32 @@
+module test_l2_rhs_fun
+   use pfunit
+   use RHS_fun, only: forcing
+   implicit none
+
+contains
+
+   @test
+   subroutine test_forcing_is_constant_one()
+      real(kind=8) :: X(3), du(3)
+
+      X = (/ 0.25d0, 0.5d0, 0.75d0 /)
+      du = (/ 2.d0, 3.d0, 5.d0 /)
+
+      @assertTrue(forcing(11.d0, du, X) == 1.d0)
+   end subroutine test_forcing_is_constant_one
+
+
+   @test
+   subroutine test_forcing_ignores_state_gradient_and_coordinates()
+      real(kind=8) :: first, second
+
+      first = forcing(-huge(1.d0), (/ 7.d0, 11.d0, 13.d0 /), &
+                      (/ -2.d0, 3.d0, 4.d0 /))
+      second = forcing(huge(1.d0), (/ -7.d0, -11.d0, -13.d0 /), &
+                       (/ 9.d0, -8.d0, 6.d0 /))
+
+      @assertTrue(first == 1.d0)
+      @assertTrue(second == 1.d0)
+   end subroutine test_forcing_ignores_state_gradient_and_coordinates
+
+end module test_l2_rhs_fun

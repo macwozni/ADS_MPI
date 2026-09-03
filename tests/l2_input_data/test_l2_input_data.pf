@@ -1,0 +1,27 @@
+module test_l2_input_data
+   use pfunit
+   use input_data, only: order, isizex, isizey, isizez, procx, procy, procz
+   implicit none
+
+contains
+
+   @test
+   subroutine test_problem_parameters_are_independent_module_state()
+      isizex = 11
+      isizey = 13
+      isizez = 17
+      order = 3
+      procx = 2
+      procy = 5
+      procz = 7
+
+      @assertEqual(11, isizex)
+      @assertEqual(13, isizey)
+      @assertEqual(17, isizez)
+      @assertEqual(3, order)
+      @assertEqual(2, procx)
+      @assertEqual(5, procy)
+      @assertEqual(7, procz)
+   end subroutine test_problem_parameters_are_independent_module_state
+
+end module test_l2_input_data

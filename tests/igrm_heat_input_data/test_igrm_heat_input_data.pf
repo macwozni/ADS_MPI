@@ -1,0 +1,37 @@
+module test_igrm_heat_input_data
+   use pfunit
+   use input_data, only: TIME_SCHEME_DG, TIME_SCHEME_PR, TIME_SCHEME_BE, &
+                         selected_time_scheme, time_scheme, initial_state
+   use math, only: bump3d_calls, recorded_r, recorded_Rr, recorded_x, &
+                   recorded_y, recorded_z, reset_bump3d_stub
+   implicit none
+
+contains
+
+   @test
+   subroutine test_time_scheme_constants_and_defaults()
+      @assertEqual(1, TIME_SCHEME_DG)
+      @assertEqual(2, TIME_SCHEME_PR)
+      @assertEqual(3, TIME_SCHEME_BE)
+      @assertEqual(TIME_SCHEME_DG, selected_time_scheme)
+      @assertEqual('dg', trim(time_scheme))
+   end subroutine test_time_scheme_constants_and_defaults
+
+
+   @test
+   subroutine test_initial_state_delegates_to_scaled_heat_profile()
+      real(kind=8) :: actual
+
+      call reset_bump3d_stub
+      actual = initial_state(0.125d0, 0.375d0, 0.875d0)
+
+      @assertEqual(1, bump3d_calls)
+      @assertTrue(recorded_r == 0.05d0)
+      @assertTrue(recorded_Rr == 0.4d0)
+      @assertTrue(recorded_x == 0.125d0)
+      @assertTrue(recorded_y == 0.375d0)
+      @assertTrue(recorded_z == 0.875d0)
+      @assertTrue(actual == 14.5d0)
+   end subroutine test_initial_state_delegates_to_scaled_heat_profile
+
+end module test_igrm_heat_input_data

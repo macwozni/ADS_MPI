@@ -1,0 +1,54 @@
+module test_igrm_l2_rhs_fun
+   use pfunit
+   use RHS_fun, only: forcing
+   implicit none
+
+   real(kind=8), parameter :: TOL = 64.d0*epsilon(1.d0)
+
+contains
+
+   logical function close_enough(actual, expected) result(close)
+      real(kind=8), intent(in) :: actual, expected
+
+      close = abs(actual - expected) <= TOL*max(1.d0, abs(expected))
+   end function close_enough
+
+
+   @test
+   subroutine test_forcing_is_coordinate_product()
+      real(kind=8) :: X(3), du(3)
+
+      X = (/ 0.25d0, 0.5d0, 0.75d0 /)
+      du = (/ 2.d0, 3.d0, 5.d0 /)
+
+      @assertTrue(close_enough(forcing(11.d0, du, X), 0.09375d0))
+   end subroutine test_forcing_is_coordinate_product
+
+
+   @test
+   subroutine test_forcing_preserves_sign_and_zero_factors()
+      real(kind=8) :: negative_value, zero_value
+
+      negative_value = forcing(7.d0, (/ 1.d0, 2.d0, 3.d0 /), &
+                               (/ -2.d0, 3.d0, 4.d0 /))
+      zero_value = forcing(7.d0, (/ 1.d0, 2.d0, 3.d0 /), &
+                           (/ 2.d0, 0.d0, 4.d0 /))
+
+      @assertTrue(negative_value == -24.d0)
+      @assertTrue(zero_value == 0.d0)
+   end subroutine test_forcing_preserves_sign_and_zero_factors
+
+
+   @test
+   subroutine test_forcing_ignores_previous_state_and_gradient()
+      real(kind=8) :: X(3), first, second
+
+      X = (/ 0.1d0, 0.2d0, 0.3d0 /)
+      first = forcing(-huge(1.d0), (/ 7.d0, 11.d0, 13.d0 /), X)
+      second = forcing(huge(1.d0), (/ -7.d0, -11.d0, -13.d0 /), X)
+
+      @assertTrue(close_enough(first, 0.006d0))
+      @assertTrue(first == second)
+   end subroutine test_forcing_ignores_previous_state_and_gradient
+
+end module test_igrm_l2_rhs_fun

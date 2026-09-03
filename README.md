@@ -23,6 +23,8 @@ problems/*/GNUmakefile
 tests/GNUmakefile     Test-group aggregator
 tests/{src,problems,driver,build}/GNUmakefile
                       Test-suite manifests for each group
+tests/{test-map,problem-test-map}.tsv
+                      One-to-one production-source/primary-test mappings
 tests/*/GNUmakefile   Build, run, and cleanup for one concrete suite
 mymake/               Compatibility entry point and generated artifacts
 doxygen/              Generated/documentation support files
@@ -728,10 +730,13 @@ SKIP_MPI_CASES=0
 
 ### One source file, one primary test file
 
-Every active library source in the `SRC_FILES` manifest in `src/sources.mk` has
-exactly one primary, authored test file. The tab-separated mapping is stored
-in `tests/test-map.tsv`. A suite may still use fixtures, stubs, generated
-pFUnit sources, or link other production modules; those support files are not
+Every active library source in `src/sources.mk` and every non-driver problem
+source in the per-problem `SOURCES` manifests has exactly one primary,
+authored test file. The tab-separated mappings are stored in
+`tests/test-map.tsv` and `tests/problem-test-map.tsv`. Each problem's
+`main.F90` is exercised by the driver CLI, smoke, and integration layers. A
+unit-test suite may still use fixtures, probes, stubs, generated pFUnit
+sources, or link other production modules; those support files are not
 additional primary tests for the mapped source.
 
 Validate this invariant before changing or running the suites:
@@ -740,17 +745,18 @@ Validate this invariant before changing or running the suites:
 make test-layout
 ```
 
-`check-layout` asks `src/GNUmakefile` for its active source list and rejects
-missing mappings, inactive sources, duplicate sources or test files, and
-paths that do not exist. It also keeps the `tests/src` suite manifest
-synchronized with the map, validates the four group runners, and verifies
-that every library suite references its production source and primary test.
-All registered library, problem, driver, and build-system suites must have
-`all`, `run`, and `clean` targets; unregistered suite directories are
-rejected. The four group manifests currently register 44 suites: 28 library,
-14 problem, one driver, and one build-system suite. Problem modules are kept
-in separate suites because several drivers deliberately use the same Fortran
-module names (`input_data` and `RHS_fun`).
+`check-layout` asks the `src` and `problems` owners for their active source
+lists and rejects missing mappings, inactive sources, duplicate sources or
+test files, and paths that do not exist. It keeps both the `tests/src` and
+`tests/problems` suite manifests synchronized with their maps, validates the
+four group runners, and verifies that every unit suite references its
+production source and primary test. All registered library, problem, driver,
+and build-system suites must have `all`, `run`, and `clean` targets;
+unregistered suite directories are rejected. The four group manifests
+currently register 53 suites: 28 library, 23 problem, one driver, and one
+build-system suite. Problem modules are kept in separate suites because
+several drivers deliberately use the same Fortran module names (`input_data`
+and `RHS_fun`).
 
 ### Test targets
 
@@ -764,7 +770,7 @@ make test-layout
 # Run the 28 suites mapped to src/*.F90.
 make test-src
 
-# Run all problem-specific input, RHS, and solver suites.
+# Run all 23 problem-specific input, RHS, and solver suites.
 make test-problems
 
 # Build all ten problem executables and run CLI, smoke, and numerical

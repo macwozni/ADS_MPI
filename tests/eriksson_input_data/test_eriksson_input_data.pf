@@ -1,0 +1,46 @@
+module test_eriksson_input_data
+   use pfunit
+   use input_data, only: initial_state
+   implicit none
+
+   real(kind=8), parameter :: TOL = 128.d0*epsilon(1.d0)
+
+contains
+
+   logical function close_enough(actual, expected) result(close)
+      real(kind=8), intent(in) :: actual, expected
+
+      close = abs(actual - expected) <= TOL*max(1.d0, abs(expected))
+   end function close_enough
+
+
+   @test
+   subroutine test_initial_state_has_expected_radial_profile()
+      real(kind=8) :: midpoint_value
+
+      @assertTrue(initial_state(0.5d0, 0.5d0, 0.5d0) == 2.d0)
+      @assertTrue(initial_state(0.51d0, 0.5d0, 0.5d0) == 2.d0)
+
+      midpoint_value = initial_state(0.6125d0, 0.5d0, 0.5d0)
+      @assertTrue(close_enough(midpoint_value, 1.125d0))
+
+      @assertTrue(initial_state(0.75d0, 0.5d0, 0.5d0) == 0.d0)
+      @assertTrue(initial_state(0.d0, 0.d0, 0.d0) == 0.d0)
+   end subroutine test_initial_state_has_expected_radial_profile
+
+
+   @test
+   subroutine test_initial_state_is_spherically_symmetric()
+      real(kind=8) :: values(6)
+
+      values(1) = initial_state(0.6125d0, 0.5d0, 0.5d0)
+      values(2) = initial_state(0.3875d0, 0.5d0, 0.5d0)
+      values(3) = initial_state(0.5d0, 0.6125d0, 0.5d0)
+      values(4) = initial_state(0.5d0, 0.3875d0, 0.5d0)
+      values(5) = initial_state(0.5d0, 0.5d0, 0.6125d0)
+      values(6) = initial_state(0.5d0, 0.5d0, 0.3875d0)
+
+      @assertTrue(all(abs(values - values(1)) <= TOL))
+   end subroutine test_initial_state_is_spherically_symmetric
+
+end module test_eriksson_input_data

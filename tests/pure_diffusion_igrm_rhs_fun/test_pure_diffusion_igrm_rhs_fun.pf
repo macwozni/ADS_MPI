@@ -1,0 +1,47 @@
+module test_pure_diffusion_igrm_rhs_fun
+   use pfunit
+   use RHS_fun, only: forcing
+   implicit none
+
+   abstract interface
+      function forcing_fun(un, du, X) result(value)
+         implicit none
+         real(kind=8), intent(in) :: un
+         real(kind=8), intent(in) :: du(3)
+         real(kind=8), intent(in) :: X(3)
+         real(kind=8) :: value
+      end function forcing_fun
+   end interface
+
+contains
+
+   @test
+   subroutine test_forcing_is_zero_for_representative_inputs()
+      real(kind=8) :: actual
+
+      actual = forcing(0.d0, 0.d0*(/ 1.d0, 2.d0, 3.d0 /), &
+                       (/ 0.d0, 0.d0, 0.d0 /))
+      @assertTrue(actual == 0.d0)
+
+      actual = forcing(11.d0, (/ 2.d0, 3.d0, 5.d0 /), &
+                       (/ 0.25d0, 0.5d0, 0.75d0 /))
+      @assertTrue(actual == 0.d0)
+
+      actual = forcing(-huge(1.d0), (/ -7.d0, 11.d0, 13.d0 /), &
+                       (/ -huge(1.d0), 0.d0, huge(1.d0) /))
+      @assertTrue(actual == 0.d0)
+   end subroutine test_forcing_is_zero_for_representative_inputs
+
+
+   @test
+   subroutine test_forcing_conforms_to_library_callback_shape()
+      procedure(forcing_fun), pointer :: callback
+      real(kind=8) :: X(3), du(3)
+
+      callback => forcing
+      X = (/ 0.1d0, 0.2d0, 0.3d0 /)
+      du = (/ 7.d0, 11.d0, 13.d0 /)
+      @assertTrue(callback(17.d0, du, X) == 0.d0)
+   end subroutine test_forcing_conforms_to_library_callback_shape
+
+end module test_pure_diffusion_igrm_rhs_fun

@@ -1,0 +1,55 @@
+module test_pure_diffusion_igrm_input_data
+   use pfunit
+   use input_data, only: cN, cL, radius, pumping_strength, &
+                         draining_strength, cx, cy, cz, mi, GROUND, Kqmin, &
+                         Kqmax, npumps, ndrains, pumps, drains, Kqvals, &
+                         pollution, time_scheme, drained, g, b, n
+   implicit none
+
+contains
+
+   logical function close_enough(actual, expected) result(close)
+      real(kind=8), intent(in) :: actual, expected
+
+      close = abs(actual - expected) <= 1.d-7*max(1.d0, abs(expected))
+   end function close_enough
+
+   @test
+   subroutine test_template_constants_and_defaults()
+      @assertEqual(30, cN)
+      @assertEqual(16, cL)
+      @assertEqual(cN*cL, size(cx))
+      @assertEqual(cN*cL, size(cy))
+      @assertEqual(cN*cL, size(cz))
+      @assertTrue(close_enough(radius, 0.15d0))
+      @assertTrue(pumping_strength == 1.d0)
+      @assertTrue(draining_strength == 1.d0)
+      @assertTrue(mi == 10.d0)
+      @assertTrue(close_enough(GROUND, 0.2d0))
+      @assertTrue(Kqmin == 1.d0)
+      @assertTrue(Kqmax == 1000.d0)
+      @assertTrue(pollution == 0.d0)
+      @assertTrue(drained == 0.d0)
+      @assertTrue(trim(time_scheme) == 'dg')
+   end subroutine test_template_constants_and_defaults
+
+
+   @test
+   subroutine test_dynamic_template_storage_starts_unallocated()
+      @assertFalse(allocated(pumps))
+      @assertFalse(allocated(drains))
+      @assertFalse(allocated(Kqvals))
+   end subroutine test_dynamic_template_storage_starts_unallocated
+
+
+   @test
+   subroutine test_placeholder_boundary_functions_are_zero()
+      @assertTrue(g(0.d0, 0.d0, 0.d0) == 0.d0)
+      @assertTrue(g(-huge(1.d0), 7.d0, huge(1.d0)) == 0.d0)
+      @assertTrue(b(0.25d0, 0.5d0, 0.75d0) == 0.d0)
+      @assertTrue(b(-7.d0, 11.d0, 13.d0) == 0.d0)
+      @assertTrue(n(0.25d0, 0.5d0, 0.75d0) == 0.d0)
+      @assertTrue(n(-7.d0, 11.d0, 13.d0) == 0.d0)
+   end subroutine test_placeholder_boundary_functions_are_zero
+
+end module test_pure_diffusion_igrm_input_data

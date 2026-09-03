@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Verify the one-to-one mapping between active src files and primary tests."""
+"""Verify one-to-one primary tests for library and problem source files."""
 
 from pathlib import Path
+import os
 import subprocess
 import sys
 
@@ -9,7 +10,9 @@ import sys
 REPO = Path(__file__).resolve().parent.parent
 RUNNER = Path(__file__).resolve().parent / "GNUmakefile"
 SOURCE_RUNNER = REPO / "src"
-TEST_MAP = Path(__file__).resolve().parent / "test-map.tsv"
+PROBLEM_RUNNER = REPO / "problems"
+SOURCE_TEST_MAP = Path(__file__).resolve().parent / "test-map.tsv"
+PROBLEM_TEST_MAP = Path(__file__).resolve().parent / "problem-test-map.tsv"
 GROUP_RUNNERS = {
     "src": RUNNER.parent / "src" / "GNUmakefile",
     "problems": RUNNER.parent / "problems" / "GNUmakefile",
@@ -54,17 +57,98 @@ def active_sources():
     return sources
 
 
-def declared_pairs():
+def active_problem_sources():
+    """Return every manifested problem source that is not a program driver."""
+    directory_result = subprocess.run(
+        [
+            "make",
+            "--no-print-directory",
+            "-s",
+            "-C",
+            str(PROBLEM_RUNNER),
+            "list-directories",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    directories = {}
+    for raw_line in directory_result.stdout.splitlines():
+        fields = raw_line.split()
+        if len(fields) != 2:
+            raise ValueError(
+                "problems list-directories returned an invalid line: " + raw_line
+            )
+        problem, directory = fields
+        directories[problem] = directory
+
+    problem_result = subprocess.run(
+        [
+            "make",
+            "--no-print-directory",
+            "-s",
+            "-C",
+            str(PROBLEM_RUNNER),
+            "list-problems",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    problems = [line.strip() for line in problem_result.stdout.splitlines() if line.strip()]
+    if problems != list(directories):
+        raise ValueError("problem names and directory mappings are inconsistent")
+
+    sources = []
+    for problem in problems:
+        source_result = subprocess.run(
+            [
+                "make",
+                "--no-print-directory",
+                "-s",
+                "-C",
+                str(PROBLEM_RUNNER),
+                f"PROBLEM={problem}",
+                "list-sources",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        source_names = [
+            line.strip() for line in source_result.stdout.splitlines() if line.strip()
+        ]
+        if sum(Path(name).name == "main.F90" for name in source_names) != 1:
+            raise ValueError(f"problem {problem} must manifest exactly one main.F90")
+        problem_directory = PROBLEM_RUNNER / directories[problem]
+        for source_name in source_names:
+            source_path = Path(source_name)
+            candidate = (
+                source_path if source_path.is_absolute() else problem_directory / source_path
+            )
+            try:
+                relative = candidate.resolve().relative_to(REPO.resolve()).as_posix()
+            except ValueError as error:
+                raise ValueError(
+                    f"problem {problem} returned a source outside the repository: "
+                    f"{source_name}"
+                ) from error
+            if Path(relative).name != "main.F90":
+                sources.append(relative)
+    return sources
+
+
+def declared_pairs(test_map):
     pairs = []
     for line_number, raw_line in enumerate(
-        TEST_MAP.read_text(encoding="utf-8").splitlines(), start=1
+        test_map.read_text(encoding="utf-8").splitlines(), start=1
     ):
         line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
         fields = line.split()
         if len(fields) != 2:
-            raise ValueError(f"{TEST_MAP}:{line_number}: expected source and test path")
+            raise ValueError(f"{test_map}:{line_number}: expected source and test path")
         pairs.append(tuple(fields))
     return pairs
 
@@ -113,29 +197,40 @@ def primary_tests(suite_dir):
     return pf_tests + fortran_tests
 
 
-def main():
-    errors = []
-    try:
-        sources = active_sources()
-    except (OSError, subprocess.CalledProcessError, ValueError) as error:
-        print(
-            f"ERROR: cannot obtain active sources from src/GNUmakefile: {error}",
-            file=sys.stderr,
-        )
-        return 1
-    pairs = declared_pairs()
+def expanded_make_database(suite_dir):
+    """Return GNU Make's expanded database without building the suite."""
+    result = subprocess.run(
+        [
+            "make",
+            "--no-print-directory",
+            "-pn",
+            "-C",
+            str(suite_dir),
+            "--eval=.PHONY: __layout_database__",
+            "--eval=__layout_database__:",
+            "__layout_database__",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout
+
+
+def validate_primary_mapping(active, pairs, map_name, errors):
+    """Validate one source/test map and return its ordered suite names."""
     mapped_sources = [source for source, _ in pairs]
     mapped_tests = [test for _, test in pairs]
     mapped_suites = []
 
-    for source in sorted(set(sources) - set(mapped_sources)):
-        errors.append(f"active source has no primary test: {source}")
-    for source in sorted(set(mapped_sources) - set(sources)):
-        errors.append(f"test map contains inactive source: {source}")
+    for source in sorted(set(active) - set(mapped_sources)):
+        errors.append(f"active {map_name} source has no primary test: {source}")
+    for source in sorted(set(mapped_sources) - set(active)):
+        errors.append(f"{map_name} test map contains inactive source: {source}")
     for source in duplicates(mapped_sources):
-        errors.append(f"source is mapped more than once: {source}")
+        errors.append(f"{map_name} source is mapped more than once: {source}")
     for test in duplicates(mapped_tests):
-        errors.append(f"test file is mapped more than once: {test}")
+        errors.append(f"{map_name} test file is mapped more than once: {test}")
 
     for source, test in pairs:
         source_path = REPO / source
@@ -162,9 +257,18 @@ def main():
             continue
 
         make_text = makefile.read_text(encoding="utf-8")
-        if source_path.name not in make_text:
+        try:
+            make_database = expanded_make_database(suite_dir)
+        except subprocess.CalledProcessError as error:
+            errors.append(f"cannot expand suite GNUmakefile for {suite}: {error}")
+            continue
+        source_reference = Path(
+            os.path.relpath(source_path.resolve(), suite_dir.resolve())
+        ).as_posix()
+        if source_reference not in make_database:
             errors.append(
-                f"suite GNUmakefile does not reference mapped source {source}: {suite}"
+                f"suite GNUmakefile does not reference the mapped source path "
+                f"{source}: {suite}"
             )
         if "run:" not in make_text:
             errors.append(f"suite has no run target: {suite}")
@@ -177,6 +281,31 @@ def main():
                 f"suite {suite} must have exactly the mapped primary test; found: "
                 + (", ".join(candidates) if candidates else "none")
             )
+
+    return mapped_suites, mapped_tests
+
+
+def main():
+    errors = []
+    try:
+        sources = active_sources()
+        problem_sources = active_problem_sources()
+        source_pairs = declared_pairs(SOURCE_TEST_MAP)
+        problem_pairs = declared_pairs(PROBLEM_TEST_MAP)
+    except (OSError, subprocess.CalledProcessError, ValueError) as error:
+        print(
+            f"ERROR: cannot obtain or parse the active test manifests: {error}",
+            file=sys.stderr,
+        )
+        return 1
+    mapped_suites, mapped_tests = validate_primary_mapping(
+        sources, source_pairs, "src", errors
+    )
+    problem_mapped_suites, problem_mapped_tests = validate_primary_mapping(
+        problem_sources, problem_pairs, "problem", errors
+    )
+    for test in duplicates(mapped_tests + problem_mapped_tests):
+        errors.append(f"primary test is mapped across multiple source groups: {test}")
 
     runner_groups = make_list(RUNNER, "GROUPS")
     expected_groups = list(GROUP_RUNNERS)
@@ -207,6 +336,15 @@ def main():
         errors.append(f"suite contains more than one mapped source: {suite}")
     for suite in duplicates(runner_suites):
         errors.append(f"suite is listed more than once in tests/src SUITES: {suite}")
+
+    for suite in sorted(set(problem_mapped_suites) - set(problem_suites)):
+        errors.append(f"mapped suite is missing from tests/problems SUITES: {suite}")
+    for suite in sorted(set(problem_suites) - set(problem_mapped_suites)):
+        errors.append(f"tests/problems SUITES contains an unmapped suite: {suite}")
+    for suite in duplicates(problem_mapped_suites):
+        errors.append(f"problem suite contains more than one mapped source: {suite}")
+    for suite in duplicates(problem_suites):
+        errors.append(f"suite is listed more than once in tests/problems SUITES: {suite}")
 
     for suite in duplicates(all_runner_suites):
         errors.append(f"suite is registered in more than one runner group: {suite}")
@@ -268,7 +406,8 @@ def main():
         return 1
 
     print(
-        f"OK ({len(sources)} active src files mapped one-to-one to primary tests; "
+        f"OK ({len(sources)} active src files and {len(problem_sources)} "
+        "non-driver problem files mapped one-to-one to primary tests; "
         f"{len(all_runner_suites)} suites in {len(GROUP_RUNNERS)} groups)"
     )
     return 0

@@ -1,0 +1,24 @@
+# Active non-driver problem source	Primary authored test file
+problems/L2Projection/input_data.F90	tests/l2_input_data/test_l2_input_data.pf
+problems/L2Projection/RHS_fun.F90	tests/l2_rhs_fun/test_l2_rhs_fun.pf
+problems/heat/input_data.F90	tests/heat_input_data/test_heat_input_data.pf
+problems/heat/RHS_fun.F90	tests/heat_rhs_fun/test_heat_rhs_fun.pf
+problems/eriksson/input_data.F90	tests/eriksson_input_data/test_eriksson_input_data.pf
+problems/eriksson/RHS_fun.F90	tests/eriksson_rhs_fun/test_eriksson_rhs_fun.pf
+problems/pure_diffusion_igrm/input_data.F90	tests/pure_diffusion_igrm_input_data/test_pure_diffusion_igrm_input_data.pf
+problems/pure_diffusion_igrm/RHS_fun.F90	tests/pure_diffusion_igrm_rhs_fun/test_pure_diffusion_igrm_rhs_fun.pf
+problems/oil/input_data.F90	tests/oil_input_data/test_oil_input_data.pf
+problems/oil/RHS_fun.F90	tests/oil_rhs_fun/test_oil_rhs_fun.pf
+problems/igrm_L2Projection/input_data.F90	tests/igrm_l2_input_data/test_igrm_l2_input_data.pf
+problems/igrm_L2Projection/RHS_fun.F90	tests/igrm_l2_rhs_fun/test_igrm_l2_rhs_fun.pf
+problems/igrm_heat/input_data.F90	tests/igrm_heat_input_data/test_igrm_heat_input_data.pf
+problems/igrm_heat/RHS_fun.F90	tests/igrm_heat_rhs_fun/test_igrm_heat_rhs_fun.pf
+problems/igrm_eirksson/input_data.F90	tests/igrm_eirksson_input_data/test_igrm_eirksson_input_data.pf
+problems/igrm_eirksson/RHS_fun.F90	tests/igrm_eirksson_rhs_fun/test_igrm_eirksson_rhs_fun.pf
+problems/igrm_eirksson/igrm_mumps_solver.F90	tests/igrm_eirksson_solver/test_igrm_eirksson_solver.F90
+problems/igrm_stokes/input_data.F90	tests/igrm_stokes_input_data/test_igrm_stokes_input_data.pf
+problems/igrm_stokes/RHS_fun.F90	tests/igrm_stokes_rhs_fun/test_igrm_stokes_rhs_fun.pf
+problems/igrm_stokes/igrm_stokes_solver.F90	tests/igrm_stokes_solver/test_igrm_stokes_solver.F90
+problems/igrm_pollution/input_data.F90	tests/igrm_pollution_input_data/test_igrm_pollution_input_data.pf
+problems/igrm_pollution/RHS_fun.F90	tests/igrm_pollution_rhs_fun/test_igrm_pollution_rhs_fun.pf
+problems/igrm_pollution/pollution_dpg_solver.F90	tests/igrm_pollution_solver/test_igrm_pollution_solver.F90

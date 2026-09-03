@@ -1,0 +1,87 @@
+module test_eriksson_rhs_fun
+   use pfunit
+   use input_data, only: problem_time => t, initial_state_calls, &
+                         recorded_coordinates
+   use RHS_fun, only: forcing
+   implicit none
+
+   abstract interface
+      function forcing_fun(un, du, X) result(value)
+         implicit none
+         real(kind=8), intent(in) :: un
+         real(kind=8), intent(in) :: du(3)
+         real(kind=8), intent(in) :: X(3)
+         real(kind=8) :: value
+      end function forcing_fun
+   end interface
+
+contains
+
+   logical function close_enough(actual, expected) result(close)
+      real(kind=8), intent(in) :: actual, expected
+
+      close = abs(actual - expected) <= &
+              64.d0*epsilon(1.d0)*max(1.d0, abs(expected))
+   end function close_enough
+
+   @before
+   subroutine reset_stub()
+      problem_time = 0.d0
+      initial_state_calls = 0
+      recorded_coordinates = 0.d0
+   end subroutine reset_stub
+
+
+   @test
+   subroutine test_initial_pseudo_step_delegates_to_initial_state()
+      real(kind=8) :: X(3), actual
+
+      X = (/ 0.25d0, 0.5d0, 0.75d0 /)
+      actual = forcing(11.d0, (/ 2.d0, 3.d0, 5.d0 /), X)
+
+      @assertTrue(actual == 3.d0)
+      @assertEqual(1, initial_state_calls)
+      @assertTrue(all(recorded_coordinates == X))
+   end subroutine test_initial_pseudo_step_delegates_to_initial_state
+
+
+   @test
+   subroutine test_negative_time_uses_initial_state_and_ignores_solution()
+      real(kind=8) :: X(3), first, second
+
+      problem_time = -0.5d0
+      X = (/ 0.1d0, 0.2d0, 0.3d0 /)
+      first = forcing(-huge(1.d0), (/ 7.d0, 11.d0, 13.d0 /), X)
+      second = forcing(huge(1.d0), (/ -7.d0, -11.d0, -13.d0 /), X)
+
+      @assertTrue(first == second)
+      @assertTrue(close_enough(first, 1.8d0))
+      @assertEqual(2, initial_state_calls)
+   end subroutine test_negative_time_uses_initial_state_and_ignores_solution
+
+
+   @test
+   subroutine test_positive_time_returns_zero_without_initial_state_call()
+      real(kind=8) :: X(3), actual
+
+      problem_time = epsilon(1.d0)
+      X = (/ 0.1d0, 0.2d0, 0.3d0 /)
+      actual = forcing(huge(1.d0), (/ 7.d0, 11.d0, 13.d0 /), X)
+
+      @assertTrue(actual == 0.d0)
+      @assertEqual(0, initial_state_calls)
+   end subroutine test_positive_time_returns_zero_without_initial_state_call
+
+
+   @test
+   subroutine test_forcing_conforms_to_library_callback_shape()
+      procedure(forcing_fun), pointer :: callback
+      real(kind=8) :: X(3)
+
+      callback => forcing
+      X = (/ 0.25d0, 0.5d0, 0.75d0 /)
+      @assertTrue(callback(0.d0, 0.d0*X, X) == 3.d0)
+      @assertEqual(1, initial_state_calls)
+   end subroutine test_forcing_conforms_to_library_callback_shape
+
+end module test_eriksson_rhs_fun

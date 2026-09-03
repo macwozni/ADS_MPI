@@ -1,0 +1,38 @@
+module test_igrm_l2_input_data
+   use pfunit
+   use input_data, only: nelem, p_test, p_trial, procx, procy, procz, &
+                         TIME_SCHEME_DG, TIME_SCHEME_PR, TIME_SCHEME_BE, &
+                         scheme_tau, time_scheme, selected_time_scheme
+   implicit none
+
+contains
+
+   @test
+   subroutine test_default_time_scheme_is_douglas_gunn()
+      @assertEqual(1, TIME_SCHEME_DG)
+      @assertEqual(2, TIME_SCHEME_PR)
+      @assertEqual(3, TIME_SCHEME_BE)
+      @assertTrue(scheme_tau == 1.d0)
+      @assertTrue(trim(time_scheme) == "dg")
+      @assertEqual(TIME_SCHEME_DG, selected_time_scheme)
+   end subroutine test_default_time_scheme_is_douglas_gunn
+
+
+   @test
+   subroutine test_spatial_parameters_are_independent_module_state()
+      nelem = (/ 11, 13, 17 /)
+      p_test = (/ 5, 6, 7 /)
+      p_trial = (/ 2, 3, 4 /)
+      procx = 2
+      procy = 3
+      procz = 5
+
+      @assertTrue(all(nelem == (/ 11, 13, 17 /)))
+      @assertTrue(all(p_test == (/ 5, 6, 7 /)))
+      @assertTrue(all(p_trial == (/ 2, 3, 4 /)))
+      @assertEqual(2, procx)
+      @assertEqual(3, procy)
+      @assertEqual(5, procz)
+   end subroutine test_spatial_parameters_are_independent_module_state
+
+end module test_igrm_l2_input_data
