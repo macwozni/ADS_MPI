@@ -2,7 +2,8 @@ program test_solution_output
    use Setup, only: ADS_Setup
    use parallelism, only: MYRANK
    use mpi, only: MPI_COMM_WORLD, real_bcast_calls, character_bcast_calls, &
-                  bcast_contract_ok, broadcast_filename, reset_mpi_stub
+                  bcast_contract_ok, broadcast_filename, reset_mpi_stub, &
+                  real_bcast_error, character_bcast_error
    use my_mpi, only: gather_calls, captured_gather_root => captured_root, &
                      captured_gather_n => captured_n, &
                      captured_gather_p => captured_p, &
@@ -22,13 +23,21 @@ program test_solution_output
    integer(kind=4) :: checks, failures
    type(ADS_Setup) :: ads
    real(kind=8) :: part(2, 4)
+   character(len=32) :: test_mode
 
    checks = 0
    failures = 0
    call prepare_inputs(ads, part)
+   call get_command_argument(1, test_mode)
 
-   call test_root_orchestration(ads, part)
-   call test_nonroot_broadcast_path(ads, part)
+   if (trim(test_mode) /= 'mpi-failure') then
+      call test_root_orchestration(ads, part)
+      call test_nonroot_broadcast_path(ads, part)
+   end if
+   if (trim(test_mode) /= 'positive') then
+      call test_coefficient_broadcast_failure(ads, part)
+      call test_filename_broadcast_failure(ads, part)
+   end if
 
    if (failures == 0) then
       write (*, '(A,I0,A)') 'OK (', checks, ' solution_output checks)'
@@ -135,6 +144,46 @@ contains
       call assert_true('nonroot never invokes the VTK callback', vtk_calls == 0)
       MYRANK = 0
    end subroutine test_nonroot_broadcast_path
+
+
+   subroutine test_coefficient_broadcast_failure(space, local_part)
+      type(ADS_Setup), intent(in) :: space
+      real(kind=8), intent(in) :: local_part(:, :)
+      integer(kind=4), parameter :: injected_error = 7101
+      logical :: matches
+
+      MYRANK = 0
+      call reset_stubs()
+      real_bcast_error = injected_error
+      call PrintSolution(51, space, local_part)
+
+      matches = real_bcast_calls == 1 .and. character_bcast_calls == 0
+      call assert_true('coefficient Bcast failure skips the filename Bcast', matches)
+
+      matches = spline_plot_calls == 0 .and. vtk_calls == 0
+      call assert_true('coefficient Bcast failure prevents partial output', matches)
+   end subroutine test_coefficient_broadcast_failure
+
+
+   subroutine test_filename_broadcast_failure(space, local_part)
+      type(ADS_Setup), intent(in) :: space
+      real(kind=8), intent(in) :: local_part(:, :)
+      integer(kind=4), parameter :: injected_error = 7102
+      logical :: matches
+
+      MYRANK = 0
+      call reset_stubs()
+      character_bcast_error = injected_error
+      call PrintSolution(52, space, local_part)
+
+      matches = real_bcast_calls == 1 .and. character_bcast_calls == 1
+      matches = matches .and. bcast_contract_ok
+      call assert_true('filename Bcast fault reaches the expected collective', matches)
+
+      matches = spline_plot_calls == 0 .and. vtk_calls == 0
+      call assert_true('filename Bcast failure prevents output with partial metadata', &
+                       matches)
+   end subroutine test_filename_broadcast_failure
 
 
    subroutine reset_stubs()

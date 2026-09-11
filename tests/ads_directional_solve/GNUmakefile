@@ -1,22 +1,29 @@
 .DEFAULT_GOAL := all
 
-.PHONY: all tests run run-positive run-transport-errors clean
+.PHONY: all tests run run-positive run-transport-errors \
+	run-synchronization-errors clean
 
 SRC_DIR   ?= ../../src
 MUMPS_DIR ?= /opt/lib/MUMPS_5.8.2
 MPIEXEC   ?= /opt/lib/mpich-5.0.0/bin/mpiexec
 TIMEOUT   ?= timeout 30s
+SYNC_CASE_TIMEOUT ?= 10s
 FC        := /opt/lib/mpich-5.0.0/bin/mpif90
 OBJ_DIR   := _OBJ
 TEST_NAME := test_ads_directional_solve
 TRANSPORT_OBJ_DIR := _OBJ_transport
 TRANSPORT_TEST_NAME := ads_directional_transport_errors
+SYNC_FC   := gfortran
+SYNC_OBJ_DIR := _OBJ_sync
+SYNC_TEST_NAME := ads_directional_synchronization_errors
 
 FFLAGS += -std=f2003 -fimplicit-none -pedantic -cpp -O0 -g
 FFLAGS += -fcheck=all -fbounds-check -fopenmp -finit-real=snan
 FFLAGS += -J$(OBJ_DIR) -I$(OBJ_DIR) -I$(SRC_DIR) -I$(MUMPS_DIR)/include
 TRANSPORT_FFLAGS = $(filter-out -J$(OBJ_DIR) -I$(OBJ_DIR),$(FFLAGS)) \
 	-J$(TRANSPORT_OBJ_DIR) -I$(TRANSPORT_OBJ_DIR)
+SYNC_FFLAGS = $(filter-out -J$(OBJ_DIR) -I$(OBJ_DIR) -I$(MUMPS_DIR)/include,$(FFLAGS)) \
+	-J$(SYNC_OBJ_DIR) -I$(SYNC_OBJ_DIR)
 
 OBJS := \
 	$(OBJ_DIR)/Setup.o \
@@ -44,10 +51,26 @@ TRANSPORT_OBJS := \
 	$(TRANSPORT_OBJ_DIR)/ads_directional_solve.o \
 	$(TRANSPORT_OBJ_DIR)/transport_error_probe.o
 
+SYNC_OBJS := \
+	$(SYNC_OBJ_DIR)/sync_setup_stub.o \
+	$(SYNC_OBJ_DIR)/sync_parallelism_stub.o \
+	$(SYNC_OBJ_DIR)/sync_communicators_stub.o \
+	$(SYNC_OBJ_DIR)/sync_mpi_stub.o \
+	$(SYNC_OBJ_DIR)/sync_sparse_stub.o \
+	$(SYNC_OBJ_DIR)/my_mpi_failure_stub.o \
+	$(SYNC_OBJ_DIR)/sync_reorder_rhs_stub.o \
+	$(SYNC_OBJ_DIR)/sync_projection_engine_stub.o \
+	$(SYNC_OBJ_DIR)/sync_mumps_solver_stub.o \
+	$(SYNC_OBJ_DIR)/ads_directional_solve.o \
+	$(SYNC_OBJ_DIR)/synchronization_error_probe.o
+
 $(OBJ_DIR):
 	mkdir -p $@
 
 $(TRANSPORT_OBJ_DIR):
+	mkdir -p $@
+
+$(SYNC_OBJ_DIR):
 	mkdir -p $@
 
 $(OBJ_DIR)/Setup.o: $(SRC_DIR)/Setup.F90 | $(OBJ_DIR)
@@ -168,7 +191,61 @@ $(TRANSPORT_OBJ_DIR)/transport_error_probe.o: transport_error_probe.F90 \
 $(TRANSPORT_TEST_NAME): $(TRANSPORT_OBJS)
 	$(FC) $(TRANSPORT_FFLAGS) -o $@ $^
 
-all: $(TEST_NAME) $(TRANSPORT_TEST_NAME)
+$(SYNC_OBJ_DIR)/sync_setup_stub.o: sync_setup_stub.F90 | $(SYNC_OBJ_DIR)
+	$(SYNC_FC) $(SYNC_FFLAGS) -c $< -o $@
+
+$(SYNC_OBJ_DIR)/sync_parallelism_stub.o: sync_parallelism_stub.F90 | $(SYNC_OBJ_DIR)
+	$(SYNC_FC) $(SYNC_FFLAGS) -c $< -o $@
+
+$(SYNC_OBJ_DIR)/sync_communicators_stub.o: sync_communicators_stub.F90 | $(SYNC_OBJ_DIR)
+	$(SYNC_FC) $(SYNC_FFLAGS) -c $< -o $@
+
+$(SYNC_OBJ_DIR)/sync_mpi_stub.o: sync_mpi_stub.F90 | $(SYNC_OBJ_DIR)
+	$(SYNC_FC) $(SYNC_FFLAGS) -c $< -o $@
+
+$(SYNC_OBJ_DIR)/sync_sparse_stub.o: sync_sparse_stub.F90 | $(SYNC_OBJ_DIR)
+	$(SYNC_FC) $(SYNC_FFLAGS) -c $< -o $@
+
+$(SYNC_OBJ_DIR)/my_mpi_failure_stub.o: my_mpi_failure_stub.F90 | $(SYNC_OBJ_DIR)
+	$(SYNC_FC) $(SYNC_FFLAGS) -c $< -o $@
+
+$(SYNC_OBJ_DIR)/sync_reorder_rhs_stub.o: sync_reorder_rhs_stub.F90 | $(SYNC_OBJ_DIR)
+	$(SYNC_FC) $(SYNC_FFLAGS) -c $< -o $@
+
+$(SYNC_OBJ_DIR)/sync_projection_engine_stub.o: sync_projection_engine_stub.F90 \
+		$(SYNC_OBJ_DIR)/sync_sparse_stub.o | $(SYNC_OBJ_DIR)
+	$(SYNC_FC) $(SYNC_FFLAGS) -c $< -o $@
+
+$(SYNC_OBJ_DIR)/sync_mumps_solver_stub.o: sync_mumps_solver_stub.F90 \
+		$(SYNC_OBJ_DIR)/sync_sparse_stub.o | $(SYNC_OBJ_DIR)
+	$(SYNC_FC) $(SYNC_FFLAGS) -c $< -o $@
+
+$(SYNC_OBJ_DIR)/ads_directional_solve.o: $(SRC_DIR)/ads_directional_solve.F90 \
+		$(SYNC_OBJ_DIR)/sync_setup_stub.o \
+		$(SYNC_OBJ_DIR)/sync_parallelism_stub.o \
+		$(SYNC_OBJ_DIR)/sync_communicators_stub.o \
+		$(SYNC_OBJ_DIR)/sync_mpi_stub.o \
+		$(SYNC_OBJ_DIR)/sync_sparse_stub.o \
+		$(SYNC_OBJ_DIR)/my_mpi_failure_stub.o \
+		$(SYNC_OBJ_DIR)/sync_reorder_rhs_stub.o \
+		$(SYNC_OBJ_DIR)/sync_projection_engine_stub.o \
+		$(SYNC_OBJ_DIR)/sync_mumps_solver_stub.o | $(SYNC_OBJ_DIR)
+	$(SYNC_FC) $(SYNC_FFLAGS) -c $< -o $@
+
+$(SYNC_OBJ_DIR)/synchronization_error_probe.o: synchronization_error_probe.F90 \
+		$(SYNC_OBJ_DIR)/sync_setup_stub.o \
+		$(SYNC_OBJ_DIR)/sync_mpi_stub.o \
+		$(SYNC_OBJ_DIR)/my_mpi_failure_stub.o \
+		$(SYNC_OBJ_DIR)/sync_projection_engine_stub.o \
+		$(SYNC_OBJ_DIR)/sync_mumps_solver_stub.o \
+		$(SYNC_OBJ_DIR)/sync_reorder_rhs_stub.o \
+		$(SYNC_OBJ_DIR)/ads_directional_solve.o | $(SYNC_OBJ_DIR)
+	$(SYNC_FC) $(SYNC_FFLAGS) -c $< -o $@
+
+$(SYNC_TEST_NAME): $(SYNC_OBJS)
+	$(SYNC_FC) $(SYNC_FFLAGS) -o $@ $^
+
+all: $(TEST_NAME) $(TRANSPORT_TEST_NAME) $(SYNC_TEST_NAME)
 
 tests: all
 
@@ -183,9 +260,16 @@ run-positive: $(TEST_NAME)
 run-transport-errors: $(TRANSPORT_TEST_NAME)
 	OMP_DYNAMIC=FALSE OMP_NUM_THREADS=1 $(TIMEOUT) $(MPIEXEC) -n 1 ./$(TRANSPORT_TEST_NAME)
 
-run: run-positive run-transport-errors
+run-synchronization-errors: $(SYNC_TEST_NAME)
+	OMP_DYNAMIC=FALSE OMP_NUM_THREADS=1 \
+		SYNC_CASE_TIMEOUT=$(SYNC_CASE_TIMEOUT) \
+		bash ./run_synchronization_failures.sh ./$(SYNC_TEST_NAME)
+
+run: run-positive run-transport-errors run-synchronization-errors
 
 clean:
 	$(RM) $(OBJS) $(OBJ_DIR)/*.mod $(OBJ_DIR)/*.smod $(TEST_NAME)
 	$(RM) $(TRANSPORT_OBJS) $(TRANSPORT_OBJ_DIR)/*.mod $(TRANSPORT_OBJ_DIR)/*.smod \
 		$(TRANSPORT_TEST_NAME)
+	$(RM) $(SYNC_OBJS) $(SYNC_OBJ_DIR)/*.mod $(SYNC_OBJ_DIR)/*.smod \
+		$(SYNC_TEST_NAME)

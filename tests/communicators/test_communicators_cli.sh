@@ -3,6 +3,7 @@
 set -u
 
 PROBE=${PROBE:-./communicators_error_probe}
+PROBE_TIMEOUT=${PROBE_TIMEOUT:-10s}
 checks=0
 failures=0
 
@@ -13,7 +14,7 @@ expect_failure() {
     local output_file status
 
     output_file=$(mktemp)
-    "$PROBE" "$mode" >"$output_file" 2>&1
+    timeout "$PROBE_TIMEOUT" "$PROBE" "$mode" >"$output_file" 2>&1
     status=$?
     checks=$((checks + 1))
 
@@ -34,7 +35,7 @@ expect_success() {
     local output_file status
 
     output_file=$(mktemp)
-    "$PROBE" "$mode" >"$output_file" 2>&1
+    timeout "$PROBE_TIMEOUT" "$PROBE" "$mode" >"$output_file" 2>&1
     status=$?
     checks=$((checks + 1))
 
@@ -64,6 +65,12 @@ expect_failure 'Y mpi_comm_create error is fatal' \
     'error calling mpi_com_create for Y' comm-y
 expect_failure 'X mpi_comm_create error is fatal' \
     'error calling mpi_com_create for X' comm-x
+expect_success 'first MPI_Barrier error is returned without later phases' \
+    'SUCCESS barrier 1 failure stopped communicator creation' barrier-1
+expect_success 'second MPI_Barrier error is returned without later phases' \
+    'SUCCESS barrier 2 failure stopped communicator creation' barrier-2
+expect_success 'third MPI_Barrier error is returned without publishing handles' \
+    'SUCCESS barrier 3 failure stopped communicator creation' barrier-3
 expect_success 'cleanup retains first error and attempts every release' \
     'SUCCESS cleanup retained first error and continued' cleanup
 

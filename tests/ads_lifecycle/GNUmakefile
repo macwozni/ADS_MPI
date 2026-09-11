@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := all
 
-.PHONY: all tests run run-positive run-cli clean
+.PHONY: all tests run run-positive run-cli run-mpi-failure clean
 
 SRC_DIR   ?= ../../src
 MPIEXEC   ?= /opt/lib/mpich-5.0.0/bin/mpiexec
@@ -8,6 +8,9 @@ FC        := /opt/lib/mpich-5.0.0/bin/mpif90
 OBJ_DIR   := _OBJ
 TEST_NAME := test_ads_lifecycle
 PROBE     := ads_lifecycle_probe
+FAULT_FC      := gfortran
+FAULT_OBJ_DIR := _OBJ_mpi_failure
+FAULT_PROBE   := ads_lifecycle_allgather_failure_probe
 
 FFLAGS += -std=f2003 -fimplicit-none -pedantic -O0 -g
 FFLAGS += -fcheck=all -fbounds-check -fopenmp -finit-real=snan
@@ -24,7 +27,24 @@ OBJS := \
 
 PROBE_OBJ := $(OBJ_DIR)/ads_lifecycle_probe.o
 
+FAULT_FFLAGS := -std=f2003 -fimplicit-none -pedantic -O0 -g
+FAULT_FFLAGS += -fcheck=all -fbounds-check -fopenmp -finit-real=snan
+FAULT_FFLAGS += -J$(FAULT_OBJ_DIR) -I$(FAULT_OBJ_DIR) -I$(SRC_DIR)
+
+FAULT_OBJS := \
+   $(FAULT_OBJ_DIR)/mpi_fault_stub.o \
+   $(FAULT_OBJ_DIR)/Setup.o \
+   $(FAULT_OBJ_DIR)/parallelism_fault_stub.o \
+   $(FAULT_OBJ_DIR)/knot_vector.o \
+   $(FAULT_OBJ_DIR)/gauss.o \
+   $(FAULT_OBJ_DIR)/basis.o \
+   $(FAULT_OBJ_DIR)/ads_lifecycle.o \
+   $(FAULT_OBJ_DIR)/ads_lifecycle_allgather_failure_probe.o
+
 $(OBJ_DIR):
+	mkdir -p $@
+
+$(FAULT_OBJ_DIR):
 	mkdir -p $@
 
 $(OBJ_DIR)/Setup.o: $(SRC_DIR)/Setup.F90 | $(OBJ_DIR)
@@ -65,7 +85,44 @@ $(TEST_NAME): $(OBJS)
 $(PROBE): $(filter-out $(OBJ_DIR)/test_ads_lifecycle.o,$(OBJS)) $(PROBE_OBJ)
 	$(FC) $(FFLAGS) -o $@ $^
 
-all: $(TEST_NAME) $(PROBE)
+$(FAULT_OBJ_DIR)/mpi_fault_stub.o: mpi_fault_stub.F90 | $(FAULT_OBJ_DIR)
+	$(FAULT_FC) $(FAULT_FFLAGS) -c $< -o $@
+
+$(FAULT_OBJ_DIR)/Setup.o: $(SRC_DIR)/Setup.F90 | $(FAULT_OBJ_DIR)
+	$(FAULT_FC) $(FAULT_FFLAGS) -c $< -o $@
+
+$(FAULT_OBJ_DIR)/parallelism_fault_stub.o: parallelism_fault_stub.F90 \
+                                          | $(FAULT_OBJ_DIR)
+	$(FAULT_FC) $(FAULT_FFLAGS) -c $< -o $@
+
+$(FAULT_OBJ_DIR)/knot_vector.o: $(SRC_DIR)/knot_vector.F90 | $(FAULT_OBJ_DIR)
+	$(FAULT_FC) $(FAULT_FFLAGS) -c $< -o $@
+
+$(FAULT_OBJ_DIR)/gauss.o: $(SRC_DIR)/gauss.F90 | $(FAULT_OBJ_DIR)
+	$(FAULT_FC) $(FAULT_FFLAGS) -c $< -o $@
+
+$(FAULT_OBJ_DIR)/basis.o: $(SRC_DIR)/basis.F90 $(FAULT_OBJ_DIR)/gauss.o
+	$(FAULT_FC) $(FAULT_FFLAGS) -c $< -o $@
+
+$(FAULT_OBJ_DIR)/ads_lifecycle.o: $(SRC_DIR)/ads_lifecycle.F90 \
+                                 $(FAULT_OBJ_DIR)/mpi_fault_stub.o \
+                                 $(FAULT_OBJ_DIR)/Setup.o \
+                                 $(FAULT_OBJ_DIR)/parallelism_fault_stub.o \
+                                 $(FAULT_OBJ_DIR)/knot_vector.o \
+                                 $(FAULT_OBJ_DIR)/basis.o
+	$(FAULT_FC) $(FAULT_FFLAGS) -c $< -o $@
+
+$(FAULT_OBJ_DIR)/ads_lifecycle_allgather_failure_probe.o: \
+      ads_lifecycle_allgather_failure_probe.F90 \
+      $(FAULT_OBJ_DIR)/mpi_fault_stub.o \
+      $(FAULT_OBJ_DIR)/Setup.o \
+      $(FAULT_OBJ_DIR)/ads_lifecycle.o
+	$(FAULT_FC) $(FAULT_FFLAGS) -c $< -o $@
+
+$(FAULT_PROBE): $(FAULT_OBJS)
+	$(FAULT_FC) $(FAULT_FFLAGS) -o $@ $^
+
+all: $(TEST_NAME) $(PROBE) $(FAULT_PROBE)
 
 tests: all
 
@@ -77,8 +134,12 @@ run-positive: $(TEST_NAME)
 run-cli: $(PROBE)
 	MPIEXEC=$(MPIEXEC) PROBE=./$(PROBE) ./test_ads_lifecycle_cli.sh
 
-run: run-positive run-cli
+run-mpi-failure: $(FAULT_PROBE)
+	timeout 10s ./$(FAULT_PROBE)
+
+run: run-positive run-cli run-mpi-failure
 
 clean:
 	$(RM) $(OBJS) $(PROBE_OBJ) $(OBJ_DIR)/*.mod $(OBJ_DIR)/*.smod \
-		$(TEST_NAME) $(PROBE)
+		$(TEST_NAME) $(PROBE) $(FAULT_PROBE)
+	$(RM) -r $(FAULT_OBJ_DIR)

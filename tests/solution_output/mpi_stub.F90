@@ -8,6 +8,8 @@ module mpi
 
    integer(kind=4) :: real_bcast_calls = 0
    integer(kind=4) :: character_bcast_calls = 0
+   integer(kind=4) :: real_bcast_error = 0
+   integer(kind=4) :: character_bcast_error = 0
    logical :: bcast_contract_ok = .true.
    character(len=20) :: broadcast_filename = ''
 
@@ -21,6 +23,8 @@ contains
    subroutine reset_mpi_stub()
       real_bcast_calls = 0
       character_bcast_calls = 0
+      real_bcast_error = 0
+      character_bcast_error = 0
       bcast_contract_ok = .true.
       broadcast_filename = ''
    end subroutine reset_mpi_stub
@@ -37,6 +41,8 @@ contains
                           count == size(buffer) .and. &
                           datatype == MPI_DOUBLE_PRECISION .and. &
                           root == 0 .and. comm == MPI_COMM_WORLD
+      ierr = real_bcast_error
+      if (ierr /= 0) return
       if (MYRANK /= root) then
          do iz = 1, size(buffer, 3)
             do iy = 1, size(buffer, 2)
@@ -46,7 +52,6 @@ contains
             end do
          end do
       end if
-      ierr = 0
    end subroutine bcast_real_3d
 
 
@@ -60,8 +65,9 @@ contains
                           count == len(buffer) .and. &
                           datatype == MPI_CHARACTER .and. &
                           root == 0 .and. comm == MPI_COMM_WORLD
+      ierr = character_bcast_error
+      if (ierr /= 0) return
       if (MYRANK /= root) buffer = broadcast_filename
-      ierr = 0
    end subroutine bcast_character
 
 

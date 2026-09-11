@@ -10,6 +10,7 @@ OBJ_DIR   := _OBJ
 STUB_OBJ_DIR := _STUB_OBJ
 TEST_NAME := test_communicators
 ERROR_PROBE := communicators_error_probe
+PROBE_TIMEOUT ?= 10s
 
 FFLAGS += -std=f2003 -fimplicit-none -pedantic -O0 -g
 FFLAGS += -fcheck=all -fbounds-check
@@ -81,7 +82,8 @@ run-positive: $(TEST_NAME)
 	$(MPIEXEC) -n 8 ./$(TEST_NAME) 2 2 2
 
 run-stub: $(ERROR_PROBE)
-	PROBE=./$(ERROR_PROBE) ./test_communicators_cli.sh
+	PROBE=./$(ERROR_PROBE) PROBE_TIMEOUT=$(PROBE_TIMEOUT) \
+		./test_communicators_cli.sh
 
 run: run-positive run-stub
 

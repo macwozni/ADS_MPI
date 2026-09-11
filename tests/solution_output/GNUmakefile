@@ -1,11 +1,14 @@
 .DEFAULT_GOAL := all
 
-.PHONY: all tests run clean
+.PHONY: all tests run run-positive run-mpi-failure clean
 
 SRC_DIR   ?= ../../src
 FC        := gfortran
 OBJ_DIR   := _OBJ
 TEST_NAME := test_solution_output
+ERROR_CONTRACT_NAME := solution_output_error_contract_probe
+ERROR_CONTRACT_OBJ := $(OBJ_DIR)/solution_output_error_contract_probe.o
+TIMEOUT   ?= timeout 10s
 
 FFLAGS += -std=f2003 -fimplicit-none -pedantic -O0 -g
 FFLAGS += -fcheck=all -fbounds-check -finit-real=snan
@@ -53,15 +56,31 @@ $(OBJ_DIR)/test_solution_output.o: test_solution_output.F90 \
 		$(OBJ_DIR)/solution_output.o
 	$(FC) $(FFLAGS) -c $< -o $@
 
+$(ERROR_CONTRACT_OBJ): solution_output_error_contract_probe.F90 \
+		$(OBJ_DIR)/solution_output.o
+	$(FC) $(FFLAGS) -c $< -o $@
+
 $(TEST_NAME): $(OBJS)
+	$(FC) $(FFLAGS) -o $@ $^
+
+$(ERROR_CONTRACT_NAME): \
+		$(filter-out $(OBJ_DIR)/test_solution_output.o,$(OBJS)) \
+		$(ERROR_CONTRACT_OBJ)
 	$(FC) $(FFLAGS) -o $@ $^
 
 all: $(TEST_NAME)
 
 tests: all
 
-run: $(TEST_NAME)
-	./$(TEST_NAME)
+run-positive: $(TEST_NAME)
+	$(TIMEOUT) ./$(TEST_NAME) positive
+
+run-mpi-failure: $(TEST_NAME)
+	FAULT_TIMEOUT=10s bash ./run_solution_output_failures.sh \
+		./$(TEST_NAME) $(ERROR_CONTRACT_NAME)
+
+run: run-positive run-mpi-failure
 
 clean:
-	$(RM) $(OBJS) $(OBJ_DIR)/*.mod $(TEST_NAME)
+	$(RM) $(OBJS) $(ERROR_CONTRACT_OBJ) $(OBJ_DIR)/*.mod \
+		$(TEST_NAME) $(ERROR_CONTRACT_NAME)

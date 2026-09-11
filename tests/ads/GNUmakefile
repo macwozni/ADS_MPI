@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := all
 
-.PHONY: all tests run clean
+.PHONY: all tests run run-positive run-distribution-failure clean
 
 SRC_DIR   ?= ../../src
 FC        := gfortran
@@ -62,8 +62,13 @@ all: $(TEST_NAME)
 
 tests: all
 
-run: $(TEST_NAME)
-	./$(TEST_NAME)
+run-positive: $(TEST_NAME)
+	./$(TEST_NAME) positive
+
+run-distribution-failure: $(TEST_NAME)
+	timeout 10s ./$(TEST_NAME) distribution-failure
+
+run: run-positive run-distribution-failure
 
 clean:
 	$(RM) -- $(OBJS) $(STALE_OBJS) $(MODULES) $(TEST_NAME)

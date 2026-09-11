@@ -11,9 +11,11 @@ module workflow_test_support
    integer(kind=4) :: form_rhs_call_count = 0
    integer(kind=4) :: normalize_call_count = 0
    integer(kind=4) :: distribute_call_count = 0
+   integer(kind=4) :: distribute_status = 0
    integer(kind=4) :: recorded_solve_axes(3, MAX_SOLVES) = 0
    integer(kind=4) :: recorded_solve_directions(3, MAX_SOLVES) = 0
    logical :: recorded_solve_igrm(MAX_SOLVES) = .false.
+   logical :: distribute_status_requested = .false.
    real(kind=8) :: recorded_solve_mixA(4, MAX_SOLVES) = 0.0d0
    real(kind=8) :: recorded_solve_mixB(4, MAX_SOLVES) = 0.0d0
    real(kind=8) :: recorded_solve_mixBT(4, MAX_SOLVES) = 0.0d0
@@ -30,6 +32,8 @@ contains
       form_rhs_call_count = 0
       normalize_call_count = 0
       distribute_call_count = 0
+      distribute_status = 0
+      distribute_status_requested = .false.
       recorded_solve_axes = 0
       recorded_solve_directions = 0
       recorded_solve_igrm = .false.
@@ -49,6 +53,13 @@ contains
       end if
       solve_status(call_number) = status
    end subroutine fail_solve
+
+
+   subroutine fail_distribute(status)
+      integer(kind=4), intent(in) :: status
+
+      distribute_status = status
+   end subroutine fail_distribute
 
 
    real(kind=8) function forcing(un, du, X) result(value)
@@ -224,19 +235,23 @@ end module reorderRHS
 
 module my_mpi
    use Setup, only: ADS_Setup, ADS_compute_data
-   use workflow_test_support, only: distribute_call_count
+   use workflow_test_support, only: distribute_call_count, distribute_status, &
+      distribute_status_requested
    implicit none
    integer(kind=4), parameter :: Gather = 0
    integer(kind=4), parameter :: Scatter = 0
 
 contains
 
-   subroutine DistributeSpline(part, ads_trial, ads_data)
+   subroutine DistributeSpline(part, ads_trial, ads_data, ierr)
       real(kind=8), intent(in) :: part(:, :)
       type(ADS_Setup), intent(in) :: ads_trial
       type(ADS_compute_data), intent(inout) :: ads_data
+      integer(kind=4), intent(out), optional :: ierr
 
       distribute_call_count = distribute_call_count + 1
+      distribute_status_requested = present(ierr)
+      if (present(ierr)) ierr = distribute_status
    end subroutine DistributeSpline
 
 end module my_mpi

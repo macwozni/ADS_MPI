@@ -2,6 +2,7 @@ program test_ads
    use Setup, only: ADS_Setup, ADS_compute_data
    use ADSS, only: Sub_Step, Step, MultiStep
    use workflow_test_support, only: reset_workflow_spy, fail_solve, &
+      fail_distribute, distribute_status_requested, &
       solve_call_count, form_un_call_count, form_un_substeps, &
       form_rhs_call_count, normalize_call_count, distribute_call_count, forcing, &
       custom_rhs_point, recorded_solve_axes, recorded_solve_directions, &
@@ -10,24 +11,31 @@ program test_ads
    implicit none
 
    integer(kind=4) :: checks, failures
+   character(len=32) :: test_mode
 
    checks = 0
    failures = 0
+   call get_command_argument(1, test_mode)
 
-   call test_substep_stops_on_first_solve_error()
-   call test_substep_stops_on_second_solve_error()
-   call test_substep_stops_on_third_solve_error()
-   call test_substep_success_path()
-   call test_substep_uses_mass_mix_in_second_solve()
-   call test_substep_uses_mass_mix_in_third_solve()
-   call test_step_success_publishes_numeric_result()
-   call test_step_forwards_rhs_point()
-   call test_step_preserves_error_and_cleans_transients()
-   call test_multistep_stops_in_first_substep()
-   call test_multistep_preserves_error_and_cleans_transients()
-   call test_multistep_stops_in_third_substep()
-   call test_multistep_recovers_after_error()
-   call test_multistep_forwards_rhs_point_and_lhs_mix()
+   if (trim(test_mode) /= 'distribution-failure') then
+      call test_substep_stops_on_first_solve_error()
+      call test_substep_stops_on_second_solve_error()
+      call test_substep_stops_on_third_solve_error()
+      call test_substep_success_path()
+      call test_substep_uses_mass_mix_in_second_solve()
+      call test_substep_uses_mass_mix_in_third_solve()
+      call test_step_success_publishes_numeric_result()
+      call test_step_forwards_rhs_point()
+      call test_step_preserves_error_and_cleans_transients()
+      call test_multistep_stops_in_first_substep()
+      call test_multistep_preserves_error_and_cleans_transients()
+      call test_multistep_stops_in_third_substep()
+      call test_multistep_recovers_after_error()
+      call test_multistep_forwards_rhs_point_and_lhs_mix()
+   end if
+   if (trim(test_mode) /= 'positive') then
+      call test_step_preserves_distribution_error()
+   end if
 
    if (failures == 0) then
       write (*, '(A,I0,A)') 'OK (', checks, ' ADS error-propagation checks)'
@@ -212,6 +220,31 @@ contains
       call assert_true('Step leaves the optional point callback absent', &
                        .not. any(recorded_rhs_point_present))
    end subroutine test_step_success_publishes_numeric_result
+
+
+   subroutine test_step_preserves_distribution_error()
+      type(ADS_Setup) :: ads
+      type(ADS_compute_data) :: data
+      integer(kind=4), parameter :: injected_status = 9404
+      integer(kind=4) :: status
+
+      call initialize_setup_stub(ads)
+      call allocate_step_state(data)
+      call reset_workflow_spy()
+      call fail_distribute(injected_status)
+
+      call Step(7, forcing, ads, data, status)
+
+      call assert_true('Step returns the exact DistributeSpline MPI error', &
+                       status == injected_status)
+      call assert_true('Sub_Step requests the distribution error status', &
+                       distribute_status_requested)
+      call assert_true('distribution error stops publication and cleans work buffers', &
+                       distribute_call_count == 1 .and. &
+                       normalize_call_count == 1 .and. &
+                       .not. allocated(data%FF) .and. &
+                       transient_buffers_are_clean(data))
+   end subroutine test_step_preserves_distribution_error
 
 
    subroutine test_step_forwards_rhs_point()

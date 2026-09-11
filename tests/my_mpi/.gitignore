@@ -1,2 +1,5 @@
 /_OBJ/
 /test_my_mpi
+/_OBJ_fault/
+/distribute_failure_probe
+/distribute_error_contract_probe

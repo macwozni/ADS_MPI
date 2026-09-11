@@ -5,8 +5,12 @@ module mpi
    integer(kind=4), parameter :: MPI_COMM_NULL = 0
    integer(kind=4), parameter :: MPI_GROUP_NULL = 0
    integer(kind=4), parameter :: MPI_COMM_WORLD = 1
+   integer(kind=4), parameter :: BARRIER_1_SENTINEL = 1091
+   integer(kind=4), parameter :: BARRIER_2_SENTINEL = 1092
+   integer(kind=4), parameter :: BARRIER_3_SENTINEL = 1093
 
    integer(kind=4) :: failure_mode = 0
+   integer(kind=4) :: barrier_calls = 0
    integer(kind=4) :: comm_free_calls = 0
    integer(kind=4) :: group_free_calls = 0
    integer(kind=4) :: group_incl_calls = 0
@@ -18,6 +22,7 @@ contains
       integer(kind=4), intent(in) :: mode
 
       failure_mode = mode
+      barrier_calls = 0
       comm_free_calls = 0
       group_free_calls = 0
       group_incl_calls = 0
@@ -39,7 +44,17 @@ contains
       integer(kind=4), intent(in) :: comm
       integer(kind=4), intent(out) :: ierr
 
+      barrier_calls = barrier_calls + 1
       ierr = MPI_SUCCESS + 0*comm
+      if (failure_mode == 9 .and. barrier_calls == 1) then
+         ierr = BARRIER_1_SENTINEL
+      end if
+      if (failure_mode == 10 .and. barrier_calls == 2) then
+         ierr = BARRIER_2_SENTINEL
+      end if
+      if (failure_mode == 11 .and. barrier_calls == 3) then
+         ierr = BARRIER_3_SENTINEL
+      end if
    end subroutine mpi_barrier
 
 
