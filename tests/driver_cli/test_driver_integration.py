@@ -482,23 +482,42 @@ class IntegrationSuite:
         )
         return data
 
-    def expect_pollution_evolution(self, case: DriverCase) -> None:
+    def expect_pollution_evolution(
+        self, case: DriverCase, completed_steps: int = 1
+    ) -> None:
         try:
-            initial = self.read_pollution_vti(case.directory / "out_0.vti")
-            final = self.read_pollution_vti(case.directory / "out_1.vti")
+            states = [
+                self.read_pollution_vti(case.directory / f"out_{step}.vti")
+                for step in range(completed_steps + 1)
+            ]
         except ValueError as error:
-            self.report(False, f"{case.label} physical source step", str(error))
+            self.report(False, f"{case.label} physical source steps", str(error))
             return
-        initial_max = max(abs(value) for value in initial.values)
-        final_max = max(abs(value) for value in final.values)
+        maxima = [max(abs(value) for value in state.values) for state in states]
+        changed = [
+            any(
+                not math.isclose(before, after, rel_tol=1.0e-12, abs_tol=1.0e-12)
+                for before, after in zip(previous.values, current.values)
+            )
+            for previous, current in zip(states, states[1:])
+        ]
         self.report(
-            case.ok and initial_max <= ZERO_SOLUTION_TOL and final_max > ZERO_SOLUTION_TOL,
-            f"{case.label} physical source step",
-            f"max abs concentration {initial_max:.8g} -> {final_max:.8g}",
+            case.ok
+            and maxima[0] <= ZERO_SOLUTION_TOL
+            and all(maximum > ZERO_SOLUTION_TOL for maximum in maxima[1:])
+            and all(changed),
+            f"{case.label} physical source steps",
+            "max abs concentration "
+            + " -> ".join(f"{maximum:.8g}" for maximum in maxima)
+            + f"; consecutive fields changed: {changed}",
         )
 
     def expect_pollution_metrics(
-        self, reference: DriverCase, candidate: DriverCase | None = None
+        self,
+        reference: DriverCase,
+        candidate: DriverCase | None = None,
+        completed_steps: int = 1,
+        time_step: float = 1.8,
     ) -> None:
         case = reference if candidate is None else candidate
         labels = (
@@ -522,10 +541,16 @@ class IntegrationSuite:
             return
 
         completed, time, source, l2_norm, mass, maximum, residual = values
+        expected_time = completed_steps * time_step
         passed = (
             case.ok
-            and completed == 1.0
-            and math.isclose(time, 1.8, rel_tol=0.0, abs_tol=SCALAR_ABS_TOL)
+            and completed == float(completed_steps)
+            and math.isclose(
+                time,
+                expected_time,
+                rel_tol=0.0,
+                abs_tol=SCALAR_ABS_TOL,
+            )
             and math.isclose(
                 source,
                 POLLUTION_EXACT_SOURCE_INTEGRAL,
@@ -550,6 +575,8 @@ class IntegrationSuite:
                 for actual, expected in zip(values, reference_values)
             )
         details = (
+            f"completed {completed:.8g} (expected {completed_steps}), "
+            f"time {time:.8g} (expected {expected_time:.8g}), "
             f"source {source:.8g} (exact {POLLUTION_EXACT_SOURCE_INTEGRAL:.8g}), "
             f"L2 {l2_norm:.8g}, mass {mass:.8g}, maximum {maximum:.8g}, "
             f"relative residual {residual:.8g}"
@@ -1004,12 +1031,21 @@ class IntegrationSuite:
             + ", ".join(f"{value:.8g}" for value in values),
         )
 
-    def expect_solution_changed(self, case: DriverCase) -> None:
+    def expect_solution_changed(
+        self,
+        case: DriverCase,
+        before_filename: str = "step0.vti",
+        after_filename: str = "step1.vti",
+    ) -> None:
         try:
-            initial = self.read_vti(case.directory / "step0.vti")
-            final = self.read_vti(case.directory / "step1.vti")
+            initial = self.read_vti(case.directory / before_filename)
+            final = self.read_vti(case.directory / after_filename)
         except ValueError as error:
-            self.report(False, f"{case.label} physical solution changed", str(error))
+            self.report(
+                False,
+                f"{case.label} {before_filename} -> {after_filename} changed",
+                str(error),
+            )
             return
         changed = any(
             not math.isclose(before, after, rel_tol=1.0e-12, abs_tol=1.0e-12)
@@ -1017,22 +1053,31 @@ class IntegrationSuite:
         )
         self.report(
             changed,
-            f"{case.label} physical solution changed",
-            "step1 is identical to the initialization at step0",
+            f"{case.label} {before_filename} -> {after_filename} changed",
+            f"{after_filename} is identical to {before_filename}",
         )
 
-    def expect_sample_norm_decreased(self, case: DriverCase) -> None:
+    def expect_sample_norm_decreased(
+        self,
+        case: DriverCase,
+        before_filename: str = "step0.vti",
+        after_filename: str = "step1.vti",
+    ) -> None:
         try:
-            initial = self.read_vti(case.directory / "step0.vti")
-            final = self.read_vti(case.directory / "step1.vti")
+            initial = self.read_vti(case.directory / before_filename)
+            final = self.read_vti(case.directory / after_filename)
         except ValueError as error:
-            self.report(False, f"{case.label} dissipative heat oracle", str(error))
+            self.report(
+                False,
+                f"{case.label} {before_filename} -> {after_filename} dissipative",
+                str(error),
+            )
             return
         initial_norm = math.sqrt(sum(value * value for value in initial.values))
         final_norm = math.sqrt(sum(value * value for value in final.values))
         self.report(
             final_norm < initial_norm,
-            f"{case.label} dissipative heat oracle",
+            f"{case.label} {before_filename} -> {after_filename} dissipative",
             f"sample norm did not decrease ({initial_norm:.8g} -> {final_norm:.8g})",
         )
 
@@ -1131,6 +1176,25 @@ class IntegrationSuite:
             details = f"serial {expected:.16g}, candidate {actual:.16g}"
         self.report(passed, f"{label} drained result", details)
 
+    def expect_oil_accumulated(
+        self, one_step: DriverCase, two_steps: DriverCase
+    ) -> None:
+        try:
+            first = self.final_scalar(one_step)
+            second = self.final_scalar(two_steps)
+        except ValueError as error:
+            self.report(False, f"{two_steps.label} second-step drainage", str(error))
+            return
+        self.report(
+            one_step.ok
+            and two_steps.ok
+            and math.isfinite(first)
+            and math.isfinite(second)
+            and second > first,
+            f"{two_steps.label} second-step drainage",
+            f"one step {first:.16g}, two steps {second:.16g}",
+        )
+
 
 def run_suite(suite: IntegrationSuite) -> None:
     # Constant projection: real MUMPS, a 2x2x2 MPI grid, uneven DOF ownership,
@@ -1144,20 +1208,24 @@ def run_suite(suite: IntegrationSuite) -> None:
     )
     suite.expect_no_l2_failure(l2_hybrid)
 
-    # A real transient plus distributed gather/broadcast and VTK output.
+    # Two real physical steps exercise persistent-buffer rotation, repeated
+    # solver use, distributed gather/broadcast, and VTK output through step 2.
     heat_serial = suite.run_driver(
-        "heat serial", 1, 1, "heat", [3, 1, 1, 0.01, 1, 1, 1]
+        "heat serial", 1, 1, "heat", [3, 1, 2, 0.01, 1, 1, 1]
     )
-    suite.expect_iterations(heat_serial, [0, 1])
+    suite.expect_iterations(heat_serial, [0, 1, 2])
     suite.expect_valid_vti(heat_serial, "step0.vti")
     suite.expect_valid_vti(heat_serial, "step1.vti")
+    suite.expect_valid_vti(heat_serial, "step2.vti")
     suite.expect_solution_changed(heat_serial)
+    suite.expect_solution_changed(heat_serial, "step1.vti", "step2.vti")
     heat_hybrid = suite.run_driver(
-        "heat hybrid 2x2x2", 8, 4, "heat", [3, 1, 1, 0.01, 2, 2, 2]
+        "heat hybrid 2x2x2", 8, 4, "heat", [3, 1, 2, 0.01, 2, 2, 2]
     )
-    suite.expect_iterations(heat_hybrid, [0, 1])
+    suite.expect_iterations(heat_hybrid, [0, 1, 2])
     suite.expect_matching_vti(heat_serial, heat_hybrid, "step0.vti")
     suite.expect_matching_vti(heat_serial, heat_hybrid, "step1.vti")
+    suite.expect_matching_vti(heat_serial, heat_hybrid, "step2.vti")
 
     # Exact upstream defaults for space/order/dt, shortened to one physical
     # step.  The oracle covers the L2-projected initial state and first update.
@@ -1172,18 +1240,21 @@ def run_suite(suite: IntegrationSuite) -> None:
     suite.expect_iga_ads_heat_reference(heat_iga_ads)
 
     eriksson_serial = suite.run_driver(
-        "Eriksson serial", 1, 1, "eriksson", [2, 1, 1, 0.01, 1, 1, 1]
+        "Eriksson serial", 1, 1, "eriksson", [2, 1, 2, 0.01, 1, 1, 1]
     )
-    suite.expect_iterations(eriksson_serial, [0, 1])
+    suite.expect_iterations(eriksson_serial, [0, 1, 2])
     suite.expect_valid_vti(eriksson_serial, "step0.vti")
     suite.expect_valid_vti(eriksson_serial, "step1.vti")
+    suite.expect_valid_vti(eriksson_serial, "step2.vti")
     suite.expect_solution_changed(eriksson_serial)
+    suite.expect_solution_changed(eriksson_serial, "step1.vti", "step2.vti")
     eriksson_hybrid = suite.run_driver(
-        "Eriksson hybrid", 2, 4, "eriksson", [2, 1, 1, 0.01, 2, 1, 1]
+        "Eriksson hybrid", 2, 4, "eriksson", [2, 1, 2, 0.01, 2, 1, 1]
     )
-    suite.expect_iterations(eriksson_hybrid, [0, 1])
+    suite.expect_iterations(eriksson_hybrid, [0, 1, 2])
     suite.expect_matching_vti(eriksson_serial, eriksson_hybrid, "step0.vti")
     suite.expect_matching_vti(eriksson_serial, eriksson_hybrid, "step1.vti")
+    suite.expect_matching_vti(eriksson_serial, eriksson_hybrid, "step2.vti")
 
     # Stationary 3D Eriksson iGRM saddle problem.  It is assembled and solved
     # once through MUMPS, so require an actual nonzero field, a small algebraic
@@ -1268,7 +1339,7 @@ def run_suite(suite: IntegrationSuite) -> None:
         igrm_stokes_coarse, igrm_stokes_hybrid, "result.vti"
     )
 
-    # Exercise one physical DPG step with a genuinely enriched test space.
+    # Exercise two physical DPG steps with a genuinely enriched test space.
     # Source-aware quadrature resolves the radius-25 source independently of
     # the coarse mesh, and the output override limits each file to 5^3 points.
     pollution_environment = {"ADS_POLLUTION_OUTPUT_RESOLUTION": "4"}
@@ -1277,44 +1348,51 @@ def run_suite(suite: IntegrationSuite) -> None:
         1,
         1,
         "igrm_pollution",
-        [4, 0, 1, 0, 2, 1, 1, 1, 1, 1],
+        [4, 0, 1, 0, 2, 1, 2, 1, 1, 1],
         pollution_environment,
     )
-    suite.expect_pollution_metrics(igrm_pollution_serial)
+    suite.expect_pollution_metrics(igrm_pollution_serial, completed_steps=2)
     suite.expect_valid_pollution_vti(igrm_pollution_serial, "out_0.vti")
     suite.expect_valid_pollution_vti(igrm_pollution_serial, "out_1.vti")
-    suite.expect_pollution_evolution(igrm_pollution_serial)
+    suite.expect_valid_pollution_vti(igrm_pollution_serial, "out_2.vti")
+    suite.expect_pollution_evolution(igrm_pollution_serial, completed_steps=2)
     igrm_pollution_hybrid = suite.run_driver(
         "iGRM pollution hybrid",
         2,
         2,
         "igrm_pollution",
-        [4, 0, 1, 0, 2, 1, 1, 2, 1, 1],
+        [4, 0, 1, 0, 2, 1, 2, 2, 1, 1],
         pollution_environment,
     )
-    suite.expect_pollution_metrics(igrm_pollution_serial, igrm_pollution_hybrid)
+    suite.expect_pollution_metrics(
+        igrm_pollution_serial, igrm_pollution_hybrid, completed_steps=2
+    )
     suite.expect_valid_pollution_vti(igrm_pollution_hybrid, "out_0.vti")
     suite.expect_valid_pollution_vti(igrm_pollution_hybrid, "out_1.vti")
-    suite.expect_pollution_evolution(igrm_pollution_hybrid)
+    suite.expect_valid_pollution_vti(igrm_pollution_hybrid, "out_2.vti")
+    suite.expect_pollution_evolution(igrm_pollution_hybrid, completed_steps=2)
     suite.expect_matching_pollution_vti(
         igrm_pollution_serial, igrm_pollution_hybrid, "out_0.vti"
     )
     suite.expect_matching_pollution_vti(
         igrm_pollution_serial, igrm_pollution_hybrid, "out_1.vti"
     )
+    suite.expect_matching_pollution_vti(
+        igrm_pollution_serial, igrm_pollution_hybrid, "out_2.vti"
+    )
 
     # The pure-diffusion driver has no result file, so require every real
-    # scheme to complete both initialization and the t>0 step on MPI ranks.
+    # scheme to complete initialization and two t>0 steps on MPI ranks.
     for scheme in ("dg", "pr", "be"):
         pure = suite.run_driver(
             f"pure diffusion {scheme.upper()}",
             2,
             4,
             "pure_diffusion_igrm",
-            [3, 1, 2, 1, 1, 1, 0.1, scheme],
+            [3, 1, 2, 1, 1, 2, 0.1, scheme],
         )
-        suite.expect_iterations(pure, [0, 1])
-        suite.expect_zero_solution(pure, [0, 1])
+        suite.expect_iterations(pure, [0, 1, 2])
+        suite.expect_zero_solution(pure, [0, 1, 2])
 
     # All public iGRM scheme dispatches with a serial/distributed result oracle.
     for scheme in ("dg", "pr", "be"):
@@ -1341,58 +1419,75 @@ def run_suite(suite: IntegrationSuite) -> None:
             1,
             1,
             "igrm_heat",
-            [2, 2, 2, 3, 3, 3, 2, 2, 2, 1, 1, 1, 1, 0.001, scheme],
+            [2, 2, 2, 3, 3, 3, 2, 2, 2, 1, 1, 1, 2, 0.001, scheme],
         )
-        suite.expect_iterations(serial, [0, 1])
+        suite.expect_iterations(serial, [0, 1, 2])
         suite.expect_valid_vti(serial, "step0.vti")
         suite.expect_valid_vti(serial, "step1.vti")
+        suite.expect_valid_vti(serial, "step2.vti")
         suite.expect_solution_changed(serial)
+        suite.expect_solution_changed(serial, "step1.vti", "step2.vti")
         if scheme == "dg":
             suite.expect_sample_norm_decreased(serial)
+            suite.expect_sample_norm_decreased(
+                serial, "step1.vti", "step2.vti"
+            )
         hybrid = suite.run_driver(
             f"iGRM heat {scheme.upper()} hybrid",
             2,
             4,
             "igrm_heat",
-            [2, 2, 2, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 0.001, scheme],
+            [2, 2, 2, 3, 3, 3, 2, 2, 2, 2, 1, 1, 2, 0.001, scheme],
         )
-        suite.expect_iterations(hybrid, [0, 1])
+        suite.expect_iterations(hybrid, [0, 1, 2])
         suite.expect_matching_vti(serial, hybrid, "step0.vti")
         suite.expect_matching_vti(serial, hybrid, "step1.vti")
+        suite.expect_matching_vti(serial, hybrid, "step2.vti")
 
     # The opt-in seed makes the random oil geometry identical without changing
     # normal runs. This turns the former status-only check into a race/MPI oracle.
     oil_environment = {"ADS_OIL_RANDOM_SEED": "20260811"}
     oil_tail = [1, 0.5, 0.5, 0.5, 1, 0.5, 0.5, 0.5]
+    oil_one_step = suite.run_driver(
+        "oil one-step baseline",
+        1,
+        1,
+        "oil",
+        [3, 2, 1, 1, 1, 1, 1.0e-6, *oil_tail],
+        oil_environment,
+    )
+    suite.expect_iterations(oil_one_step, [0, 1])
+    suite.expect_oil_result(oil_one_step)
     oil_serial = suite.run_driver(
         "oil serial OMP1",
         1,
         1,
         "oil",
-        [3, 2, 1, 1, 1, 1, 0.05, *oil_tail],
+        [3, 2, 1, 1, 1, 2, 1.0e-6, *oil_tail],
         oil_environment,
     )
-    suite.expect_iterations(oil_serial, [0, 1])
+    suite.expect_iterations(oil_serial, [0, 1, 2])
     suite.expect_oil_result(oil_serial)
+    suite.expect_oil_accumulated(oil_one_step, oil_serial)
     oil_openmp = suite.run_driver(
         "oil serial OMP4",
         1,
         4,
         "oil",
-        [3, 2, 1, 1, 1, 1, 0.05, *oil_tail],
+        [3, 2, 1, 1, 1, 2, 1.0e-6, *oil_tail],
         oil_environment,
     )
-    suite.expect_iterations(oil_openmp, [0, 1])
+    suite.expect_iterations(oil_openmp, [0, 1, 2])
     suite.expect_oil_result(oil_serial, oil_openmp)
     oil_hybrid = suite.run_driver(
         "oil hybrid",
         2,
         2,
         "oil",
-        [3, 2, 2, 1, 1, 1, 0.05, *oil_tail],
+        [3, 2, 2, 1, 1, 2, 1.0e-6, *oil_tail],
         oil_environment,
     )
-    suite.expect_iterations(oil_hybrid, [0, 1])
+    suite.expect_iterations(oil_hybrid, [0, 1, 2])
     suite.expect_oil_result(oil_serial, oil_hybrid)
 
 
