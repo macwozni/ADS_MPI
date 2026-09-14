@@ -26,9 +26,25 @@ DRIVER_SMOKE_TIMEOUT ?= 60s
 DRIVER_INTEGRATION_TIMEOUT ?= 90
 SKIP_MPI_CASES ?= 0
 EXEC_DIR   := $(BUILD_ROOT_PATH)/EXEC
+ORACLE_OBJ_DIR := $(BUILD_ROOT_PATH)/driver_cli_test_OBJ
+ORACLE_SOURCE := pure_diffusion_nonzero_oracle.F90
+ORACLE_OBJECT := $(ORACLE_OBJ_DIR)/pure_diffusion_nonzero_oracle.o
+ORACLE_MODULE := $(ORACLE_OBJ_DIR)/pure_diffusion_oracle_rhs.mod
+ORACLE_EXECUTABLE := $(EXEC_DIR)/pure_diffusion_nonzero_oracle
 PROBLEM_BUILD_OPTIONS := CONFIG='$(CONFIG_PATH)' \
 	                         BUILD_ROOT='$(BUILD_ROOT_PATH)' \
 	                         COMPILER='$(MPIFC)' MPIFC='$(MPIFC)'
+
+MODULE_OUTPUT ?= -J.
+ifneq ($(filter -J.%,$(MODULE_OUTPUT)),)
+ORACLE_MODULE_FLAGS := -J$(ORACLE_OBJ_DIR)
+else ifneq ($(filter -module,$(MODULE_OUTPUT)),)
+ORACLE_MODULE_FLAGS := -module $(ORACLE_OBJ_DIR)
+else
+ORACLE_MODULE_FLAGS := $(MODULE_OUTPUT)
+endif
+ORACLE_FFLAGS := $(DIALECT) $(BUILD_OPTS) $(INCLUDE) \
+	$(ORACLE_MODULE_FLAGS) -I$(ORACLE_OBJ_DIR) -I$(BUILD_ROOT_PATH)
 
 COMMON_SOURCES := $(wildcard $(SRC_PATH)/*.F90)
 BUILD_INPUTS   := GNUmakefile $(COMMON_SOURCES) $(SRC_PATH)/GNUmakefile \
@@ -54,7 +70,20 @@ endef
 
 $(foreach problem,$(PROBLEMS),$(eval $(call DEFINE_DRIVER_BUILD,$(problem))))
 
-all: $(DRIVERS)
+$(ORACLE_OBJ_DIR) $(EXEC_DIR):
+	mkdir -p $@
+
+# Depending on one real driver ensures that the core library and its module
+# files were rebuilt with the exact compiler/configuration used by this suite.
+$(ORACLE_OBJECT): $(ORACLE_SOURCE) $(firstword $(DRIVERS)) GNUmakefile \
+		$(CONFIG_PATH) | $(ORACLE_OBJ_DIR)
+	$(MPIFC) $(ORACLE_FFLAGS) -c $< -o $@
+
+$(ORACLE_EXECUTABLE): $(ORACLE_OBJECT) | $(EXEC_DIR)
+	$(MPIFC) $(ORACLE_FFLAGS) -o $@ $< \
+		$(BUILD_ROOT_PATH)/LIB/libads.a $(USER_LIB)
+
+all: $(DRIVERS) $(ORACLE_EXECUTABLE)
 
 tests: all
 
@@ -76,4 +105,5 @@ run-integration: all
 run: run-cli run-smoke run-integration
 
 clean:
-	@:
+	$(RM) -- $(ORACLE_OBJECT) $(ORACLE_MODULE) $(ORACLE_EXECUTABLE)
+	@rmdir -- '$(ORACLE_OBJ_DIR)' 2>/dev/null || :
