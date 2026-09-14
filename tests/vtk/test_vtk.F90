@@ -63,7 +63,7 @@ contains
       do iz = 1, 2
          do iy = 1, 2
             do ix = 1, 2
-               write (line, '(F30.10)') vals(ix, iy, iz)
+               write (line, '(ES24.16)') vals(ix, iy, iz)
                call expect_line(unit, '          '//trim(adjustl(line)), matches)
             end do
          end do

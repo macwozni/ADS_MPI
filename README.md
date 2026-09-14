@@ -856,9 +856,10 @@ matrix does more than check process status:
   production pure-diffusion case retains its global zero-solution check, and
   a test-only manufactured problem initializes the exactly representable,
   nonconstant Neumann equilibrium `q(x)q(y)q(z)`, `q(s)=s^2(3-2s)`, then
-  requires roundoff preservation or three-level L2 convergence on MPI/OpenMP:
-  both observed orders must be at least `0.75`, and the finest relative error
-  at most `1%`. Its nonzero Laplacian exercises all three diffusion axes;
+  writes every step on the `31^3` VTK grid. Every sample must agree with the
+  analytic field and with the initial field, while the complete DG, PR, and BE
+  fields must agree pairwise to `1e-10` in maximum absolute error and relative
+  L2 error. Its nonzero Laplacian exercises all three diffusion axes;
 - iGRM L2 uses a small explicit `tau` and compares every sampled value of
   `u/tau` with the analytic `x*y*z` limit, in addition to the serial/hybrid
   full-field comparison;
@@ -884,11 +885,15 @@ Normal oil runs remain stochastic when `ADS_OIL_RANDOM_SEED` is unset. The
 equivalent smoke commands are listed below for manual diagnostics. `make
 problems` builds all required executables first.
 
-The manufactured pure-diffusion oracle currently passes DG at roundoff but
-deliberately reports failures for PR and BE: at fixed final time their L2 errors
-remain near `2.2e-2` and `2.6e-2` over successive halvings of `dt`. This is a
-numerical scheme defect exposed by the stronger oracle, not an accepted
-tolerance.
+The DG, PR, and BE coefficient tables satisfy the independent first-order
+operator/source balance checked by the time-scheme unit tests. A scalar
+transient oracle additionally executes the RHS state selectors and requires
+at least first-order convergence for PR and BE. The current MPI/OpenMP runs
+preserve a nonzero discrete equilibrium at roundoff for all three schemes. The
+manufactured pure-diffusion oracle checks every VTK sample against both the
+analytic equilibrium and the initial field, then compares the complete DG,
+PR, and BE fields pairwise at every step. Together these checks guard against
+inconsistent directional, state-selection, or forcing weights.
 
 ```bash
 make problems

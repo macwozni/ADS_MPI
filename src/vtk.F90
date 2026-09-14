@@ -141,7 +141,7 @@ subroutine VtkOutput(filename, vals, params)
    do iz = 1, params%resz
       do iy = 1, params%resy
          do ix = 1, params%resx
-            write (temp, '(F30.10)') vals(ix, iy, iz)
+            write (temp, '(ES24.16)') vals(ix, iy, iz)
             write (outFile, '(A)') '          '//trim(adjustl(temp))
          end do
       end do

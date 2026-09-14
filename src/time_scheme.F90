@@ -414,10 +414,13 @@ end subroutine ConfigureDouglasGunn3D
 !> @brief Builds coefficient tables for a cyclic 3D Peaceman-Rachford step.
 !>
 !> @details
-!> This is the three-dimensional extension used by the code path: each
-!> substep treats one physical direction implicitly and the remaining
-!> directions explicitly with half-step coefficients. The forcing is split
-!> evenly across the three directional substeps.
+!> This is the cyclic three-dimensional extension used by the code path.
+!> Each of the three substeps advances one third of the physical time step,
+!> treating one direction implicitly and the other two explicitly. The
+!> forcing is split by the same one-third factor, so the three substeps have
+!> the first-order balance of one complete time step and preserve stationary
+!> states satisfying `K u = f`, where `K` includes the enabled directional
+!> diffusion and transport operators.
 !
 ! Input:
 ! ------
@@ -456,26 +459,28 @@ subroutine ConfigurePeacemanRachford3D(tau, mix, alpha_step, lhs_mix, rhs_du_sta
       integer(kind=4), intent(out), dimension(6, 3) :: rhs_du_state
 !> @brief Optional logical flag selecting transport-term inclusion.
       logical, intent(in), optional :: include_transport
+!> @brief Fraction of the physical time step advanced by one cyclic substep.
+      real(kind=8), parameter :: substep_fraction = 1.d0/3.d0
 
       call ConfigureMassTables(mix, lhs_mix)
       alpha_step = 0.d0
       rhs_du_state = 0
 
-      call SetImplicitAxis(lhs_mix, 1, 1, 0.5d0*tau, include_transport)
-      call SetImplicitAxis(lhs_mix, 2, 2, 0.5d0*tau, include_transport)
-      call SetImplicitAxis(lhs_mix, 3, 3, 0.5d0*tau, include_transport)
+      call SetImplicitAxis(lhs_mix, 1, 1, substep_fraction*tau, include_transport)
+      call SetImplicitAxis(lhs_mix, 2, 2, substep_fraction*tau, include_transport)
+      call SetImplicitAxis(lhs_mix, 3, 3, substep_fraction*tau, include_transport)
 
-      call AddExplicitAxis(alpha_step, rhs_du_state, 2, 1, -0.5d0, 1, include_transport)
-      call AddExplicitAxis(alpha_step, rhs_du_state, 3, 1, -0.5d0, 1, include_transport)
-      alpha_step(7, 1) = 1.d0/3.d0
+      call AddExplicitAxis(alpha_step, rhs_du_state, 2, 1, -substep_fraction, 1, include_transport)
+      call AddExplicitAxis(alpha_step, rhs_du_state, 3, 1, -substep_fraction, 1, include_transport)
+      alpha_step(7, 1) = substep_fraction
 
-      call AddExplicitAxis(alpha_step, rhs_du_state, 1, 2, -0.5d0, 0, include_transport)
-      call AddExplicitAxis(alpha_step, rhs_du_state, 3, 2, -0.5d0, 0, include_transport)
-      alpha_step(7, 2) = 1.d0/3.d0
+      call AddExplicitAxis(alpha_step, rhs_du_state, 1, 2, -substep_fraction, 0, include_transport)
+      call AddExplicitAxis(alpha_step, rhs_du_state, 3, 2, -substep_fraction, 0, include_transport)
+      alpha_step(7, 2) = substep_fraction
 
-      call AddExplicitAxis(alpha_step, rhs_du_state, 1, 3, -0.5d0, 0, include_transport)
-      call AddExplicitAxis(alpha_step, rhs_du_state, 2, 3, -0.5d0, 0, include_transport)
-      alpha_step(7, 3) = 1.d0/3.d0
+      call AddExplicitAxis(alpha_step, rhs_du_state, 1, 3, -substep_fraction, 0, include_transport)
+      call AddExplicitAxis(alpha_step, rhs_du_state, 2, 3, -substep_fraction, 0, include_transport)
+      alpha_step(7, 3) = substep_fraction
 
 end subroutine ConfigurePeacemanRachford3D
 
@@ -485,9 +490,14 @@ end subroutine ConfigurePeacemanRachford3D
 !> @brief Builds coefficient tables for a split 3D Backward Euler step.
 !>
 !> @details
-!> The scheme is executed through \ref MultiStep. Each substep treats one
-!> physical direction implicitly. The forcing term is distributed evenly
-!> over the three directional substeps.
+!> The scheme is executed through \ref MultiStep as an approximate
+!> factorization of the Backward Euler correction equation. The first
+!> substep forms the complete old-state residual and solves in x; the y and z
+!> substeps apply the remaining directional factors. For the mass-normalized
+!> operators `Ai=M^(-1)*Ki` and forcing `g=M^(-1)*f`, the correction satisfies
+!> `(I+tau*Ax)(I+tau*Ay)(I+tau*Az)(u_new-u_old)`
+!> `= tau*(g-(Ax+Ay+Az)*u_old)`. This is first-order consistent and preserves
+!> stationary states exactly.
 !
 ! Input:
 ! ------
@@ -526,18 +536,20 @@ subroutine ConfigureBackwardEuler3D(tau, mix, alpha_step, lhs_mix, rhs_du_state,
       integer(kind=4), intent(out), dimension(6, 3) :: rhs_du_state
 !> @brief Optional logical flag selecting transport-term inclusion.
       logical, intent(in), optional :: include_transport
-!> @brief Directional substep length used for implicit axis operators.
-      real(kind=8) :: sub_tau
-
       call ConfigureMassTables(mix, lhs_mix)
       alpha_step = 0.d0
       rhs_du_state = 0
-      sub_tau = 0.5d0*tau
 
-      call SetImplicitAxis(lhs_mix, 1, 1, sub_tau, include_transport)
-      call SetImplicitAxis(lhs_mix, 2, 2, sub_tau, include_transport)
-      call SetImplicitAxis(lhs_mix, 3, 3, sub_tau, include_transport)
-      alpha_step(7, :) = 1.d0/3.d0
+      call SetImplicitAxis(lhs_mix, 1, 1, tau, include_transport)
+      call SetImplicitAxis(lhs_mix, 2, 2, tau, include_transport)
+      call SetImplicitAxis(lhs_mix, 3, 3, tau, include_transport)
+
+      call AddExplicitAxis(alpha_step, rhs_du_state, 2, 1, -1.d0, 1, include_transport)
+      call AddExplicitAxis(alpha_step, rhs_du_state, 3, 1, -1.d0, 1, include_transport)
+      alpha_step(7, 1) = 1.d0
+
+      call AddExplicitAxis(alpha_step, rhs_du_state, 2, 2, 1.d0, 1, include_transport)
+      call AddExplicitAxis(alpha_step, rhs_du_state, 3, 3, 1.d0, 1, include_transport)
 
 end subroutine ConfigureBackwardEuler3D
 

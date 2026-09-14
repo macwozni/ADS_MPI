@@ -83,7 +83,7 @@ program pure_diffusion_nonzero_oracle
                           ConfigurePeacemanRachford3DTimeScheme, &
                           DouglasGunn3DStep, PeacemanRachford3DStep, &
                           TimeScheme3D, ValidateSpaces
-   use ADSS, ONLY: Initialize, Cleanup_ADS, Cleanup_data
+   use ADSS, ONLY: Initialize, Cleanup_ADS, Cleanup_data, PrintSolution
    use pure_diffusion_oracle_rhs, ONLY: exact_field, &
                                         initial_projection_rhs, &
                                         manufactured_source
@@ -162,6 +162,7 @@ program pure_diffusion_nonzero_oracle
                           initial_projection_rhs)
    call AbortOnError(ierr, 'manufactured diffusion initial projection')
    call ReportError(0, ads_trial, ads_data)
+   call PrintSolution(0, ads_trial, ads_data%FF)
 
    ads_test%tau = dt
    ads_trial%tau = dt
@@ -170,6 +171,7 @@ program pure_diffusion_nonzero_oracle
                    ads_data, ierr)
       call AbortOnError(ierr, 'manufactured diffusion step')
       call ReportError(step, ads_trial, ads_data)
+      call PrintSolution(step, ads_trial, ads_data%FF)
    end do
 
    call Cleanup_ADS(ads_test, ierr)

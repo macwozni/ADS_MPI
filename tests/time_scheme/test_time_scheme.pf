@@ -80,21 +80,22 @@ contains
       real(kind=8), intent(out) :: mix(4, 3), alpha_step(7, 3), lhs_mix(4, 3, 3)
       integer(kind=4), intent(out) :: rhs_du_state(6, 3)
       integer(kind=4) :: axis
+      real(kind=8), parameter :: substep_fraction = 1.0d0/3.0d0
 
       call expected_mass_tables(mix, lhs_mix)
       alpha_step = 0.0d0
       rhs_du_state = 0
 
       do axis = 1, 3
-         lhs_mix(2, axis, axis) = 0.5d0*tau
+         lhs_mix(2, axis, axis) = substep_fraction*tau
       end do
-      alpha_step(3, 1) = -0.5d0
-      alpha_step(5, 1) = -0.5d0
-      alpha_step(1, 2) = -0.5d0
-      alpha_step(5, 2) = -0.5d0
-      alpha_step(1, 3) = -0.5d0
-      alpha_step(3, 3) = -0.5d0
-      alpha_step(7, :) = 1.0d0/3.0d0
+      alpha_step(3, 1) = -substep_fraction
+      alpha_step(5, 1) = -substep_fraction
+      alpha_step(1, 2) = -substep_fraction
+      alpha_step(5, 2) = -substep_fraction
+      alpha_step(1, 3) = -substep_fraction
+      alpha_step(3, 3) = -substep_fraction
+      alpha_step(7, :) = substep_fraction
       rhs_du_state(3, 1) = 1
       rhs_du_state(5, 1) = 1
 
@@ -111,12 +112,20 @@ contains
 
       call expected_mass_tables(mix, lhs_mix)
       alpha_step = 0.0d0
-      alpha_step(7, :) = 1.0d0/3.0d0
       rhs_du_state = 0
 
       do axis = 1, 3
-         lhs_mix(2, axis, axis) = 0.5d0*tau
+         lhs_mix(2, axis, axis) = tau
       end do
+      alpha_step(3, 1) = -1.0d0
+      alpha_step(5, 1) = -1.0d0
+      alpha_step(7, 1) = 1.0d0
+      alpha_step(3, 2) = 1.0d0
+      alpha_step(5, 3) = 1.0d0
+      rhs_du_state(3, 1) = 1
+      rhs_du_state(5, 1) = 1
+      rhs_du_state(3, 2) = 1
+      rhs_du_state(5, 3) = 1
 
       if (include_transport) call add_expected_transport(alpha_step, lhs_mix, rhs_du_state)
    end subroutine expected_backward_euler
@@ -134,6 +143,101 @@ contains
       rhs_du_state(4, :) = rhs_du_state(3, :)
       rhs_du_state(6, :) = rhs_du_state(5, :)
    end subroutine add_expected_transport
+
+
+   subroutine assert_consistent_diffusion_balance(tau, alpha_step, lhs_mix)
+      real(kind=8), intent(in) :: tau
+      real(kind=8), intent(in) :: alpha_step(7, 3), lhs_mix(4, 3, 3)
+      real(kind=8), parameter :: directional_operator(3) = (/2.0d0, 3.0d0, 5.0d0/)
+      real(kind=8) :: lhs_value, operator_weight, rhs_value, source_weight
+      integer(kind=4) :: axis, diffusion_row, substep
+
+      source_weight = sum(alpha_step(7, :))
+      @assertTrue(abs(source_weight - 1.0d0) <= tol)
+      do axis = 1, 3
+         diffusion_row = 2*axis - 1
+         operator_weight = sum(lhs_mix(2, axis, :))/tau - &
+                           sum(alpha_step(diffusion_row, :))
+         @assertTrue(abs(operator_weight - source_weight) <= tol)
+      end do
+
+      do substep = 1, 3
+         lhs_value = 1.0d0 + sum(lhs_mix(2, :, substep)*directional_operator)
+         rhs_value = 1.0d0 + tau*( &
+            sum(alpha_step((/1, 3, 5/), substep)*directional_operator) + &
+            alpha_step(7, substep)*sum(directional_operator))
+         @assertTrue(abs(lhs_value - rhs_value) <= tol)
+      end do
+   end subroutine assert_consistent_diffusion_balance
+
+
+   subroutine advance_scalar_diffusion(scheme, tau, value)
+      type(TimeScheme3D), intent(in) :: scheme
+      real(kind=8), intent(in) :: tau
+      real(kind=8), intent(inout) :: value
+      real(kind=8), parameter :: directional_operator(3) = (/2.0d0, 3.0d0, 5.0d0/)
+      real(kind=8) :: denominator, rhs, selected_value, stage(0:3)
+      integer(kind=4) :: axis, diffusion_row, selector, substep
+
+      stage = value
+      do substep = 1, 3
+         rhs = stage(substep - 1)
+         do axis = 1, 3
+            diffusion_row = 2*axis - 1
+            selector = scheme%rhs_du_state(diffusion_row, substep)
+            @assertTrue(selector >= 0 .and. selector <= 3)
+            if (selector == 0) then
+               selected_value = stage(substep - 1)
+            else
+               @assertTrue(selector <= substep)
+               selected_value = stage(selector - 1)
+            end if
+            rhs = rhs + tau*scheme%alpha_step(diffusion_row, substep)* &
+                  directional_operator(axis)*selected_value
+         end do
+         denominator = product(1.0d0 + &
+            scheme%lhs_mix(2, :, substep)*directional_operator)
+         stage(substep) = rhs/denominator
+      end do
+      value = stage(3)
+   end subroutine advance_scalar_diffusion
+
+
+   subroutine assert_scalar_at_least_first_order_convergence(scheme_name)
+      character(len=*), intent(in) :: scheme_name
+      real(kind=8), parameter :: final_time = 0.1d0
+      real(kind=8), parameter :: exact_value = exp(-10.0d0*final_time)
+      type(TimeScheme3D) :: scheme
+      real(kind=8) :: dt, errors(3), observed_order(2), value
+      integer(kind=4) :: refinement, step, steps
+
+      do refinement = 1, 3
+         steps = 10*2**(refinement - 1)
+         dt = final_time/real(steps, kind=8)
+         select case (scheme_name)
+         case ("pr")
+            call ConfigurePeacemanRachford3DTimeScheme(dt, scheme, .false.)
+         case ("be")
+            call ConfigureBackwardEuler3DTimeScheme(dt, scheme, .false.)
+         case default
+            @assertTrue(.false.)
+            return
+         end select
+
+         value = 1.0d0
+         do step = 1, steps
+            call advance_scalar_diffusion(scheme, dt, value)
+         end do
+         errors(refinement) = abs(value - exact_value)
+      end do
+
+      @assertTrue(all(errors > 0.0d0))
+      @assertTrue(errors(2) < errors(1))
+      @assertTrue(errors(3) < errors(2))
+      observed_order(1) = log(errors(1)/errors(2))/log(2.0d0)
+      observed_order(2) = log(errors(2)/errors(3))/log(2.0d0)
+      @assertTrue(all(observed_order >= 0.9d0))
+   end subroutine assert_scalar_at_least_first_order_convergence
 
 
    subroutine make_distinct_spaces(ads_test, ads_trial)
@@ -277,6 +381,51 @@ contains
       @assertTrue(maxval(abs(lhs_mix - expected_lhs)) <= tol)
       @assertTrue(all(rhs_du_state == expected_state))
    end subroutine test_configure_backward_euler_without_transport
+
+
+   @test
+   subroutine test_douglas_gunn_has_consistent_diffusion_balance()
+      real(kind=8), parameter :: tau = 0.2d0
+      real(kind=8) :: mix(4, 3), alpha_step(7, 3), lhs_mix(4, 3, 3)
+      integer(kind=4) :: rhs_du_state(6, 3)
+
+      call ConfigureDouglasGunn3D(tau, mix, alpha_step, lhs_mix, rhs_du_state, .false.)
+      call assert_consistent_diffusion_balance(tau, alpha_step, lhs_mix)
+   end subroutine test_douglas_gunn_has_consistent_diffusion_balance
+
+
+   @test
+   subroutine test_peaceman_rachford_has_consistent_diffusion_balance()
+      real(kind=8), parameter :: tau = 0.2d0
+      real(kind=8) :: mix(4, 3), alpha_step(7, 3), lhs_mix(4, 3, 3)
+      integer(kind=4) :: rhs_du_state(6, 3)
+
+      call ConfigurePeacemanRachford3D(tau, mix, alpha_step, lhs_mix, rhs_du_state, .false.)
+      call assert_consistent_diffusion_balance(tau, alpha_step, lhs_mix)
+   end subroutine test_peaceman_rachford_has_consistent_diffusion_balance
+
+
+   @test
+   subroutine test_backward_euler_has_consistent_diffusion_balance()
+      real(kind=8), parameter :: tau = 0.2d0
+      real(kind=8) :: mix(4, 3), alpha_step(7, 3), lhs_mix(4, 3, 3)
+      integer(kind=4) :: rhs_du_state(6, 3)
+
+      call ConfigureBackwardEuler3D(tau, mix, alpha_step, lhs_mix, rhs_du_state, .false.)
+      call assert_consistent_diffusion_balance(tau, alpha_step, lhs_mix)
+   end subroutine test_backward_euler_has_consistent_diffusion_balance
+
+
+   @test
+   subroutine test_peaceman_rachford_scalar_transient_is_at_least_first_order()
+      call assert_scalar_at_least_first_order_convergence("pr")
+   end subroutine test_peaceman_rachford_scalar_transient_is_at_least_first_order
+
+
+   @test
+   subroutine test_backward_euler_scalar_transient_is_at_least_first_order()
+      call assert_scalar_at_least_first_order_convergence("be")
+   end subroutine test_backward_euler_scalar_transient_is_at_least_first_order
 
 
    @test

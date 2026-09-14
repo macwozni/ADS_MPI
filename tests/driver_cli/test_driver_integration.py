@@ -38,10 +38,8 @@ IGRM_L2_SCALED_RMS_ERROR_TOL = 5.0e-5
 IGRM_L2_SCALED_MAX_ERROR_TOL = 1.5e-4
 ERIKSSON_INITIAL_RMS_ERROR_TOL = 2.5e-2
 ERIKSSON_INITIAL_REL_RMS_ERROR_TOL = 1.5e-1
-PURE_DIFFUSION_ROUNDOFF_TOL = 1.0e-10
-PURE_DIFFUSION_EXACT_L2 = (13.0/35.0)**1.5
-PURE_DIFFUSION_FINE_REL_ERROR_TOL = 1.0e-2
-PURE_DIFFUSION_MIN_ORDER = 0.75
+PURE_DIFFUSION_FIELD_ABS_TOL = 1.0e-10
+PURE_DIFFUSION_FIELD_REL_L2_TOL = 1.0e-10
 OIL_ABS_TOL = 1.0e-20
 OIL_DT_SCALING_REL_TOL = 1.0e-10
 IGA_ADS_HEAT_REVISION = "fa6e64b50dba44709039bdb0c37971de1bda9af3"
@@ -421,16 +419,133 @@ class IntegrationSuite:
         self.report(True, f"{candidate.label} {filename} matches serial")
 
     @staticmethod
+    def _vti_sample_location(
+        data: VTIData, index: int
+    ) -> tuple[tuple[int, int, int], tuple[float, float, float]]:
+        xmin, xmax, ymin, ymax, zmin, _ = data.extent
+        xcount = xmax - xmin + 1
+        ycount = ymax - ymin + 1
+        zoffset, remainder = divmod(index, xcount*ycount)
+        yoffset, xoffset = divmod(remainder, xcount)
+        indices = xmin + xoffset, ymin + yoffset, zmin + zoffset
+        coordinates = tuple(
+            data.origin[axis] + indices[axis]*data.spacing[axis]
+            for axis in range(3)
+        )
+        return indices, coordinates
+
+    def expect_same_manufactured_vti(
+        self,
+        reference: DriverCase,
+        reference_filename: str,
+        candidate: DriverCase,
+        candidate_filename: str,
+        label: str,
+    ) -> None:
+        """Compare every sample of two stationary manufactured-solution fields."""
+        try:
+            left = self.read_vti(reference.directory / reference_filename)
+            right = self.read_vti(candidate.directory / candidate_filename)
+        except ValueError as error:
+            self.report(False, label, str(error))
+            return
+        if (
+            left.extent != right.extent
+            or left.origin != right.origin
+            or left.spacing != right.spacing
+        ):
+            self.report(False, label, "VTK grid metadata differs")
+            return
+
+        differences = tuple(
+            actual - expected
+            for expected, actual in zip(left.values, right.values)
+        )
+        maximum_index = max(
+            range(len(differences)), key=lambda index: abs(differences[index])
+        )
+        maximum_error = abs(differences[maximum_index])
+        difference_l2 = math.sqrt(math.fsum(value*value for value in differences))
+        reference_l2 = math.sqrt(math.fsum(value*value for value in left.values))
+        candidate_l2 = math.sqrt(math.fsum(value*value for value in right.values))
+        scale = max(reference_l2, candidate_l2)
+        relative_l2 = difference_l2/scale if scale > 0.0 else math.inf
+        indices, coordinates = self._vti_sample_location(left, maximum_index)
+        passed = (
+            reference.ok
+            and candidate.ok
+            and maximum_error <= PURE_DIFFUSION_FIELD_ABS_TOL
+            and relative_l2 <= PURE_DIFFUSION_FIELD_REL_L2_TOL
+        )
+        self.report(
+            passed,
+            label,
+            f"max abs {maximum_error:.8g} at index {indices}, "
+            f"point {coordinates}: "
+            f"{left.values[maximum_index]:.16g} vs "
+            f"{right.values[maximum_index]:.16g}; "
+            f"relative L2 {relative_l2:.8g}; limits "
+            f"{PURE_DIFFUSION_FIELD_ABS_TOL:g}, "
+            f"{PURE_DIFFUSION_FIELD_REL_L2_TOL:g}",
+        )
+
+    def expect_manufactured_exact_vti(
+        self, case: DriverCase, filename: str
+    ) -> None:
+        """Compare every VTI sample with q(x)q(y)q(z)."""
+        label = f"{case.label} {filename} exact full field"
+        try:
+            data = self.read_vti(case.directory / filename)
+        except ValueError as error:
+            self.report(False, label, str(error))
+            return
+
+        expected_values = tuple(
+            (x*x*(3.0 - 2.0*x))
+            * (y*y*(3.0 - 2.0*y))
+            * (z*z*(3.0 - 2.0*z))
+            for _, x, y, z in self._scalar_grid_samples(data)
+        )
+        differences = tuple(
+            actual - expected
+            for actual, expected in zip(data.values, expected_values)
+        )
+        maximum_index = max(
+            range(len(differences)), key=lambda index: abs(differences[index])
+        )
+        maximum_error = abs(differences[maximum_index])
+        difference_l2 = math.sqrt(math.fsum(value*value for value in differences))
+        exact_l2 = math.sqrt(math.fsum(value*value for value in expected_values))
+        relative_l2 = difference_l2/exact_l2 if exact_l2 > 0.0 else math.inf
+        indices, coordinates = self._vti_sample_location(data, maximum_index)
+        passed = (
+            case.ok
+            and maximum_error <= PURE_DIFFUSION_FIELD_ABS_TOL
+            and relative_l2 <= PURE_DIFFUSION_FIELD_REL_L2_TOL
+        )
+        self.report(
+            passed,
+            label,
+            f"max abs {maximum_error:.8g} at index {indices}, "
+            f"point {coordinates}: "
+            f"expected {expected_values[maximum_index]:.16g}, "
+            f"got {data.values[maximum_index]:.16g}; "
+            f"relative L2 {relative_l2:.8g}; limits "
+            f"{PURE_DIFFUSION_FIELD_ABS_TOL:g}, "
+            f"{PURE_DIFFUSION_FIELD_REL_L2_TOL:g}",
+        )
+
+    @staticmethod
     def _scalar_grid_samples(data: VTIData):
         """Yield x-fastest VTI values together with their physical points."""
         xmin, xmax, ymin, ymax, zmin, zmax = data.extent
         index = 0
         for zindex in range(zmin, zmax + 1):
-            z = EXPECTED_ORIGIN[2] + zindex*EXPECTED_SPACING[2]
+            z = data.origin[2] + zindex*data.spacing[2]
             for yindex in range(ymin, ymax + 1):
-                y = EXPECTED_ORIGIN[1] + yindex*EXPECTED_SPACING[1]
+                y = data.origin[1] + yindex*data.spacing[1]
                 for xindex in range(xmin, xmax + 1):
-                    x = EXPECTED_ORIGIN[0] + xindex*EXPECTED_SPACING[0]
+                    x = data.origin[0] + xindex*data.spacing[0]
                     yield data.values[index], x, y, z
                     index += 1
 
@@ -1379,70 +1494,26 @@ class IntegrationSuite:
                     measurements.append((int(match.group(1)), math.nan))
         return measurements
 
-    def expect_manufactured_diffusion_solution(
-        self,
-        coarse: DriverCase,
-        medium: DriverCase,
-        fine: DriverCase,
-        coarse_steps: int,
-        medium_steps: int,
-        fine_steps: int,
+    def expect_manufactured_diffusion_equilibrium(
+        self, case: DriverCase, steps: int
     ) -> None:
-        """Require roundoff preservation or two-level temporal convergence."""
-        cases = (coarse, medium, fine)
-        expected_steps = (coarse_steps, medium_steps, fine_steps)
-        samples = tuple(
-            self._manufactured_diffusion_errors(case) for case in cases
-        )
-        structure_ok = all(
-            [step for step, _ in errors] == list(range(steps + 1))
-            and all(math.isfinite(error) and error >= 0.0 for _, error in errors)
-            for errors, steps in zip(samples, expected_steps)
-        )
-        if structure_ok:
-            final_errors = tuple(errors[-1][1] for errors in samples)
-            initialized_exactly = all(
-                errors[0][1] <= PURE_DIFFUSION_ROUNDOFF_TOL
-                for errors in samples
-            )
-            at_roundoff = all(
-                error <= PURE_DIFFUSION_ROUNDOFF_TOL for error in final_errors
-            )
-            if all(error > 0.0 for error in final_errors):
-                observed_orders = tuple(
-                    math.log(left/right, 2.0)
-                    for left, right in zip(final_errors, final_errors[1:])
-                )
-            else:
-                observed_orders = (math.nan, math.nan)
-            fine_relative_error = final_errors[-1]/PURE_DIFFUSION_EXACT_L2
-            converged = (
-                all(order >= PURE_DIFFUSION_MIN_ORDER for order in observed_orders)
-                and fine_relative_error <= PURE_DIFFUSION_FINE_REL_ERROR_TOL
-            )
-        else:
-            final_errors = (math.nan, math.nan, math.nan)
-            observed_orders = (math.nan, math.nan)
-            fine_relative_error = math.nan
-            initialized_exactly = False
-            at_roundoff = False
-            converged = False
+        """Require the continuous L2 error to stay at roundoff every step."""
+        measurements = self._manufactured_diffusion_errors(case)
+        expected_steps = list(range(steps + 1))
         passed = (
-            coarse.ok
-            and medium.ok
-            and fine.ok
-            and structure_ok
-            and initialized_exactly
-            and (at_roundoff or converged)
+            case.ok
+            and [step for step, _ in measurements] == expected_steps
+            and all(
+                math.isfinite(error)
+                and 0.0 <= error <= PURE_DIFFUSION_FIELD_ABS_TOL
+                for _, error in measurements
+            )
         )
         self.report(
             passed,
-            f"{coarse.label} steady-state convergence oracle",
-            f"final L2 errors {final_errors}; orders {observed_orders}; "
-            f"fine relative error {fine_relative_error:.8g}; expected all "
-            f"errors <= {PURE_DIFFUSION_ROUNDOFF_TOL:g} or both orders >= "
-            f"{PURE_DIFFUSION_MIN_ORDER:g} and fine relative error <= "
-            f"{PURE_DIFFUSION_FINE_REL_ERROR_TOL:g}; samples {samples}",
+            f"{case.label} continuous L2 equilibrium",
+            f"expected steps {expected_steps} with errors <= "
+            f"{PURE_DIFFUSION_FIELD_ABS_TOL:g}, got {measurements}",
         )
 
 
@@ -1647,9 +1718,10 @@ def run_suite(suite: IntegrationSuite) -> None:
 
     # The production zero-forcing case guards the zero fixed point.  A second,
     # test-only executable initializes an exactly representable, nonconstant
-    # Neumann equilibrium and verifies either roundoff preservation or temporal
-    # convergence under refinement at the same final time.  Its nonzero
-    # Laplacian exercises all three production diffusion directions.
+    # Neumann equilibrium.  Every VTI sample must remain equal to the analytic
+    # field and to step zero; complete DG, PR, and BE fields must also agree at
+    # every step.  Its nonzero Laplacian exercises all three diffusion axes.
+    manufactured_cases: dict[str, DriverCase] = {}
     for scheme in ("dg", "pr", "be"):
         pure = suite.run_driver(
             f"pure diffusion {scheme.upper()}",
@@ -1660,35 +1732,44 @@ def run_suite(suite: IntegrationSuite) -> None:
         )
         suite.expect_iterations(pure, [0, 1, 2])
         suite.expect_zero_solution(pure, [0, 1, 2])
-        manufactured_coarse = suite.run_driver(
-            f"pure diffusion manufactured {scheme.upper()} coarse",
+        manufactured = suite.run_driver(
+            f"pure diffusion manufactured {scheme.upper()}",
             2,
             4,
             "pure_diffusion_nonzero_oracle",
             [scheme, 1.0e-2, 2],
         )
-        manufactured_medium = suite.run_driver(
-            f"pure diffusion manufactured {scheme.upper()} medium",
-            2,
-            4,
-            "pure_diffusion_nonzero_oracle",
-            [scheme, 5.0e-3, 4],
-        )
-        manufactured_fine = suite.run_driver(
-            f"pure diffusion manufactured {scheme.upper()} fine",
-            2,
-            4,
-            "pure_diffusion_nonzero_oracle",
-            [scheme, 2.5e-3, 8],
-        )
-        suite.expect_manufactured_diffusion_solution(
-            manufactured_coarse,
-            manufactured_medium,
-            manufactured_fine,
-            2,
-            4,
-            8,
-        )
+        manufactured_cases[scheme] = manufactured
+        suite.expect_manufactured_diffusion_equilibrium(manufactured, 2)
+        for step in range(3):
+            filename = f"step{step}.vti"
+            suite.expect_valid_vti(manufactured, filename)
+            suite.expect_manufactured_exact_vti(manufactured, filename)
+        for step in range(1, 3):
+            suite.expect_same_manufactured_vti(
+                manufactured,
+                "step0.vti",
+                manufactured,
+                f"step{step}.vti",
+                f"pure diffusion manufactured {scheme.upper()} "
+                f"step {step} preserves step 0 full field",
+            )
+
+    for reference_scheme, candidate_scheme in (
+        ("dg", "pr"),
+        ("dg", "be"),
+        ("pr", "be"),
+    ):
+        for step in range(3):
+            filename = f"step{step}.vti"
+            suite.expect_same_manufactured_vti(
+                manufactured_cases[reference_scheme],
+                filename,
+                manufactured_cases[candidate_scheme],
+                filename,
+                f"pure diffusion manufactured {reference_scheme.upper()} vs "
+                f"{candidate_scheme.upper()} step {step} full field",
+            )
 
     # All public iGRM scheme dispatches with a serial/distributed result oracle.
     for scheme in ("dg", "pr", "be"):
