@@ -57,7 +57,7 @@ contains
 !> Local piece of the solution to be gathered.
 !
 !---------------------------------------------------------------------------
-subroutine PrintSolution(iter, ads, part)
+subroutine PrintSolution(iter, ads, part, mierr)
       use Setup, ONLY: ADS_Setup
       use parallelism, ONLY: MYRANK
       use plot, ONLY: SaveSplinePlotMPI, PlotParams
@@ -71,10 +71,14 @@ subroutine PrintSolution(iter, ads, part)
       type(ADS_setup), intent(in) :: ads
 !> @brief Iteration or time-step index.
       integer(kind=4), intent(in) :: iter
+!> @brief Optional status receiving the first MPI broadcast error.
+      integer(kind=4), intent(out), optional :: mierr
       real(kind=8), allocatable :: solution(:, :, :)
       type(PlotParams) :: params
       character(len=20) :: filename
       integer(kind=4) :: coefficient_count, ierr
+
+      if (present(mierr)) mierr = 0
 
       call GatherFullSolution(0, part, solution, &
                               ads%n, ads%p, ads%s)
@@ -84,6 +88,10 @@ subroutine PrintSolution(iter, ads, part)
             allocate (solution(0:ads%n(1), 0:ads%n(2), 0:ads%n(3)))
       end if
       call MPI_Bcast(solution, coefficient_count, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
+      if (ierr /= 0) then
+            if (present(mierr)) mierr = ierr
+            return
+      end if
 
       if (MYRANK == 0) then
             write (filename, '(I10)') iter
@@ -92,6 +100,10 @@ subroutine PrintSolution(iter, ads, part)
       end if
 
       call MPI_Bcast(filename, len(filename), MPI_CHARACTER, 0, MPI_COMM_WORLD, ierr)
+      if (ierr /= 0) then
+            if (present(mierr)) mierr = ierr
+            return
+      end if
 
       params = PlotParams(0.d0, 1.d0, 0.d0, 1.d0, 0.d0, 1.d0, 31, 31, 31)
       call SaveSplinePlotMPI(trim(filename), &

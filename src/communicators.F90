@@ -242,6 +242,8 @@ subroutine CreateCommunicators(mierr)
 !> @brief MPI return code.
    integer(kind=4) :: ierr
 
+   mierr = MPI_SUCCESS
+
 #ifdef IPRINT
    write (*, *) MYRANK, 'NRPROC', NRPROC
 #endif
@@ -257,6 +259,11 @@ subroutine CreateCommunicators(mierr)
 #endif
 
    call mpi_barrier(MPI_COMM_WORLD, ierr)
+   if (ierr /= MPI_SUCCESS) then
+      mierr = ierr
+      call mpi_group_free(group_comm_world, ierr)
+      return
+   end if
 
    do i = 1, NRPROCX
       do j = 1, NRPROCY
@@ -308,6 +315,10 @@ subroutine CreateCommunicators(mierr)
 #endif
 
    call mpi_barrier(MPI_COMM_WORLD, ierr)
+   if (ierr /= MPI_SUCCESS) then
+      mierr = ierr
+      return
+   end if
 
    ! create the new communicators
    do i = 1, NRPROCX
@@ -345,6 +356,10 @@ subroutine CreateCommunicators(mierr)
 #endif
 
    call mpi_barrier(MPI_COMM_WORLD, ierr)
+   if (ierr /= MPI_SUCCESS) then
+      mierr = ierr
+      return
+   end if
 
    ! extract local communicators
    COMMX = COMMXALL(myranky + 1, myrankz + 1)
@@ -355,7 +370,7 @@ subroutine CreateCommunicators(mierr)
    write (*, *) PRINTRANK, 'COMMX(Y,Z)', COMMX, COMMY, COMMZ
 #endif
 
-   mierr = 0
+   mierr = MPI_SUCCESS
 
 end subroutine CreateCommunicators
 

@@ -91,7 +91,7 @@ end function neighbour
 !> Consequently, this routine has no nearest-neighbour restriction and sends
 !> neither complete remote blocks nor a globally replicated solution.
 !---------------------------------------------------------------------------
-subroutine DistributeSpline(part, ads_trial, ads_data)
+subroutine DistributeSpline(part, ads_trial, ads_data, mierr)
    use Setup, ONLY: ADS_Setup, ADS_compute_data
    use parallelism, ONLY: MYRANK, NRPROC
    use mpi
@@ -102,10 +102,14 @@ subroutine DistributeSpline(part, ads_trial, ads_data)
    type(ADS_setup), intent(in) :: ads_trial
 !> @brief Halo plan, reusable communication buffers, and destination halo.
    type(ADS_compute_data), intent(inout) :: ads_data
+!> @brief Optional status receiving the first MPI transport error.
+   integer(kind=4), intent(out), optional :: mierr
    integer(kind=4), parameter :: HALO_TAG = 731
    integer(kind=4) :: peer, count, pos, column
    integer(kind=4) :: x, y, z, nreq, ierr
    integer(kind=4), dimension(3) :: owned_begin
+
+   if (present(mierr)) mierr = MPI_SUCCESS
 
    owned_begin = ads_trial%ibeg - 1
 
@@ -140,6 +144,10 @@ subroutine DistributeSpline(part, ads_trial, ads_data)
       call mpi_irecv(ads_data%halo_recv_buffer(pos:pos + count - 1), count, &
                      MPI_DOUBLE_PRECISION, peer - 1, HALO_TAG, MPI_COMM_WORLD, &
                      ads_data%halo_requests(nreq), ierr)
+      if (ierr /= MPI_SUCCESS) then
+         if (present(mierr)) mierr = ierr
+         return
+      end if
    end do
 
    do peer = 1, NRPROC
@@ -150,6 +158,10 @@ subroutine DistributeSpline(part, ads_trial, ads_data)
       call mpi_isend(ads_data%halo_send_buffer(pos:pos + count - 1), count, &
                      MPI_DOUBLE_PRECISION, peer - 1, HALO_TAG, MPI_COMM_WORLD, &
                      ads_data%halo_requests(nreq), ierr)
+      if (ierr /= MPI_SUCCESS) then
+         if (present(mierr)) mierr = ierr
+         return
+      end if
    end do
 
    peer = MYRANK + 1
@@ -161,8 +173,13 @@ subroutine DistributeSpline(part, ads_trial, ads_data)
          ads_data%halo_send_displ(peer) + 1:ads_data%halo_send_displ(peer) + count)
    end if
 
-   if (nreq > 0) call mpi_waitall(nreq, ads_data%halo_requests, &
-                                  ads_data%halo_statuses, ierr)
+   if (nreq > 0) then
+      call mpi_waitall(nreq, ads_data%halo_requests, ads_data%halo_statuses, ierr)
+      if (ierr /= MPI_SUCCESS) then
+         if (present(mierr)) mierr = ierr
+         return
+      end if
+   end if
 
    ! Unpack the received intersections into one compact global-indexed halo.
    do peer = 1, NRPROC

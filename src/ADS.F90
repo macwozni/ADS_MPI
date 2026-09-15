@@ -543,7 +543,11 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
       write (*, *) PRINTRANK, '3e) DISTRIBUTE SOLUTION'
 #endif
       call NormalizeTrialBufferToXYZ(ads_trial, abc(:, 1), ads_data%F)
-      call DistributeSpline(ads_data%F, ads_trial, ads_data)
+      call DistributeSpline(ads_data%F, ads_trial, ads_data, ierr)
+      if (ierr /= 0) then
+            mierr = ierr
+            return
+      end if
 
 #ifdef IPRINT
       write (*, *) PRINTRANK, 'Result:'

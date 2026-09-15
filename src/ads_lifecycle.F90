@@ -120,9 +120,12 @@ subroutine initialize(nelem, p_test, p_trial, continuity, ads_test, ads_trial, a
       if (p_test(3).GT.p_trial(3)) ads_trialng(3)=p_test(3)+1
 
       call initialize_setup(n1, p_test, continuity, ads_testng, ads_test, mierr)
-      call initialize_setup(n2, p_trial, continuity, ads_trialng, ads_trial, mierr)
+      if (mierr /= 0) return
 
-      call AllocateADSdata(ads_test, ads_trial, ads_data)
+      call initialize_setup(n2, p_trial, continuity, ads_trialng, ads_trial, mierr)
+      if (mierr /= 0) return
+
+      call AllocateADSdata(ads_test, ads_trial, ads_data, mierr)
 
 end subroutine initialize
 
@@ -407,7 +410,7 @@ end subroutine ComputeDecomposition
 !> Runtime-data structure with allocated core buffers.
 !
 !---------------------------------------------------------------------------
-subroutine AllocateADSdata(ads_test, ads_trial, ads_data)
+subroutine AllocateADSdata(ads_test, ads_trial, ads_data, mierr)
       use Setup, ONLY: ADS_Setup, ADS_compute_data
       use parallelism, ONLY: NRPROC
       use mpi
@@ -416,12 +419,16 @@ subroutine AllocateADSdata(ads_test, ads_trial, ads_data)
       type(ADS_setup), intent(in) :: ads_test, ads_trial
 !> @brief Output runtime-data container.
       type(ADS_compute_data), intent(out) :: ads_data
+!> @brief Optional status receiving the first MPI metadata-exchange error.
+      integer(kind=4), intent(out), optional :: mierr
       integer :: ierr
       integer(kind=4), dimension(3) :: state_ng
       integer(kind=4), dimension(3) :: send_extent, recv_extent
       integer(kind=4), dimension(12) :: local_boxes
       integer(kind=4), allocatable, dimension(:, :) :: all_boxes
       integer(kind=4) :: peer, total_send, total_recv
+
+      if (present(mierr)) mierr = 0
 
       ads_data%state_mine = min(ads_test%mine, ads_trial%mine)
       ads_data%state_maxe = max(ads_test%maxe, ads_trial%maxe)
@@ -473,6 +480,10 @@ subroutine AllocateADSdata(ads_test, ads_trial, ads_data)
       allocate (all_boxes(12, NRPROC))
       call mpi_allgather(local_boxes, 12, MPI_INTEGER, all_boxes, 12, &
                          MPI_INTEGER, MPI_COMM_WORLD, ierr)
+      if (ierr /= 0) then
+            if (present(mierr)) mierr = ierr
+            return
+      end if
 
       allocate (ads_data%halo_send_begin(3, NRPROC), ads_data%halo_send_end(3, NRPROC))
       allocate (ads_data%halo_recv_begin(3, NRPROC), ads_data%halo_recv_end(3, NRPROC))
