@@ -393,12 +393,46 @@ def main():
         "run-driver",
         "run-build-system",
         "run-integration",
+        "run-performance",
+        "run-performance-self-test",
+        "clean-performance",
         "run-suite",
         "list",
         "clean",
     ):
         if f"{target}:" not in runner_text:
             errors.append(f"tests/GNUmakefile has no {target} target")
+
+    driver_runner_text = GROUP_RUNNERS["driver"].read_text(encoding="utf-8")
+    for target in (
+        "run-performance",
+        "run-performance-self-test",
+        "clean-performance",
+    ):
+        if f"{target}:" not in driver_runner_text:
+            errors.append(f"tests/driver/GNUmakefile has no {target} target")
+    if "GROUP_RUN_TIMEOUT = $(PERFORMANCE_SUITE_TIMEOUT)" not in driver_runner_text:
+        errors.append(
+            "tests/driver/GNUmakefile does not apply the performance suite timeout"
+        )
+
+    driver_cli_runner = RUNNER.parent / "driver_cli" / "GNUmakefile"
+    driver_cli_text = driver_cli_runner.read_text(encoding="utf-8")
+    for target in (
+        "performance-build",
+        "run-performance",
+        "run-performance-self-test",
+        "validate-performance-paths",
+        "prepare-performance-root",
+        "validate-performance-ownership",
+        "clean-performance",
+    ):
+        if f"{target}:" not in driver_cli_text:
+            errors.append(f"tests/driver_cli/GNUmakefile has no {target} target")
+    if "run: run-cli run-smoke run-integration run-performance" not in driver_cli_text:
+        errors.append(
+            "tests/driver_cli run target does not include the real performance gate"
+        )
 
     if errors:
         for error in errors:

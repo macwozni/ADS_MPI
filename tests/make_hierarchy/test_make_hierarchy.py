@@ -277,6 +277,7 @@ class MakeFixture:
         self.config = self.root / "fake-config.mk"
         self.tool_log = self.root / "fake-tools.jsonl"
         self.run_log = self.root / "fake-runs.jsonl"
+        self.performance_log = self.root / "fake-performance.jsonl"
         self._copy_repository_inputs()
         self._install_fake_tools()
         self._write_configuration()
@@ -304,11 +305,23 @@ class MakeFixture:
             "MFLAGS",
             "MPIEXEC",
             "MPIEXEC_FLAGS",
+            "MPI_NP_FLAG",
             "MPIFC",
             "OIL_SEED",
             "OMP_DYNAMIC",
             "OMP_NUM_THREADS",
+            "OMP_PLACES",
             "OMP_PROC_BIND",
+            "PERFORMANCE_BASELINE",
+            "PERFORMANCE_BUILD_ROOT",
+            "PERFORMANCE_MAX_REGRESSION",
+            "PERFORMANCE_MIN_SPEEDUP",
+            "PERFORMANCE_OUTPUT",
+            "PERFORMANCE_SAMPLES",
+            "PERFORMANCE_SUITE_TIMEOUT",
+            "PERFORMANCE_TIMEOUT",
+            "PERFORMANCE_WARMUP",
+            "PERFORMANCE_WARMUPS",
             "PROBLEM",
             "PROBLEM_OBJ_DIR",
             "RUN_DIR",
@@ -321,6 +334,7 @@ class MakeFixture:
             {
                 "FAKE_RUN_LOG": str(self.run_log),
                 "FAKE_TOOL_LOG": str(self.tool_log),
+                "PERFORMANCE_RUN_LOG": str(self.performance_log),
                 "LC_ALL": "C",
             }
         )
@@ -369,15 +383,87 @@ class MakeFixture:
         for name in ("makefile", "m_files", "legacy-source-build.mk"):
             shutil.copy2(REPOSITORY_ROOT / "mymake" / name, mymake_destination / name)
 
-        # Root `clean` delegates test cleanup.  A tiny owned fixture keeps that
-        # orchestration hermetic; the real tests hierarchy is validated by the
-        # outer repository before this suite is launched.
+        # Exercise the real performance-target delegation hierarchy.  The
+        # unrelated groups remain tiny owned fixtures so root cleanup stays
+        # hermetic and inexpensive.
         tests_destination = self.root / "tests"
         tests_destination.mkdir()
-        (tests_destination / "GNUmakefile").write_text(
-            ".PHONY: clean\nclean:\n\t$(RM) -- generated-test-artifact\n",
+        shutil.copy2(
+            REPOSITORY_ROOT / "tests" / "GNUmakefile",
+            tests_destination / "GNUmakefile",
+        )
+        test_make_destination = tests_destination / "make"
+        test_make_destination.mkdir()
+        shutil.copy2(
+            REPOSITORY_ROOT / "tests" / "make" / "group.mk",
+            test_make_destination / "group.mk",
+        )
+        test_driver_destination = tests_destination / "driver"
+        test_driver_destination.mkdir()
+        shutil.copy2(
+            REPOSITORY_ROOT / "tests" / "driver" / "GNUmakefile",
+            test_driver_destination / "GNUmakefile",
+        )
+        driver_cli_destination = tests_destination / "driver_cli"
+        driver_cli_destination.mkdir()
+        shutil.copy2(
+            REPOSITORY_ROOT / "tests" / "driver_cli" / "GNUmakefile",
+            driver_cli_destination / "GNUmakefile",
+        )
+        (driver_cli_destination / "test_openmp_performance.py").write_text(
+            """#!/usr/bin/env python3
+import json
+import os
+from pathlib import Path
+import sys
+
+names = (
+    "MPIEXEC",
+    "MPIEXEC_FLAGS",
+    "MPI_NP_FLAG",
+    "OMP_PLACES",
+    "OMP_PROC_BIND",
+    "PERFORMANCE_BASELINE",
+    "PERFORMANCE_BUILD_ROOT",
+    "PERFORMANCE_MAX_REGRESSION",
+    "PERFORMANCE_MIN_SPEEDUP",
+    "PERFORMANCE_OUTPUT",
+    "PERFORMANCE_SAMPLES",
+    "PERFORMANCE_SUITE_TIMEOUT",
+    "PERFORMANCE_TIMEOUT",
+    "PERFORMANCE_WARMUPS",
+)
+record = {
+    "argv": sys.argv[1:],
+    "cwd": os.getcwd(),
+    "environment": {name: os.environ.get(name) for name in names},
+}
+with Path(os.environ["PERFORMANCE_RUN_LOG"]).open("a", encoding="utf-8") as stream:
+    stream.write(json.dumps(record, sort_keys=True) + "\\n")
+
+if "--self-test" not in sys.argv[1:]:
+    output = Path(os.environ["PERFORMANCE_OUTPUT"])
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text('{"fake": true}\\n', encoding="utf-8")
+""",
             encoding="utf-8",
         )
+
+        for group in ("src", "problems", "build"):
+            group_destination = tests_destination / group
+            group_destination.mkdir()
+            cleanup = (
+                "\t$(RM) -- ../generated-test-artifact\n"
+                if group == "src"
+                else "\t@:\n"
+            )
+            (group_destination / "GNUmakefile").write_text(
+                ".PHONY: all run clean list list-inline\n"
+                "all run:\n\t@:\n"
+                f"clean:\n{cleanup}"
+                f"list list-inline:\n\t@printf '%s\\n' '{group}-fixture'\n",
+                encoding="utf-8",
+            )
 
     def _install_fake_tools(self) -> None:
         tools_directory = self.root / "fake-tools"
@@ -422,6 +508,7 @@ DRIVER_CLI_TIMEOUT = 1s
 DRIVER_SMOKE_TIMEOUT = 1s
 DRIVER_INTEGRATION_TIMEOUT = 1
 SKIP_MPI_CASES = 1
+PERFORMANCE_SUITE_TIMEOUT = 30s
 """,
             encoding="utf-8",
         )
@@ -471,12 +558,16 @@ SKIP_MPI_CASES = 1
     def clear_logs(self) -> None:
         self.tool_log.unlink(missing_ok=True)
         self.run_log.unlink(missing_ok=True)
+        self.performance_log.unlink(missing_ok=True)
 
     def tool_records(self) -> list[dict[str, object]]:
         return self._json_lines(self.tool_log)
 
     def run_records(self) -> list[dict[str, object]]:
         return self._json_lines(self.run_log)
+
+    def performance_records(self) -> list[dict[str, object]]:
+        return self._json_lines(self.performance_log)
 
     @staticmethod
     def _json_lines(path: Path) -> list[dict[str, object]]:
@@ -770,6 +861,161 @@ class HierarchicalMakeTests(unittest.TestCase):
             object_directory = self.fixture.root / "problems" / directory_name / "_OBJ"
             for source_name in sources:
                 self.assertFalse((object_directory / Path(source_name).with_suffix(".o")).exists())
+
+    def test_performance_targets_release_forwarding_cleanup_and_guards(self) -> None:
+        performance_root = (
+            self.fixture.root / "build" / "openmp-performance-fixture"
+        )
+        baseline = self.fixture.root / "known-good-performance.json"
+        baseline.write_text('{"summary": {}}\n', encoding="utf-8")
+        performance_variables: dict[str, str | Path | int] = {
+            "PERFORMANCE_BUILD_ROOT": performance_root,
+            "PERFORMANCE_SUITE_TIMEOUT": "19s",
+            "PERFORMANCE_TIMEOUT": "17.5",
+            "PERFORMANCE_WARMUPS": 2,
+            "PERFORMANCE_SAMPLES": 5,
+            "PERFORMANCE_MIN_SPEEDUP": "1.23",
+            "PERFORMANCE_MAX_REGRESSION": "1.07",
+            "PERFORMANCE_BASELINE": baseline,
+            "MPIEXEC_FLAGS": "--fake-mpi-option value",
+            "MPI_NP_FLAG": "--ranks",
+            "OMP_PROC_BIND": "spread",
+            "OMP_PLACES": "threads",
+        }
+        expected_forwarded = {
+            "MPIEXEC": str(self.fixture.fake_mpiexec),
+            "MPIEXEC_FLAGS": "--fake-mpi-option value",
+            "MPI_NP_FLAG": "--ranks",
+            "OMP_PLACES": "threads",
+            "OMP_PROC_BIND": "spread",
+            "PERFORMANCE_BASELINE": str(baseline.resolve()),
+            "PERFORMANCE_BUILD_ROOT": str(performance_root.resolve()),
+            "PERFORMANCE_MAX_REGRESSION": "1.07",
+            "PERFORMANCE_MIN_SPEEDUP": "1.23",
+            "PERFORMANCE_SAMPLES": "5",
+            "PERFORMANCE_SUITE_TIMEOUT": "19s",
+            "PERFORMANCE_TIMEOUT": "17.5",
+            "PERFORMANCE_WARMUPS": "2",
+        }
+
+        self.fixture.make(
+            "test-performance-self-test", variables=performance_variables
+        )
+        self_test_records = self.fixture.performance_records()
+        self.assertEqual(len(self_test_records), 1)
+        self.assertEqual(self_test_records[0]["argv"], ["--self-test"])
+        self.assertEqual(
+            self_test_records[0]["cwd"],
+            str(self.fixture.root / "tests" / "driver_cli"),
+        )
+        self_test_environment = self_test_records[0]["environment"]
+        for name, value in expected_forwarded.items():
+            self.assertEqual(self_test_environment[name], value, name)
+        self.assertIsNone(self_test_environment["PERFORMANCE_OUTPUT"])
+        self.assertEqual(self.fixture.tool_records(), [])
+
+        ordinary_sentinel = self.fixture.build_root / "ordinary.keep"
+        ordinary_sentinel.parent.mkdir(parents=True)
+        ordinary_sentinel.write_text("ordinary\n", encoding="utf-8")
+        self.fixture.clear_logs()
+        self.fixture.make("test-performance", variables=performance_variables)
+
+        performance_records = self.fixture.performance_records()
+        self.assertEqual(
+            [record["argv"] for record in performance_records],
+            [["--self-test"], []],
+        )
+        measurement_environment = performance_records[1]["environment"]
+        for name, value in expected_forwarded.items():
+            self.assertEqual(measurement_environment[name], value, name)
+        performance_result = performance_root / "openmp-performance.json"
+        self.assertEqual(
+            measurement_environment["PERFORMANCE_OUTPUT"],
+            str(performance_result),
+        )
+        self.assertTrue(performance_result.is_file())
+
+        tool_records = self.fixture.tool_records()
+        compiles = self._records_of_kind(tool_records, "compile")
+        links = self._records_of_kind(tool_records, "link")
+        archives = self._records_of_kind(tool_records, "archive")
+        self.assertEqual(len(compiles), len(CORE_SOURCES) + 3)
+        self.assertEqual(len(links), 1)
+        self.assertEqual(len(archives), 1)
+        problem_compile_sources = [
+            Path(str(record["source"]))
+            for record in compiles
+            if f"{os.sep}problems{os.sep}" in str(record["source"])
+        ]
+        self.assertEqual(
+            [path.name for path in problem_compile_sources],
+            PROBLEMS["igrm_l2"][1],
+        )
+        self.assertTrue(
+            all(
+                path.parent.name == PROBLEMS["igrm_l2"][0]
+                for path in problem_compile_sources
+            )
+        )
+        for record in (*compiles, *links):
+            self.assertIn("--profile=release", record["argv"])
+        for record in tool_records:
+            output = Path(str(record["output"]))
+            self.assertTrue(
+                output.resolve().is_relative_to(performance_root.resolve()),
+                output,
+            )
+        self.assertEqual(ordinary_sentinel.read_text(encoding="utf-8"), "ordinary\n")
+        self.assertFalse((self.fixture.build_root / "LIB" / "libads.a").exists())
+        self.assertTrue((performance_root / "EXEC" / "igrm_l2").is_file())
+        self.assertTrue((performance_root / "LIB" / "libads.a").is_file())
+        performance_marker = performance_root / ".ads-openmp-performance-root"
+        self.assertEqual(
+            performance_marker.read_text(encoding="utf-8"),
+            "ADS_MPI_OPENMP_PERFORMANCE_ROOT="
+            f"{performance_root.resolve()}\n",
+        )
+
+        performance_sentinel = performance_root / "foreign.keep"
+        performance_sentinel.write_text("foreign\n", encoding="utf-8")
+        self.fixture.clear_logs()
+        self.fixture.make("clean-performance", variables=performance_variables)
+        self.fixture.make("clean-performance", variables=performance_variables)
+        self.assertEqual(self.fixture.tool_records(), [])
+        self.assertEqual(self.fixture.performance_records(), [])
+        self.assertEqual(ordinary_sentinel.read_text(encoding="utf-8"), "ordinary\n")
+        self.assertEqual(performance_sentinel.read_text(encoding="utf-8"), "foreign\n")
+        self.assertTrue(performance_marker.is_file())
+        self.assertFalse(performance_result.exists())
+        self.assertFalse((performance_root / "EXEC" / "igrm_l2").exists())
+        self.assertFalse((performance_root / "LIB" / "libads.a").exists())
+        self.assertFalse((performance_root / "igrm_l2_OBJ" / "main.o").exists())
+        self.assertFalse((performance_root / "_OBJ" / "Setup.o").exists())
+
+        driver_cli = self.fixture.root / "tests" / "driver_cli"
+        symlink = self.fixture.root / "build" / "unsafe-performance-link"
+        symlink.symlink_to(self.fixture.root / "src", target_is_directory=True)
+        unsafe_roots = (
+            Path("/"),
+            self.fixture.root,
+            self.fixture.root / "src",
+            self.fixture.root / "problems",
+            self.fixture.root / "tests",
+            self.fixture.build_root,
+            symlink,
+        )
+        for unsafe_root in unsafe_roots:
+            with self.subTest(unsafe_performance_root=unsafe_root):
+                self.fixture.clear_logs()
+                result = self.fixture.make(
+                    "validate-performance-paths",
+                    directory=driver_cli,
+                    variables={"PERFORMANCE_BUILD_ROOT": unsafe_root},
+                    expect_success=False,
+                )
+                self.assert_failed_with(result, "Unsafe PERFORMANCE_BUILD_ROOT")
+                self.assertEqual(self.fixture.tool_records(), [])
+                self.assertEqual(self.fixture.performance_records(), [])
 
     def test_unsafe_path_guards_fail_before_invoking_tools(self) -> None:
         checks = [

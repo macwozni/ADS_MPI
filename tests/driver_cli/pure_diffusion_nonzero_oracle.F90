@@ -100,11 +100,14 @@ program pure_diffusion_nonzero_oracle
    type(TimeScheme3D) :: initial_scheme, scheme
    character(len=32) :: argument, scheme_name
    real(kind=8) :: dt
-   integer(kind=4) :: ierr, step, steps
+   integer(kind=4) :: axis, ierr, nargs, step, steps
+   integer(kind=4), dimension(3) :: process_grid
 
-   if (command_argument_count() /= 3) then
+   nargs = command_argument_count()
+   if (nargs /= 3 .and. nargs /= 6) then
       write(*, '(A)') &
-         'usage: pure_diffusion_nonzero_oracle <dg|pr|be> <dt> <steps>'
+         'usage: pure_diffusion_nonzero_oracle <dg|pr|be> <dt> <steps> ' // &
+         '[<procx> <procy> <procz>]'
       stop 5
    end if
    call get_command_argument(1, scheme_name)
@@ -129,7 +132,20 @@ program pure_diffusion_nonzero_oracle
       stop 5
    end if
 
-   call InitializeParallelism(2, 1, 1, ierr)
+   process_grid = (/2, 1, 1/)
+   if (nargs == 6) then
+      do axis = 1, 3
+         call get_command_argument(3 + axis, argument)
+         read(argument, *, iostat=ierr) process_grid(axis)
+         if (ierr /= 0 .or. process_grid(axis) <= 0) then
+            write(*, '(A,A)') 'invalid process-grid extent: ', trim(argument)
+            stop 5
+         end if
+      end do
+   end if
+
+   call InitializeParallelism(process_grid(1), process_grid(2), &
+                              process_grid(3), ierr)
    call AbortOnError(ierr, 'manufactured diffusion parallel initialization')
    call CreateCommunicators(ierr)
    call AbortOnError(ierr, 'manufactured diffusion communicators')

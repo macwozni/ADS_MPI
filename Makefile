@@ -15,6 +15,16 @@ CONFIG_PATH := $(abspath $(CONFIG))
 include $(CONFIG_PATH)
 BUILD_ROOT ?= mymake
 BUILD_ROOT_PATH := $(abspath $(BUILD_ROOT))
+PERFORMANCE_BUILD_ROOT ?= $(ROOT_DIR)build/openmp-performance
+PERFORMANCE_BUILD_ROOT_PATH := $(abspath $(PERFORMANCE_BUILD_ROOT))
+PERFORMANCE_TIMEOUT ?= 300
+PERFORMANCE_SUITE_TIMEOUT ?= 3600s
+PERFORMANCE_WARMUPS ?= 1
+PERFORMANCE_SAMPLES ?= 3
+PERFORMANCE_MIN_SPEEDUP ?= 1.10
+PERFORMANCE_MAX_REGRESSION ?= 1.15
+PERFORMANCE_BASELINE ?=
+PERFORMANCE_BASELINE_PATH := $(if $(strip $(PERFORMANCE_BASELINE)),$(abspath $(PERFORMANCE_BASELINE)),)
 include $(PROBLEMS_DIR)/problems.mk
 
 PROBLEM ?= l2
@@ -26,6 +36,7 @@ MPI_NP_FLAG ?= -n
 OMP_NUM_THREADS ?= 1
 OMP_DYNAMIC ?= FALSE
 OMP_PROC_BIND ?= close
+OMP_PLACES ?= cores
 RUN_ENV ?=
 RUN_DIR ?=
 ARGS ?=
@@ -60,16 +71,29 @@ TEST_OPTIONS = \
 	DRIVER_CLI_TIMEOUT="$(DRIVER_CLI_TIMEOUT)" \
 	DRIVER_SMOKE_TIMEOUT="$(DRIVER_SMOKE_TIMEOUT)" \
 	DRIVER_INTEGRATION_TIMEOUT="$(DRIVER_INTEGRATION_TIMEOUT)" \
-	SKIP_MPI_CASES="$(SKIP_MPI_CASES)"
+	SKIP_MPI_CASES="$(SKIP_MPI_CASES)" \
+	PERFORMANCE_BUILD_ROOT="$(PERFORMANCE_BUILD_ROOT_PATH)" \
+	PERFORMANCE_TIMEOUT="$(PERFORMANCE_TIMEOUT)" \
+	PERFORMANCE_SUITE_TIMEOUT="$(PERFORMANCE_SUITE_TIMEOUT)" \
+	PERFORMANCE_WARMUPS="$(PERFORMANCE_WARMUPS)" \
+	PERFORMANCE_SAMPLES="$(PERFORMANCE_SAMPLES)" \
+	PERFORMANCE_MIN_SPEEDUP="$(PERFORMANCE_MIN_SPEEDUP)" \
+	PERFORMANCE_MAX_REGRESSION="$(PERFORMANCE_MAX_REGRESSION)" \
+	PERFORMANCE_BASELINE="$(PERFORMANCE_BASELINE_PATH)" \
+	MPIEXEC_FLAGS="$(MPIEXEC_FLAGS)" \
+	MPI_NP_FLAG="$(MPI_NP_FLAG)" \
+	OMP_PROC_BIND="$(OMP_PROC_BIND)" \
+	OMP_PLACES="$(OMP_PLACES)"
 
 .PHONY: all build build-all library problems list-problems list-configs help targets \
 	show-config config rebuild run run-help show-run \
 	test check test-build test-layout test-src test-problems test-driver \
 	test-build-system \
-	test-cli test-smoke test-integration test-list test-suite \
+	test-cli test-smoke test-integration test-performance \
+	test-performance-self-test test-list test-suite \
 	docs doc docs-html docs-pdf docs-check \
 	clean clean-build clean-problems clean-library clean-legacy clean-tests clean-docs \
-	distclean
+	clean-performance distclean
 
 all: library problems
 
@@ -152,6 +176,14 @@ test-smoke:
 test-integration:
 	+$(MAKE) --no-print-directory -j1 -C $(TESTS_DIR) $(TEST_OPTIONS) run-integration
 
+test-performance:
+	+$(MAKE) --no-print-directory -j1 -C $(TESTS_DIR) \
+		$(TEST_OPTIONS) run-performance
+
+test-performance-self-test:
+	+$(MAKE) --no-print-directory -j1 -C $(TESTS_DIR) \
+		$(TEST_OPTIONS) run-performance-self-test
+
 test-list:
 	+@$(MAKE) --no-print-directory -j1 -C $(TESTS_DIR) $(TEST_OPTIONS) list
 
@@ -189,6 +221,10 @@ clean-legacy:
 clean-tests:
 	+$(MAKE) --no-print-directory -j1 -C $(TESTS_DIR) $(TEST_OPTIONS) clean
 
+clean-performance:
+	+$(MAKE) --no-print-directory -j1 -C $(TESTS_DIR) \
+		$(TEST_OPTIONS) clean-performance
+
 clean-docs:
 	$(RM) -r -- doxygen
 
@@ -206,6 +242,8 @@ show-config config:
 		'MPIFC' '$(MPIFC)' \
 		'MODULE_OUTPUT' '$(MODULE_OUTPUT)' \
 		'MPIEXEC' '$(MPIEXEC)' \
+		'MPIEXEC_FLAGS' '$(MPIEXEC_FLAGS)' \
+		'MPI_NP_FLAG' '$(MPI_NP_FLAG)' \
 		'MUMPS_DIR' '$(MUMPS_DIR)' \
 		'LAPACK_DIR' '$(LAPACK_DIR)' \
 		'SCALAPACK_DIR' '$(SCALAPACK_DIR)' \
@@ -220,7 +258,17 @@ show-config config:
 		'DRIVER_CLI_TIMEOUT' '$(DRIVER_CLI_TIMEOUT)' \
 		'DRIVER_SMOKE_TIMEOUT' '$(DRIVER_SMOKE_TIMEOUT)' \
 		'DRIVER_INTEGRATION_TIMEOUT' '$(DRIVER_INTEGRATION_TIMEOUT)' \
-		'SKIP_MPI_CASES' '$(SKIP_MPI_CASES)'
+		'SKIP_MPI_CASES' '$(SKIP_MPI_CASES)' \
+		'PERFORMANCE_BUILD_ROOT' '$(PERFORMANCE_BUILD_ROOT_PATH)' \
+		'PERFORMANCE_TIMEOUT' '$(PERFORMANCE_TIMEOUT)' \
+		'PERFORMANCE_SUITE_TIMEOUT' '$(PERFORMANCE_SUITE_TIMEOUT)' \
+		'PERFORMANCE_WARMUPS' '$(PERFORMANCE_WARMUPS)' \
+		'PERFORMANCE_SAMPLES' '$(PERFORMANCE_SAMPLES)' \
+		'PERFORMANCE_MIN_SPEEDUP' '$(PERFORMANCE_MIN_SPEEDUP)' \
+		'PERFORMANCE_MAX_REGRESSION' '$(PERFORMANCE_MAX_REGRESSION)' \
+		'PERFORMANCE_BASELINE' '$(PERFORMANCE_BASELINE_PATH)' \
+		'OMP_PROC_BIND' '$(OMP_PROC_BIND)' \
+		'OMP_PLACES' '$(OMP_PLACES)'
 
 targets help:
 	@printf '%s\n' \
@@ -245,12 +293,14 @@ targets help:
 		'  NP must equal procx*procy*procz contained in ARGS.' \
 		'' \
 		'Tests:' \
-		'  make test | make check             complete test run' \
+		'  make test | make check             complete run, including performance gate' \
 		'  make test-build                    build all tests without running' \
 		'  make test-layout                   verify one-to-one src/test layout' \
 		'  make test-src | test-problems | test-driver' \
 		'  make test-build-system             test the hierarchical Make interface' \
 		'  make test-cli | test-smoke | test-integration' \
+		'  make test-performance              release OMP1/OMP4 scaling gate' \
+		'  make test-performance-self-test    test timing-gate logic without MPI' \
 		'  make test-suite TEST_SUITE=rhs_assembly' \
 		'  make test-list' \
 		'' \
@@ -261,7 +311,7 @@ targets help:
 		'Cleanup/configuration:' \
 		'  make clean                         build + tests + generated documentation' \
 		'  make clean-build | clean-problems | clean-library | clean-legacy' \
-		'  make clean-tests | clean-docs' \
+		'  make clean-tests | clean-performance | clean-docs' \
 		'  make show-config                   print effective configuration' \
 		'  make list-problems | list-configs' \
 		'  BUILD=debug|release and all paths/tools are configured in root m_options.' \

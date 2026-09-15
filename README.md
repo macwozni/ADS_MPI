@@ -713,12 +713,14 @@ accepts independently configured conforming trial/test continuities.
 The root Makefile delegates to `tests/GNUmakefile`, which delegates to the
 `src`, `problems`, `driver`, and `build` group GNUmakefiles; those in turn
 delegate to the individual suites. The active configuration is forwarded
-through every level. The defaults below live in root `m_options` and may be
-overridden on the command line:
+through every level. These effective defaults come from root `m_options` and
+the hierarchical test makefiles and may be overridden on the command line:
 
 ```text
 PFUNIT_ROOT=/opt/lib/pfunit/PFUNIT-4.16
 MPIEXEC=/opt/lib/mpich-5.0.0/bin/mpiexec
+MPIEXEC_FLAGS=
+MPI_NP_FLAG=-n
 MPIFC=/opt/lib/mpich-5.0.0/bin/mpif90
 MUMPS_DIR=/opt/lib/MUMPS_5.8.2
 SUITE_TIMEOUT=600s
@@ -726,6 +728,16 @@ DRIVER_CLI_TIMEOUT=20s
 DRIVER_SMOKE_TIMEOUT=60s
 DRIVER_INTEGRATION_TIMEOUT=90
 SKIP_MPI_CASES=0
+PERFORMANCE_BUILD_ROOT=build/openmp-performance
+PERFORMANCE_TIMEOUT=300
+PERFORMANCE_SUITE_TIMEOUT=3600s
+PERFORMANCE_WARMUPS=1
+PERFORMANCE_SAMPLES=3
+PERFORMANCE_MIN_SPEEDUP=1.10
+PERFORMANCE_MAX_REGRESSION=1.15
+PERFORMANCE_BASELINE=
+OMP_PROC_BIND=close
+OMP_PLACES=cores
 ```
 
 ### One source file, one primary test file
@@ -773,8 +785,8 @@ make test-src
 # Run all 23 problem-specific input, RHS, and solver suites.
 make test-problems
 
-# Build all ten problem executables and run CLI, smoke, and numerical
-# integration tests.
+# Build all ten problem executables and run CLI, smoke, numerical integration,
+# and the isolated release performance gate.
 make test-driver
 
 # Exercise the hierarchical Make interface in an isolated build tree.
@@ -784,6 +796,12 @@ make test-build-system
 make test-cli
 make test-smoke
 make test-integration
+
+# Build an isolated release executable and gate OMP1/OMP4 scaling.
+make test-performance
+
+# Exercise only the performance-gate logic, without compiling or launching MPI.
+make test-performance-self-test
 
 # Run the complete regression above in one command.
 make test
@@ -825,11 +843,13 @@ make test \
 The runner is deliberately serialized to keep diagnostics deterministic and
 avoid oversubscribing MPI/OpenMP test jobs. Each problem build nevertheless
 has a private `_OBJ` directory, so identically named problem modules cannot be
-reused accidentally. Each suite is also protected by `SUITE_TIMEOUT`. MPI
-suites exercise up to eight ranks, and relevant OpenMP tests compare thread
-counts 1, 2, 4, and 8. The top-level runner requires a POSIX environment with
-Bash and the coreutils `timeout` command; selected error-path probes
-additionally use POSIX process primitives.
+reused accidentally. Each suite is protected by `SUITE_TIMEOUT`; the driver
+suite that includes the timed gate uses `PERFORMANCE_SUITE_TIMEOUT`. MPI suites
+exercise up to eight ranks. The end-to-end problem matrix holds the MPI
+topology fixed while comparing one and four OpenMP threads. Lower-level
+parallel tests additionally exercise thread counts 2 and 8. The top-level
+runner requires a POSIX environment with Bash and the coreutils `timeout`
+command; selected error-path probes additionally use POSIX process primitives.
 
 ### Positive smoke and numerical integration tests
 
@@ -868,7 +888,9 @@ matrix does more than check process status:
   results must agree;
 - iGRM Eriksson requires finite, small algebraic residuals, a nonzero interior,
   six homogeneous faces, decreasing L2 error after refinement, and identical
-  serial and hybrid VTI output;
+  serial and hybrid VTI output. Its refined OMP1/OMP4 case must also report
+  more than 4096 sparse entries, which guarantees that the OMP4 run reaches
+  the library's parallel MUMPS-format conversion branch;
 - iGRM Stokes requires finite, small algebraic residuals, finite velocity,
   pressure, and divergence errors, improving refined errors, valid coupled
   velocity/pressure VTI output, and identical serial and hybrid results;
@@ -879,7 +901,75 @@ matrix does more than check process status:
 - oil uses the opt-in `ADS_OIL_RANDOM_SEED` test seed, verifies the independent
   first-step law `D(dt)=2*D(dt/2)`, requires depletion to make the second
   increment smaller than the first, and compares the two-step result across
-  one/four OpenMP threads and a hybrid MPI run.
+  one/four OpenMP threads and a hybrid MPI run. The end-to-end oracle is the
+  deterministic global `drained` value; the `oil_rhs_fun` unit suite separately
+  confirms that a real four-thread team produces exactly the same complete
+  per-element accumulator and returned RHS arrays as OMP1.
+
+Every production problem also has an isolated OMP1/OMP4 result comparison for
+one fixed MPI topology. L2 and heat use their `2x2x2` grids. The remaining ADS
+drivers retain their existing X split and add `1x2x2`, which exercises the Y
+and Z communication paths together and gives an uneven local DOF count in at
+least one active space. The nonzero pure-diffusion oracle accepts an explicit
+process grid so redistribution defects cannot hide behind its production zero
+solution; the public `pure_diffusion_igrm` executable itself is also run as a
+`1x2x2` OMP1/OMP4 pair and its complete reported solution history is compared.
+`igrm_stokes` and `igrm_pollution` currently assemble and solve on
+rank zero; their four-rank cases therefore validate topology setup, broadcast,
+output, and OpenMP invariance, but are not claimed as distributed-DOF solves.
+
+### OpenMP performance regression
+
+The real wall-clock regression is part of both `make test-driver` and the
+complete `make test`; it can also be run by itself with:
+
+```bash
+make test-performance
+```
+
+It builds only `igrm_l2` with `BUILD=release` in the isolated
+`build/openmp-performance` tree, then runs the same `32x32x32`, test-degree-three,
+trial-degree-two DG case with one and four threads on one MPI rank. One warm-up
+pair is followed by three measured pairs in alternating OMP1/OMP4 order.
+`OMP_DYNAMIC=FALSE`, `OMP_PROC_BIND=close`, and `OMP_PLACES=cores` are fixed by
+default. Every run, including warm-ups, must produce the same finite `31^3`
+VTK field as one common reference to `1e-12`.
+The gate fails unless the median paired speedup is at least `1.10` and OMP4 is
+faster in a strict majority of pairs. Results are written to
+`build/openmp-performance/openmp-performance.json`.
+
+Run this wall-clock gate on an otherwise idle worker with at least four
+exclusive CPU cores. MPI launcher flags must leave the single rank access to
+all four cores; binding that rank to one core makes the OMP4 measurement invalid
+and is expected to fail the speedup gate.
+
+On a pinned, otherwise idle runner, the result from a known-good revision can
+also gate absolute regressions of both OMP1 and OMP4 medians:
+
+```bash
+make test-performance \
+  PERFORMANCE_BASELINE=/absolute/path/to/known-good.json \
+  PERFORMANCE_MAX_REGRESSION=1.15
+```
+
+`PERFORMANCE_WARMUPS`, `PERFORMANCE_SAMPLES`, `PERFORMANCE_TIMEOUT`, and
+`PERFORMANCE_MIN_SPEEDUP` are configurable. `PERFORMANCE_TIMEOUT` applies to
+one process launch; the complete timed suite has the independent
+`PERFORMANCE_SUITE_TIMEOUT=3600s`. If the number of warm-ups or samples, or the
+per-launch timeout, is raised substantially, raise this outer timeout too. A
+baseline is accepted only when its schema, workload, thread counts, MPI launch
+command/options, binding, and placement match the current run, and is meaningful
+only on the same pinned hardware and software stack.
+`make test-performance-self-test` exercises configuration, VTK parsing,
+full-field comparison, report generation, thresholds, and baseline validation
+without launching MPI.
+
+Relative `PERFORMANCE_BUILD_ROOT` values are resolved at the repository root.
+The release tree carries an ownership marker; builds refuse a nonempty unowned
+directory, and cleanup resolves symlinks before rejecting source, test, normal
+build, or other unsafe in-repository destinations. Use `make
+clean-performance` to remove only the owned release artifacts and JSON report;
+unrelated files in that tree are retained.
 
 Normal oil runs remain stochastic when `ADS_OIL_RANDOM_SEED` is unset. The
 equivalent smoke commands are listed below for manual diagnostics. `make

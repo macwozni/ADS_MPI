@@ -38,6 +38,7 @@ IGRM_L2_SCALED_RMS_ERROR_TOL = 5.0e-5
 IGRM_L2_SCALED_MAX_ERROR_TOL = 1.5e-4
 ERIKSSON_INITIAL_RMS_ERROR_TOL = 2.5e-2
 ERIKSSON_INITIAL_REL_RMS_ERROR_TOL = 1.5e-1
+MUMPS_FORMAT_OMP_THRESHOLD = 4096
 PURE_DIFFUSION_FIELD_ABS_TOL = 1.0e-10
 PURE_DIFFUSION_FIELD_REL_L2_TOL = 1.0e-10
 OIL_ABS_TOL = 1.0e-20
@@ -268,7 +269,8 @@ class IntegrationSuite:
             f"expected {expected}, got {actual}",
         )
 
-    def expect_zero_solution(self, case: DriverCase, expected: list[int]) -> None:
+    @staticmethod
+    def solution_maxima(case: DriverCase) -> list[tuple[int, float]]:
         measurements: list[tuple[int, float]] = []
         pattern = re.compile(r"^\s*solution max abs iter\s+(\d+):\s+(\S+)\s*$")
         for line in case.output.splitlines():
@@ -279,6 +281,10 @@ class IntegrationSuite:
                     measurements.append((int(match.group(1)), float(value)))
                 except ValueError:
                     measurements.append((int(match.group(1)), math.nan))
+        return measurements
+
+    def expect_zero_solution(self, case: DriverCase, expected: list[int]) -> None:
+        measurements = self.solution_maxima(case)
         iterations = [iteration for iteration, _ in measurements]
         values = [value for _, value in measurements]
         passed = (
@@ -294,6 +300,36 @@ class IntegrationSuite:
             f"{case.label} zero-solution oracle",
             f"expected finite global maxima <= {ZERO_SOLUTION_TOL:g} at "
             f"{expected}, got {measurements}",
+        )
+
+    def expect_matching_solution_maxima(
+        self, reference: DriverCase, candidate: DriverCase
+    ) -> None:
+        expected = self.solution_maxima(reference)
+        actual = self.solution_maxima(candidate)
+        passed = (
+            reference.ok
+            and candidate.ok
+            and len(expected) > 0
+            and len(expected) == len(actual)
+            and all(
+                expected_iteration == actual_iteration
+                and math.isfinite(expected_value)
+                and math.isfinite(actual_value)
+                and math.isclose(
+                    actual_value,
+                    expected_value,
+                    rel_tol=SCALAR_REL_TOL,
+                    abs_tol=SCALAR_ABS_TOL,
+                )
+                for (expected_iteration, expected_value),
+                (actual_iteration, actual_value) in zip(expected, actual)
+            )
+        )
+        self.report(
+            passed,
+            f"{candidate.label} solution history matches {reference.label}",
+            f"expected {expected}, got {actual}",
         )
 
     @staticmethod
@@ -393,16 +429,17 @@ class IntegrationSuite:
     def expect_matching_vti(
         self, reference: DriverCase, candidate: DriverCase, filename: str
     ) -> None:
+        label = f"{candidate.label} {filename} matches {reference.label}"
         try:
             left = self.read_vti(reference.directory / filename)
             right = self.read_vti(candidate.directory / filename)
         except ValueError as error:
-            self.report(False, f"{candidate.label} {filename} matches serial", str(error))
+            self.report(False, label, str(error))
             return
         if left.extent != right.extent or left.origin != right.origin or left.spacing != right.spacing:
             self.report(
                 False,
-                f"{candidate.label} {filename} matches serial",
+                label,
                 "VTK grid metadata differs",
             )
             return
@@ -412,11 +449,11 @@ class IntegrationSuite:
             ):
                 self.report(
                     False,
-                    f"{candidate.label} {filename} matches serial",
+                    label,
                     f"value {index}: expected {expected:.12g}, got {actual:.12g}",
                 )
                 return
-        self.report(True, f"{candidate.label} {filename} matches serial")
+        self.report(True, label)
 
     @staticmethod
     def _vti_sample_location(
@@ -824,11 +861,12 @@ class IntegrationSuite:
     def expect_matching_pollution_vti(
         self, reference: DriverCase, candidate: DriverCase, filename: str
     ) -> None:
+        label = f"{candidate.label} {filename} matches {reference.label}"
         try:
             left = self.read_pollution_vti(reference.directory / filename)
             right = self.read_pollution_vti(candidate.directory / filename)
         except ValueError as error:
-            self.report(False, f"{candidate.label} {filename} matches serial", str(error))
+            self.report(False, label, str(error))
             return
         if (
             left.extent != right.extent
@@ -837,7 +875,7 @@ class IntegrationSuite:
         ):
             self.report(
                 False,
-                f"{candidate.label} {filename} matches serial",
+                label,
                 "VTK grid metadata differs",
             )
             return
@@ -847,11 +885,11 @@ class IntegrationSuite:
             ):
                 self.report(
                     False,
-                    f"{candidate.label} {filename} matches serial",
+                    label,
                     f"value {index}: expected {expected:.12g}, got {actual:.12g}",
                 )
                 return
-        self.report(True, f"{candidate.label} {filename} matches serial")
+        self.report(True, label)
 
     @classmethod
     def _named_data_array(cls, root: ET.Element, name: str) -> ET.Element:
@@ -972,11 +1010,12 @@ class IntegrationSuite:
     def expect_matching_stokes_vti(
         self, reference: DriverCase, candidate: DriverCase, filename: str
     ) -> None:
+        label = f"{candidate.label} {filename} matches {reference.label}"
         try:
             left = self.read_stokes_vti(reference.directory / filename)
             right = self.read_stokes_vti(candidate.directory / filename)
         except ValueError as error:
-            self.report(False, f"{candidate.label} {filename} matches serial", str(error))
+            self.report(False, label, str(error))
             return
         if (
             left.extent != right.extent
@@ -985,7 +1024,7 @@ class IntegrationSuite:
         ):
             self.report(
                 False,
-                f"{candidate.label} {filename} matches serial",
+                label,
                 "VTK grid metadata differs",
             )
             return
@@ -1001,12 +1040,12 @@ class IntegrationSuite:
                 ):
                     self.report(
                         False,
-                        f"{candidate.label} {filename} matches serial",
+                        label,
                         f"{field} value {index}: expected {expected:.12g}, "
                         f"got {actual:.12g}",
                     )
                     return
-        self.report(True, f"{candidate.label} {filename} matches serial")
+        self.report(True, label)
 
     def expect_zero_boundary(self, case: DriverCase, filename: str) -> None:
         """Check the six strongly constrained faces of the unit cube."""
@@ -1137,6 +1176,25 @@ class IntegrationSuite:
             case.ok and residual_ok and error_ok,
             f"{case.label} numerical diagnostics",
             details,
+        )
+
+    def expect_igrm_mumps_openmp_workload(self, case: DriverCase) -> None:
+        try:
+            nonzeros = self.labeled_scalar(case, "iGRM-MUMPS nonzeros:")
+        except ValueError as diagnostic:
+            self.report(False, f"{case.label} activates MUMPS OpenMP", str(diagnostic))
+            return
+        passed = (
+            case.ok
+            and math.isfinite(nonzeros)
+            and nonzeros.is_integer()
+            and nonzeros > MUMPS_FORMAT_OMP_THRESHOLD
+        )
+        self.report(
+            passed,
+            f"{case.label} activates MUMPS OpenMP",
+            f"expected more than {MUMPS_FORMAT_OMP_THRESHOLD} nonzeros, "
+            f"got {nonzeros:g}",
         )
 
     def expect_igrm_mumps_refinement(
@@ -1401,12 +1459,16 @@ class IntegrationSuite:
     def expect_oil_result(
         self, reference: DriverCase, candidate: DriverCase | None = None
     ) -> None:
-        label = reference.label if candidate is None else candidate.label
+        label = (
+            f"{reference.label} drained result"
+            if candidate is None
+            else f"{candidate.label} drained result matches {reference.label}"
+        )
         try:
             expected = self.final_scalar(reference)
             actual = expected if candidate is None else self.final_scalar(candidate)
         except ValueError as error:
-            self.report(False, f"{label} drained result", str(error))
+            self.report(False, label, str(error))
             return
         if candidate is None:
             passed = math.isfinite(actual) and actual > 0.0
@@ -1424,8 +1486,8 @@ class IntegrationSuite:
                     abs_tol=OIL_ABS_TOL,
                 )
             )
-            details = f"serial {expected:.16g}, candidate {actual:.16g}"
-        self.report(passed, f"{label} drained result", details)
+            details = f"reference {expected:.16g}, candidate {actual:.16g}"
+        self.report(passed, label, details)
 
     def expect_oil_accumulated(
         self, one_step: DriverCase, two_steps: DriverCase
@@ -1524,15 +1586,19 @@ def run_suite(suite: IntegrationSuite) -> None:
         "L2 serial p4", 1, 1, "l2", [3, 3, 3, 4, 1, 1, 1]
     )
     suite.expect_no_l2_failure(l2_serial)
-    l2_hybrid = suite.run_driver(
-        "L2 hybrid p4 2x2x2", 8, 4, "l2", [3, 3, 3, 4, 2, 2, 2]
+    l2_hybrid_omp1 = suite.run_driver(
+        "L2 hybrid p4 2x2x2 OMP1", 8, 1, "l2", [3, 3, 3, 4, 2, 2, 2]
     )
-    suite.expect_no_l2_failure(l2_hybrid)
+    suite.expect_no_l2_failure(l2_hybrid_omp1)
+    l2_hybrid_omp4 = suite.run_driver(
+        "L2 hybrid p4 2x2x2 OMP4", 8, 4, "l2", [3, 3, 3, 4, 2, 2, 2]
+    )
+    suite.expect_no_l2_failure(l2_hybrid_omp4)
 
     # Two real physical steps exercise persistent-buffer rotation, repeated
     # solver use, distributed gather/broadcast, and VTK output through step 2.
     heat_serial = suite.run_driver(
-        "heat serial", 1, 1, "heat", [3, 1, 2, 0.01, 1, 1, 1]
+        "heat serial", 1, 1, "heat", [4, 1, 2, 0.01, 1, 1, 1]
     )
     suite.expect_iterations(heat_serial, [0, 1, 2])
     suite.expect_valid_vti(heat_serial, "step0.vti")
@@ -1540,13 +1606,21 @@ def run_suite(suite: IntegrationSuite) -> None:
     suite.expect_valid_vti(heat_serial, "step2.vti")
     suite.expect_solution_changed(heat_serial)
     suite.expect_solution_changed(heat_serial, "step1.vti", "step2.vti")
-    heat_hybrid = suite.run_driver(
-        "heat hybrid 2x2x2", 8, 4, "heat", [3, 1, 2, 0.01, 2, 2, 2]
+    heat_hybrid_omp1 = suite.run_driver(
+        "heat hybrid 2x2x2 OMP1", 8, 1, "heat", [4, 1, 2, 0.01, 2, 2, 2]
     )
-    suite.expect_iterations(heat_hybrid, [0, 1, 2])
-    suite.expect_matching_vti(heat_serial, heat_hybrid, "step0.vti")
-    suite.expect_matching_vti(heat_serial, heat_hybrid, "step1.vti")
-    suite.expect_matching_vti(heat_serial, heat_hybrid, "step2.vti")
+    suite.expect_iterations(heat_hybrid_omp1, [0, 1, 2])
+    heat_hybrid_omp4 = suite.run_driver(
+        "heat hybrid 2x2x2 OMP4", 8, 4, "heat", [4, 1, 2, 0.01, 2, 2, 2]
+    )
+    suite.expect_iterations(heat_hybrid_omp4, [0, 1, 2])
+    for candidate in (heat_hybrid_omp1, heat_hybrid_omp4):
+        for filename in ("step0.vti", "step1.vti", "step2.vti"):
+            suite.expect_matching_vti(heat_serial, candidate, filename)
+    for filename in ("step0.vti", "step1.vti", "step2.vti"):
+        suite.expect_matching_vti(
+            heat_hybrid_omp1, heat_hybrid_omp4, filename
+        )
 
     # Exact upstream defaults for space/order/dt, shortened to one physical
     # step.  The oracle covers the L2-projected initial state and first update.
@@ -1576,6 +1650,27 @@ def run_suite(suite: IntegrationSuite) -> None:
     suite.expect_matching_vti(eriksson_serial, eriksson_hybrid, "step0.vti")
     suite.expect_matching_vti(eriksson_serial, eriksson_hybrid, "step1.vti")
     suite.expect_matching_vti(eriksson_serial, eriksson_hybrid, "step2.vti")
+    eriksson_yz_omp1 = suite.run_driver(
+        "Eriksson YZ 1x2x2 OMP1",
+        4,
+        1,
+        "eriksson",
+        [2, 1, 2, 0.01, 1, 2, 2],
+    )
+    suite.expect_iterations(eriksson_yz_omp1, [0, 1, 2])
+    eriksson_yz_omp4 = suite.run_driver(
+        "Eriksson YZ 1x2x2 OMP4",
+        4,
+        4,
+        "eriksson",
+        [2, 1, 2, 0.01, 1, 2, 2],
+    )
+    suite.expect_iterations(eriksson_yz_omp4, [0, 1, 2])
+    for candidate in (eriksson_yz_omp1, eriksson_yz_omp4):
+        for filename in ("step0.vti", "step1.vti", "step2.vti"):
+            suite.expect_matching_vti(eriksson_serial, candidate, filename)
+    for filename in ("step0.vti", "step1.vti", "step2.vti"):
+        suite.expect_matching_vti(eriksson_yz_omp1, eriksson_yz_omp4, filename)
 
     # Keep the inexpensive two-step MPI case above, and independently verify
     # the initial projection on a sufficiently resolved space.  This is a
@@ -1616,6 +1711,7 @@ def run_suite(suite: IntegrationSuite) -> None:
     suite.expect_igrm_mumps_refinement(
         igrm_eriksson_serial, igrm_eriksson_refined
     )
+    suite.expect_igrm_mumps_openmp_workload(igrm_eriksson_refined)
     igrm_eriksson_hybrid = suite.run_driver(
         "iGRM Eriksson MUMPS hybrid",
         2,
@@ -1628,6 +1724,37 @@ def run_suite(suite: IntegrationSuite) -> None:
     )
     suite.expect_matching_vti(
         igrm_eriksson_serial, igrm_eriksson_hybrid, "step0.vti"
+    )
+    igrm_eriksson_yz_omp1 = suite.run_driver(
+        "iGRM Eriksson MUMPS refined YZ 1x2x2 OMP1",
+        4,
+        1,
+        "igrm_eirksson",
+        [4, 4, 4, 2, 2, 2, 1, 1, 1, 1, 2, 2],
+    )
+    suite.expect_igrm_mumps_metrics(
+        igrm_eriksson_refined, igrm_eriksson_yz_omp1
+    )
+    igrm_eriksson_yz_omp4 = suite.run_driver(
+        "iGRM Eriksson MUMPS refined YZ 1x2x2 OMP4",
+        4,
+        4,
+        "igrm_eirksson",
+        [4, 4, 4, 2, 2, 2, 1, 1, 1, 1, 2, 2],
+    )
+    suite.expect_igrm_mumps_metrics(
+        igrm_eriksson_refined, igrm_eriksson_yz_omp4
+    )
+    suite.expect_igrm_mumps_openmp_workload(igrm_eriksson_yz_omp4)
+    for candidate in (igrm_eriksson_yz_omp1, igrm_eriksson_yz_omp4):
+        suite.expect_matching_vti(
+            igrm_eriksson_refined, candidate, "step0.vti"
+        )
+    suite.expect_matching_vti(
+        igrm_eriksson_yz_omp1, igrm_eriksson_yz_omp4, "step0.vti"
+    )
+    suite.expect_igrm_mumps_metrics(
+        igrm_eriksson_yz_omp1, igrm_eriksson_yz_omp4
     )
 
     # The 3D DG-iGRM Stokes problem has discontinuous residual spaces and
@@ -1673,6 +1800,30 @@ def run_suite(suite: IntegrationSuite) -> None:
     suite.expect_matching_stokes_vti(
         igrm_stokes_coarse, igrm_stokes_hybrid, "result.vti"
     )
+    igrm_stokes_yz_omp1 = suite.run_driver(
+        "iGRM Stokes four-rank topology 1x2x2 OMP1",
+        4,
+        1,
+        "igrm_stokes",
+        [2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2],
+    )
+    suite.expect_igrm_stokes_metrics(igrm_stokes_coarse, igrm_stokes_yz_omp1)
+    igrm_stokes_yz_omp4 = suite.run_driver(
+        "iGRM Stokes four-rank topology 1x2x2 OMP4",
+        4,
+        4,
+        "igrm_stokes",
+        [2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2],
+    )
+    suite.expect_igrm_stokes_metrics(igrm_stokes_coarse, igrm_stokes_yz_omp4)
+    for candidate in (igrm_stokes_yz_omp1, igrm_stokes_yz_omp4):
+        suite.expect_matching_stokes_vti(
+            igrm_stokes_coarse, candidate, "result.vti"
+        )
+    suite.expect_matching_stokes_vti(
+        igrm_stokes_yz_omp1, igrm_stokes_yz_omp4, "result.vti"
+    )
+    suite.expect_igrm_stokes_metrics(igrm_stokes_yz_omp1, igrm_stokes_yz_omp4)
 
     # Exercise two physical DPG steps with a genuinely enriched test space.
     # Source-aware quadrature resolves the radius-25 source independently of
@@ -1715,6 +1866,40 @@ def run_suite(suite: IntegrationSuite) -> None:
     suite.expect_matching_pollution_vti(
         igrm_pollution_serial, igrm_pollution_hybrid, "out_2.vti"
     )
+    igrm_pollution_yz_omp1 = suite.run_driver(
+        "iGRM pollution four-rank invariance 1x2x2 OMP1",
+        4,
+        1,
+        "igrm_pollution",
+        [4, 0, 1, 0, 2, 1, 2, 1, 2, 2],
+        pollution_environment,
+    )
+    suite.expect_pollution_metrics(
+        igrm_pollution_serial, igrm_pollution_yz_omp1, completed_steps=2
+    )
+    igrm_pollution_yz_omp4 = suite.run_driver(
+        "iGRM pollution four-rank invariance 1x2x2 OMP4",
+        4,
+        4,
+        "igrm_pollution",
+        [4, 0, 1, 0, 2, 1, 2, 1, 2, 2],
+        pollution_environment,
+    )
+    suite.expect_pollution_metrics(
+        igrm_pollution_serial, igrm_pollution_yz_omp4, completed_steps=2
+    )
+    for candidate in (igrm_pollution_yz_omp1, igrm_pollution_yz_omp4):
+        for filename in ("out_0.vti", "out_1.vti", "out_2.vti"):
+            suite.expect_matching_pollution_vti(
+                igrm_pollution_serial, candidate, filename
+            )
+    for filename in ("out_0.vti", "out_1.vti", "out_2.vti"):
+        suite.expect_matching_pollution_vti(
+            igrm_pollution_yz_omp1, igrm_pollution_yz_omp4, filename
+        )
+    suite.expect_pollution_metrics(
+        igrm_pollution_yz_omp1, igrm_pollution_yz_omp4, completed_steps=2
+    )
 
     # The production zero-forcing case guards the zero fixed point.  A second,
     # test-only executable initializes an exactly representable, nonconstant
@@ -1737,7 +1922,7 @@ def run_suite(suite: IntegrationSuite) -> None:
             2,
             4,
             "pure_diffusion_nonzero_oracle",
-            [scheme, 1.0e-2, 2],
+            [scheme, 1.0e-2, 2, 2, 1, 1],
         )
         manufactured_cases[scheme] = manufactured
         suite.expect_manufactured_diffusion_equilibrium(manufactured, 2)
@@ -1771,6 +1956,62 @@ def run_suite(suite: IntegrationSuite) -> None:
                 f"{candidate_scheme.upper()} step {step} full field",
             )
 
+    # The nonzero manufactured field makes redistribution mistakes observable.
+    # A 1x2x2 process grid exercises both missing communication directions;
+    # seven test-space DOFs split as 4+3 in Y and Z.  Keeping MPI fixed while
+    # changing only the OpenMP team provides an isolated OMP1/OMP4 comparison.
+    pure_yz_cases = []
+    for threads in (1, 4):
+        candidate = suite.run_driver(
+            f"pure diffusion manufactured DG YZ 1x2x2 OMP{threads}",
+            4,
+            threads,
+            "pure_diffusion_nonzero_oracle",
+            ["dg", 1.0e-2, 2, 1, 2, 2],
+        )
+        pure_yz_cases.append(candidate)
+        suite.expect_manufactured_diffusion_equilibrium(candidate, 2)
+        for step in range(3):
+            filename = f"step{step}.vti"
+            suite.expect_valid_vti(candidate, filename)
+            suite.expect_manufactured_exact_vti(candidate, filename)
+            suite.expect_same_manufactured_vti(
+                manufactured_cases["dg"],
+                filename,
+                candidate,
+                filename,
+                f"{candidate.label} {filename} matches X decomposition",
+            )
+    for step in range(3):
+        filename = f"step{step}.vti"
+        suite.expect_same_manufactured_vti(
+            pure_yz_cases[0],
+            filename,
+            pure_yz_cases[1],
+            filename,
+            f"pure diffusion manufactured DG {filename} OMP1 vs OMP4",
+        )
+
+    # Exercise the same Y/Z topology through the production executable too.
+    # The zero fixed point is intentionally complemented by the nonzero oracle
+    # above: here the direct history comparison proves that only the OpenMP
+    # team size changed in the real public driver.
+    pure_production_yz_cases = []
+    for threads in (1, 4):
+        candidate = suite.run_driver(
+            f"pure diffusion production DG YZ 1x2x2 OMP{threads}",
+            4,
+            threads,
+            "pure_diffusion_igrm",
+            [3, 1, 1, 2, 2, 2, 0.1, "dg"],
+        )
+        pure_production_yz_cases.append(candidate)
+        suite.expect_iterations(candidate, [0, 1, 2])
+        suite.expect_zero_solution(candidate, [0, 1, 2])
+    suite.expect_matching_solution_maxima(
+        pure_production_yz_cases[0], pure_production_yz_cases[1]
+    )
+
     # All public iGRM scheme dispatches with a serial/distributed result oracle.
     for scheme in ("dg", "pr", "be"):
         serial = suite.run_driver(
@@ -1796,6 +2037,24 @@ def run_suite(suite: IntegrationSuite) -> None:
             ],
         )
         suite.expect_matching_vti(serial, hybrid, "step0.vti")
+        if scheme == "dg":
+            igrm_l2_yz_cases = []
+            for threads in (1, 4):
+                candidate = suite.run_driver(
+                    f"iGRM L2 DG YZ 1x2x2 OMP{threads}",
+                    4,
+                    threads,
+                    "igrm_l2",
+                    [
+                        2, 2, 2, 3, 3, 3, 1, 1, 1, 1, 2, 2,
+                        IGRM_L2_SMALL_TAU, scheme,
+                    ],
+                )
+                igrm_l2_yz_cases.append(candidate)
+                suite.expect_matching_vti(serial, candidate, "step0.vti")
+            suite.expect_matching_vti(
+                igrm_l2_yz_cases[0], igrm_l2_yz_cases[1], "step0.vti"
+            )
 
     for scheme in ("dg", "pr", "be"):
         serial = suite.run_driver(
@@ -1824,6 +2083,27 @@ def run_suite(suite: IntegrationSuite) -> None:
         suite.expect_matching_vti(serial, hybrid, "step0.vti")
         suite.expect_matching_vti(serial, hybrid, "step1.vti")
         suite.expect_matching_vti(serial, hybrid, "step2.vti")
+        if scheme == "dg":
+            igrm_heat_yz_cases = []
+            for threads in (1, 4):
+                candidate = suite.run_driver(
+                    f"iGRM heat DG YZ 1x2x2 OMP{threads}",
+                    4,
+                    threads,
+                    "igrm_heat",
+                    [
+                        2, 2, 2, 3, 3, 3, 2, 2, 2, 1, 2, 2,
+                        2, 1.0e-4, scheme,
+                    ],
+                )
+                igrm_heat_yz_cases.append(candidate)
+                suite.expect_iterations(candidate, [0, 1, 2])
+                for filename in ("step0.vti", "step1.vti", "step2.vti"):
+                    suite.expect_matching_vti(serial, candidate, filename)
+            for filename in ("step0.vti", "step1.vti", "step2.vti"):
+                suite.expect_matching_vti(
+                    igrm_heat_yz_cases[0], igrm_heat_yz_cases[1], filename
+                )
 
     # The opt-in seed makes the random oil geometry identical without changing
     # normal runs. This turns the former status-only check into a race/MPI oracle.
@@ -1881,6 +2161,20 @@ def run_suite(suite: IntegrationSuite) -> None:
     )
     suite.expect_iterations(oil_hybrid, [0, 1, 2])
     suite.expect_oil_result(oil_serial, oil_hybrid)
+    oil_yz_cases = []
+    for threads in (1, 4):
+        candidate = suite.run_driver(
+            f"oil YZ 1x2x2 OMP{threads}",
+            4,
+            threads,
+            "oil",
+            [3, 2, 1, 2, 2, 2, 1.0e-6, *oil_tail],
+            oil_environment,
+        )
+        oil_yz_cases.append(candidate)
+        suite.expect_iterations(candidate, [0, 1, 2])
+        suite.expect_oil_result(oil_serial, candidate)
+    suite.expect_oil_result(oil_yz_cases[0], oil_yz_cases[1])
 
 
 def main() -> int:
