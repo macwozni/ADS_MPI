@@ -4,7 +4,8 @@
 
 .PHONY: all tests run run-src run-problems run-driver run-build-system \
 	run-cli run-smoke run-integration run-performance \
-	run-performance-self-test clean-performance run-suite check-layout list clean
+	run-performance-self-test run-coverage clean-performance \
+	clean-coverage-data run-suite check-layout list clean
 
 CONFIG      ?= ../m_options
 CONFIG_PATH := $(abspath $(CONFIG))
@@ -37,6 +38,9 @@ PERFORMANCE_MIN_SPEEDUP ?= 1.10
 PERFORMANCE_MAX_REGRESSION ?= 1.15
 PERFORMANCE_BASELINE ?=
 PERFORMANCE_BASELINE_PATH := $(if $(strip $(PERFORMANCE_BASELINE)),$(abspath $(PERFORMANCE_BASELINE)),)
+COVERAGE_FLAGS ?=
+COVERAGE_COMPILER = $(MPIFC) --coverage
+COVERAGE_MAKEFILE := $(abspath make/coverage.mk)
 
 # This runner knows only the test groups.  Suite registration and execution
 # belong to the group makefiles, while each suite owns its actual build rules.
@@ -67,7 +71,8 @@ GROUP_OPTIONS = \
 	MPIEXEC_FLAGS="$(MPIEXEC_FLAGS)" \
 	MPI_NP_FLAG="$(MPI_NP_FLAG)" \
 	OMP_PROC_BIND="$(OMP_PROC_BIND)" \
-	OMP_PLACES="$(OMP_PLACES)"
+	OMP_PLACES="$(OMP_PLACES)" \
+	COVERAGE_FLAGS="$(COVERAGE_FLAGS)"
 
 define delegate_groups
 	@set -eu; \
@@ -116,6 +121,22 @@ run-performance-self-test:
 	+$(MAKE) --no-print-directory -j1 -C driver \
 		$(GROUP_OPTIONS) run-performance-self-test
 
+run-coverage: check-layout clean-coverage-data
+	@if test -z '$(strip $(COVERAGE_FLAGS))'; then \
+		printf 'COVERAGE_FLAGS must be set for run-coverage\n' >&2; exit 2; \
+	fi
+	+$(MAKE) --no-print-directory -j1 -C build \
+		$(GROUP_OPTIONS) run
+	+env MAKEFILES='$(COVERAGE_MAKEFILE)' $(MAKE) --no-print-directory -j1 \
+		-C src $(GROUP_OPTIONS) MPIFC='$(COVERAGE_COMPILER)' \
+		FC='$(COVERAGE_COMPILER)' run
+	+env MAKEFILES='$(COVERAGE_MAKEFILE)' $(MAKE) --no-print-directory -j1 \
+		-C problems $(GROUP_OPTIONS) MPIFC='$(COVERAGE_COMPILER)' \
+		FC='$(COVERAGE_COMPILER)' run
+	+env MAKEFILES='$(COVERAGE_MAKEFILE)' $(MAKE) --no-print-directory -j1 \
+		-C driver $(GROUP_OPTIONS) MPIFC='$(COVERAGE_COMPILER)' \
+		FC='$(COVERAGE_COMPILER)' run-coverage
+
 clean-performance:
 	+$(MAKE) --no-print-directory -j1 -C driver \
 		$(GROUP_OPTIONS) clean-performance
@@ -154,5 +175,8 @@ list:
 		$(MAKE) --no-print-directory -s -C "$$group" list; \
 	done
 
-clean:
+clean-coverage-data:
+	@find '$(CURDIR)' -type f \( -name '*.gcda' -o -name '*.gcno' \) -delete
+
+clean: clean-coverage-data
 	$(call delegate_groups,$(GROUPS),clean)

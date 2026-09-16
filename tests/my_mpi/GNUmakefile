@@ -33,6 +33,7 @@ FAULT_FFLAGS := -std=f2003 -fimplicit-none -pedantic -O0 -g
 FAULT_FFLAGS += -fcheck=all -fbounds-check
 FAULT_FFLAGS += -cpp
 FAULT_FFLAGS += -J$(FAULT_OBJ_DIR) -I$(FAULT_OBJ_DIR) -I$(SRC_DIR)
+FAULT_FFLAGS += $(COVERAGE_FLAGS)
 
 FAULT_OBJS := \
 	$(FAULT_OBJ_DIR)/distribute_mpi_stub.o \

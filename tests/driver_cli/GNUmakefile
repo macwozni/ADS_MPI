@@ -2,7 +2,7 @@
 
 .NOTPARALLEL:
 
-.PHONY: all tests run run-cli run-smoke run-integration \
+.PHONY: all tests run run-cli run-smoke run-integration run-coverage \
 	performance-build run-performance run-performance-self-test \
 	validate-performance-paths prepare-performance-root \
 	validate-performance-ownership clean-performance clean
@@ -39,6 +39,7 @@ ORACLE_OBJ_DIR := $(BUILD_ROOT_PATH)/driver_cli_test_OBJ
 ORACLE_SOURCE := pure_diffusion_nonzero_oracle.F90
 ORACLE_OBJECT := $(ORACLE_OBJ_DIR)/pure_diffusion_nonzero_oracle.o
 ORACLE_MODULE := $(ORACLE_OBJ_DIR)/pure_diffusion_oracle_rhs.mod
+ORACLE_PROFILE_FILES := $(ORACLE_OBJECT:.o=.gcda) $(ORACLE_OBJECT:.o=.gcno)
 ORACLE_EXECUTABLE := $(EXEC_DIR)/pure_diffusion_nonzero_oracle
 PERFORMANCE_BUILD_ROOT ?= $(REPOSITORY_ROOT)/build/openmp-performance
 PERFORMANCE_BUILD_ROOT_PATH := $(abspath $(PERFORMANCE_BUILD_ROOT))
@@ -122,6 +123,11 @@ run-integration: all
 	MPIEXEC='$(MPIEXEC)' EXEC_DIR='$(abspath $(EXEC_DIR))' \
 		DRIVER_INTEGRATION_TIMEOUT='$(DRIVER_INTEGRATION_TIMEOUT)' \
 		$(PYTHON) ./test_driver_integration.py
+
+# Instrumented wall-clock timings are not meaningful.  Coverage executes every
+# functional driver layer and deliberately leaves the release performance gate
+# to the ordinary `make test` / `make test-performance` paths.
+run-coverage: run-cli run-smoke run-integration
 
 run-performance-self-test:
 	$(PYTHON) ./test_openmp_performance.py --self-test
@@ -243,5 +249,6 @@ clean-performance: validate-performance-ownership
 	fi
 
 clean: clean-performance
-	$(RM) -- $(ORACLE_OBJECT) $(ORACLE_MODULE) $(ORACLE_EXECUTABLE)
+	$(RM) -- $(ORACLE_OBJECT) $(ORACLE_PROFILE_FILES) $(ORACLE_MODULE) \
+		$(ORACLE_EXECUTABLE)
 	@rmdir -- '$(ORACLE_OBJ_DIR)' 2>/dev/null || :

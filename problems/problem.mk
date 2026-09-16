@@ -25,7 +25,7 @@ endif
 
 PROBLEMS_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 ROOT_DIR := $(abspath $(PROBLEMS_DIR)/..)
-PROBLEM_DIR := $(patsubst %/,%,$(dir $(abspath $(firstword $(MAKEFILE_LIST)))))
+PROBLEM_DIR := $(abspath $(CURDIR))
 
 CONFIG ?= $(ROOT_DIR)/m_options
 CONFIG_PATH := $(abspath $(CONFIG))
@@ -201,7 +201,8 @@ show-config:
 clean: clean-executable clean-objects
 
 clean-objects: validate-problem-paths
-	$(RM) -- $(OBJECTS) $(MODULE_FILES) $(BUILD_STAMP) $(BUILD_STAMP).tmp
+	$(RM) -- $(OBJECTS) $(OBJECTS:.o=.gcda) $(OBJECTS:.o=.gcno) \
+		$(MODULE_FILES) $(BUILD_STAMP) $(BUILD_STAMP).tmp
 	@rmdir -- '$(PROBLEM_OBJ_DIR_PATH)' 2>/dev/null || :
 
 clean-executable: validate-problem-paths

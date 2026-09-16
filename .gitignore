@@ -10,6 +10,12 @@ fort.1
 nohup.out
 vgcore.*
 
+# Coverage and Python test artifacts
+*.gcda
+*.gcno
+__pycache__/
+*.py[cod]
+
 # Build directories
 build/
 build_gnu/

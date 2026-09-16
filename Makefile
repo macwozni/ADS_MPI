@@ -25,6 +25,21 @@ PERFORMANCE_MIN_SPEEDUP ?= 1.10
 PERFORMANCE_MAX_REGRESSION ?= 1.15
 PERFORMANCE_BASELINE ?=
 PERFORMANCE_BASELINE_PATH := $(if $(strip $(PERFORMANCE_BASELINE)),$(abspath $(PERFORMANCE_BASELINE)),)
+COVERAGE_ROOT ?= $(ROOT_DIR)build/coverage
+COVERAGE_ROOT_PATH := $(abspath $(COVERAGE_ROOT))
+COVERAGE_BUILD_ROOT ?= $(COVERAGE_ROOT_PATH)/build
+COVERAGE_BUILD_ROOT_PATH := $(abspath $(COVERAGE_BUILD_ROOT))
+COVERAGE_TRACEFILE := $(COVERAGE_ROOT_PATH)/coverage.info
+COVERAGE_SUMMARY := $(COVERAGE_ROOT_PATH)/coverage-summary.json
+COVERAGE_HTML_DIR := $(COVERAGE_ROOT_PATH)/html
+COVERAGE_MARKER := $(COVERAGE_ROOT_PATH)/.ads-coverage-root
+COVERAGE_FLAGS ?= -O0 -g --coverage -fprofile-abs-path
+COVERAGE_MIN_LINES ?= 90.0
+COVERAGE_MIN_FUNCTIONS ?= 90.0
+COVERAGE_MIN_BRANCHES ?= 50.0
+GCOV ?= gcov
+LCOV ?= lcov
+GENHTML ?= genhtml
 include $(PROBLEMS_DIR)/problems.mk
 
 PROBLEM ?= l2
@@ -88,12 +103,13 @@ TEST_OPTIONS = \
 .PHONY: all build build-all library problems list-problems list-configs help targets \
 	show-config config rebuild run run-help show-run \
 	test check test-build test-layout test-src test-problems test-driver \
-	test-build-system \
+	test-build-system test-coverage _test-coverage-report validate-coverage-tools \
+	validate-coverage-paths prepare-coverage-root validate-coverage-ownership \
 	test-cli test-smoke test-integration test-performance \
 	test-performance-self-test test-list test-suite \
 	docs doc docs-html docs-pdf docs-check \
 	clean clean-build clean-problems clean-library clean-legacy clean-tests clean-docs \
-	clean-performance distclean
+	clean-performance clean-coverage distclean
 
 all: library problems
 
@@ -184,6 +200,137 @@ test-performance-self-test:
 	+$(MAKE) --no-print-directory -j1 -C $(TESTS_DIR) \
 		$(TEST_OPTIONS) run-performance-self-test
 
+validate-coverage-tools:
+	@set -eu; \
+	for tool in '$(GCOV)' '$(LCOV)' '$(GENHTML)'; do \
+		if ! command -v "$$tool" >/dev/null 2>&1; then \
+			printf 'Coverage tool not found: %s\n' "$$tool" >&2; \
+			exit 2; \
+		fi; \
+	done; \
+	compiler_version="$$( '$(MPIFC)' --version 2>&1 )"; \
+	case "$$compiler_version" in \
+		*'GNU Fortran'*) ;; \
+		*) printf 'test-coverage requires GNU Fortran; MPIFC is %s\n' \
+			'$(MPIFC)' >&2; exit 2 ;; \
+	esac
+
+validate-coverage-paths:
+	@set -eu; \
+	coverage_root=$$(realpath -m -- '$(COVERAGE_ROOT_PATH)'); \
+	coverage_build=$$(realpath -m -- '$(COVERAGE_BUILD_ROOT_PATH)'); \
+	repository_root=$$(realpath -m -- '$(ROOT_DIR)'); \
+	build_root=$$(realpath -m -- '$(BUILD_ROOT_PATH)'); \
+	performance_root=$$(realpath -m -- '$(PERFORMANCE_BUILD_ROOT_PATH)'); \
+	case "$$coverage_root" in \
+		"$$repository_root"/build/*) ;; \
+		*) printf 'Unsafe COVERAGE_ROOT: %s\n' '$(COVERAGE_ROOT_PATH)' >&2; \
+			exit 2 ;; \
+	esac; \
+	case "$$coverage_build" in \
+		"$$coverage_root"/*) ;; \
+		*) printf 'COVERAGE_BUILD_ROOT must be inside COVERAGE_ROOT: %s\n' \
+			'$(COVERAGE_BUILD_ROOT_PATH)' >&2; exit 2 ;; \
+	esac; \
+	case "$$coverage_root" in \
+		"$$build_root"|"$$build_root"/*|"$$performance_root"|"$$performance_root"/*) \
+			printf 'COVERAGE_ROOT overlaps another build root: %s\n' \
+				'$(COVERAGE_ROOT_PATH)' >&2; exit 2 ;; \
+	esac; \
+	case "$$build_root $$performance_root" in \
+		*"$$coverage_root"/*) \
+			printf 'COVERAGE_ROOT contains another build root: %s\n' \
+				'$(COVERAGE_ROOT_PATH)' >&2; exit 2 ;; \
+	esac; \
+	if test -L '$(COVERAGE_ROOT_PATH)'; then \
+		printf 'Unsafe COVERAGE_ROOT symlink: %s\n' '$(COVERAGE_ROOT_PATH)' >&2; \
+		exit 2; \
+	fi
+
+prepare-coverage-root: validate-coverage-paths
+	@set -eu; \
+	root='$(COVERAGE_ROOT_PATH)'; \
+	marker='$(COVERAGE_MARKER)'; \
+	actual=$$(realpath -m -- "$$root"); \
+	expected="ADS_MPI_COVERAGE_ROOT=$$actual"; \
+	if test -e "$$root" && ! test -d "$$root"; then \
+		printf 'COVERAGE_ROOT is not a directory: %s\n' "$$root" >&2; exit 2; \
+	fi; \
+	if test -d "$$root"; then \
+		if test -L "$$marker"; then \
+			printf 'Unsafe coverage ownership marker: %s\n' "$$marker" >&2; \
+			exit 2; \
+		elif test -f "$$marker"; then \
+			if test "$$(cat -- "$$marker")" != "$$expected"; then \
+				printf 'Invalid coverage ownership marker: %s\n' "$$marker" >&2; \
+				exit 2; \
+			fi; \
+		elif test -n "$$(find "$$root" -mindepth 1 -maxdepth 1 -print -quit)"; then \
+			printf 'Refusing non-empty unowned COVERAGE_ROOT: %s\n' "$$root" >&2; \
+			exit 2; \
+		fi; \
+	fi; \
+	$(RM) -r -- '$(COVERAGE_BUILD_ROOT_PATH)' '$(COVERAGE_HTML_DIR)'; \
+	$(RM) -- '$(COVERAGE_TRACEFILE)' '$(COVERAGE_SUMMARY)' \
+		'$(COVERAGE_SUMMARY).tmp'; \
+	mkdir -p -- "$$root"; \
+	if ! test -f "$$marker"; then \
+		marker_tmp="$$marker.tmp"; \
+		printf '%s\n' "$$expected" > "$$marker_tmp"; \
+		mv -f -- "$$marker_tmp" "$$marker"; \
+	fi
+
+validate-coverage-ownership: validate-coverage-paths
+	@set -eu; \
+	root='$(COVERAGE_ROOT_PATH)'; \
+	marker='$(COVERAGE_MARKER)'; \
+	if ! test -e "$$root"; then exit 0; fi; \
+	if ! test -d "$$root"; then \
+		printf 'COVERAGE_ROOT is not a directory: %s\n' "$$root" >&2; exit 2; \
+	fi; \
+	actual=$$(realpath -m -- "$$root"); \
+	expected="ADS_MPI_COVERAGE_ROOT=$$actual"; \
+	if test -L "$$marker" || ! test -f "$$marker" || \
+		test "$$(cat -- "$$marker" 2>/dev/null || :)" != "$$expected"; then \
+		printf 'Refusing unowned COVERAGE_ROOT: %s\n' "$$root" >&2; exit 2; \
+	fi
+
+test-coverage:
+	+@status=0; \
+	$(MAKE) --no-print-directory -j1 _test-coverage-report || status=$$?; \
+	cleanup_status=0; \
+	$(MAKE) --no-print-directory -j1 -C $(TESTS_DIR) \
+		$(TEST_OPTIONS) clean-coverage-data || cleanup_status=$$?; \
+	if test "$$status" -ne 0; then exit "$$status"; fi; \
+	if test "$$cleanup_status" -ne 0; then exit "$$cleanup_status"; fi; \
+	printf 'LCOV tracefile: %s\nHTML report:    %s\nJSON summary:   %s\n' \
+		'$(COVERAGE_TRACEFILE)' '$(COVERAGE_HTML_DIR)/index.html' \
+		'$(COVERAGE_SUMMARY)'
+
+_test-coverage-report: validate-coverage-tools prepare-coverage-root
+	+$(MAKE) --no-print-directory -j1 -C $(TESTS_DIR) \
+		$(TEST_OPTIONS) BUILD_ROOT='$(COVERAGE_BUILD_ROOT_PATH)' \
+		COVERAGE_FLAGS='$(COVERAGE_FLAGS)' run-coverage
+	$(LCOV) --capture --directory '$(TESTS_DIR)' \
+		--directory '$(COVERAGE_BUILD_ROOT_PATH)' \
+		--base-directory '$(ROOT_DIR)' --gcov-tool '$(GCOV)' \
+		--branch-coverage --function-coverage --filter branch \
+		--rc geninfo_unexecuted_blocks=1 --ignore-errors inconsistent \
+		--include '$(SRC_DIR)/*.F90' --output-file '$(COVERAGE_TRACEFILE)'
+	$(GENHTML) --branch-coverage --function-coverage \
+		--ignore-errors inconsistent \
+		--title 'ADS MPI core coverage' --output-directory '$(COVERAGE_HTML_DIR)' \
+		'$(COVERAGE_TRACEFILE)'
+	$(PYTHON) '$(TESTS_DIR)/coverage_report/check_coverage.py' \
+		--tracefile '$(COVERAGE_TRACEFILE)' \
+		--source-manifest '$(SRC_DIR)/sources.mk' --source-root '$(SRC_DIR)' \
+		--repository-root '$(ROOT_DIR)' \
+		--object-root '$(COVERAGE_BUILD_ROOT_PATH)/_OBJ' --gcov '$(GCOV)' \
+		--summary-json '$(COVERAGE_SUMMARY)' \
+		--min-lines '$(COVERAGE_MIN_LINES)' \
+		--min-functions '$(COVERAGE_MIN_FUNCTIONS)' \
+		--min-branches '$(COVERAGE_MIN_BRANCHES)'
+
 test-list:
 	+@$(MAKE) --no-print-directory -j1 -C $(TESTS_DIR) $(TEST_OPTIONS) list
 
@@ -225,10 +372,24 @@ clean-performance:
 	+$(MAKE) --no-print-directory -j1 -C $(TESTS_DIR) \
 		$(TEST_OPTIONS) clean-performance
 
+clean-coverage: validate-coverage-ownership
+	@set -eu; \
+	root='$(COVERAGE_ROOT_PATH)'; \
+	marker='$(COVERAGE_MARKER)'; \
+	if ! test -d "$$root"; then exit 0; fi; \
+	$(RM) -r -- '$(COVERAGE_BUILD_ROOT_PATH)' '$(COVERAGE_HTML_DIR)'; \
+	$(RM) -- '$(COVERAGE_TRACEFILE)' '$(COVERAGE_SUMMARY)' \
+		'$(COVERAGE_SUMMARY).tmp'; \
+	if test -z "$$(find "$$root" -mindepth 1 -maxdepth 1 \
+		! -name '.ads-coverage-root' -print -quit)"; then \
+		$(RM) -- "$$marker"; \
+		rmdir -- "$$root" 2>/dev/null || :; \
+	fi
+
 clean-docs:
 	$(RM) -r -- doxygen
 
-clean: clean-build clean-tests clean-docs
+clean: clean-build clean-tests clean-docs clean-coverage
 
 # The selected configuration is user-owned and survives both cleanup targets.
 distclean: clean
@@ -267,6 +428,15 @@ show-config config:
 		'PERFORMANCE_MIN_SPEEDUP' '$(PERFORMANCE_MIN_SPEEDUP)' \
 		'PERFORMANCE_MAX_REGRESSION' '$(PERFORMANCE_MAX_REGRESSION)' \
 		'PERFORMANCE_BASELINE' '$(PERFORMANCE_BASELINE_PATH)' \
+		'COVERAGE_ROOT' '$(COVERAGE_ROOT_PATH)' \
+		'COVERAGE_BUILD_ROOT' '$(COVERAGE_BUILD_ROOT_PATH)' \
+		'COVERAGE_FLAGS' '$(COVERAGE_FLAGS)' \
+		'COVERAGE_MIN_LINES' '$(COVERAGE_MIN_LINES)' \
+		'COVERAGE_MIN_FUNCTIONS' '$(COVERAGE_MIN_FUNCTIONS)' \
+		'COVERAGE_MIN_BRANCHES' '$(COVERAGE_MIN_BRANCHES)' \
+		'GCOV' '$(GCOV)' \
+		'LCOV' '$(LCOV)' \
+		'GENHTML' '$(GENHTML)' \
 		'OMP_PROC_BIND' '$(OMP_PROC_BIND)' \
 		'OMP_PLACES' '$(OMP_PLACES)'
 
@@ -301,6 +471,8 @@ targets help:
 		'  make test-cli | test-smoke | test-integration' \
 		'  make test-performance              release OMP1/OMP4 scaling gate' \
 		'  make test-performance-self-test    test timing-gate logic without MPI' \
+		'  make test-coverage                 GNU gcov/lcov report + coverage gates' \
+		'    COVERAGE_MIN_LINES/FUNCTIONS/BRANCHES override the three gates' \
 		'  make test-suite TEST_SUITE=rhs_assembly' \
 		'  make test-list' \
 		'' \
@@ -311,7 +483,7 @@ targets help:
 		'Cleanup/configuration:' \
 		'  make clean                         build + tests + generated documentation' \
 		'  make clean-build | clean-problems | clean-library | clean-legacy' \
-		'  make clean-tests | clean-performance | clean-docs' \
+		'  make clean-tests | clean-performance | clean-coverage | clean-docs' \
 		'  make show-config                   print effective configuration' \
 		'  make list-problems | list-configs' \
 		'  BUILD=debug|release and all paths/tools are configured in root m_options.' \

@@ -49,6 +49,10 @@ The complete test procedure additionally expects:
 - Python 3.10 or newer (for layout checks and numerical VTI integration checks)
 - Bash and GNU `timeout` (for CLI and MPI error-path tests)
 
+`make test-coverage` additionally requires GNU Fortran with `gcov` and the
+`lcov`/`genhtml` tools. Coverage is intentionally a separate target: compiler
+instrumentation would invalidate the wall-clock performance gate.
+
 Edit `m_options` for local library paths and compiler flags.
 
 ### Library Versions In The Current Local Configuration
@@ -278,6 +282,7 @@ make clean-problems
 make clean-library
 make clean-legacy
 make clean-tests
+make clean-coverage
 make clean-docs
 make clean          # all generated build, test, and documentation artifacts
 make distclean      # same as clean; m_options and makeconfig/ are preserved
@@ -736,6 +741,15 @@ PERFORMANCE_SAMPLES=3
 PERFORMANCE_MIN_SPEEDUP=1.10
 PERFORMANCE_MAX_REGRESSION=1.15
 PERFORMANCE_BASELINE=
+COVERAGE_ROOT=build/coverage
+COVERAGE_BUILD_ROOT=build/coverage/build
+COVERAGE_FLAGS=-O0 -g --coverage -fprofile-abs-path
+COVERAGE_MIN_LINES=90.0
+COVERAGE_MIN_FUNCTIONS=90.0
+COVERAGE_MIN_BRANCHES=50.0
+GCOV=gcov
+LCOV=lcov
+GENHTML=genhtml
 OMP_PROC_BIND=close
 OMP_PLACES=cores
 ```
@@ -765,8 +779,8 @@ four group runners, and verifies that every unit suite references its
 production source and primary test. All registered library, problem, driver,
 and build-system suites must have `all`, `run`, and `clean` targets;
 unregistered suite directories are rejected. The four group manifests
-currently register 53 suites: 28 library, 23 problem, one driver, and one
-build-system suite. Problem modules are kept in separate suites because
+currently register 54 suites: 28 library, 23 problem, one driver, and two
+build-system suites. Problem modules are kept in separate suites because
 several drivers deliberately use the same Fortran module names (`input_data`
 and `RHS_fun`).
 
@@ -803,6 +817,10 @@ make test-performance
 # Exercise only the performance-gate logic, without compiling or launching MPI.
 make test-performance-self-test
 
+# Instrument and run the functional suite, build HTML/JSON/LCOV reports, and
+# enforce independent source-line, function, and branch thresholds.
+make test-coverage
+
 # Run the complete regression above in one command.
 make test
 make check
@@ -812,6 +830,34 @@ make test-build
 make test-list
 make test-suite TEST_SUITE=rhs_assembly
 ```
+
+`test-coverage` performs a clean, isolated GNU build below `build/coverage`,
+runs the build-system, library, problem, CLI, smoke, and numerical integration
+tests, and measures only the active core sources declared by
+`src/sources.mk`. It excludes the timing-based performance suite because gcov
+instrumentation changes runtime. Every manifest source must be represented in
+the LCOV denominator; the two declaration-only modules currently omitted by
+gcov (`Interfaces.F90` and `projection_engine.F90`) are accepted only after a
+fresh `.gcno` file and `gcov` itself confirm that they contain no executable
+lines.
+
+The default gates are 90% executable source lines, 90% functions, and 50%
+branches. Override `COVERAGE_MIN_LINES`, `COVERAGE_MIN_FUNCTIONS`, or
+`COVERAGE_MIN_BRANCHES` on the command line when deliberately changing the
+policy. The run writes:
+
+```text
+build/coverage/coverage.info
+build/coverage/coverage-summary.json
+build/coverage/html/index.html
+```
+
+Use `make clean-coverage` to remove only owned coverage builds and reports.
+The target refuses unsafe, overlapping, symlinked, nonempty unowned, or
+incorrectly marked roots; unrelated files later placed in an owned coverage
+root are retained. Per-suite `.gcda` and `.gcno` files are removed after every
+attempted run, including a test or threshold failure; metadata inside the
+isolated owned build tree stays there until `clean-coverage`.
 
 Every test level can be invoked directly. Driver executables built in
 `mymake/EXEC` are deliberately retained by `clean-tests`; use `clean-build` or

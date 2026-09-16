@@ -293,12 +293,21 @@ class MakeFixture:
             "COMPILER",
             "CONFIG",
             "CORE_OBJ_DIR",
+            "COVERAGE_BUILD_ROOT",
+            "COVERAGE_FLAGS",
+            "COVERAGE_MIN_BRANCHES",
+            "COVERAGE_MIN_FUNCTIONS",
+            "COVERAGE_MIN_LINES",
+            "COVERAGE_ROOT",
             "EXEC",
             "EXEC_DIR",
             "FC",
             "FF",
             "FFLAGS",
             "GNUMAKEFLAGS",
+            "GCOV",
+            "GENHTML",
+            "LCOV",
             "MAKEFLAGS",
             "MAKELEVEL",
             "MAKEOVERRIDES",
@@ -1016,6 +1025,101 @@ class HierarchicalMakeTests(unittest.TestCase):
                 self.assert_failed_with(result, "Unsafe PERFORMANCE_BUILD_ROOT")
                 self.assertEqual(self.fixture.tool_records(), [])
                 self.assertEqual(self.fixture.performance_records(), [])
+
+    def test_coverage_root_ownership_cleanup_and_guards(self) -> None:
+        coverage_root = self.fixture.root / "build" / "coverage-fixture"
+        coverage_build = coverage_root / "instrumented-build"
+        variables = {
+            "COVERAGE_ROOT": coverage_root,
+            "COVERAGE_BUILD_ROOT": coverage_build,
+        }
+        marker = coverage_root / ".ads-coverage-root"
+
+        self.fixture.make("prepare-coverage-root", variables=variables)
+        self.assertEqual(
+            marker.read_text(encoding="utf-8"),
+            f"ADS_MPI_COVERAGE_ROOT={coverage_root.resolve()}\n",
+        )
+
+        generated = (
+            coverage_build / "_OBJ" / "Setup.gcno",
+            coverage_build / "problem-objects" / "heat" / "main.gcno",
+            coverage_root / "html" / "index.html",
+            coverage_root / "coverage.info",
+            coverage_root / "coverage-summary.json",
+        )
+        for path in generated:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("generated\n", encoding="utf-8")
+        foreign = coverage_root / "foreign.keep"
+        foreign.write_text("foreign\n", encoding="utf-8")
+
+        self.fixture.make("clean-coverage", variables=variables)
+        self.fixture.make("clean-coverage", variables=variables)
+        self.assertTrue(marker.is_file())
+        self.assertEqual(foreign.read_text(encoding="utf-8"), "foreign\n")
+        for path in generated:
+            self.assertFalse(path.exists(), path)
+
+        foreign.unlink()
+        self.fixture.make("clean-coverage", variables=variables)
+        self.assertFalse(coverage_root.exists())
+
+        unowned_root = self.fixture.root / "build" / "unowned-coverage"
+        unowned_root.mkdir(parents=True)
+        unowned_file = unowned_root / "foreign.keep"
+        unowned_file.write_text("foreign\n", encoding="utf-8")
+        result = self.fixture.make(
+            "prepare-coverage-root",
+            variables={"COVERAGE_ROOT": unowned_root},
+            expect_success=False,
+        )
+        self.assert_failed_with(result, "Refusing non-empty unowned COVERAGE_ROOT")
+        self.assertEqual(unowned_file.read_text(encoding="utf-8"), "foreign\n")
+
+        symlink = self.fixture.root / "build" / "unsafe-coverage-link"
+        symlink.symlink_to(self.fixture.root / "src", target_is_directory=True)
+        unsafe_roots = (
+            Path("/"),
+            self.fixture.root,
+            self.fixture.root / "build",
+            self.fixture.root / "src",
+            self.fixture.root / "problems",
+            self.fixture.root / "tests",
+            self.fixture.build_root,
+            symlink,
+        )
+        for unsafe_root in unsafe_roots:
+            with self.subTest(unsafe_coverage_root=unsafe_root):
+                result = self.fixture.make(
+                    "validate-coverage-paths",
+                    variables={"COVERAGE_ROOT": unsafe_root},
+                    expect_success=False,
+                )
+                self.assert_failed_with(result, "Unsafe COVERAGE_ROOT")
+
+        performance_root = self.fixture.root / "build" / "shared-root"
+        result = self.fixture.make(
+            "validate-coverage-paths",
+            variables={
+                "COVERAGE_ROOT": performance_root,
+                "PERFORMANCE_BUILD_ROOT": performance_root,
+            },
+            expect_success=False,
+        )
+        self.assert_failed_with(result, "COVERAGE_ROOT overlaps another build root")
+
+        result = self.fixture.make(
+            "validate-coverage-paths",
+            variables={
+                "COVERAGE_ROOT": self.fixture.root / "build" / "safe-coverage",
+                "COVERAGE_BUILD_ROOT": self.fixture.root / "build" / "outside",
+            },
+            expect_success=False,
+        )
+        self.assert_failed_with(
+            result, "COVERAGE_BUILD_ROOT must be inside COVERAGE_ROOT"
+        )
 
     def test_unsafe_path_guards_fail_before_invoking_tools(self) -> None:
         checks = [

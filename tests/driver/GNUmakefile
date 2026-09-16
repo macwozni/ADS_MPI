@@ -5,7 +5,7 @@ GROUP_RUN_TIMEOUT = $(PERFORMANCE_SUITE_TIMEOUT)
 include ../make/group.mk
 
 .PHONY: run-cli run-smoke run-integration run-performance \
-	run-performance-self-test clean-performance
+	run-performance-self-test run-coverage clean-performance
 
 run-cli:
 	$(call rebuild_and_run_suites,$(SUITES),run-cli)
@@ -23,6 +23,9 @@ run-performance:
 
 run-performance-self-test:
 	$(call run_suites,$(SUITES),run-performance-self-test)
+
+run-coverage:
+	$(call rebuild_and_run_suites,$(SUITES),run-coverage)
 
 clean-performance:
 	$(call run_suites,$(SUITES),clean-performance)

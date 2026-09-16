@@ -3,7 +3,7 @@
 # The core library owns its source list and build rules.  Generated files stay
 # in the historical mymake locations so existing problem and external build
 # commands keep working.
-SRC_DIR := $(patsubst %/,%,$(dir $(abspath $(firstword $(MAKEFILE_LIST)))))
+SRC_DIR := $(abspath $(CURDIR))
 ROOT_DIR := $(abspath $(SRC_DIR)/..)
 
 CONFIG ?= $(ROOT_DIR)/m_options
@@ -118,7 +118,8 @@ show-config:
 clean: clean-library clean-objects
 
 clean-objects: validate-core-paths
-	$(RM) -- $(OBJECTS) $(BUILD_STAMP) $(BUILD_STAMP).tmp $(MODULE_FILES)
+	$(RM) -- $(OBJECTS) $(OBJECTS:.o=.gcda) $(OBJECTS:.o=.gcno) \
+		$(BUILD_STAMP) $(BUILD_STAMP).tmp $(MODULE_FILES)
 	@rmdir -- '$(CORE_OBJ_DIR_PATH)' 2>/dev/null || :
 
 clean-library: validate-core-paths

@@ -395,7 +395,9 @@ def main():
         "run-integration",
         "run-performance",
         "run-performance-self-test",
+        "run-coverage",
         "clean-performance",
+        "clean-coverage-data",
         "run-suite",
         "list",
         "clean",
@@ -407,6 +409,7 @@ def main():
     for target in (
         "run-performance",
         "run-performance-self-test",
+        "run-coverage",
         "clean-performance",
     ):
         if f"{target}:" not in driver_runner_text:
@@ -426,6 +429,7 @@ def main():
         "prepare-performance-root",
         "validate-performance-ownership",
         "clean-performance",
+        "run-coverage",
     ):
         if f"{target}:" not in driver_cli_text:
             errors.append(f"tests/driver_cli/GNUmakefile has no {target} target")

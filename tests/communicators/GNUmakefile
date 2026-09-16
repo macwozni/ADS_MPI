@@ -19,6 +19,7 @@ FFLAGS += -J$(OBJ_DIR) -I$(OBJ_DIR) -I$(SRC_DIR)
 STUB_FFLAGS := -std=f2003 -fimplicit-none -pedantic -O0 -g
 STUB_FFLAGS += -fcheck=all -fbounds-check
 STUB_FFLAGS += -J$(STUB_OBJ_DIR) -I$(STUB_OBJ_DIR) -I$(SRC_DIR)
+STUB_FFLAGS += $(COVERAGE_FLAGS)
 
 OBJS := \
 	$(OBJ_DIR)/parallelism.o \
