@@ -278,6 +278,7 @@ class MakeFixture:
         self.tool_log = self.root / "fake-tools.jsonl"
         self.run_log = self.root / "fake-runs.jsonl"
         self.performance_log = self.root / "fake-performance.jsonl"
+        self.benchmark_log = self.root / "fake-benchmark.tsv"
         self._copy_repository_inputs()
         self._install_fake_tools()
         self._write_configuration()
@@ -288,6 +289,10 @@ class MakeFixture:
         # its fake configuration and by overrides made explicitly in a test.
         for variable in (
             "ARGS",
+            "BENCHMARK_BUILD_ROOT",
+            "BENCHMARK_PLAN_ARGS",
+            "BENCHMARK_PROFILE",
+            "BENCHMARK_RUN_LOG",
             "BUILD",
             "BUILD_ROOT",
             "COMPILER",
@@ -343,6 +348,7 @@ class MakeFixture:
             {
                 "FAKE_RUN_LOG": str(self.run_log),
                 "FAKE_TOOL_LOG": str(self.tool_log),
+                "BENCHMARK_RUN_LOG": str(self.benchmark_log),
                 "PERFORMANCE_RUN_LOG": str(self.performance_log),
                 "LC_ALL": "C",
             }
@@ -391,6 +397,18 @@ class MakeFixture:
         mymake_destination.mkdir()
         for name in ("makefile", "m_files", "legacy-source-build.mk"):
             shutil.copy2(REPOSITORY_ROOT / "mymake" / name, mymake_destination / name)
+
+        # Root benchmark targets are tested as pure delegation.  Planner and
+        # executor behavior belongs to benchmarking/selftests, while this tiny
+        # owned fixture records the target mapping and forwarded Python tool.
+        benchmarking_destination = self.root / "benchmarking"
+        benchmarking_destination.mkdir()
+        (benchmarking_destination / "GNUmakefile").write_text(
+            ".PHONY: plan self-test clean-build\n"
+            "plan self-test clean-build:\n"
+            "\t@printf '%s\\t%s\\n' '$@' '$(PYTHON)' >> '$(BENCHMARK_RUN_LOG)'\n",
+            encoding="utf-8",
+        )
 
         # Exercise the real performance-target delegation hierarchy.  The
         # unrelated groups remain tiny owned fixtures so root cleanup stays
@@ -568,6 +586,7 @@ PERFORMANCE_SUITE_TIMEOUT = 30s
         self.tool_log.unlink(missing_ok=True)
         self.run_log.unlink(missing_ok=True)
         self.performance_log.unlink(missing_ok=True)
+        self.benchmark_log.unlink(missing_ok=True)
 
     def tool_records(self) -> list[dict[str, object]]:
         return self._json_lines(self.tool_log)
@@ -577,6 +596,14 @@ PERFORMANCE_SUITE_TIMEOUT = 30s
 
     def performance_records(self) -> list[dict[str, object]]:
         return self._json_lines(self.performance_log)
+
+    def benchmark_records(self) -> list[tuple[str, str]]:
+        if not self.benchmark_log.exists():
+            return []
+        return [
+            tuple(line.split("\t", 1))
+            for line in self.benchmark_log.read_text(encoding="utf-8").splitlines()
+        ]
 
     @staticmethod
     def _json_lines(path: Path) -> list[dict[str, object]]:
@@ -870,6 +897,42 @@ class HierarchicalMakeTests(unittest.TestCase):
             object_directory = self.fixture.root / "problems" / directory_name / "_OBJ"
             for source_name in sources:
                 self.assertFalse((object_directory / Path(source_name).with_suffix(".o")).exists())
+
+    def test_benchmark_targets_delegate_without_entering_build_or_test_flows(self) -> None:
+        results = self.fixture.root / "benchmarks" / "igrm_strong_scaling"
+        results.mkdir(parents=True)
+        sentinel = results / "user-results.csv"
+        sentinel.write_text("preserve-me\n", encoding="utf-8")
+
+        self.fixture.clear_logs()
+        self.fixture.make(
+            "benchmark-plan", variables={"BENCHMARK_PROFILE": "temporal-full"}
+        )
+        self.fixture.make("benchmark-self-test")
+        self.assertEqual(
+            self.fixture.benchmark_records(),
+            [("plan", sys.executable), ("self-test", sys.executable)],
+        )
+        self.assertEqual(self.fixture.tool_records(), [])
+
+        self.fixture.clear_logs()
+        self.fixture.make("-s", "list-problems")
+        self.assertEqual(self.fixture.benchmark_records(), [])
+
+        self.fixture.make("clean-benchmark-build")
+        self.fixture.make("clean-benchmark-build")
+        self.assertEqual(
+            self.fixture.benchmark_records(),
+            [("clean-build", sys.executable), ("clean-build", sys.executable)],
+        )
+        self.assertEqual(sentinel.read_text(encoding="utf-8"), "preserve-me\n")
+
+        self.fixture.clear_logs()
+        self.fixture.make("clean")
+        self.assertEqual(
+            self.fixture.benchmark_records(), [("clean-build", sys.executable)]
+        )
+        self.assertEqual(sentinel.read_text(encoding="utf-8"), "preserve-me\n")
 
     def test_performance_targets_release_forwarding_cleanup_and_guards(self) -> None:
         performance_root = (

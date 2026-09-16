@@ -8,6 +8,7 @@ ROOT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 SRC_DIR := $(ROOT_DIR)src
 PROBLEMS_DIR := $(ROOT_DIR)problems
 TESTS_DIR := $(ROOT_DIR)tests
+BENCHMARKING_DIR := $(ROOT_DIR)benchmarking
 MYMAKE_DIR := $(ROOT_DIR)mymake
 
 CONFIG ?= m_options
@@ -102,6 +103,7 @@ TEST_OPTIONS = \
 
 .PHONY: all build build-all library problems list-problems list-configs help targets \
 	show-config config rebuild run run-help show-run \
+	benchmark-plan benchmark-self-test clean-benchmark-build \
 	test check test-build test-layout test-src test-problems test-driver \
 	test-build-system test-coverage _test-coverage-report validate-coverage-tools \
 	validate-coverage-paths prepare-coverage-root validate-coverage-ownership \
@@ -159,6 +161,18 @@ run-help:
 show-run:
 	+@$(MAKE) --no-print-directory -j1 -C $(PROBLEMS_DIR) \
 		$(PROBLEM_OPTIONS) PROBLEM="$(PROBLEM)" show-run
+
+benchmark-plan:
+	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
+		PYTHON="$(PYTHON)" plan
+
+benchmark-self-test:
+	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
+		PYTHON="$(PYTHON)" self-test
+
+clean-benchmark-build:
+	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
+		PYTHON="$(PYTHON)" clean-build
 
 test check:
 	+$(MAKE) --no-print-directory -j1 -C $(TESTS_DIR) $(TEST_OPTIONS) run
@@ -389,7 +403,7 @@ clean-coverage: validate-coverage-ownership
 clean-docs:
 	$(RM) -r -- doxygen
 
-clean: clean-build clean-tests clean-docs clean-coverage
+clean: clean-build clean-tests clean-docs clean-coverage clean-benchmark-build
 
 # The selected configuration is user-owned and survives both cleanup targets.
 distclean: clean
@@ -462,6 +476,13 @@ targets help:
 		'             OMP_NUM_THREADS OMP_DYNAMIC OMP_PROC_BIND OIL_SEED' \
 		'  NP must equal procx*procy*procz contained in ARGS.' \
 		'' \
+		'Benchmark planning:' \
+		'  make benchmark-plan [BENCHMARK_PROFILE=smoke]' \
+		'  make benchmark-self-test           planner/engine contract tests' \
+		'  make clean-benchmark-build          clean framework build/cache only' \
+		'  Generated plans and results live under ignored benchmarks/<run-id>.' \
+		'  Benchmark execution is intentionally not part of make test.' \
+		'' \
 		'Tests:' \
 		'  make test | make check             complete run, including performance gate' \
 		'  make test-build                    build all tests without running' \
@@ -484,6 +505,7 @@ targets help:
 		'  make clean                         build + tests + generated documentation' \
 		'  make clean-build | clean-problems | clean-library | clean-legacy' \
 		'  make clean-tests | clean-performance | clean-coverage | clean-docs' \
+		'  make clean-benchmark-build          never removes benchmark results' \
 		'  make show-config                   print effective configuration' \
 		'  make list-problems | list-configs' \
 		'  BUILD=debug|release and all paths/tools are configured in root m_options.' \

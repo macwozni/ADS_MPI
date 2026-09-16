@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "local-scaling",
+  "description": "Stage-one local scaling planning preset; later stages expand the scientific matrix.",
+  "family": "strong",
+  "exact_cases": ["temporal-polynomial"],
+  "problems": ["igrm_l2", "igrm_heat", "pure_diffusion_igrm"],
+  "schemes": ["dg", "pr", "be"],
+  "time_discretizations": [
+    {"final_time": "0.1", "steps": 4}
+  ],
+  "meshes": [[16, 16, 16]],
+  "degree_pairs": [
+    {"test": [3, 3, 3], "trial": [2, 2, 2]}
+  ],
+  "process_layouts": [
+    {"ranks": 1, "grid": [1, 1, 1]}
+  ],
+  "thread_counts": [1, 2, 4, 8],
+  "execution": {"warmups": 2, "samples": 7, "timeout_seconds": "1800"},
+  "build_profiles": ["release"],
+  "launcher": "mpi"
+}

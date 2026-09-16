@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "name": "temporal-full",
+  "description": "Complete 792-case temporal convergence matrix at fixed 4x4x4 mesh.",
+  "family": "temporal",
+  "exact_cases": ["temporal-polynomial"],
+  "problems": ["igrm_l2", "igrm_heat", "pure_diffusion_igrm"],
+  "schemes": ["dg", "pr", "be"],
+  "time_discretizations": [
+    {"final_time": "0.1", "steps": 4},
+    {"final_time": "0.1", "steps": 8},
+    {"final_time": "0.1", "steps": 16},
+    {"final_time": "0.1", "steps": 32},
+    {"final_time": "0.1", "steps": 64},
+    {"final_time": "0.1", "steps": 128},
+    {"final_time": "0.1", "steps": 256},
+    {"final_time": "0.1", "steps": 512}
+  ],
+  "meshes": [[4, 4, 4]],
+  "degree_pairs": [
+    {"test": [4, 4, 4], "trial": [3, 3, 3]},
+    {"test": [5, 5, 5], "trial": [3, 3, 3]},
+    {"test": [5, 5, 5], "trial": [4, 4, 4]},
+    {"test": [6, 6, 6], "trial": [4, 4, 4]},
+    {"test": [6, 6, 6], "trial": [5, 5, 5]},
+    {"test": [7, 7, 7], "trial": [5, 5, 5]},
+    {"test": [7, 7, 7], "trial": [6, 6, 6]},
+    {"test": [8, 8, 8], "trial": [6, 6, 6]},
+    {"test": [8, 8, 8], "trial": [7, 7, 7]},
+    {"test": [9, 9, 9], "trial": [7, 7, 7]},
+    {"test": [9, 9, 9], "trial": [8, 8, 8]}
+  ],
+  "process_layouts": [
+    {"ranks": 1, "grid": [1, 1, 1]}
+  ],
+  "thread_counts": [1],
+  "execution": {"warmups": 0, "samples": 1, "timeout_seconds": "1800"},
+  "build_profiles": ["release"],
+  "launcher": "mpi"
+}

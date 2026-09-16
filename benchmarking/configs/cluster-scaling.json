@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "name": "cluster-scaling",
+  "description": "Stage-one distributed scaling planning preset; later stages expand strong and weak matrices.",
+  "family": "strong",
+  "exact_cases": ["temporal-polynomial"],
+  "problems": ["igrm_l2", "igrm_heat", "pure_diffusion_igrm"],
+  "schemes": ["dg", "pr", "be"],
+  "time_discretizations": [
+    {"final_time": "0.1", "steps": 4}
+  ],
+  "meshes": [[32, 32, 32]],
+  "degree_pairs": [
+    {"test": [3, 3, 3], "trial": [2, 2, 2]}
+  ],
+  "process_layouts": [
+    {"ranks": 1, "grid": [1, 1, 1]},
+    {"ranks": 2, "grid": [2, 1, 1]},
+    {"ranks": 4, "grid": [2, 2, 1]},
+    {"ranks": 8, "grid": [2, 2, 2]}
+  ],
+  "thread_counts": [1],
+  "execution": {"warmups": 2, "samples": 7, "timeout_seconds": "3600"},
+  "build_profiles": ["release"],
+  "launcher": "mpi"
+}

@@ -26,6 +26,8 @@ tests/{src,problems,driver,build}/GNUmakefile
 tests/{test-map,problem-test-map}.tsv
                       One-to-one production-source/primary-test mappings
 tests/*/GNUmakefile   Build, run, and cleanup for one concrete suite
+benchmarking/         Reusable benchmark planner, profiles, engine, and self-tests
+benchmarks/           Ignored generated runs and preserved local benchmark data
 mymake/               Compatibility entry point and generated artifacts
 doxygen/              Generated/documentation support files
 ```
@@ -284,9 +286,14 @@ make clean-legacy
 make clean-tests
 make clean-coverage
 make clean-docs
+make clean-benchmark-build
 make clean          # all generated build, test, and documentation artifacts
 make distclean      # same as clean; m_options and makeconfig/ are preserved
 ```
+
+Benchmark results under `benchmarks/<run-id>/` are never removed by these
+targets. `clean-benchmark-build` owns only framework bytecode and a guarded
+`benchmarking/build/` directory.
 
 The CMake files are still present, but this README documents the current
 make-based workflow.
@@ -712,6 +719,26 @@ multiplicities may differ. `igrm_stokes` uses its own DG facet assembler and
 therefore permits equal test and trial degrees while retaining different
 continuities. `igrm_pollution` likewise owns its DPG assembly locally and
 accepts independently configured conforming trial/test continuities.
+
+## Benchmark planning
+
+The tracked `benchmarking/` subtree provides strict JSON profiles, stable case
+identifiers, filtering, Git provenance, safe manifests, and a generic adapter
+execution contract. Stage 1 plans cases only; it does not launch the ADS
+solvers. Generated data belongs under the ignored `benchmarks/<run-id>/` tree.
+
+```bash
+make benchmark-self-test
+make benchmark-plan
+make benchmark-plan BENCHMARK_PROFILE=temporal-full
+```
+
+`benchmark-plan` is a no-write dry run by default. The `temporal-full` profile
+expands to exactly 792 validated cases across `igrm_l2`, `igrm_heat`, and
+`pure_diffusion_igrm`, all three DG/PR/BE schemes, eight time-step counts, and
+eleven degree pairs. Filters and exclusive manifest writing are documented in
+`benchmarking/README.md`. Benchmark execution is deliberately separate from
+the ordinary `make test` regression tree.
 
 ## Testing
 

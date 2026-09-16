@@ -20,8 +20,12 @@ __pycache__/
 build/
 build_gnu/
 temp_build/
+/benchmarking/build/
 !/tests/build/
 !/tests/build/GNUmakefile
+
+# Generated benchmark runs and preserved local benchmark data
+/benchmarks/
 
 # CMake-generated files
 CMakeCache.txt
