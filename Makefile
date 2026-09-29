@@ -59,6 +59,10 @@ ARGS ?=
 OIL_SEED ?=
 TEST_SUITE ?=
 BENCHMARK_RUN_ID ?=
+RUN_ID ?=
+BENCHMARK_CONVERGENCE_PROFILE ?= temporal-full
+BENCHMARK_PLAN_ARGS ?=
+BENCHMARK_ANALYZE_ARGS ?=
 
 PROBLEM_OPTIONS = \
 	CONFIG="$(CONFIG_PATH)" \
@@ -104,7 +108,8 @@ TEST_OPTIONS = \
 
 .PHONY: all build build-all library problems list-problems list-configs help targets \
 	show-config config rebuild run run-help show-run \
-	benchmark-plan benchmark-build benchmark-smoke benchmark-self-test \
+	benchmark-plan benchmark-build benchmark-smoke benchmark-convergence \
+	benchmark-resume benchmark-analyze benchmark-self-test \
 	clean-benchmark-build \
 	test check test-build test-layout test-src test-problems test-driver \
 	test-build-system test-coverage _test-coverage-report validate-coverage-tools \
@@ -178,6 +183,27 @@ benchmark-smoke:
 		MPIEXEC="$(MPIEXEC)" MPI_NP_FLAG="$(MPI_NP_FLAG)" \
 		BENCHMARK_RUN_ID="$(BENCHMARK_RUN_ID)" \
 		BENCHMARK_PLAN_ARGS="$(BENCHMARK_PLAN_ARGS)" smoke
+
+benchmark-convergence:
+	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
+		CONFIG="$(CONFIG_PATH)" PYTHON="$(PYTHON)" \
+		MPIEXEC="$(MPIEXEC)" MPI_NP_FLAG="$(MPI_NP_FLAG)" \
+		RUN_ID="$(RUN_ID)" \
+		BENCHMARK_CONVERGENCE_PROFILE="$(BENCHMARK_CONVERGENCE_PROFILE)" \
+		BENCHMARK_PLAN_ARGS="$(BENCHMARK_PLAN_ARGS)" convergence
+
+benchmark-resume:
+	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
+		CONFIG="$(CONFIG_PATH)" PYTHON="$(PYTHON)" \
+		MPIEXEC="$(MPIEXEC)" MPI_NP_FLAG="$(MPI_NP_FLAG)" \
+		RUN_ID="$(RUN_ID)" \
+		BENCHMARK_CONVERGENCE_PROFILE="$(BENCHMARK_CONVERGENCE_PROFILE)" \
+		BENCHMARK_PLAN_ARGS="$(BENCHMARK_PLAN_ARGS)" resume
+
+benchmark-analyze:
+	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
+		PYTHON="$(PYTHON)" RUN_ID="$(RUN_ID)" \
+		BENCHMARK_ANALYZE_ARGS="$(BENCHMARK_ANALYZE_ARGS)" analyze
 
 benchmark-self-test:
 	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
@@ -494,6 +520,10 @@ targets help:
 		'  make benchmark-build                build three isolated adapters' \
 		'  make benchmark-smoke BENCHMARK_RUN_ID=NAME' \
 		'                                      run and verify the N=4/N=8 smoke pair' \
+		'  make benchmark-convergence RUN_ID=NAME' \
+		'                                      run a new frozen temporal profile' \
+		'  make benchmark-resume RUN_ID=NAME   verify and resume that frozen run' \
+		'  make benchmark-analyze RUN_ID=NAME  write JSON/CSV convergence reports' \
 		'  make benchmark-self-test           planner/engine contract tests' \
 		'  make clean-benchmark-build          clean framework build/cache only' \
 		'  Generated plans and results live under ignored benchmarks/<run-id>.' \

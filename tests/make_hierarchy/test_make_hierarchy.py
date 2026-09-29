@@ -289,7 +289,9 @@ class MakeFixture:
         # its fake configuration and by overrides made explicitly in a test.
         for variable in (
             "ARGS",
+            "BENCHMARK_ANALYZE_ARGS",
             "BENCHMARK_BUILD_ROOT",
+            "BENCHMARK_CONVERGENCE_PROFILE",
             "BENCHMARK_PLAN_ARGS",
             "BENCHMARK_PROFILE",
             "BENCHMARK_RUN_ID",
@@ -341,6 +343,7 @@ class MakeFixture:
             "PROBLEM_OBJ_DIR",
             "RUN_DIR",
             "RUN_ENV",
+            "RUN_ID",
             "SOURCE_ALL",
             "USER_LIB",
         ):
@@ -405,7 +408,7 @@ class MakeFixture:
         benchmarking_destination = self.root / "benchmarking"
         benchmarking_destination.mkdir()
         (benchmarking_destination / "GNUmakefile").write_text(
-            ".PHONY: plan build smoke self-test clean-build\n"
+            ".PHONY: plan build smoke convergence resume analyze self-test clean-build\n"
             "plan self-test clean-build:\n"
             "\t@printf '%s\\t%s\\n' '$@' '$(PYTHON)' >> '$(BENCHMARK_RUN_LOG)'\n"
             "build:\n"
@@ -414,6 +417,14 @@ class MakeFixture:
             "smoke:\n"
             "\t@test -n '$(CONFIG)'\n"
             "\t@test -n '$(BENCHMARK_RUN_ID)'\n"
+            "\t@printf '%s\\t%s\\n' '$@' '$(PYTHON)' >> '$(BENCHMARK_RUN_LOG)'\n"
+            "convergence resume:\n"
+            "\t@test -n '$(CONFIG)'\n"
+            "\t@test -n '$(RUN_ID)'\n"
+            "\t@test -n '$(BENCHMARK_CONVERGENCE_PROFILE)'\n"
+            "\t@printf '%s\\t%s\\n' '$@' '$(PYTHON)' >> '$(BENCHMARK_RUN_LOG)'\n"
+            "analyze:\n"
+            "\t@test -n '$(RUN_ID)'\n"
             "\t@printf '%s\\t%s\\n' '$@' '$(PYTHON)' >> '$(BENCHMARK_RUN_LOG)'\n",
             encoding="utf-8",
         )
@@ -927,6 +938,15 @@ class HierarchicalMakeTests(unittest.TestCase):
         self.fixture.make(
             "benchmark-smoke", variables={"BENCHMARK_RUN_ID": "hierarchy-smoke"}
         )
+        self.fixture.make(
+            "benchmark-convergence", variables={"RUN_ID": "hierarchy-convergence"}
+        )
+        self.fixture.make(
+            "benchmark-resume", variables={"RUN_ID": "hierarchy-convergence"}
+        )
+        self.fixture.make(
+            "benchmark-analyze", variables={"RUN_ID": "hierarchy-convergence"}
+        )
         self.assertEqual(
             self.fixture.benchmark_records(),
             [
@@ -934,6 +954,9 @@ class HierarchicalMakeTests(unittest.TestCase):
                 ("self-test", sys.executable),
                 ("build", sys.executable),
                 ("smoke", sys.executable),
+                ("convergence", sys.executable),
+                ("resume", sys.executable),
+                ("analyze", sys.executable),
             ],
         )
         self.assertEqual(self.fixture.tool_records(), [])

@@ -58,6 +58,7 @@ class CaseFilters:
     mpi_grids: frozenset[Vector3] = frozenset()
     mpi_ranks: frozenset[int] = frozenset()
     openmp_threads: frozenset[int] = frozenset()
+    steps: frozenset[int] = frozenset()
 
     def matches(self, case: PlannedCase) -> bool:
         spec = case.spec
@@ -70,6 +71,7 @@ class CaseFilters:
             not self.mpi_grids or spec.mpi.process_grid in self.mpi_grids,
             not self.mpi_ranks or spec.mpi.ranks in self.mpi_ranks,
             not self.openmp_threads or spec.openmp_threads in self.openmp_threads,
+            not self.steps or spec.time.steps in self.steps,
         )
         return all(checks)
 
@@ -85,6 +87,7 @@ class CaseFilters:
             "mpi_grids": [list(value) for value in sorted(self.mpi_grids)],
             "mpi_ranks": sorted(self.mpi_ranks),
             "openmp_threads": sorted(self.openmp_threads),
+            "steps": sorted(self.steps),
         }
 
 

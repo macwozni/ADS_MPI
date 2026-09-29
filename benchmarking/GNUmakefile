@@ -6,14 +6,18 @@ ROOT_DIR := $(abspath $(BENCHMARKING_DIR)/..)
 CONFIG_DIR ?= $(BENCHMARKING_DIR)/configs
 
 BENCHMARK_PROFILE ?= smoke
+BENCHMARK_CONVERGENCE_PROFILE ?= temporal-full
 BENCHMARK_PLAN_ARGS ?=
+BENCHMARK_ANALYZE_ARGS ?=
 BENCHMARK_RUN_ID ?=
+RUN_ID ?=
 BENCHMARK_BUILD_ROOT ?= $(BENCHMARKING_DIR)/build
 BENCHMARK_BUILD_ROOT_PATH := $(abspath $(BENCHMARK_BUILD_ROOT))
 BENCHMARK_BUILD_MARKER := $(BENCHMARK_BUILD_ROOT_PATH)/.ads-benchmark-build
 
 BENCHMARK_ADAPTERS := igrm_l2 igrm_heat pure_diffusion_igrm
-BENCHMARK_CONFIG_GOALS := build build-adapters smoke show-build-config \
+BENCHMARK_CONFIG_GOALS := build build-adapters smoke convergence resume \
+	show-build-config \
 	$(addprefix build-,$(BENCHMARK_ADAPTERS))
 BENCHMARK_NEEDS_CONFIG := $(strip $(filter $(BENCHMARK_CONFIG_GOALS),$(MAKECMDGOALS)))
 
@@ -28,6 +32,9 @@ CONFIG_PATH := $(abspath $(CONFIG))
 # configuration is parsed because m_options chooses BUILD_OPTS in conditionals.
 ifneq ($(filter smoke,$(MAKECMDGOALS)),)
 override BUILD := debug
+endif
+ifneq ($(filter convergence resume,$(MAKECMDGOALS)),)
+override BUILD := release
 endif
 
 include $(CONFIG_PATH)
@@ -179,8 +186,8 @@ $(foreach adapter,$(BENCHMARK_ADAPTERS),$(call add-ordered-dependencies,$($(adap
 
 BENCHMARK_EXECUTABLES := $(foreach adapter,$(BENCHMARK_ADAPTERS),$($(adapter)_EXECUTABLE))
 
-.PHONY: build build-adapters validate-benchmark-sources smoke \
-	validate-smoke-run-id show-build-config
+.PHONY: build build-adapters validate-benchmark-sources smoke convergence \
+	resume validate-smoke-run-id show-build-config
 
 validate-benchmark-sources: $(addprefix validate-,$(addsuffix -sources,$(BENCHMARK_ADAPTERS)))
 
@@ -217,6 +224,20 @@ smoke: validate-smoke-run-id build
 		--coarse-run-id '$(BENCHMARK_RUN_ID)-n4' \
 		--refined-run-id '$(BENCHMARK_RUN_ID)-n8'
 
+convergence: validate-run-id build
+	@MPIEXEC='$(MPIEXEC)' MPI_NP_FLAG='$(MPI_NP_FLAG)' \
+		PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m ads_benchmark.cli run \
+		--repository-root '$(ROOT_DIR)' --config-dir '$(CONFIG_DIR)' \
+		--profile '$(BENCHMARK_CONVERGENCE_PROFILE)' --run-id '$(RUN_ID)' \
+		$(BENCHMARK_PLAN_ARGS)
+
+resume: validate-run-id build
+	@MPIEXEC='$(MPIEXEC)' MPI_NP_FLAG='$(MPI_NP_FLAG)' \
+		PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m ads_benchmark.cli resume \
+		--repository-root '$(ROOT_DIR)' --config-dir '$(CONFIG_DIR)' \
+		--profile '$(BENCHMARK_CONVERGENCE_PROFILE)' --run-id '$(RUN_ID)' \
+		$(BENCHMARK_PLAN_ARGS)
+
 show-build-config:
 	@printf '%-24s %s\n' \
 		'CONFIG' '$(CONFIG_PATH)' \
@@ -232,8 +253,8 @@ endif
 
 PYTHON ?= python3
 
-.PHONY: all plan self-test clean clean-build prepare-build-root \
-	validate-build-root validate-build-ownership help
+.PHONY: all plan analyze self-test clean clean-build prepare-build-root \
+	validate-run-id validate-build-root validate-build-ownership help
 
 all: self-test
 
@@ -241,6 +262,26 @@ plan:
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m ads_benchmark.cli plan \
 		--repository-root '$(ROOT_DIR)' --config-dir '$(CONFIG_DIR)' \
 		--profile '$(BENCHMARK_PROFILE)' $(BENCHMARK_PLAN_ARGS)
+
+validate-run-id:
+	@set -eu; \
+	run_id='$(RUN_ID)'; \
+	case "$$run_id" in \
+		''|[!A-Za-z0-9]*|*[!A-Za-z0-9._-]*) \
+			printf '%s\n' \
+				'RUN_ID must use 1-128 ASCII letters, digits, dots, underscores, or hyphens and start with a letter or digit' \
+				>&2; \
+			exit 2 ;; \
+	esac; \
+	if test "$${#run_id}" -gt 128; then \
+		printf '%s\n' 'RUN_ID must contain at most 128 characters' >&2; \
+		exit 2; \
+	fi
+
+analyze: validate-run-id
+	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m ads_benchmark.cli analyze \
+		--repository-root '$(ROOT_DIR)' --run-id '$(RUN_ID)' \
+		$(BENCHMARK_ANALYZE_ARGS)
 
 self-test:
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest discover \
@@ -329,9 +370,15 @@ help:
 		'      build one manufactured adapter in the selected profile' \
 		'  make smoke BENCHMARK_RUN_ID=NAME' \
 		'      run the real N=4/N=8 smoke pair and verify all nine refinements' \
+		'  make convergence RUN_ID=NAME [BENCHMARK_CONVERGENCE_PROFILE=temporal-full]' \
+		'      build release adapters and execute a new frozen temporal manifest' \
+		'  make resume RUN_ID=NAME [BENCHMARK_CONVERGENCE_PROFILE=temporal-full]' \
+		'      verify the manifest and retry only incomplete/failed cases' \
+		'  make analyze RUN_ID=NAME [BENCHMARK_ANALYZE_ARGS=--plot]' \
+		'      write temporal JSON/CSV summaries and an optional log-log plot' \
 		'  make show-build-config [BUILD=debug|release]' \
 		'      print the selected isolated build paths and toolchain' \
 		'  make clean-build' \
 		'      remove only benchmark framework caches and marker-owned builds' \
 		'' \
-		'Profiles: smoke smoke-refined temporal-full local-scaling cluster-scaling'
+		'Profiles: smoke smoke-refined temporal-validation temporal-full local-scaling cluster-scaling'

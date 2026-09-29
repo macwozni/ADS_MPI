@@ -8,7 +8,9 @@ overwritten, moved, or cleaned by this framework.
 
 Stage 2 adds a real manufactured transient, a shared Fortran lifecycle, and
 executable adapters for `igrm_l2`, `igrm_heat`, and
-`pure_diffusion_igrm`. Expensive runs remain separate from `make test`.
+`pure_diffusion_igrm`. Stage 3 adds frozen temporal runs, verified resume, and
+a registered convergence analyzer. Expensive runs remain separate from
+`make test`.
 
 ## Architecture and extension contract
 
@@ -19,6 +21,7 @@ configs/*.json
 catalog.py --> neutral planner/executor/storage --> benchmarks/<run-id>/
        |                         |
        |                         +--> MPI launcher
+       |                         +--> registered analysis pipeline
        v
 ManufacturedTransientAdapter (Python command/parser/validation)
        |
@@ -45,13 +48,20 @@ The registered extension axes are:
   or `weak`);
 - exact/manufactured case;
 - build profile;
-- launcher.
+- launcher;
+- analyzer and the experiment-family-to-analyzer binding.
 
 The generic executor owns the case working directory, environment, OpenMP
 settings, process group, timeout, logs, status transitions, and common result
 envelope. A Python problem adapter validates one planned case, constructs the
 payload argv, parses the tagged solver record, and binds it back to the exact
 planned configuration.
+
+Analysis is another registry-backed extension point. The generic pipeline
+loads results against their frozen manifest and dispatches them to a family
+analyzer. The temporal analyzer owns only temporal grouping, order estimates,
+plateau handling, and reports; it does not reimplement process execution,
+resume, or result storage.
 
 The Fortran side follows the same separation. A registered
 `BenchmarkAdapter` supplies a manufactured-case descriptor and procedures
@@ -149,6 +159,8 @@ Registered profiles are:
 - `smoke`: the real 3 problems x 3 schemes matrix at `N=4`, `3x3x3`,
   `p_test=4`, `p_trial=3`, MPI 1, OMP 1;
 - `smoke-refined`: the matching nine cases at `N=8`;
+- `temporal-validation`: 72 cases on `3x3x3` at `(p_test,p_trial)=(4,3)`,
+  spanning all three problems, all three schemes, and all eight time levels;
 - `temporal-full`: the specified 792-case matrix;
 - `local-scaling` and `cluster-scaling`: planning presets whose complete
   scientific scaling workflows belong to later stages.
@@ -160,11 +172,22 @@ Registered profiles are:
 ```
 
 at `T=0.1`, `N=4,...,512`, and fixed `4x4x4` mesh. Planning it works,
-but executing it as a scientific convergence run is currently blocked by the
-known even-mesh transient defect documented in
+but it is not currently a passing scientific qualification. The smaller
+`temporal-validation` profile expands
+
+```text
+3 problems x 3 schemes x 8 step counts x 1 degree pair = 72
+```
+
+on `3x3x3`. It is a diagnostic matrix, not a workaround: wider validation
+found deterministic outliers on odd and even meshes and across different
+degree pairs. See
+[`reproducers/temporal-convergence-instability.md`](reproducers/temporal-convergence-instability.md)
+and the original
 [`reproducers/even-mesh-transient.md`](reproducers/even-mesh-transient.md).
-The Stage-2 smoke profiles intentionally use the verified odd `3x3x3` mesh;
-the oracle was not weakened.
+The Stage-2 smoke profiles retain their valid two-level refinement check; the
+oracle was not weakened, and that check is not presented as a full temporal
+qualification.
 
 Each normalized case is encoded as sorted compact JSON. Its ID is
 `<problem>-<scheme>-<20 hex digits>`, derived from SHA-256 of that semantic
@@ -186,6 +209,10 @@ make benchmark-build BUILD=debug
 
 # Build and run N=4 and N=8, then require improvement for all nine pairs.
 make benchmark-smoke BENCHMARK_RUN_ID=stage2-smoke
+
+# Plan the complete and diagnostic temporal matrices without running them.
+make benchmark-plan BENCHMARK_PROFILE=temporal-full
+make benchmark-plan BENCHMARK_PROFILE=temporal-validation
 ```
 
 `benchmark-smoke` requires a new base ID. It creates
@@ -217,7 +244,8 @@ OMP_NUM_THREADS=1 OMP_DYNAMIC=FALSE OMP_PROC_BIND=close \
 ```
 
 Repeatable planner/runner filters include `--problem`, `--scheme`,
-`--degree-pair`, `--mesh`, `--mpi-grid`, `--mpi-ranks`, and `--omp`.
+`--degree-pair`, `--mesh`, `--mpi-grid`, `--mpi-ranks`, `--omp`, and
+`--steps`.
 Unknown values and an empty result fail explicitly. Validation includes
 `p_test > p_trial`, trial degree at least three for this exact case,
 maximum degree nine, positive dimensions, `NP=proc-x*proc-y*proc-z`, a
@@ -228,7 +256,119 @@ the selected repository `CONFIG`, compiler, and libraries. No MPI or MUMPS
 path is hardcoded. `make clean-benchmark-build` removes only marker-owned
 benchmark build/cache content, never benchmark results.
 
+## Frozen temporal runner and resume
+
+A new temporal run builds the release adapters, exclusively creates its run
+directory, writes the complete manifest, reads that manifest back through the
+strict decoder, and executes only the decoded frozen cases:
+
+```bash
+make benchmark-convergence \
+  RUN_ID=stage3-validation \
+  BENCHMARK_CONVERGENCE_PROFILE=temporal-validation
+```
+
+An existing run ID is never adopted or overwritten by a new run. To continue
+an interrupted run, request the same profile and filters explicitly:
+
+```bash
+make benchmark-resume \
+  RUN_ID=stage3-validation \
+  BENCHMARK_CONVERGENCE_PROFILE=temporal-validation
+```
+
+Resume requires the current profile expansion, filters, commit SHA, dirty
+state, and content fingerprint of the nonignored worktree to match the frozen
+manifest. Thus two different dirty source trees are not treated as compatible.
+It holds an exclusive execution lock and skips a case only when `status.json`,
+`result.json`, both logs, the complete normalized configuration, and the
+adapter's domain result all revalidate. The tagged stdout is parsed again by
+the registered adapter and must reproduce the saved domain result exactly.
+Missing, failed, timed-out, incomplete, or tampered cases are retried; a
+different configuration or source state is refused.
+
+Before any retry, every reusable completed case must also have the same full
+launcher command as the current resume request. A changed `MPIEXEC`, rank
+flag, or other launcher prefix therefore refuses the resume before creating or
+rewriting any case; offline analysis remains independent of the currently
+installed launcher.
+
+The lower-level equivalents are `make -C benchmarking convergence ...` and
+`make -C benchmarking resume ...`. Cases move explicitly through
+`planned`, `running`, `passed`, `failed`, or `timeout`. A successful result is
+written atomically only after process exit, tagged-record parsing, and domain
+validation, so interruption cannot create an apparently completed case.
+Before a new run directory is created, execution preflight validates every
+registered adapter/launcher command and the availability of both payload and
+launcher executables. Invalid decompositions are rejected during ordinary
+case validation. These errors therefore cannot leave a nominal run behind.
+
+These commands expose the currently known numerical failures. A completed
+process matrix is not equivalent to a passing convergence analysis.
+
+## Temporal convergence analysis
+
+Analyze a complete frozen run and optionally request a log-log plot:
+
+```bash
+make benchmark-analyze RUN_ID=stage3-validation
+make benchmark-analyze RUN_ID=stage3-validation \
+  BENCHMARK_ANALYZE_ARGS=--plot
+```
+
+The analyzer first requires every result named by the frozen manifest and
+rejects missing, duplicated, misnamed, or configuration-mismatched records.
+It then groups cases that differ only in time resolution. An unfiltered full
+run requires all eight levels `N=4,8,...,512`; an explicitly filtered run may
+select a common, complete sequence of at least four levels. L2 and Linf are
+analyzed independently using errors against the registered analytical
+solution, not differences between two numerical solutions. A full report
+contains all seven local estimates
+
+```text
+log(e_i/e_(i+1)) / log(dt_i/dt_(i+1))
+```
+
+and a centered log-log regression over the four finest usable consecutive
+points. The acceptance contract is deliberately fixed:
+
+| scheme | theoretical order | accepted regression order |
+| --- | ---: | ---: |
+| DG | 2 | `[1.70, 2.30]` |
+| PR | 1 | `[0.80, 1.20]` |
+| BE | 1 | `[0.80, 1.20]` |
+
+Both metrics also require regression `R^2 >= 0.98` and at least a fourfold
+reduction of analytical error. Non-finite data, a nonzero solver status,
+wrong final time, missing levels, duplicate IDs, or nonmonotonic analytical
+error before a credible plateau are hard failures.
+
+A positive local order above four times the scheme's theoretical order is
+also a hard metric failure. This deliberately retains catastrophic coarse
+solves followed by an apparently clean tail, such as the measured PR defect;
+the tail regression alone cannot certify the full series.
+
+A plateau may remove only a finest-level suffix from regression. Its local
+orders must stay below `max(0.20, 0.25*p_expected)` and its errors within a
+`max/min <= 1.25` band. At least two consecutive plateau transitions are
+required, except that one final transition is allowed at an actual roundoff
+scale (`<= 1e-10` times the solution norm). The excluded points and their
+local orders remain in the report. Isolated spikes and large coarse-grid
+errors are therefore never relabeled as plateau.
+
+Analysis writes `analysis/analysis.json` and `analysis/analysis.csv` below the
+run directory. `--plot` additionally requests `analysis/convergence.png`; if
+matplotlib is unavailable, only the plot is omitted and numerical analysis
+still runs. Reanalysis removes any older PNG before deciding whether the new
+report has a plot, so a stale image can never describe newer JSON/CSV output.
+
 ## Measurement and machine-readable results
+
+Stage 3 execution supports exactly one measured invocation per case
+(`warmups=0`, `samples=1`). Profiles with other values remain valid for
+planning and dry-run, but `run` and `resume` reject them during execution
+preflight until repetition support is added with the scaling workflow. This
+prevents a manifest from claiming measurements the runner did not perform.
 
 `NormL2` computes the final L2 error against the exact solution and the
 solution L2 norm using the production quadrature. For Linf and field
@@ -287,13 +427,18 @@ benchmarks/<run-id>/cases/<case-id>/result.json
 benchmarks/<run-id>/cases/<case-id>/stdout.log
 benchmarks/<run-id>/cases/<case-id>/stderr.log
 benchmarks/<run-id>/cases/<case-id>/field_samples.csv  # only when requested
+benchmarks/<run-id>/analysis/analysis.json
+benchmarks/<run-id>/analysis/analysis.csv
+benchmarks/<run-id>/analysis/convergence.png           # only with --plot
 ```
 
 The manifest contains the schema version, full expanded configuration and case
-IDs, configuration hash, Git commit, and dirty-tree flag. Writes are atomic
-and exclusive. Descriptor-relative operations reject traversal, symlink
-swaps, sibling-prefix tricks, and adoption of unrelated directories, including
-the legacy prototype.
+IDs, configuration hash, Git commit, dirty-tree flag, and a SHA-256 content
+fingerprint of tracked and nonignored untracked worktree state. Ignored
+benchmark/build output is excluded. Writes are atomic and exclusive.
+Descriptor-relative operations reject traversal, symlink swaps,
+sibling-prefix tricks, and adoption of unrelated directories, including the
+legacy prototype.
 
 ## Self-tests
 
@@ -303,7 +448,9 @@ make benchmark-self-test
 
 The dependency-free suite covers the 792-case plan, stable identifiers,
 filters and validation, exact-time conversion, safe storage, process timeout
-and termination, strict tagged-result parsing, planned/result binding, the
-registered manufactured adapters, smoke-refinement verification, fake-adapter
+and termination, frozen-manifest decoding, resume compatibility and verified
+skip/retry behavior, strict tagged-result parsing, planned/result binding, the
+registered manufactured adapters, smoke-refinement verification, synthetic
+orders one and two, plateau and corrupted convergence inputs, fake-adapter
 extensibility, and marker-guarded Make cleanup. These tests exercise framework
 contracts without adding costly numerical benchmark runs to `make test`.

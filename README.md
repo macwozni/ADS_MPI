@@ -734,6 +734,11 @@ make benchmark-self-test
 make benchmark-plan
 make benchmark-build BUILD=debug
 make benchmark-smoke BENCHMARK_RUN_ID=stage2-smoke
+make benchmark-convergence RUN_ID=stage3-diagnostic \
+  BENCHMARK_CONVERGENCE_PROFILE=temporal-validation
+make benchmark-resume RUN_ID=stage3-diagnostic \
+  BENCHMARK_CONVERGENCE_PROFILE=temporal-validation
+make benchmark-analyze RUN_ID=stage3-diagnostic
 ```
 
 `benchmark-smoke` runs the real nine-case matrix at `N=4` and `N=8`,
@@ -742,15 +747,25 @@ error to decrease for every problem/scheme pair. It creates the exclusive runs
 `benchmarks/stage2-smoke-n4/` and
 `benchmarks/stage2-smoke-n8/`.
 
-The `temporal-full` profile still expands deterministically to 792 cases, but
-its fixed `4x4x4` mesh currently exposes a finite transient instability in the
-shared production core. Full execution is therefore blocked pending a separate
-core fix; the oracle has not been relaxed. See
+Stage 3 freezes the complete manifest before execution, records an explicit
+status and separate logs/result for every case, and can verify and resume an
+interrupted compatible run. The registered temporal analyzer writes JSON/CSV
+reports (and an optional plot), using all local orders plus a four-point tail
+regression against analytical L2 and Linf errors. Filtered runs are passed
+through `BENCHMARK_PLAN_ARGS`, for example repeated `--steps` selectors.
+
+The `temporal-full` profile expands deterministically to 792 cases, but its
+fixed `4x4x4` mesh currently exposes finite transient instabilities in the
+shared production core. The 72-case `temporal-validation` profile is a smaller
+diagnostic matrix, not a workaround; wider checks also found deterministic
+odd-mesh and degree-dependent outliers. Full scientific qualification is
+therefore blocked pending a separate core fix, and the oracle has not been
+relaxed. See
 [`benchmarking/README.md`](benchmarking/README.md) for the exact solution,
-source-time conventions, adapter/build contract, result schema, and smoke
-workflow, and
-[`benchmarking/reproducers/even-mesh-transient.md`](benchmarking/reproducers/even-mesh-transient.md)
-for the direct reproducer.
+source-time conventions, runner/resume contract, analyzer thresholds, and
+result schema, and
+[`benchmarking/reproducers/temporal-convergence-instability.md`](benchmarking/reproducers/temporal-convergence-instability.md)
+for the measured reproducer.
 
 Benchmark execution remains deliberately separate from the ordinary
 `make test` regression tree.

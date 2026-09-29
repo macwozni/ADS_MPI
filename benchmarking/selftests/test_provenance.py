@@ -38,10 +38,15 @@ class ProvenanceTests(unittest.TestCase):
             clean = inspect_repository(repository)
             self.assertFalse(clean.dirty)
             self.assertEqual(len(clean.commit), 40)
+            self.assertRegex(clean.worktree_fingerprint or "", r"^sha256:[0-9a-f]{64}$")
             output = repository / "benchmarks" / "run-one"
             output.mkdir(parents=True)
             (output / "manifest.json").write_text("{}\n", encoding="utf-8")
-            self.assertFalse(inspect_repository(repository).dirty)
+            ignored = inspect_repository(repository)
+            self.assertFalse(ignored.dirty)
+            self.assertEqual(
+                ignored.worktree_fingerprint, clean.worktree_fingerprint
+            )
 
     def test_every_relevant_worktree_change_sets_dirty(self) -> None:
         actions = {
@@ -63,8 +68,29 @@ class ProvenanceTests(unittest.TestCase):
                     prefix=f"ads-provenance-{name}-"
                 ) as temporary:
                     repository = initialize_repository(Path(temporary))
+                    clean = inspect_repository(repository)
                     action(repository)
-                    self.assertTrue(inspect_repository(repository).dirty)
+                    changed = inspect_repository(repository)
+                    self.assertTrue(changed.dirty)
+                    self.assertNotEqual(
+                        changed.worktree_fingerprint,
+                        clean.worktree_fingerprint,
+                    )
+
+    def test_different_dirty_contents_have_different_fingerprints(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ads-provenance-dirty-") as temporary:
+            repository = initialize_repository(Path(temporary))
+            tracked = repository / "tracked.txt"
+            tracked.write_text("first dirty contents\n", encoding="utf-8")
+            first = inspect_repository(repository)
+            tracked.write_text("second dirty contents\n", encoding="utf-8")
+            second = inspect_repository(repository)
+            self.assertTrue(first.dirty)
+            self.assertTrue(second.dirty)
+            self.assertNotEqual(
+                first.worktree_fingerprint,
+                second.worktree_fingerprint,
+            )
 
     def test_non_repository_fails_explicitly(self) -> None:
         with tempfile.TemporaryDirectory(prefix="ads-provenance-missing-") as temporary:

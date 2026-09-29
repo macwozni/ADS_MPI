@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "name": "temporal-validation",
+  "description": "Stage-3 temporal convergence diagnostic matrix on the fixed 3x3x3 mesh.",
+  "family": "temporal",
+  "exact_cases": ["temporal-polynomial"],
+  "problems": ["igrm_l2", "igrm_heat", "pure_diffusion_igrm"],
+  "schemes": ["dg", "pr", "be"],
+  "time_discretizations": [
+    {"final_time": "0.1", "steps": 4},
+    {"final_time": "0.1", "steps": 8},
+    {"final_time": "0.1", "steps": 16},
+    {"final_time": "0.1", "steps": 32},
+    {"final_time": "0.1", "steps": 64},
+    {"final_time": "0.1", "steps": 128},
+    {"final_time": "0.1", "steps": 256},
+    {"final_time": "0.1", "steps": 512}
+  ],
+  "meshes": [[3, 3, 3]],
+  "degree_pairs": [
+    {"test": [4, 4, 4], "trial": [3, 3, 3]}
+  ],
+  "process_layouts": [
+    {"ranks": 1, "grid": [1, 1, 1]}
+  ],
+  "thread_counts": [1],
+  "sampling": {"points_per_axis": 17, "write_samples": false},
+  "execution": {"warmups": 0, "samples": 1, "timeout_seconds": "1800"},
+  "build_profiles": ["release"],
+  "launcher": "mpi"
+}

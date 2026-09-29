@@ -14,10 +14,12 @@ import time
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--mode", choices=("success", "nonzero", "sleep", "child", "bad")
+        "--mode",
+        choices=("success", "nonzero", "sleep", "child", "detached", "bad"),
     )
     parser.add_argument("--steps", type=int, required=True)
     parser.add_argument("--expected-cwd", required=True)
+    parser.add_argument("--write-samples", choices=("0", "1"), required=True)
     options = parser.parse_args()
     print(f"fake stdout mode={options.mode}")
     print("fake stderr", file=sys.stderr)
@@ -42,6 +44,12 @@ def main() -> int:
         if ready != b"R":
             return 8
         time.sleep(5)
+    if options.mode == "detached":
+        subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(5)"],
+            start_new_session=True,
+        )
+        time.sleep(5)
     if options.mode == "nonzero":
         return 7
     if options.mode == "bad":
@@ -51,6 +59,9 @@ def main() -> int:
     if working_directory != os.path.realpath(options.expected_cwd):
         print("fake program received the wrong working directory", file=sys.stderr)
         return 9
+    if options.write_samples == "1":
+        with open("field_samples.csv", "w", encoding="utf-8") as stream:
+            stream.write("x,y,z,value\n0,0,0,0\n")
     print(
         "ADS_BENCHMARK_RESULT "
         + json.dumps(

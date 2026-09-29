@@ -1,8 +1,14 @@
-# Even-mesh manufactured transient instability
+# Manufactured transient instability first observed on a `2x2x2` mesh
 
 Status: open core defect, observed during Stage-2 validation on 2026-09-29.
 The benchmark oracle is unchanged, and the production core is not fixed in the
 Stage-2 benchmark commit.
+
+Stage-3 validation has since shown that the defect is not limited to even
+meshes. Deterministic outliers also occur on `3x3x3`, and their location
+depends on the scheme, time step, and test/trial degrees. See the broader
+reproducer and measured series in
+[`temporal-convergence-instability.md`](temporal-convergence-instability.md).
 
 ## Reproducer
 
@@ -85,16 +91,19 @@ decrease from `N=4` to `N=8`:
 | PR | about `2.18e-4` | about `9.37e-5` |
 | BE | about `4.17e-4` | about `1.44e-4` |
 
-This isolates the failure from the exactly representable initial projection
-and makes an even-mesh issue in the shared transient/core path the current
-working diagnosis. Root-cause localization and a production fix require a
-separate core-change review and commit.
+This control still isolates the original failure from the exactly
+representable initial projection, but only over the two tested time levels.
+The former "even-mesh issue" working diagnosis is superseded: later levels on
+`3x3x3` contain deterministic DG and BE outliers. Root-cause localization and
+a production fix require a separate core-change review and commit.
 
 ## Consequence for profiles
 
 The Stage-2 `smoke` and `smoke-refined` profiles use the verified
 `3x3x3` control mesh and retain strict initial-state and refinement gates.
-The declared `temporal-full` profile intentionally remains the specified
-`4x4x4` matrix, so its scientific execution is blocked pending the separate
-core fix. A successful dry-run of its 792-case plan is not evidence that those
-numerical runs are valid.
+That two-level sanity check remains valid, but it does not qualify a complete
+temporal series. The declared `temporal-full` profile remains the specified
+792-case `4x4x4` matrix, and `temporal-validation` adds a 72-case `3x3x3`
+diagnostic matrix. Both scientific qualifications are blocked pending the
+separate core fix. A successful plan, completed process, or clean asymptotic
+tail is not evidence that every numerical level is valid.

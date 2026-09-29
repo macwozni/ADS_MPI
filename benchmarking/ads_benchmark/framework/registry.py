@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import re
-from typing import Generic, Iterable, TypeVar
+from typing import TYPE_CHECKING, Generic, Iterable, TypeVar
 
 from .errors import RegistryError
 from .model import BuildProfileDefinition, ExactCaseDefinition, FamilyDefinition
 from .protocols import Launcher, ProblemAdapter
+
+if TYPE_CHECKING:
+    from ..analysis.base import Analyzer
 
 
 T = TypeVar("T")
@@ -59,3 +62,4 @@ class Catalog:
     build_profiles: Registry[BuildProfileDefinition]
     launchers: Registry[Launcher]
     schemes: Registry[str]
+    analyzers: Registry[Analyzer]

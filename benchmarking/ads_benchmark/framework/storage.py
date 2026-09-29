@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -24,6 +25,13 @@ _DIRECTORY_FLAGS = (
     | getattr(os, "O_CLOEXEC", 0)
 )
 _FILE_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+_MAX_JSON_BYTES = 64 * 1024 * 1024
+_MAX_LOG_BYTES = 64 * 1024 * 1024
+_LOG_NAMES = frozenset({"stdout.log", "stderr.log"})
+_GENERATED_ARTIFACTS = frozenset({"field_samples.csv"})
+_ANALYSIS_ARTIFACTS = frozenset(
+    {"analysis.json", "analysis.csv", "convergence.png"}
+)
 
 
 def validate_identifier(value: str, field: str) -> str:
@@ -139,6 +147,38 @@ class ResultStore:
                 pass
             raise StorageError(f"cannot write {name}: {error}") from error
 
+    @staticmethod
+    def _atomic_bytes_at(directory_fd: int, name: str, content: bytes) -> None:
+        temporary = f".{name}.{os.getpid()}.{time.time_ns()}.tmp"
+        descriptor: int | None = None
+        try:
+            descriptor = os.open(
+                temporary,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | _FILE_NOFOLLOW,
+                0o644,
+                dir_fd=directory_fd,
+            )
+            with os.fdopen(descriptor, "wb") as stream:
+                descriptor = None
+                stream.write(content)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(
+                temporary,
+                name,
+                src_dir_fd=directory_fd,
+                dst_dir_fd=directory_fd,
+            )
+            os.fsync(directory_fd)
+        except (OSError, UnicodeError) as error:
+            if descriptor is not None:
+                os.close(descriptor)
+            try:
+                os.unlink(temporary, dir_fd=directory_fd)
+            except OSError:
+                pass
+            raise StorageError(f"cannot write {name}: {error}") from error
+
     @classmethod
     def _atomic_json_at(
         cls, directory_fd: int, name: str, document: Mapping[str, object]
@@ -156,37 +196,83 @@ class ResultStore:
         cls._atomic_text_at(directory_fd, name, content)
 
     @staticmethod
-    def _read_manifest_at(run_fd: int, run_id: str) -> dict[str, object]:
+    def _read_json_at(
+        directory_fd: int,
+        name: str,
+        description: str,
+        *,
+        missing_ok: bool = False,
+    ) -> dict[str, object] | None:
         descriptor: int | None = None
         try:
             descriptor = os.open(
-                "manifest.json",
+                name,
                 os.O_RDONLY | os.O_NONBLOCK | _FILE_NOFOLLOW,
-                dir_fd=run_fd,
+                dir_fd=directory_fd,
             )
             metadata = os.fstat(descriptor)
             if (
                 not stat.S_ISREG(metadata.st_mode)
-                or metadata.st_size > 64 * 1024 * 1024
+                or metadata.st_size > _MAX_JSON_BYTES
             ):
                 raise StorageError(
-                    f"run {run_id} ownership manifest must be a regular file below 64 MiB"
+                    f"{description} must be a regular file below 64 MiB"
                 )
+
+            def unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+                document: dict[str, object] = {}
+                for key, value in pairs:
+                    if key in document:
+                        raise StorageError(
+                            f"{description} contains duplicate JSON key {key!r}"
+                        )
+                    document[key] = value
+                return document
+
+            def reject_constant(value: str) -> None:
+                raise StorageError(
+                    f"{description} contains non-finite JSON number {value}"
+                )
+
             with os.fdopen(descriptor, "r", encoding="utf-8") as stream:
                 descriptor = None
-                document = json.load(stream)
+                document = json.load(
+                    stream,
+                    object_pairs_hook=unique_object,
+                    parse_constant=reject_constant,
+                )
         except StorageError:
             if descriptor is not None:
                 os.close(descriptor)
             raise
-        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        except FileNotFoundError:
             if descriptor is not None:
                 os.close(descriptor)
-            raise StorageError(
-                f"run {run_id} has no readable ownership manifest: {error}"
-            ) from error
+            if missing_ok:
+                return None
+            raise StorageError(f"{description} is missing") from None
+        except (
+            OSError,
+            UnicodeError,
+            json.JSONDecodeError,
+            ValueError,
+            RecursionError,
+        ) as error:
+            if descriptor is not None:
+                os.close(descriptor)
+            raise StorageError(f"cannot read {description}: {error}") from error
         if not isinstance(document, dict):
-            raise StorageError(f"run {run_id} ownership manifest is not an object")
+            raise StorageError(f"{description} is not an object")
+        return document
+
+    @classmethod
+    def _read_manifest_at(cls, run_fd: int, run_id: str) -> dict[str, object]:
+        document = cls._read_json_at(
+            run_fd,
+            "manifest.json",
+            f"run {run_id} ownership manifest",
+        )
+        assert document is not None
         return document
 
     @contextmanager
@@ -243,6 +329,115 @@ class ResultStore:
                 os.close(run_fd)
             os.close(results_fd)
 
+    def read_manifest(self, run_id: str) -> dict[str, object]:
+        """Read an owned run's immutable execution manifest safely."""
+
+        with self._owned_run_fds(run_id) as (_, run_fd):
+            return self._read_manifest_at(run_fd, run_id)
+
+    def write_analysis_artifact(
+        self, run_id: str, name: str, content: str | bytes
+    ) -> Path:
+        """Atomically write one allowlisted artifact below an owned run."""
+
+        if name not in _ANALYSIS_ARTIFACTS:
+            raise StorageError(f"unsupported analysis artifact: {name}")
+        if name == "convergence.png" and not isinstance(content, bytes):
+            raise StorageError("convergence.png content must be bytes")
+        if name != "convergence.png" and not isinstance(content, str):
+            raise StorageError(f"{name} content must be text")
+        with self._owned_run_fds(run_id) as (_, run_fd):
+            try:
+                os.mkdir("analysis", mode=0o755, dir_fd=run_fd)
+            except FileExistsError:
+                pass
+            try:
+                analysis_fd = os.open("analysis", _DIRECTORY_FLAGS, dir_fd=run_fd)
+            except OSError as error:
+                raise StorageError(
+                    f"unsafe analysis directory in run {run_id}"
+                ) from error
+            try:
+                if isinstance(content, bytes):
+                    self._atomic_bytes_at(analysis_fd, name, content)
+                else:
+                    self._atomic_text_at(analysis_fd, name, content)
+            finally:
+                os.close(analysis_fd)
+        return self._run_path(run_id) / "analysis" / name
+
+    def remove_analysis_artifact(self, run_id: str, name: str) -> None:
+        """Safely remove one stale allowlisted analysis artifact."""
+
+        if name not in _ANALYSIS_ARTIFACTS:
+            raise StorageError(f"unsupported analysis artifact: {name}")
+        with self._owned_run_fds(run_id) as (_, run_fd):
+            try:
+                analysis_fd = os.open("analysis", _DIRECTORY_FLAGS, dir_fd=run_fd)
+            except FileNotFoundError:
+                return
+            except OSError as error:
+                raise StorageError(
+                    f"unsafe analysis directory in run {run_id}"
+                ) from error
+            try:
+                try:
+                    os.unlink(name, dir_fd=analysis_fd)
+                    os.fsync(analysis_fd)
+                except FileNotFoundError:
+                    pass
+                except OSError as error:
+                    raise StorageError(
+                        f"cannot remove analysis artifact {name}: {error}"
+                    ) from error
+            finally:
+                os.close(analysis_fd)
+
+    @contextmanager
+    def execution_lock(self, run_id: str) -> Iterator[None]:
+        """Prevent two runner processes from appending to one run concurrently."""
+
+        descriptor: int | None = None
+        with self._owned_run_fds(run_id) as (_, run_fd):
+            try:
+                descriptor = os.open(
+                    ".execution.lock",
+                    os.O_RDWR | os.O_CREAT | _FILE_NOFOLLOW,
+                    0o644,
+                    dir_fd=run_fd,
+                )
+                metadata = os.fstat(descriptor)
+                if not stat.S_ISREG(metadata.st_mode):
+                    raise StorageError(
+                        f"run {run_id} execution lock is not a regular file"
+                    )
+                try:
+                    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError as error:
+                    raise StorageError(
+                        f"run {run_id} is already being executed or resumed"
+                    ) from error
+                yield
+            except StorageError:
+                raise
+            except OSError as error:
+                raise StorageError(
+                    f"cannot lock run {run_id} for execution: {error}"
+                ) from error
+            finally:
+                if descriptor is not None:
+                    try:
+                        fcntl.flock(descriptor, fcntl.LOCK_UN)
+                    finally:
+                        os.close(descriptor)
+
+    def case_directory_path(self, run_id: str, case_id: str) -> Path:
+        """Return the validated lexical path for a case without creating it."""
+
+        run_path = self._run_path(run_id)
+        validate_identifier(case_id, "case_id")
+        return run_path / "cases" / case_id
+
     def create_case_directory(self, run_id: str, case_id: str) -> Path:
         run_path = self._run_path(run_id)
         validate_identifier(case_id, "case_id")
@@ -265,6 +460,40 @@ class ResultStore:
             finally:
                 os.close(cases_fd)
         return run_path / "cases" / case_id
+
+    def ensure_case_directory(self, run_id: str, case_id: str) -> tuple[Path, bool]:
+        """Return a safely anchored case directory, creating it when absent."""
+
+        run_path = self._run_path(run_id)
+        validate_identifier(case_id, "case_id")
+        created = False
+        with self._owned_run_fds(run_id) as (_, run_fd):
+            try:
+                os.mkdir("cases", mode=0o755, dir_fd=run_fd)
+            except FileExistsError:
+                pass
+            try:
+                cases_fd = os.open("cases", _DIRECTORY_FLAGS, dir_fd=run_fd)
+            except OSError as error:
+                raise StorageError(f"unsafe cases directory in run {run_id}") from error
+            case_fd: int | None = None
+            try:
+                try:
+                    os.mkdir(case_id, mode=0o755, dir_fd=cases_fd)
+                    created = True
+                except FileExistsError:
+                    pass
+                try:
+                    case_fd = os.open(case_id, _DIRECTORY_FLAGS, dir_fd=cases_fd)
+                except OSError as error:
+                    raise StorageError(
+                        f"case path is missing or unsafe: {case_id}"
+                    ) from error
+            finally:
+                if case_fd is not None:
+                    os.close(case_fd)
+                os.close(cases_fd)
+        return run_path / "cases" / case_id, created
 
     def _case_coordinates(self, case_directory: Path) -> tuple[str, str]:
         if not case_directory.is_absolute():
@@ -302,6 +531,13 @@ class ResultStore:
                     os.close(case_fd)
                 os.close(cases_fd)
 
+    @contextmanager
+    def open_case_directory(self, case_directory: Path) -> Iterator[int]:
+        """Keep a verified case-directory inode open across child launch."""
+
+        with self._case_fd(case_directory) as case_fd:
+            yield case_fd
+
     def write_status(self, case_directory: Path, document: Mapping[str, object]) -> None:
         with self._case_fd(case_directory) as case_fd:
             self._atomic_json_at(case_fd, "status.json", document)
@@ -311,7 +547,114 @@ class ResultStore:
             self._atomic_json_at(case_fd, "result.json", document)
 
     def write_log(self, case_directory: Path, name: str, content: str) -> None:
-        if name not in {"stdout.log", "stderr.log"}:
+        if name not in _LOG_NAMES:
             raise StorageError(f"unsupported log name: {name}")
         with self._case_fd(case_directory) as case_fd:
             self._atomic_text_at(case_fd, name, content)
+
+    def read_case_json(
+        self,
+        case_directory: Path,
+        name: str,
+        *,
+        missing_ok: bool = False,
+    ) -> dict[str, object] | None:
+        if name not in {"status.json", "result.json"}:
+            raise StorageError(f"unsupported case JSON name: {name}")
+        _, case_id = self._case_coordinates(case_directory)
+        with self._case_fd(case_directory) as case_fd:
+            return self._read_json_at(
+                case_fd,
+                name,
+                f"case {case_id} {name}",
+                missing_ok=missing_ok,
+            )
+
+    def case_log_is_complete(self, case_directory: Path, name: str) -> bool:
+        if name not in _LOG_NAMES:
+            raise StorageError(f"unsupported log name: {name}")
+        return self.case_file_is_regular(case_directory, name)
+
+    def case_file_is_regular(self, case_directory: Path, name: str) -> bool:
+        if name not in _LOG_NAMES | _GENERATED_ARTIFACTS:
+            raise StorageError(f"unsupported case file name: {name}")
+        _, case_id = self._case_coordinates(case_directory)
+        descriptor: int | None = None
+        with self._case_fd(case_directory) as case_fd:
+            try:
+                descriptor = os.open(
+                    name,
+                    os.O_RDONLY | os.O_NONBLOCK | _FILE_NOFOLLOW,
+                    dir_fd=case_fd,
+                )
+                return stat.S_ISREG(os.fstat(descriptor).st_mode)
+            except FileNotFoundError:
+                return False
+            except OSError as error:
+                raise StorageError(
+                    f"cannot inspect case {case_id} {name}: {error}"
+                ) from error
+            finally:
+                if descriptor is not None:
+                    os.close(descriptor)
+
+    def read_case_log(self, case_directory: Path, name: str) -> str:
+        if name not in _LOG_NAMES:
+            raise StorageError(f"unsupported log name: {name}")
+        _, case_id = self._case_coordinates(case_directory)
+        descriptor: int | None = None
+        try:
+            with self._case_fd(case_directory) as case_fd:
+                descriptor = os.open(
+                    name,
+                    os.O_RDONLY | os.O_NONBLOCK | _FILE_NOFOLLOW,
+                    dir_fd=case_fd,
+                )
+                metadata = os.fstat(descriptor)
+                if (
+                    not stat.S_ISREG(metadata.st_mode)
+                    or metadata.st_size > _MAX_LOG_BYTES
+                ):
+                    raise StorageError(
+                        f"case {case_id} {name} must be a regular file below 64 MiB"
+                    )
+                with os.fdopen(descriptor, "r", encoding="utf-8") as stream:
+                    descriptor = None
+                    return stream.read()
+        except StorageError:
+            raise
+        except (OSError, UnicodeError) as error:
+            raise StorageError(
+                f"cannot read case {case_id} {name}: {error}"
+            ) from error
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+
+    def remove_result(self, case_directory: Path) -> None:
+        """Remove a stale result before a retry; missing results are harmless."""
+
+        with self._case_fd(case_directory) as case_fd:
+            try:
+                os.unlink("result.json", dir_fd=case_fd)
+                os.fsync(case_fd)
+            except FileNotFoundError:
+                pass
+            except OSError as error:
+                raise StorageError(
+                    f"cannot clear stale result in {case_directory}: {error}"
+                ) from error
+
+    def remove_generated_artifact(self, case_directory: Path, name: str) -> None:
+        if name not in _GENERATED_ARTIFACTS:
+            raise StorageError(f"unsupported generated artifact: {name}")
+        with self._case_fd(case_directory) as case_fd:
+            try:
+                os.unlink(name, dir_fd=case_fd)
+                os.fsync(case_fd)
+            except FileNotFoundError:
+                pass
+            except OSError as error:
+                raise StorageError(
+                    f"cannot clear stale {name} in {case_directory}: {error}"
+                ) from error

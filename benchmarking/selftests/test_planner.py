@@ -36,6 +36,7 @@ class PlannerTests(unittest.TestCase):
                 "smoke",
                 "smoke-refined",
                 "temporal-full",
+                "temporal-validation",
             ),
         )
         plan = self.planner.plan("temporal-full")
@@ -57,6 +58,7 @@ class PlannerTests(unittest.TestCase):
             "smoke": 9,
             "smoke-refined": 9,
             "temporal-full": 792,
+            "temporal-validation": 72,
             "local-scaling": 36,
             "cluster-scaling": 36,
         }
@@ -177,13 +179,15 @@ class PlannerTests(unittest.TestCase):
             (CaseFilters(mpi_grids=frozenset({(1, 1, 1)})), 792),
             (CaseFilters(mpi_ranks=frozenset({1})), 792),
             (CaseFilters(openmp_threads=frozenset({1})), 792),
+            (CaseFilters(steps=frozenset({8, 32})), 198),
             (
                 CaseFilters(
                     problems=frozenset({"igrm_l2"}),
                     schemes=frozenset({"pr"}),
                     degree_pairs=frozenset({((5, 5, 5), (4, 4, 4))}),
+                    steps=frozenset({8, 16, 32, 64}),
                 ),
-                8,
+                4,
             ),
         )
         for filters, expected in cases:

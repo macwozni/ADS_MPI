@@ -37,6 +37,8 @@ class FakeAdapter:
         )
         if self.mode == "nul-argv":
             return (sys.executable, "bad\0argument")
+        if self.mode == "missing-executable":
+            return ("/definitely/missing/ads-benchmark-payload",)
         return (
             sys.executable,
             str(PROGRAM),
@@ -46,9 +48,13 @@ class FakeAdapter:
             str(case.time.steps),
             "--expected-cwd",
             str(context.case_directory),
+            "--write-samples",
+            "1" if case.sampling.write_samples else "0",
         )
 
     def parse_result(self, stdout: str, stderr: str) -> Mapping[str, object]:
+        if "CORRUPTED_FAKE_STDERR" in stderr:
+            raise ValueError("fake stderr is corrupted")
         if self.mode == "nan":
             return {"invalid": float("nan")}
         matches = [line for line in stdout.splitlines() if line.startswith(RESULT_PREFIX)]

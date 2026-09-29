@@ -7,6 +7,7 @@ protocol and registering it here; planner and executor code stay unchanged.
 
 from __future__ import annotations
 
+from .analysis.temporal import TemporalConvergenceAnalyzer
 from .components.manufactured import ManufacturedTransientAdapter
 from .components.planning import DirectLauncher, default_mpi_launcher
 from .framework.model import (
@@ -23,15 +24,19 @@ def build_catalog() -> Catalog:
         adapters.register(name, ManufacturedTransientAdapter(name=name))
 
     families = Registry("experiment family")
-    for name, description in (
-        ("temporal", "fixed-space temporal convergence"),
-        ("h", "mesh-size convergence"),
-        ("p", "polynomial-degree convergence"),
-        ("validation", "MPI/OpenMP full-field validation"),
-        ("strong", "strong scaling"),
-        ("weak", "weak scaling"),
+    for name, description, analyzer in (
+        (
+            "temporal",
+            "fixed-space temporal convergence",
+            "temporal-convergence",
+        ),
+        ("h", "mesh-size convergence", None),
+        ("p", "polynomial-degree convergence", None),
+        ("validation", "MPI/OpenMP full-field validation", None),
+        ("strong", "strong scaling", None),
+        ("weak", "weak scaling", None),
     ):
-        families.register(name, FamilyDefinition(name, description))
+        families.register(name, FamilyDefinition(name, description, analyzer))
 
     exact_cases = Registry("exact case")
     exact_cases.register(
@@ -58,6 +63,10 @@ def build_catalog() -> Catalog:
     for name in ("dg", "pr", "be"):
         schemes.register(name, name)
 
+    analyzers = Registry("analyzer")
+    temporal_analyzer = TemporalConvergenceAnalyzer()
+    analyzers.register(temporal_analyzer.name, temporal_analyzer)
+
     return Catalog(
         adapters=adapters,
         families=families,
@@ -65,4 +74,5 @@ def build_catalog() -> Catalog:
         build_profiles=build_profiles,
         launchers=launchers,
         schemes=schemes,
+        analyzers=analyzers,
     )

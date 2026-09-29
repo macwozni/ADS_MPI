@@ -116,9 +116,16 @@ class PlannedCase:
 class RepositoryState:
     commit: str
     dirty: bool
+    worktree_fingerprint: str | None = None
 
     def to_dict(self) -> dict[str, object]:
-        return {"commit": self.commit, "dirty": self.dirty}
+        document: dict[str, object] = {
+            "commit": self.commit,
+            "dirty": self.dirty,
+        }
+        if self.worktree_fingerprint is not None:
+            document["worktree_fingerprint"] = self.worktree_fingerprint
+        return document
 
 
 @dataclass(frozen=True)
@@ -131,6 +138,7 @@ class ExecutionContext:
 class FamilyDefinition:
     name: str
     description: str
+    analyzer: str | None = None
 
 
 @dataclass(frozen=True)
