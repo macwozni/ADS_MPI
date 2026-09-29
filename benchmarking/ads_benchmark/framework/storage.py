@@ -27,6 +27,7 @@ _DIRECTORY_FLAGS = (
 _FILE_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
 _MAX_JSON_BYTES = 64 * 1024 * 1024
 _MAX_LOG_BYTES = 64 * 1024 * 1024
+_MAX_GENERATED_ARTIFACT_BYTES = 64 * 1024 * 1024
 _LOG_NAMES = frozenset({"stdout.log", "stderr.log"})
 _GENERATED_ARTIFACTS = frozenset({"field_samples.csv"})
 _ANALYSIS_ARTIFACTS = frozenset(
@@ -626,6 +627,46 @@ class ResultStore:
         except (OSError, UnicodeError) as error:
             raise StorageError(
                 f"cannot read case {case_id} {name}: {error}"
+            ) from error
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+
+    def read_generated_artifact(self, case_directory: Path, name: str) -> str:
+        """Read one allowlisted, bounded text artifact from an owned case."""
+
+        if name not in _GENERATED_ARTIFACTS:
+            raise StorageError(f"unsupported generated artifact: {name}")
+        _, case_id = self._case_coordinates(case_directory)
+        descriptor: int | None = None
+        try:
+            with self._case_fd(case_directory) as case_fd:
+                descriptor = os.open(
+                    name,
+                    os.O_RDONLY | os.O_NONBLOCK | _FILE_NOFOLLOW,
+                    dir_fd=case_fd,
+                )
+                metadata = os.fstat(descriptor)
+                if (
+                    not stat.S_ISREG(metadata.st_mode)
+                    or metadata.st_size > _MAX_GENERATED_ARTIFACT_BYTES
+                ):
+                    raise StorageError(
+                        f"case {case_id} {name} must be a regular file below 64 MiB"
+                    )
+                with os.fdopen(descriptor, "rb") as stream:
+                    descriptor = None
+                    content = stream.read(_MAX_GENERATED_ARTIFACT_BYTES + 1)
+                if len(content) > _MAX_GENERATED_ARTIFACT_BYTES:
+                    raise StorageError(
+                        f"case {case_id} {name} must be a regular file below 64 MiB"
+                    )
+                return content.decode("utf-8")
+        except StorageError:
+            raise
+        except (OSError, UnicodeError) as error:
+            raise StorageError(
+                f"cannot read case {case_id} generated artifact {name}: {error}"
             ) from error
         finally:
             if descriptor is not None:

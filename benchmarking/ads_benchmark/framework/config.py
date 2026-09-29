@@ -10,7 +10,15 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .errors import ConfigurationError, RegistryError
-from .model import MeasurementSpec, MpiSpec, SamplingSpec, TimeSpec, Vector3
+from .model import (
+    MAX_SAMPLE_POINTS_PER_AXIS,
+    MAX_WRITTEN_SAMPLE_POINTS_PER_AXIS,
+    MeasurementSpec,
+    MpiSpec,
+    SamplingSpec,
+    TimeSpec,
+    Vector3,
+)
 from .registry import Registry
 
 
@@ -329,15 +337,23 @@ def parse_profile(document: dict[str, Any], source: Path) -> ProfileDefinition:
         "sampling.points_per_axis",
         minimum=1,
     )
-    if points_per_axis < 2 or points_per_axis > 257:
+    if points_per_axis < 2 or points_per_axis > MAX_SAMPLE_POINTS_PER_AXIS:
         raise ConfigurationError(
-            "sampling.points_per_axis must be between 2 and 257"
+            f"sampling.points_per_axis must be between 2 and "
+            f"{MAX_SAMPLE_POINTS_PER_AXIS}"
+        )
+    write_samples = _boolean(
+        raw_sampling["write_samples"], "sampling.write_samples"
+    )
+    if write_samples and points_per_axis > MAX_WRITTEN_SAMPLE_POINTS_PER_AXIS:
+        raise ConfigurationError(
+            "sampling.points_per_axis must not exceed "
+            f"{MAX_WRITTEN_SAMPLE_POINTS_PER_AXIS} when "
+            "sampling.write_samples is true"
         )
     sampling = SamplingSpec(
         points_per_axis=points_per_axis,
-        write_samples=_boolean(
-            raw_sampling["write_samples"], "sampling.write_samples"
-        ),
+        write_samples=write_samples,
     )
 
     thread_counts = tuple(

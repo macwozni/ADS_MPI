@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "name": "p-convergence-smoke",
+  "description": "108-case spatial-cosine degree-convergence smoke matrix with both enrichments and per-point dt/dt2 qualification pairs.",
+  "family": "p",
+  "exact_cases": ["spatial-cosine"],
+  "problems": ["igrm_l2", "igrm_heat", "pure_diffusion_igrm"],
+  "schemes": ["dg", "pr", "be"],
+  "time_discretizations": [
+    {"final_time": "0.01", "steps": 128},
+    {"final_time": "0.01", "steps": 256}
+  ],
+  "meshes": [[2, 2, 2]],
+  "degree_pairs": [
+    {"test": [2, 2, 2], "trial": [1, 1, 1]},
+    {"test": [3, 3, 3], "trial": [2, 2, 2]},
+    {"test": [4, 4, 4], "trial": [3, 3, 3]},
+    {"test": [3, 3, 3], "trial": [1, 1, 1]},
+    {"test": [4, 4, 4], "trial": [2, 2, 2]},
+    {"test": [5, 5, 5], "trial": [3, 3, 3]}
+  ],
+  "process_layouts": [
+    {"ranks": 1, "grid": [1, 1, 1]}
+  ],
+  "thread_counts": [1],
+  "sampling": {"points_per_axis": 33, "write_samples": true},
+  "execution": {"warmups": 0, "samples": 1, "timeout_seconds": "1800"},
+  "build_profiles": ["release"],
+  "launcher": "mpi"
+}

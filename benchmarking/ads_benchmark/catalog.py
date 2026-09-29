@@ -7,6 +7,7 @@ protocol and registering it here; planner and executor code stay unchanged.
 
 from __future__ import annotations
 
+from .analysis.spatial import HConvergenceAnalyzer, PConvergenceAnalyzer
 from .analysis.temporal import TemporalConvergenceAnalyzer
 from .components.manufactured import ManufacturedTransientAdapter
 from .components.planning import DirectLauncher, default_mpi_launcher
@@ -30,8 +31,8 @@ def build_catalog() -> Catalog:
             "fixed-space temporal convergence",
             "temporal-convergence",
         ),
-        ("h", "mesh-size convergence", None),
-        ("p", "polynomial-degree convergence", None),
+        ("h", "mesh-size convergence", "h-convergence"),
+        ("p", "polynomial-degree convergence", "p-convergence"),
         ("validation", "MPI/OpenMP full-field validation", None),
         ("strong", "strong scaling", None),
         ("weak", "weak scaling", None),
@@ -44,6 +45,13 @@ def build_catalog() -> Catalog:
         ExactCaseDefinition(
             "temporal-polynomial",
             "exp(-t) times the exactly representable cubic Neumann field",
+        ),
+    )
+    exact_cases.register(
+        "spatial-cosine",
+        ExactCaseDefinition(
+            "spatial-cosine",
+            "exp(-t) times a non-polynomial cosine Neumann field",
         ),
     )
 
@@ -66,6 +74,10 @@ def build_catalog() -> Catalog:
     analyzers = Registry("analyzer")
     temporal_analyzer = TemporalConvergenceAnalyzer()
     analyzers.register(temporal_analyzer.name, temporal_analyzer)
+    h_analyzer = HConvergenceAnalyzer()
+    analyzers.register(h_analyzer.name, h_analyzer)
+    p_analyzer = PConvergenceAnalyzer()
+    analyzers.register(p_analyzer.name, p_analyzer)
 
     return Catalog(
         adapters=adapters,

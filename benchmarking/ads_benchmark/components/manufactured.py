@@ -16,7 +16,10 @@ from ..framework.model import CaseSpec, ExecutionContext
 RESULT_PREFIX = "ADS_BENCHMARK_RESULT "
 RESULT_SCHEMA_VERSION = 1
 RESULT_KIND = "ads-manufactured-transient-result"
-EXACT_CASE = "temporal-polynomial"
+SUPPORTED_EXACT_CASES = {
+    "temporal-polynomial": 3,
+    "spatial-cosine": 1,
+}
 _SUPPORTED_SCHEMES = frozenset({"dg", "pr", "be"})
 _RESULT_KEYS = {
     "schema_version",
@@ -116,15 +119,27 @@ class ManufacturedTransientAdapter:
     def validate_case(self, case: CaseSpec) -> None:
         if case.problem != self.name:
             raise ValueError(f"adapter {self.name} received problem {case.problem}")
-        if case.exact_case != EXACT_CASE:
+        if case.exact_case not in SUPPORTED_EXACT_CASES:
             raise ValueError(
-                f"adapter {self.name} supports only exact case {EXACT_CASE}"
+                f"adapter {self.name} does not support exact case "
+                f"{case.exact_case}"
+            )
+        required_case = {
+            "temporal": "temporal-polynomial",
+            "h": "spatial-cosine",
+            "p": "spatial-cosine",
+        }.get(case.family)
+        if required_case is not None and case.exact_case != required_case:
+            raise ValueError(
+                f"{case.family} family requires exact case {required_case}"
             )
         if case.scheme not in _SUPPORTED_SCHEMES:
             raise ValueError(f"adapter {self.name} does not support {case.scheme}")
-        if any(degree < 3 for degree in case.trial_degree):
+        minimum_degree = SUPPORTED_EXACT_CASES[case.exact_case]
+        if any(degree < minimum_degree for degree in case.trial_degree):
             raise ValueError(
-                f"adapter {self.name} requires trial degree at least 3 on every axis"
+                f"adapter {self.name} requires trial degree at least "
+                f"{minimum_degree} on every axis for {case.exact_case}"
             )
 
     def build_payload_command(
@@ -139,7 +154,7 @@ class ManufacturedTransientAdapter:
             / "EXEC"
             / f"{self.name}_manufactured"
         )
-        return (
+        payload = (
             str(executable),
             case.scheme,
             _binary64_argument(case.time.final_time, "final_time"),
@@ -151,6 +166,10 @@ class ManufacturedTransientAdapter:
             str(case.sampling.points_per_axis),
             "1" if case.sampling.write_samples else "0",
         )
+        # Stage 3 stored this exact temporal argv, so it must remain verifiable.
+        if case.exact_case == "temporal-polynomial":
+            return payload
+        return (*payload, case.exact_case)
 
     def parse_result(self, stdout: str, stderr: str) -> Mapping[str, object]:
         stderr_records = [
@@ -199,14 +218,17 @@ class ManufacturedTransientAdapter:
             raise ExecutionError(
                 f"result schema_version must be {RESULT_SCHEMA_VERSION}"
             )
-        expected_strings = {
-            "kind": RESULT_KIND,
-            "exact_case": EXACT_CASE,
-            "problem": self.name,
-        }
+        expected_strings = {"kind": RESULT_KIND, "problem": self.name}
         for field, expected in expected_strings.items():
             if document[field] != expected or not isinstance(document[field], str):
                 raise ExecutionError(f"result {field} must be {expected!r}")
+        if (
+            not isinstance(document["exact_case"], str)
+            or document["exact_case"] not in SUPPORTED_EXACT_CASES
+        ):
+            raise ExecutionError(
+                "result exact_case must be a registered manufactured case"
+            )
         if (
             not isinstance(document["scheme"], str)
             or document["scheme"] not in _SUPPORTED_SCHEMES

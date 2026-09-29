@@ -13,11 +13,13 @@ contains
 
    subroutine RunManufacturedBenchmark(adapter)
       use benchmark_cli, ONLY: ReadBenchmarkConfiguration, WriteBenchmarkUsage
-      use manufactured_solution, ONLY: ActivateManufacturedCase
+      use manufactured_solution, ONLY: ActivateManufacturedCase, &
+                                         RegisterManufacturedCase
       use parallelism, ONLY: MYRANK
       use, intrinsic :: ieee_arithmetic, ONLY: ieee_is_finite
       use mpi
       type(BenchmarkAdapter), intent(in) :: adapter
+      type(BenchmarkAdapter) :: selected_adapter
       type(BenchmarkConfiguration) :: config
       type(BenchmarkMetrics) :: final_metrics, initial_metrics
       type(BenchmarkState) :: state
@@ -27,64 +29,78 @@ contains
       real(kind=8) :: actual_final_time, expected_initial_norm
       real(kind=8) :: local_elapsed, start_time, time_tolerance
 
-      call ValidateAdapter(adapter, status)
-      if (status /= 0) then
-         write(*, '(A)') 'invalid benchmark adapter registration'
-         stop 5
-      end if
-      call ActivateManufacturedCase(adapter%exact_case, status)
-      if (status /= 0) then
-         write(*, '(A)') 'invalid manufactured-case registration'
-         stop 5
-      end if
       call ReadBenchmarkConfiguration(config, status)
       if (status /= 0) then
          call WriteBenchmarkUsage
          stop 5
       end if
 
-      call adapter%initialize(config, state, status)
+      selected_adapter = adapter
+      call RegisterManufacturedCase( &
+         config%exact_case, selected_adapter%exact_case, status)
+      if (status /= 0) then
+         write(*, '(A)') 'invalid manufactured-case registration'
+         stop 5
+      end if
+      call ValidateAdapter(selected_adapter, status)
+      if (status /= 0) then
+         write(*, '(A)') 'invalid benchmark adapter registration'
+         stop 5
+      end if
+      call ActivateManufacturedCase(selected_adapter%exact_case, status)
+      if (status /= 0) then
+         write(*, '(A)') 'invalid manufactured-case registration'
+         stop 5
+      end if
+
+      call selected_adapter%initialize(config, state, status)
       call RequireCollectiveSuccess( &
-         adapter, state, status, 'benchmark initialization failed')
+         selected_adapter, state, status, 'benchmark initialization failed')
       rank_zero = MYRANK == 0
 
-      call adapter%project_initial(config, state, status)
+      call selected_adapter%project_initial(config, state, status)
       call RequireCollectiveSuccess( &
-         adapter, state, status, 'initial projection failed')
-      call adapter%measure(config, state, 0.d0, .false., &
+         selected_adapter, state, status, 'initial projection failed')
+      call selected_adapter%measure(config, state, 0.d0, .false., &
                            initial_metrics, status)
       call RequireCollectiveSuccess( &
-         adapter, state, status, 'initial-state measurement failed')
+         selected_adapter, state, status, 'initial-state measurement failed')
 
-      expected_initial_norm = adapter%exact_case%initial_l2_norm
+      expected_initial_norm = selected_adapter%exact_case%initial_l2_norm
       status = 0
       if (.not. MetricsAreFinite(initial_metrics) .or. &
-          initial_metrics%l2_error > 1.d-10 .or. &
-          initial_metrics%linf_error > 1.d-10 .or. &
-          abs(initial_metrics%solution_l2_norm - expected_initial_norm) > &
-             1.d-10) status = 7
+          initial_metrics%l2_error < 0.d0 .or. &
+          initial_metrics%linf_error < 0.d0 .or. &
+          initial_metrics%solution_l2_norm <= 0.d0) then
+         status = 7
+      else if (selected_adapter%exact_case%exact_initial_projection) then
+         if (initial_metrics%l2_error > 1.d-10 .or. &
+             initial_metrics%linf_error > 1.d-10 .or. &
+             abs(initial_metrics%solution_l2_norm - expected_initial_norm) > &
+                1.d-10) status = 7
+      end if
       call RequireCollectiveSuccess( &
-         adapter, state, status, &
+         selected_adapter, state, status, &
          'initial manufactured state failed its oracle')
 
       call MPI_Barrier(MPI_COMM_WORLD, mpi_ierr)
       if (mpi_ierr /= 0) call FailWithCleanup( &
-         adapter, state, mpi_ierr, 'pre-step MPI barrier failed')
+         selected_adapter, state, mpi_ierr, 'pre-step MPI barrier failed')
       start_time = MPI_Wtime()
       do step = 1, config%steps
-         call adapter%advance(config, state, step, status)
+         call selected_adapter%advance(config, state, step, status)
          call RequireCollectiveSuccess( &
-            adapter, state, status, 'physical ADS step failed')
+            selected_adapter, state, status, 'physical ADS step failed')
       end do
       call MPI_Barrier(MPI_COMM_WORLD, mpi_ierr)
       if (mpi_ierr /= 0) call FailWithCleanup( &
-         adapter, state, mpi_ierr, 'post-step MPI barrier failed')
+         selected_adapter, state, mpi_ierr, 'post-step MPI barrier failed')
       local_elapsed = MPI_Wtime() - start_time
       call MPI_Allreduce(local_elapsed, state%step_wall_seconds, 1, &
                          MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, &
                          mpi_ierr)
       if (mpi_ierr /= 0) call FailWithCleanup( &
-         adapter, state, mpi_ierr, 'step-timing reduction failed')
+         selected_adapter, state, mpi_ierr, 'step-timing reduction failed')
 
       actual_final_time = real(config%steps, kind=8)*config%dt
       time_tolerance = 64.d0*epsilon(1.d0)*max(1.d0, config%final_time)
@@ -92,12 +108,12 @@ contains
       if (abs(actual_final_time - config%final_time) > time_tolerance .or. &
           abs(state%ads_data%t - actual_final_time) > time_tolerance) status = 7
       call RequireCollectiveSuccess( &
-         adapter, state, status, 'physical loop did not terminate at T')
+         selected_adapter, state, status, 'physical loop did not terminate at T')
 
-      call adapter%measure(config, state, actual_final_time, &
+      call selected_adapter%measure(config, state, actual_final_time, &
                            config%write_samples, final_metrics, status)
       call RequireCollectiveSuccess( &
-         adapter, state, status, 'final-state measurement failed')
+         selected_adapter, state, status, 'final-state measurement failed')
       status = 0
       if (.not. MetricsAreFinite(final_metrics) .or. &
           final_metrics%l2_error < 0.d0 .or. &
@@ -106,17 +122,17 @@ contains
           .not. ieee_is_finite(state%step_wall_seconds) .or. &
           state%step_wall_seconds < 0.d0) status = 7
       call RequireCollectiveSuccess( &
-         adapter, state, status, 'non-finite manufactured result')
+         selected_adapter, state, status, 'non-finite manufactured result')
 
-      call adapter%cleanup(state, cleanup_status)
+      call selected_adapter%cleanup(state, cleanup_status)
       if (cleanup_status /= 0) then
          if (rank_zero) write(*, '(A,I0)') 'benchmark cleanup failed: ', &
                                              cleanup_status
          stop 1
       end if
       if (rank_zero) call WriteResult( &
-         adapter, config, initial_metrics, final_metrics, actual_final_time, &
-         state%step_wall_seconds)
+         selected_adapter, config, initial_metrics, final_metrics, &
+         actual_final_time, state%step_wall_seconds)
 
    end subroutine RunManufacturedBenchmark
 

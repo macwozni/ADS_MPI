@@ -2,6 +2,7 @@
 
 from .base import AnalysisError, AnalysisPipeline, AnalysisReport, Analyzer
 from .io import WrittenAnalysis, load_run_results, write_report, write_run_report
+from .spatial import HConvergenceAnalyzer, PConvergenceAnalyzer
 from .temporal import TemporalConvergenceAnalyzer
 
 __all__ = [
@@ -9,6 +10,8 @@ __all__ = [
     "AnalysisPipeline",
     "AnalysisReport",
     "Analyzer",
+    "HConvergenceAnalyzer",
+    "PConvergenceAnalyzer",
     "TemporalConvergenceAnalyzer",
     "WrittenAnalysis",
     "load_run_results",

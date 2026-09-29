@@ -7,7 +7,12 @@ from fractions import Fraction
 import math
 
 from .errors import BenchmarkError, RegistryError, ValidationError
-from .model import CaseSpec, Vector3
+from .model import (
+    MAX_SAMPLE_POINTS_PER_AXIS,
+    MAX_WRITTEN_SAMPLE_POINTS_PER_AXIS,
+    CaseSpec,
+    Vector3,
+)
 from .registry import Catalog
 
 
@@ -121,11 +126,22 @@ def validate_case(case: CaseSpec, catalog: Catalog) -> None:
     if (
         type(case.sampling.points_per_axis) is not int
         or case.sampling.points_per_axis < 2
-        or case.sampling.points_per_axis > 257
+        or case.sampling.points_per_axis > MAX_SAMPLE_POINTS_PER_AXIS
     ):
-        raise ValidationError("sampling points_per_axis must be between 2 and 257")
+        raise ValidationError(
+            "sampling points_per_axis must be between 2 and "
+            f"{MAX_SAMPLE_POINTS_PER_AXIS}"
+        )
     if type(case.sampling.write_samples) is not bool:
         raise ValidationError("sampling write_samples must be a boolean")
+    if (
+        case.sampling.write_samples
+        and case.sampling.points_per_axis > MAX_WRITTEN_SAMPLE_POINTS_PER_AXIS
+    ):
+        raise ValidationError(
+            "sampling points_per_axis must not exceed "
+            f"{MAX_WRITTEN_SAMPLE_POINTS_PER_AXIS} when write_samples is true"
+        )
     if type(case.measurement.warmups) is not int or case.measurement.warmups < 0:
         raise ValidationError("warmups must be a nonnegative integer")
     if type(case.measurement.samples) is not int or case.measurement.samples <= 0:

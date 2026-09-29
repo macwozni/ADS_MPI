@@ -122,6 +122,33 @@ class ManufacturedAdapterTests(unittest.TestCase):
                 case, ExecutionContext(Path("/repo"), Path("/case"))
             )
 
+    def test_spatial_case_accepts_linear_anisotropic_trial_space(self) -> None:
+        case = next(
+            item.spec for item in self.plan.cases if item.spec.problem == "igrm_l2"
+        )
+        case = replace(
+            case,
+            family="p",
+            exact_case="spatial-cosine",
+            test_degree=(2, 3, 4),
+            trial_degree=(1, 2, 3),
+        )
+        command = self.adapter.build_payload_command(
+            case, ExecutionContext(Path("/repo"), Path("/case"))
+        )
+        self.assertEqual(command[-1], "spatial-cosine")
+        self.assertEqual(len(command), 19)
+        self.assertEqual(command[7:13], ("2", "3", "4", "1", "2", "3"))
+
+    def test_experiment_family_requires_its_registered_exact_case(self) -> None:
+        case = next(
+            item.spec for item in self.plan.cases if item.spec.problem == "igrm_l2"
+        )
+        with self.assertRaisesRegex(ValueError, "temporal family requires"):
+            self.adapter.validate_case(replace(case, exact_case="spatial-cosine"))
+        with self.assertRaisesRegex(ValueError, "h family requires"):
+            self.adapter.validate_case(replace(case, family="h"))
+
     def test_valid_result_is_normalized_and_json_serializable(self) -> None:
         parsed = self.adapter.parse_result(
             "solver prelude\n" + tagged(valid_result()), "diagnostic\n"
@@ -130,6 +157,13 @@ class ManufacturedAdapterTests(unittest.TestCase):
         self.assertEqual(parsed["steps"], 4)
         self.assertIsInstance(parsed["l2_error"], float)
         json.dumps(parsed, allow_nan=False)
+
+        spatial = valid_result()
+        spatial["exact_case"] = "spatial-cosine"
+        self.assertEqual(
+            self.adapter.parse_result(tagged(spatial), "")["exact_case"],
+            "spatial-cosine",
+        )
 
     def test_result_validation_binds_every_case_identity_field(self) -> None:
         case = next(

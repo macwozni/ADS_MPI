@@ -61,6 +61,9 @@ TEST_SUITE ?=
 BENCHMARK_RUN_ID ?=
 RUN_ID ?=
 BENCHMARK_CONVERGENCE_PROFILE ?= temporal-full
+BENCHMARK_H_CONVERGENCE_PROFILE ?= h-convergence-full
+BENCHMARK_P_CONVERGENCE_PROFILE ?= p-convergence-full
+BENCHMARK_RESUME_PROFILE ?= $(BENCHMARK_CONVERGENCE_PROFILE)
 BENCHMARK_PLAN_ARGS ?=
 BENCHMARK_ANALYZE_ARGS ?=
 
@@ -109,6 +112,7 @@ TEST_OPTIONS = \
 .PHONY: all build build-all library problems list-problems list-configs help targets \
 	show-config config rebuild run run-help show-run \
 	benchmark-plan benchmark-build benchmark-smoke benchmark-convergence \
+	benchmark-h-convergence benchmark-p-convergence \
 	benchmark-resume benchmark-analyze benchmark-self-test \
 	clean-benchmark-build \
 	test check test-build test-layout test-src test-problems test-driver \
@@ -192,12 +196,28 @@ benchmark-convergence:
 		BENCHMARK_CONVERGENCE_PROFILE="$(BENCHMARK_CONVERGENCE_PROFILE)" \
 		BENCHMARK_PLAN_ARGS="$(BENCHMARK_PLAN_ARGS)" convergence
 
+benchmark-h-convergence:
+	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
+		CONFIG="$(CONFIG_PATH)" PYTHON="$(PYTHON)" \
+		MPIEXEC="$(MPIEXEC)" MPI_NP_FLAG="$(MPI_NP_FLAG)" \
+		RUN_ID="$(RUN_ID)" \
+		BENCHMARK_H_CONVERGENCE_PROFILE="$(BENCHMARK_H_CONVERGENCE_PROFILE)" \
+		BENCHMARK_PLAN_ARGS="$(BENCHMARK_PLAN_ARGS)" h-convergence
+
+benchmark-p-convergence:
+	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
+		CONFIG="$(CONFIG_PATH)" PYTHON="$(PYTHON)" \
+		MPIEXEC="$(MPIEXEC)" MPI_NP_FLAG="$(MPI_NP_FLAG)" \
+		RUN_ID="$(RUN_ID)" \
+		BENCHMARK_P_CONVERGENCE_PROFILE="$(BENCHMARK_P_CONVERGENCE_PROFILE)" \
+		BENCHMARK_PLAN_ARGS="$(BENCHMARK_PLAN_ARGS)" p-convergence
+
 benchmark-resume:
 	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
 		CONFIG="$(CONFIG_PATH)" PYTHON="$(PYTHON)" \
 		MPIEXEC="$(MPIEXEC)" MPI_NP_FLAG="$(MPI_NP_FLAG)" \
 		RUN_ID="$(RUN_ID)" \
-		BENCHMARK_CONVERGENCE_PROFILE="$(BENCHMARK_CONVERGENCE_PROFILE)" \
+		BENCHMARK_RESUME_PROFILE="$(BENCHMARK_RESUME_PROFILE)" \
 		BENCHMARK_PLAN_ARGS="$(BENCHMARK_PLAN_ARGS)" resume
 
 benchmark-analyze:
@@ -522,6 +542,10 @@ targets help:
 		'                                      run and verify the N=4/N=8 smoke pair' \
 		'  make benchmark-convergence RUN_ID=NAME' \
 		'                                      run a new frozen temporal profile' \
+		'  make benchmark-h-convergence RUN_ID=NAME' \
+		'                                      run h-convergence (full by default)' \
+		'  make benchmark-p-convergence RUN_ID=NAME' \
+		'                                      run isotropic p-convergence (full by default)' \
 		'  make benchmark-resume RUN_ID=NAME   verify and resume that frozen run' \
 		'  make benchmark-analyze RUN_ID=NAME  write JSON/CSV convergence reports' \
 		'  make benchmark-self-test           planner/engine contract tests' \

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+from dataclasses import replace
 from fractions import Fraction
 import json
 import math
@@ -21,7 +22,11 @@ from ads_benchmark.catalog import build_catalog
 from ads_benchmark.components.manufactured import RESULT_PREFIX
 from ads_benchmark.framework.config import load_profiles
 from ads_benchmark.framework.executor import Executor
-from ads_benchmark.framework.model import ExecutionContext, PlannedCase
+from ads_benchmark.framework.model import (
+    ExecutionContext,
+    PlannedCase,
+    SamplingSpec,
+)
 from ads_benchmark.framework.planner import Planner
 from ads_benchmark.framework.storage import ResultStore
 
@@ -438,6 +443,7 @@ class AnalysisPipelineAndIoTests(unittest.TestCase):
         executor = self._executor(store)
         loaded = load_run_results(executor, "analysis-run", (case,))
         self.assertEqual(len(loaded), 1)
+        self.assertNotIn("analysis_artifacts", loaded[0])
 
         status_path = case_directory / "status.json"
         status = json.loads(status_path.read_text(encoding="utf-8"))
@@ -445,6 +451,32 @@ class AnalysisPipelineAndIoTests(unittest.TestCase):
         status_path.write_text(json.dumps(status), encoding="utf-8")
         with self.assertRaisesRegex(AnalysisError, "fully verified completed"):
             load_run_results(executor, "analysis-run", (case,))
+
+    def test_run_loader_attaches_requested_samples_lazily_only_in_memory(self) -> None:
+        store, case, case_directory = self._owned_case()
+        sampled_case = replace(
+            case,
+            spec=replace(
+                case.spec,
+                sampling=SamplingSpec(points_per_axis=3, write_samples=True),
+            ),
+        )
+        self._write_complete_case(store, sampled_case, case_directory)
+        sample_text = "x,y,z,numerical,exact,error\n0,0,0,1,1,0\n"
+        (case_directory / "field_samples.csv").write_text(
+            sample_text, encoding="utf-8"
+        )
+        result_path = case_directory / "result.json"
+        persisted_result = result_path.read_bytes()
+
+        loaded = load_run_results(
+            self._executor(store), "analysis-run", (sampled_case,)
+        )
+
+        artifact = loaded[0]["analysis_artifacts"]["field_samples_csv"]
+        self.assertNotIsInstance(artifact, str)
+        self.assertEqual(artifact.read_text(), sample_text)
+        self.assertEqual(result_path.read_bytes(), persisted_result)
 
     def test_run_loader_rejects_a_missing_log(self) -> None:
         store, case, case_directory = self._owned_case()

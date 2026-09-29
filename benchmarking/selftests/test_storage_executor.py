@@ -208,6 +208,46 @@ class StorageTests(unittest.TestCase):
             self.assertEqual((original / "marker").read_text(), "safe")
             self.assertFalse((outside / "marker").exists())
 
+    def test_generated_artifact_reader_is_allowlisted_bounded_and_nofollow(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ads-store-artifact-") as temporary:
+            repository = Path(temporary) / "repository"
+            repository.mkdir()
+            store = ResultStore(repository)
+            store.create_run("owned", owned_manifest("owned"))
+            case_directory = store.create_case_directory("owned", "case-one")
+            artifact = case_directory / "field_samples.csv"
+            artifact.write_text("x,y,z,numerical,exact,error\n", encoding="utf-8")
+
+            self.assertEqual(
+                store.read_generated_artifact(case_directory, "field_samples.csv"),
+                "x,y,z,numerical,exact,error\n",
+            )
+            with self.assertRaisesRegex(StorageError, "unsupported generated"):
+                store.read_generated_artifact(case_directory, "stdout.log")
+
+            outside = Path(temporary) / "outside.csv"
+            outside.write_text("sentinel\n", encoding="utf-8")
+            artifact.unlink()
+            artifact.symlink_to(outside)
+            with self.assertRaisesRegex(StorageError, "cannot read"):
+                store.read_generated_artifact(case_directory, "field_samples.csv")
+
+            artifact.unlink()
+            with artifact.open("wb") as stream:
+                stream.truncate(64 * 1024 * 1024 + 1)
+            with self.assertRaisesRegex(StorageError, "regular file below 64 MiB"):
+                store.read_generated_artifact(case_directory, "field_samples.csv")
+
+            artifact.unlink()
+            artifact.mkdir()
+            with self.assertRaisesRegex(StorageError, "regular file below 64 MiB"):
+                store.read_generated_artifact(case_directory, "field_samples.csv")
+
+            artifact.rmdir()
+            artifact.write_bytes(b"\xff")
+            with self.assertRaisesRegex(StorageError, "cannot read"):
+                store.read_generated_artifact(case_directory, "field_samples.csv")
+
 
 class ExecutorContractTests(unittest.TestCase):
     def _prepare_mode(

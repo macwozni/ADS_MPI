@@ -15,10 +15,11 @@ contains
       type(BenchmarkConfiguration), intent(out) :: config
       integer(kind=4), intent(out) :: status
       character(len=64) :: argument
-      integer(kind=4) :: axis, write_samples_integer
+      integer(kind=4) :: argument_count, axis, write_samples_integer
 
       status = 0
-      if (command_argument_count() /= 17) then
+      argument_count = command_argument_count()
+      if (argument_count /= 17 .and. argument_count /= 18) then
          status = 5
          return
       end if
@@ -35,6 +36,11 @@ contains
       end do
       call ReadIntegerArgument(16, config%sample_points, status)
       call ReadIntegerArgument(17, write_samples_integer, status)
+      if (argument_count == 18) then
+         call ReadStringArgument(18, config%exact_case, status)
+      else
+         config%exact_case = 'temporal-polynomial'
+      end if
       if (status /= 0) return
 
       if (trim(config%scheme) /= 'dg' .and. &
@@ -46,7 +52,14 @@ contains
       if (any(config%nelem <= 0)) status = 5
       if (any(config%p_test <= 0) .or. any(config%p_test > 9)) status = 5
       if (any(config%p_trial <= 0) .or. any(config%p_trial > 9)) status = 5
-      if (any(config%p_trial < 3)) status = 5
+      select case (trim(config%exact_case))
+      case ('temporal-polynomial')
+         if (any(config%p_trial < 3)) status = 5
+      case ('spatial-cosine')
+         continue
+      case default
+         status = 5
+      end select
       if (any(config%p_test <= config%p_trial)) status = 5
       if (any(config%process_grid <= 0) .or. &
           any(config%process_grid > 128)) status = 5
@@ -84,6 +97,25 @@ contains
 
    end subroutine ReadIntegerArgument
 
+   subroutine ReadStringArgument(position, value, status)
+      integer(kind=4), intent(in) :: position
+      character(len=*), intent(out) :: value
+      integer(kind=4), intent(inout) :: status
+      character(len=64) :: argument
+      integer(kind=4) :: argument_length, argument_status
+
+      if (status /= 0) return
+      call get_command_argument( &
+         position, argument, length=argument_length, status=argument_status)
+      if (argument_status /= 0 .or. argument_length <= 0 .or. &
+          argument_length > len(value) .or. argument_length >= len(argument)) then
+         status = 5
+         return
+      end if
+      value = adjustl(argument(:argument_length))
+
+   end subroutine ReadStringArgument
+
    subroutine ReadRealArgument(position, value, status)
       integer(kind=4), intent(in) :: position
       real(kind=8), intent(out) :: value
@@ -109,7 +141,7 @@ contains
          'usage: <scheme> <T> <steps> <nx> <ny> <nz> ' // &
          '<ptest-x> <ptest-y> <ptest-z> <ptrial-x> <ptrial-y> ' // &
          '<ptrial-z> <proc-x> <proc-y> <proc-z> ' // &
-         '<sample-points> <write-samples:0|1>'
+         '<sample-points> <write-samples:0|1> [exact-case]'
 
    end subroutine WriteBenchmarkUsage
 

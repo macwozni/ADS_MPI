@@ -350,7 +350,9 @@ class AnalyzeCommandTests(unittest.TestCase):
         self.repository = Path(temporary.name) / "repository"
         self.repository.mkdir()
 
-    def _create_run(self, run_id: str) -> tuple[ResultStore, tuple[object, ...]]:
+    def _create_run(
+        self, run_id: str, *, legacy_temporal_payload: bool = False
+    ) -> tuple[ResultStore, tuple[object, ...]]:
         catalog = build_catalog()
         filters = CaseFilters(
             problems=frozenset({"igrm_l2"}),
@@ -377,9 +379,13 @@ class AnalyzeCommandTests(unittest.TestCase):
                 repository_root=self.repository,
                 case_directory=case_directory,
             )
-            payload = catalog.adapters.get(case.spec.problem).build_payload_command(
-                case.spec, context
+            payload = tuple(
+                catalog.adapters.get(case.spec.problem).build_payload_command(
+                    case.spec, context
+                )
             )
+            if legacy_temporal_payload and payload[-1] == case.spec.exact_case:
+                payload = payload[:-1]
             command = catalog.launchers.get(case.spec.launcher).command(
                 payload, case.spec
             )
@@ -461,6 +467,31 @@ class AnalyzeCommandTests(unittest.TestCase):
         self.assertEqual(report["status"], "passed")
         self.assertEqual(report["summary"]["levels_per_series"], 4)
         self.assertTrue((output / "analysis.csv").is_file())
+
+    def test_analyze_accepts_stage3_temporal_payload_without_exact_case(self) -> None:
+        self._create_run("stage3-payload", legacy_temporal_payload=True)
+        run = self.repository / "benchmarks" / "stage3-payload"
+        for status_path in (run / "cases").glob("*/status.json"):
+            status = json.loads(status_path.read_text(encoding="utf-8"))
+            self.assertNotIn("temporal-polynomial", status["command"])
+
+        stderr = io.StringIO()
+        with redirect_stdout(io.StringIO()), redirect_stderr(stderr):
+            return_code = cli.main(
+                [
+                    "analyze",
+                    "--repository-root",
+                    str(self.repository),
+                    "--run-id",
+                    "stage3-payload",
+                ]
+            )
+        self.assertEqual(return_code, 0, stderr.getvalue())
+        self.assertEqual(stderr.getvalue(), "")
+        report = json.loads(
+            (run / "analysis" / "analysis.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(report["status"], "passed")
 
     def test_analyze_rejects_result_that_disagrees_with_tagged_stdout(self) -> None:
         self._create_run("forged-result")

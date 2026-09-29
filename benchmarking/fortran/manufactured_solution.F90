@@ -1,4 +1,8 @@
-! Manufactured transient shared by every Stage-2 adapter.
+! Manufactured transients shared by every benchmark adapter.
+!
+! The temporal-polynomial case is exactly representable by every supported
+! trial space with degree at least three.  The spatial-cosine case is not
+! polynomial and is reserved for mesh/degree convergence measurements.
 !
 ! q(s) = s^2(3-2s), Q(x,y,z) = q(x)q(y)q(z),
 ! u(x,y,z,t) = exp(-t)Q(x,y,z).
@@ -9,6 +13,13 @@
 !   f = exp(-t) [-Q + (12x-6)q(y)q(z)
 !                    + (12y-6)q(x)q(z)
 !                    + (12z-6)q(x)q(y)].
+!
+! R(x,y,z) = cos(pi*x)cos(pi*y)cos(pi*z),
+! u(x,y,z,t) = exp(-t)R(x,y,z).
+!
+! Its normal derivative also vanishes on every face and
+!
+!   f = (3*pi^2 - 1) exp(-t) R.
 module manufactured_solution
 
    use benchmark_contract, ONLY: ManufacturedCase
@@ -23,6 +34,8 @@ module manufactured_solution
    public :: ManufacturedScalarSource
    public :: ManufacturedSource
    public :: ActivateManufacturedCase
+   public :: RegisterManufacturedCase
+   public :: RegisterSpatialCosineCase
    public :: RegisterTemporalPolynomialCase
    public :: SetCallbackSourceTime
    public :: SetEvaluationTime
@@ -35,6 +48,8 @@ module manufactured_solution
    real(kind=8) :: callback_source_time = 0.d0
    character(len=16) :: active_scheme = ''
    type(ManufacturedCase), save :: active_case
+   real(kind=8), parameter :: PI = &
+      3.141592653589793238462643383279502884197d0
 !$omp threadprivate(callback_source_time)
 
 contains
@@ -79,10 +94,58 @@ contains
 
       case_descriptor%name = 'temporal-polynomial'
       case_descriptor%initial_l2_norm = (13.d0/35.d0)**1.5d0
+      case_descriptor%exact_initial_projection = .true.
       case_descriptor%value => TemporalPolynomialValue
       case_descriptor%source => TemporalPolynomialSource
 
    end subroutine RegisterTemporalPolynomialCase
+
+   pure function SpatialCosineValue(physical_time, point) result(value)
+      real(kind=8), intent(in) :: physical_time
+      real(kind=8), dimension(3), intent(in) :: point
+      real(kind=8) :: value
+
+      value = exp(-physical_time)*cos(PI*point(1))*cos(PI*point(2))* &
+              cos(PI*point(3))
+
+   end function SpatialCosineValue
+
+   pure function SpatialCosineSource(physical_time, point) result(value)
+      real(kind=8), intent(in) :: physical_time
+      real(kind=8), dimension(3), intent(in) :: point
+      real(kind=8) :: value
+
+      value = (3.d0*PI*PI - 1.d0)*SpatialCosineValue(physical_time, point)
+
+   end function SpatialCosineSource
+
+   subroutine RegisterSpatialCosineCase(case_descriptor)
+      type(ManufacturedCase), intent(out) :: case_descriptor
+
+      case_descriptor%name = 'spatial-cosine'
+      case_descriptor%initial_l2_norm = 1.d0/sqrt(8.d0)
+      case_descriptor%exact_initial_projection = .false.
+      case_descriptor%value => SpatialCosineValue
+      case_descriptor%source => SpatialCosineSource
+
+   end subroutine RegisterSpatialCosineCase
+
+   subroutine RegisterManufacturedCase(case_name, case_descriptor, status)
+      character(len=*), intent(in) :: case_name
+      type(ManufacturedCase), intent(out) :: case_descriptor
+      integer(kind=4), intent(out) :: status
+
+      status = 0
+      select case (trim(case_name))
+      case ('temporal-polynomial')
+         call RegisterTemporalPolynomialCase(case_descriptor)
+      case ('spatial-cosine')
+         call RegisterSpatialCosineCase(case_descriptor)
+      case default
+         status = 5
+      end select
+
+   end subroutine RegisterManufacturedCase
 
    subroutine ActivateManufacturedCase(case_descriptor, status)
       type(ManufacturedCase), intent(in) :: case_descriptor
@@ -97,6 +160,8 @@ contains
       end if
       active_case%name = case_descriptor%name
       active_case%initial_l2_norm = case_descriptor%initial_l2_norm
+      active_case%exact_initial_projection = &
+         case_descriptor%exact_initial_projection
       active_case%value => case_descriptor%value
       active_case%source => case_descriptor%source
 

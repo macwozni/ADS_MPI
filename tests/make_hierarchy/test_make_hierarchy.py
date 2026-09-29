@@ -292,8 +292,11 @@ class MakeFixture:
             "BENCHMARK_ANALYZE_ARGS",
             "BENCHMARK_BUILD_ROOT",
             "BENCHMARK_CONVERGENCE_PROFILE",
+            "BENCHMARK_H_CONVERGENCE_PROFILE",
             "BENCHMARK_PLAN_ARGS",
+            "BENCHMARK_P_CONVERGENCE_PROFILE",
             "BENCHMARK_PROFILE",
+            "BENCHMARK_RESUME_PROFILE",
             "BENCHMARK_RUN_ID",
             "BENCHMARK_RUN_LOG",
             "BUILD",
@@ -408,7 +411,8 @@ class MakeFixture:
         benchmarking_destination = self.root / "benchmarking"
         benchmarking_destination.mkdir()
         (benchmarking_destination / "GNUmakefile").write_text(
-            ".PHONY: plan build smoke convergence resume analyze self-test clean-build\n"
+            ".PHONY: plan build smoke convergence h-convergence p-convergence "
+            "resume analyze self-test clean-build\n"
             "plan self-test clean-build:\n"
             "\t@printf '%s\\t%s\\n' '$@' '$(PYTHON)' >> '$(BENCHMARK_RUN_LOG)'\n"
             "build:\n"
@@ -418,11 +422,29 @@ class MakeFixture:
             "\t@test -n '$(CONFIG)'\n"
             "\t@test -n '$(BENCHMARK_RUN_ID)'\n"
             "\t@printf '%s\\t%s\\n' '$@' '$(PYTHON)' >> '$(BENCHMARK_RUN_LOG)'\n"
-            "convergence resume:\n"
+            "convergence:\n"
             "\t@test -n '$(CONFIG)'\n"
             "\t@test -n '$(RUN_ID)'\n"
             "\t@test -n '$(BENCHMARK_CONVERGENCE_PROFILE)'\n"
             "\t@printf '%s\\t%s\\n' '$@' '$(PYTHON)' >> '$(BENCHMARK_RUN_LOG)'\n"
+            "resume:\n"
+            "\t@test -n '$(CONFIG)'\n"
+            "\t@test -n '$(RUN_ID)'\n"
+            "\t@test -n '$(BENCHMARK_RESUME_PROFILE)'\n"
+            "\t@printf '%s\\t%s\\t%s\\t%s\\n' '$@' '$(PYTHON)' '$(RUN_ID)' "
+            "'$(BENCHMARK_RESUME_PROFILE)' >> '$(BENCHMARK_RUN_LOG)'\n"
+            "h-convergence:\n"
+            "\t@test -n '$(CONFIG)'\n"
+            "\t@test -n '$(RUN_ID)'\n"
+            "\t@test -n '$(BENCHMARK_H_CONVERGENCE_PROFILE)'\n"
+            "\t@printf '%s\\t%s\\t%s\\t%s\\n' '$@' '$(PYTHON)' '$(RUN_ID)' "
+            "'$(BENCHMARK_H_CONVERGENCE_PROFILE)' >> '$(BENCHMARK_RUN_LOG)'\n"
+            "p-convergence:\n"
+            "\t@test -n '$(CONFIG)'\n"
+            "\t@test -n '$(RUN_ID)'\n"
+            "\t@test -n '$(BENCHMARK_P_CONVERGENCE_PROFILE)'\n"
+            "\t@printf '%s\\t%s\\t%s\\t%s\\n' '$@' '$(PYTHON)' '$(RUN_ID)' "
+            "'$(BENCHMARK_P_CONVERGENCE_PROFILE)' >> '$(BENCHMARK_RUN_LOG)'\n"
             "analyze:\n"
             "\t@test -n '$(RUN_ID)'\n"
             "\t@printf '%s\\t%s\\n' '$@' '$(PYTHON)' >> '$(BENCHMARK_RUN_LOG)'\n",
@@ -616,11 +638,11 @@ PERFORMANCE_SUITE_TIMEOUT = 30s
     def performance_records(self) -> list[dict[str, object]]:
         return self._json_lines(self.performance_log)
 
-    def benchmark_records(self) -> list[tuple[str, str]]:
+    def benchmark_records(self) -> list[tuple[str, ...]]:
         if not self.benchmark_log.exists():
             return []
         return [
-            tuple(line.split("\t", 1))
+            tuple(line.split("\t"))
             for line in self.benchmark_log.read_text(encoding="utf-8").splitlines()
         ]
 
@@ -955,7 +977,12 @@ class HierarchicalMakeTests(unittest.TestCase):
                 ("build", sys.executable),
                 ("smoke", sys.executable),
                 ("convergence", sys.executable),
-                ("resume", sys.executable),
+                (
+                    "resume",
+                    sys.executable,
+                    "hierarchy-convergence",
+                    "temporal-full",
+                ),
                 ("analyze", sys.executable),
             ],
         )
@@ -979,6 +1006,54 @@ class HierarchicalMakeTests(unittest.TestCase):
             self.fixture.benchmark_records(), [("clean-build", sys.executable)]
         )
         self.assertEqual(sentinel.read_text(encoding="utf-8"), "preserve-me\n")
+
+    def test_spatial_convergence_targets_forward_run_id_and_profile(self) -> None:
+        self.fixture.make(
+            "benchmark-h-convergence",
+            variables={
+                "RUN_ID": "hierarchy-h-convergence",
+                "BENCHMARK_H_CONVERGENCE_PROFILE": "h-convergence-smoke",
+            },
+        )
+        self.fixture.make(
+            "benchmark-p-convergence",
+            variables={
+                "RUN_ID": "hierarchy-p-convergence",
+                "BENCHMARK_P_CONVERGENCE_PROFILE": "p-anisotropic-smoke",
+            },
+        )
+        self.fixture.make(
+            "benchmark-resume",
+            variables={
+                "RUN_ID": "hierarchy-h-resume",
+                "BENCHMARK_RESUME_PROFILE": "h-convergence-smoke",
+            },
+        )
+
+        self.assertEqual(
+            self.fixture.benchmark_records(),
+            [
+                (
+                    "h-convergence",
+                    sys.executable,
+                    "hierarchy-h-convergence",
+                    "h-convergence-smoke",
+                ),
+                (
+                    "p-convergence",
+                    sys.executable,
+                    "hierarchy-p-convergence",
+                    "p-anisotropic-smoke",
+                ),
+                (
+                    "resume",
+                    sys.executable,
+                    "hierarchy-h-resume",
+                    "h-convergence-smoke",
+                ),
+            ],
+        )
+        self.assertEqual(self.fixture.tool_records(), [])
 
     def test_performance_targets_release_forwarding_cleanup_and_guards(self) -> None:
         performance_root = (

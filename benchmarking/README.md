@@ -9,8 +9,10 @@ overwritten, moved, or cleaned by this framework.
 Stage 2 adds a real manufactured transient, a shared Fortran lifecycle, and
 executable adapters for `igrm_l2`, `igrm_heat`, and
 `pure_diffusion_igrm`. Stage 3 adds frozen temporal runs, verified resume, and
-a registered convergence analyzer. Expensive runs remain separate from
-`make test`.
+a registered convergence analyzer. Stage 4 adds an independent non-polynomial
+manufactured case, mesh-size and degree-convergence workflows, and explicit
+temporal-error qualification of every spatial point. Expensive runs remain
+separate from `make test`.
 
 ## Architecture and extension contract
 
@@ -59,9 +61,9 @@ planned configuration.
 
 Analysis is another registry-backed extension point. The generic pipeline
 loads results against their frozen manifest and dispatches them to a family
-analyzer. The temporal analyzer owns only temporal grouping, order estimates,
-plateau handling, and reports; it does not reimplement process execution,
-resume, or result storage.
+analyzer. The temporal and spatial analyzers own only their scientific
+grouping, qualification, plateau handling, and reports; they do not reimplement
+process execution, resume, or result storage.
 
 The Fortran side follows the same separation. A registered
 `BenchmarkAdapter` supplies a manufactured-case descriptor and procedures
@@ -70,7 +72,7 @@ cleanup. `benchmark_harness.F90` owns their ordering and the `1..N` time
 loop. The three main programs only register one adapter and invoke that shared
 harness.
 
-## Manufactured transient
+## Manufactured transients
 
 The registered exact case is `temporal-polynomial` on the unit cube:
 
@@ -110,6 +112,22 @@ Source evaluation follows the production scheme tables:
 
 The callback time used inside OpenMP RHS assembly is thread-private.
 
+The independent `spatial-cosine` case is used only by the `h` and `p`
+families:
+
+```text
+R(x,y,z)   = cos(pi*x) cos(pi*y) cos(pi*z)
+u(x,y,z,t) = exp(-t) R(x,y,z)
+f(x,y,z,t) = (3*pi^2 - 1) exp(-t) R(x,y,z)
+```
+
+Here `Delta(R)=-3*pi^2*R`, so the source has the displayed sign for the
+production convention `u_t-Delta(u)=f`. The normal derivative vanishes on all
+six faces. Unlike `temporal-polynomial`, this field is not exactly
+representable by any finite spline degree. Its initial projection error is
+therefore a measured spatial error, not a failed temporal-case initialization
+gate.
+
 ## Problem adapters
 
 All adapters use the shared initialization, projection, DG/PR/BE wrappers,
@@ -137,7 +155,7 @@ Their common direct CLI is:
 <ptest-x> <ptest-y> <ptest-z>
 <ptrial-x> <ptrial-y> <ptrial-z>
 <proc-x> <proc-y> <proc-z>
-<sample-points> <write-samples:0|1>
+<sample-points> <write-samples:0|1> [exact-case]
 ```
 
 Normally use the Python runner, which derives this command from the normalized
@@ -162,6 +180,19 @@ Registered profiles are:
 - `temporal-validation`: 72 cases on `3x3x3` at `(p_test,p_trial)=(4,3)`,
   spanning all three problems, all three schemes, and all eight time levels;
 - `temporal-full`: the specified 792-case matrix;
+- `h-convergence-smoke`: 54 cases over `2^3,4^3,8^3`;
+- `h-convergence-full`: 90 cases over `2^3,4^3,8^3,16^3,32^3`, with
+  fixed `(p_test,p_trial)=(3,2)` in every axis;
+- `p-convergence-smoke`: 108 cases covering `p_trial=1,2,3` with both
+  isotropic enrichments `+1` and `+2`;
+- `p-convergence-full`: all 270 isotropic cases for `p_trial=1,...,8`,
+  `p_test=p_trial+1`, and the admissible `p_test=p_trial+2 <= 9` cases, on
+  the fixed `2^3` mesh; the required `(p_test,p_trial)=(2,1)` is covered by
+  the smoke profile and by the post-fix validation recorded in
+  [`reproducers/spatial-degree-solver-defects.md`](reproducers/spatial-degree-solver-defects.md);
+- `p-anisotropic-smoke`: 108 cases over three cyclic rotations of `(3,4,5)`;
+- `p-anisotropic-full`: 216 cases over all six rotations of `(3,4,5)`, each
+  with componentwise test enrichment `+1` and `+2`;
 - `local-scaling` and `cluster-scaling`: planning presets whose complete
   scientific scaling workflows belong to later stages.
 
@@ -189,6 +220,17 @@ The Stage-2 smoke profiles retain their valid two-level refinement check; the
 oracle was not weakened, and that check is not presented as a full temporal
 qualification.
 
+Every spatial profile uses the short observation window `T=0.01` and contains
+both `N=128` and `N=256` for each otherwise identical point. The shorter window
+keeps evolution error below the projection error over a useful spatial range;
+it is not treated as proof of separation. The resulting `dt/dt2` pair is a
+candidate qualification pair. Every run writes the common-grid field samples
+needed to qualify L2 and Linf independently; the smoke and degree profiles use
+`33^3` points and the full h profile uses `65^3`.
+Each metric must then satisfy the spatial analyzer's fixed 10% temporal-share
+rule. If a point fails, the report requires a finer pair and excludes that
+point from spatial orders or degree-decrease calculations.
+
 Each normalized case is encoded as sorted compact JSON. Its ID is
 `<problem>-<scheme>-<20 hex digits>`, derived from SHA-256 of that semantic
 document. Profile name, run ID, timestamps, output paths, Git state, and JSON
@@ -213,6 +255,22 @@ make benchmark-smoke BENCHMARK_RUN_ID=stage2-smoke
 # Plan the complete and diagnostic temporal matrices without running them.
 make benchmark-plan BENCHMARK_PROFILE=temporal-full
 make benchmark-plan BENCHMARK_PROFILE=temporal-validation
+
+# Plan Stage-4 spatial matrices without running them.
+make benchmark-plan BENCHMARK_PROFILE=h-convergence-full
+make benchmark-plan BENCHMARK_PROFILE=p-convergence-full
+make benchmark-plan BENCHMARK_PROFILE=p-anisotropic-full
+
+# Execute frozen full workflows; select the matching *-smoke profile for smoke.
+make benchmark-h-convergence RUN_ID=stage4-h
+make benchmark-p-convergence RUN_ID=stage4-p
+make benchmark-p-convergence RUN_ID=stage4-p-anisotropic \
+  BENCHMARK_P_CONVERGENCE_PROFILE=p-anisotropic-full
+
+make benchmark-h-convergence RUN_ID=stage4-h-smoke \
+  BENCHMARK_H_CONVERGENCE_PROFILE=h-convergence-smoke
+make benchmark-p-convergence RUN_ID=stage4-p-smoke \
+  BENCHMARK_P_CONVERGENCE_PROFILE=p-convergence-smoke
 ```
 
 `benchmark-smoke` requires a new base ID. It creates
@@ -240,14 +298,15 @@ The standalone Fortran form, useful for diagnosis, is:
 OMP_NUM_THREADS=1 OMP_DYNAMIC=FALSE OMP_PROC_BIND=close \
   mpiexec -n 1 \
   ./benchmarking/build/debug/EXEC/igrm_l2_manufactured \
-  dg 0.1 4 3 3 3 4 4 4 3 3 3 1 1 1 17 0
+  dg 0.1 4 3 3 3 4 4 4 3 3 3 1 1 1 17 0 temporal-polynomial
 ```
 
 Repeatable planner/runner filters include `--problem`, `--scheme`,
 `--degree-pair`, `--mesh`, `--mpi-grid`, `--mpi-ranks`, `--omp`, and
 `--steps`.
 Unknown values and an empty result fail explicitly. Validation includes
-`p_test > p_trial`, trial degree at least three for this exact case,
+`p_test > p_trial`, trial degree at least three for `temporal-polynomial` and
+at least one for `spatial-cosine`,
 maximum degree nine, positive dimensions, `NP=proc-x*proc-y*proc-z`, a
 distributable process grid, and positive runtime controls.
 
@@ -256,7 +315,7 @@ the selected repository `CONFIG`, compiler, and libraries. No MPI or MUMPS
 path is hardcoded. `make clean-benchmark-build` removes only marker-owned
 benchmark build/cache content, never benchmark results.
 
-## Frozen temporal runner and resume
+## Frozen convergence runner and resume
 
 A new temporal run builds the release adapters, exclusively creates its run
 directory, writes the complete manifest, reads that manifest back through the
@@ -274,8 +333,14 @@ an interrupted run, request the same profile and filters explicitly:
 ```bash
 make benchmark-resume \
   RUN_ID=stage3-validation \
-  BENCHMARK_CONVERGENCE_PROFILE=temporal-validation
+  BENCHMARK_RESUME_PROFILE=temporal-validation
 ```
+
+The same neutral resume variable applies to spatial runs, for example
+`BENCHMARK_RESUME_PROFILE=h-convergence-full` or
+`BENCHMARK_RESUME_PROFILE=p-convergence-full`. For compatibility,
+`BENCHMARK_RESUME_PROFILE` defaults to `BENCHMARK_CONVERGENCE_PROFILE` when it
+is not set explicitly.
 
 Resume requires the current profile expansion, filters, commit SHA, dirty
 state, and content fingerprint of the nonignored worktree to match the frozen
@@ -303,8 +368,8 @@ registered adapter/launcher command and the availability of both payload and
 launcher executables. Invalid decompositions are rejected during ordinary
 case validation. These errors therefore cannot leave a nominal run behind.
 
-These commands expose the currently known numerical failures. A completed
-process matrix is not equivalent to a passing convergence analysis.
+Process completion is not equivalent to a passing convergence analysis; the
+selected analyzer must still accept the scientific series.
 
 ## Temporal convergence analysis
 
@@ -362,6 +427,65 @@ matplotlib is unavailable, only the plot is omitted and numerical analysis
 still runs. Reanalysis removes any older PNG before deciding whether the new
 report has a plot, so a stale image can never describe newer JSON/CSV output.
 
+## Spatial and degree convergence analysis
+
+Run `make benchmark-analyze RUN_ID=<name>` for either an `h` or a `p` run.
+The analyzer first enforces the same frozen-manifest and result-integrity
+checks as temporal analysis. For each spatial point and each metric it then
+subtracts the two sampled error fields. Because both runs have the same exact
+case and final time, this is exactly the sampled numerical-field difference:
+
+```text
+delta_i = (u_dt - u_exact)_i - (u_dt/2 - u_exact)_i
+        = u_dt,i - u_dt/2,i
+
+D_L2   = sqrt(composite_trapezoid_3d(delta_i^2))
+D_Linf = max_i abs(delta_i)
+c_t    = D_metric / E_metric(dt/2)
+```
+
+The CSV header, row count, X-fastest regular-grid order, coordinates, exact
+values, pointwise errors, reported sampled Linf, and deterministic field
+checksum are all rebound and checked before subtraction. Merely subtracting
+the two scalar error norms is
+not used: that would be only a lower bound and could falsely pass two very
+different fields with equal norms. A point is spatially reliable only when
+`c_t <= 0.10`. The accepted value is `E(dt/2)`. A larger or non-finite
+indicator marks the metric
+`time_dominated/unreliable`, requests a finer `dt` pair, and suppresses every
+order or degree-drop estimate involving that point. This same-layout temporal
+check is local to Stage 4; cross-layout MPI/OpenMP field equivalence remains a
+separate workflow.
+
+`D_L2` and `D_Linf` are discrete common-grid diagnostics. The reported L2
+error in the denominator is the independent Gauss-integrated error, while the
+reported Linf error and `D_Linf` are maxima on the declared regular grid, not
+a proof of the continuous supremum. In particular, `33^3` is a smoke/degree
+resolution and `65^3` gives only two sampling intervals per element at the
+finest `32^3` h level. Reports preserve `sample_points_per_axis` and the
+difference method so a denser study can be distinguished rather than silently
+compared as the same Linf experiment.
+
+During Stage 4 the spatial workflow exposed a structurally singular mixed
+iGRM system at the coarser PR step and at required low degree. The solver fix
+was kept in the separate core commit `5e1161b`; pre-fix commands, root cause,
+and post-fix numerical evidence are retained in
+[`reproducers/spatial-degree-solver-defects.md`](reproducers/spatial-degree-solver-defects.md).
+
+For `h`, only cases that differ in the element counts are compared. The report
+retains all qualified L2 and Linf values, every local
+`log(E_i/E_(i+1))/log(h_i/h_(i+1))` estimate, and the regression slope versus
+`h`. For isotropic `p`, the two enrichment families are kept separate and the
+report records error decrease and adjacent ratios versus the actual trial
+degree; it does not invent a fixed algebraic convergence order. A plateau is
+accepted only after at least two strict, qualified error decreases, so a flat
+sequence from the first degree cannot pass as convergence. Anisotropic degree
+vectors remain vectors in configuration, identity, grouping, JSON, and CSV
+reports. Their rotation spread is an audit result, not an ordered convergence
+gate: the ADI axis order does not justify an arbitrary rotational-equality
+tolerance. Solver/roundoff plateaus and time-dominated points or ranges are
+retained as auditable data rather than silently discarded.
+
 ## Measurement and machine-readable results
 
 Stage 3 execution supports exactly one measured invocation per case
@@ -370,10 +494,13 @@ planning and dry-run, but `run` and `resume` reject them during execution
 preflight until repetition support is added with the scaling workflow. This
 prevents a manifest from claiming measurements the runner did not perform.
 
-`NormL2` computes the final L2 error against the exact solution and the
-solution L2 norm using the production quadrature. For Linf and field
-fingerprinting, rank zero reconstructs the global coefficients and evaluates
-an endpoint-inclusive regular grid of
+The benchmark harness computes the L2 error and solution norm with an
+independent Gauss rule of `min(10,p_trial+3)` points per axis. It deliberately
+does not reuse the trial-space assembly rule: doing so can alias the
+non-polynomial cosine field and report a false zero error at low degree. Ten
+points is the library's supported limit and exactly integrates a squared
+degree-nine spline. For Linf and field fingerprinting, rank zero reconstructs
+the global coefficients and evaluates an endpoint-inclusive regular grid of
 `sample_points_per_axis^3` points, with X varying fastest. Compensated sums
 produce a deterministic `field_checksum`; Linf and checksum are then
 broadcast. Sampling and optional CSV output occur outside the measured
@@ -385,6 +512,18 @@ With `write_samples=1`, the case directory also receives
 ```text
 x,y,z,numerical,exact,error
 ```
+
+Spatial analysis requires this artifact for both members of every `dt/dt2`
+pair. It is opened relative to the verified case directory without following
+symlinks, must be a regular UTF-8 file, and is bounded to 64 MiB before it is
+parsed. Profile validation therefore caps `points_per_axis` at 76 whenever
+`write_samples=true`; the fixed-width CSV for `77^3` samples cannot fit under
+that storage contract. Unwritten sampling retains the executable's general
+limit of 257 points per axis. Run loading retains only a lazy safe reference,
+and parsed errors use a
+compact binary64 array; a full profile therefore never keeps all CSV texts or
+per-sample Python objects in memory. The artifact is not copied into
+`result.json` or the final report.
 
 Each successful executable writes exactly one stdout line beginning with
 `ADS_BENCHMARK_RESULT `, followed by strict JSON. Its domain fields are:
@@ -406,10 +545,13 @@ case. The stored outer result adds the stable `case_id`, complete normalized
 
 ## Numerical gates
 
-Before timing, every executable requires finite initial metrics,
-`initial_l2_error <= 1e-10`, `initial_linf_error <= 1e-10`, and agreement
-of the projected solution norm with `(13/35)^(3/2)` within `1e-10`.
-Failures, MPI/MUMPS errors, NaN, or Inf produce a nonzero process result.
+Before timing, every executable requires finite initial metrics. The exactly
+representable `temporal-polynomial` additionally requires
+`initial_l2_error <= 1e-10`, `initial_linf_error <= 1e-10`, and agreement of
+the projected solution norm with `(13/35)^(3/2)` within `1e-10`. The
+non-polynomial spatial case retains its finite initial projection errors
+instead of applying that exact-representation gate. Failures, MPI/MUMPS
+errors, NaN, or Inf produce a nonzero process result.
 
 The smoke oracle loads exactly the nine passed `N=4` results and their nine
 `N=8` counterparts, rechecks the initial errors, and requires a strict L2
@@ -446,11 +588,13 @@ legacy prototype.
 make benchmark-self-test
 ```
 
-The dependency-free suite covers the 792-case plan, stable identifiers,
+The dependency-free suite covers the 792-case temporal plan, all six spatial
+profiles and their exact case counts, stable vector-preserving identifiers,
 filters and validation, exact-time conversion, safe storage, process timeout
 and termination, frozen-manifest decoding, resume compatibility and verified
 skip/retry behavior, strict tagged-result parsing, planned/result binding, the
 registered manufactured adapters, smoke-refinement verification, synthetic
-orders one and two, plateau and corrupted convergence inputs, fake-adapter
-extensibility, and marker-guarded Make cleanup. These tests exercise framework
-contracts without adding costly numerical benchmark runs to `make test`.
+temporal and spatial series, separation failures, plateau and corrupted
+convergence inputs, fake-adapter extensibility, and marker-guarded Make
+cleanup. These tests exercise framework contracts without adding costly
+numerical benchmark runs to `make test`.

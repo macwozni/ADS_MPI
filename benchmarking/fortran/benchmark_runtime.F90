@@ -139,8 +139,6 @@ contains
 
    subroutine MeasureCommon(config, state, physical_time, write_field, &
                             metrics, status)
-      use manufactured_solution, ONLY: ExactAtEvaluationTime, SetEvaluationTime
-      use utils, ONLY: NormL2
       type(BenchmarkConfiguration), intent(in) :: config
       type(BenchmarkState), intent(in) :: state
       real(kind=8), intent(in) :: physical_time
@@ -148,15 +146,186 @@ contains
       type(BenchmarkMetrics), intent(out) :: metrics
       integer(kind=4), intent(out) :: status
 
-      call SetEvaluationTime(physical_time)
-      call NormL2(state%ads_trial, state%ads_data%FF, metrics%l2_error, &
-                  ExactAtEvaluationTime)
-      call NormL2(state%ads_trial, state%ads_data%FF, &
-                  metrics%solution_l2_norm)
+      call MeasureL2Metrics( &
+         state, physical_time, metrics%l2_error, metrics%solution_l2_norm, &
+         status)
+      if (status /= 0) return
       call SampleField(config, state, physical_time, write_field, &
                        metrics%linf_error, metrics%field_checksum, status)
 
    end subroutine MeasureCommon
+
+   subroutine MeasureL2Metrics( &
+      state, physical_time, l2_error, solution_l2_norm, status)
+      use basis, ONLY: EvalSpline
+      use gauss, ONLY: GaussRule
+      use manufactured_solution, ONLY: ExactSolution
+      use my_mpi, ONLY: GatherFullSolution
+      use parallelism, ONLY: MYRANK
+      use mpi
+      type(BenchmarkState), intent(in) :: state
+      real(kind=8), intent(in) :: physical_time
+      real(kind=8), intent(out) :: l2_error, solution_l2_norm
+      integer(kind=4), intent(out) :: status
+      real(kind=8), allocatable, dimension(:, :, :) :: coefficients
+      real(kind=8), dimension(0:9) :: gauss_x, gauss_y, gauss_z
+      real(kind=8), dimension(0:9) :: weight_x, weight_y, weight_z
+      real(kind=8), dimension(2) :: values
+      real(kind=8) :: error_compensation, error_sum, error_term
+      real(kind=8) :: exact_value, jacobian, solution_compensation
+      real(kind=8) :: solution_sum, solution_term, spline_value
+      real(kind=8) :: update, x, x_lower, y, y_lower, z, z_lower
+      integer(kind=4) :: ex, ey, ez, ix, iy, iz, mpi_ierr
+      integer(kind=4) :: quadrature_x, quadrature_y, quadrature_z
+
+      ! The solver's trial-space quadrature is deliberately not reused here.
+      ! Reusing it aliases a non-polynomial exact field against the projection
+      ! (for example p=1 can report a zero cosine error).  Three extra points
+      ! per axis provide an independent rule; ten is the library table limit
+      ! and also integrates the square of a degree-nine spline exactly.
+      quadrature_x = min(10, state%ads_trial%p(1) + 3)
+      quadrature_y = min(10, state%ads_trial%p(2) + 3)
+      quadrature_z = min(10, state%ads_trial%p(3) + 3)
+      call ValidateUnitCubeElementMap(state, status)
+      if (status /= 0) return
+      call GaussRule( &
+         quadrature_x, gauss_x(0:quadrature_x - 1), &
+         weight_x(0:quadrature_x - 1))
+      call GaussRule( &
+         quadrature_y, gauss_y(0:quadrature_y - 1), &
+         weight_y(0:quadrature_y - 1))
+      call GaussRule( &
+         quadrature_z, gauss_z(0:quadrature_z - 1), &
+         weight_z(0:quadrature_z - 1))
+      call GatherFullSolution( &
+         0, state%ads_data%FF, coefficients, state%ads_trial%n, &
+         state%ads_trial%p, state%ads_trial%s)
+
+      values = 0.d0
+      if (MYRANK == 0) then
+         error_sum = 0.d0
+         error_compensation = 0.d0
+         solution_sum = 0.d0
+         solution_compensation = 0.d0
+         do ez = 1, state%ads_trial%nelem(3)
+            ! Knot vectors are allocated with lower bound one, while
+            ! BasisData remaps them to its explicit lower bound zero.  Adding
+            ! lbound(Uz,1) reproduces BasisData's U(O+p) element boundary.
+            z_lower = state%ads_trial%Uz( &
+               lbound(state%ads_trial%Uz, 1) + state%ads_trial%Oz(ez) + &
+               state%ads_trial%p(3))
+            do ey = 1, state%ads_trial%nelem(2)
+               y_lower = state%ads_trial%Uy( &
+                  lbound(state%ads_trial%Uy, 1) + state%ads_trial%Oy(ey) + &
+                  state%ads_trial%p(2))
+               do ex = 1, state%ads_trial%nelem(1)
+                  x_lower = state%ads_trial%Ux( &
+                     lbound(state%ads_trial%Ux, 1) + &
+                     state%ads_trial%Ox(ex) + state%ads_trial%p(1))
+                  jacobian = state%ads_trial%Jx(ex)* &
+                             state%ads_trial%Jy(ey)* &
+                             state%ads_trial%Jz(ez)
+                  do iz = 0, quadrature_z - 1
+                     z = z_lower + state%ads_trial%Jz(ez)*(gauss_z(iz) + 1.d0)
+                     do iy = 0, quadrature_y - 1
+                        y = y_lower + &
+                            state%ads_trial%Jy(ey)*(gauss_y(iy) + 1.d0)
+                        do ix = 0, quadrature_x - 1
+                           x = x_lower + &
+                               state%ads_trial%Jx(ex)*(gauss_x(ix) + 1.d0)
+                           spline_value = EvalSpline(0, &
+                              state%ads_trial%Ux, state%ads_trial%p(1), &
+                              state%ads_trial%n(1), &
+                              state%ads_trial%nelem(1), &
+                              state%ads_trial%Uy, state%ads_trial%p(2), &
+                              state%ads_trial%n(2), &
+                              state%ads_trial%nelem(2), &
+                              state%ads_trial%Uz, state%ads_trial%p(3), &
+                              state%ads_trial%n(3), &
+                              state%ads_trial%nelem(3), coefficients, x, y, z)
+                           exact_value = ExactSolution( &
+                              physical_time, (/x, y, z/))
+                           error_term = &
+                              (spline_value - exact_value)**2*jacobian* &
+                              weight_x(ix)*weight_y(iy)*weight_z(iz) - &
+                              error_compensation
+                           update = error_sum + error_term
+                           error_compensation = &
+                              (update - error_sum) - error_term
+                           error_sum = update
+                           solution_term = spline_value*spline_value* &
+                              jacobian*weight_x(ix)*weight_y(iy)* &
+                              weight_z(iz) - solution_compensation
+                           update = solution_sum + solution_term
+                           solution_compensation = &
+                              (update - solution_sum) - solution_term
+                           solution_sum = update
+                        end do
+                     end do
+                  end do
+               end do
+            end do
+         end do
+         values = (/sqrt(max(error_sum, 0.d0)), &
+                    sqrt(max(solution_sum, 0.d0))/)
+      end if
+
+      call MPI_Bcast(values, 2, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, &
+                     mpi_ierr)
+      if (mpi_ierr /= 0) status = mpi_ierr
+      l2_error = values(1)
+      solution_l2_norm = values(2)
+      if (allocated(coefficients)) deallocate(coefficients)
+
+   end subroutine MeasureL2Metrics
+
+   subroutine ValidateUnitCubeElementMap(state, status)
+      type(BenchmarkState), intent(in) :: state
+      integer(kind=4), intent(out) :: status
+      real(kind=8) :: tolerance
+
+      tolerance = 64.d0*epsilon(1.d0)
+      status = 0
+      call ValidateAxisElementMap( &
+         state%ads_trial%Ux, state%ads_trial%Ox, state%ads_trial%Jx, &
+         state%ads_trial%p(1), state%ads_trial%nelem(1), tolerance, status)
+      call ValidateAxisElementMap( &
+         state%ads_trial%Uy, state%ads_trial%Oy, state%ads_trial%Jy, &
+         state%ads_trial%p(2), state%ads_trial%nelem(2), tolerance, status)
+      call ValidateAxisElementMap( &
+         state%ads_trial%Uz, state%ads_trial%Oz, state%ads_trial%Jz, &
+         state%ads_trial%p(3), state%ads_trial%nelem(3), tolerance, status)
+
+   end subroutine ValidateUnitCubeElementMap
+
+   subroutine ValidateAxisElementMap( &
+      knots, offsets, jacobians, degree, elements, tolerance, status)
+      real(kind=8), dimension(:), intent(in) :: knots, jacobians
+      integer(kind=4), dimension(:), intent(in) :: offsets
+      integer(kind=4), intent(in) :: degree, elements
+      real(kind=8), intent(in) :: tolerance
+      integer(kind=4), intent(inout) :: status
+      real(kind=8) :: element_lower, element_upper, previous_upper
+      integer(kind=4) :: element, knot_index
+
+      if (status /= 0) return
+      previous_upper = 0.d0
+      do element = 1, elements
+         knot_index = lbound(knots, 1) + offsets(element) + degree
+         element_lower = knots(knot_index)
+         element_upper = element_lower + 2.d0*jacobians(element)
+         if (abs(element_lower - previous_upper) > tolerance .or. &
+             element_upper <= element_lower .or. &
+             element_lower < -tolerance .or. &
+             element_upper > 1.d0 + tolerance) then
+            status = 7
+            return
+         end if
+         previous_upper = element_upper
+      end do
+      if (abs(previous_upper - 1.d0) > tolerance) status = 7
+
+   end subroutine ValidateAxisElementMap
 
    subroutine SampleField(config, state, physical_time, write_field, &
                           linf_error, checksum, status)

@@ -9,6 +9,13 @@ from typing import Any, Mapping
 
 Vector3 = tuple[int, int, int]
 
+# The executable accepts up to 257 points when no field artifact is retained.
+# A written CSV row has a fixed 150-byte representation; 76^3 rows plus the
+# header fit below ResultStore's 64 MiB generated-artifact ceiling, while 77^3
+# rows do not.
+MAX_SAMPLE_POINTS_PER_AXIS = 257
+MAX_WRITTEN_SAMPLE_POINTS_PER_AXIS = 76
+
 
 @dataclass(frozen=True)
 class TimeSpec:

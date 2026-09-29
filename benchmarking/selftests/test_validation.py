@@ -99,6 +99,10 @@ class ValidationTests(unittest.TestCase):
                 "points_per_axis",
             ),
             (
+                replace(self.case, sampling=SamplingSpec(77, True)),
+                "must not exceed 76",
+            ),
+            (
                 replace(self.case, sampling=SamplingSpec(17, 1)),
                 "write_samples",
             ),
@@ -229,6 +233,12 @@ class ValidationTests(unittest.TestCase):
         sampling_large = copy.deepcopy(self.document)
         sampling_large["sampling"]["points_per_axis"] = 258
         mutations.append((sampling_large, "between 2 and 257"))
+        written_sampling_large = copy.deepcopy(self.document)
+        written_sampling_large["sampling"] = {
+            "points_per_axis": 77,
+            "write_samples": True,
+        }
+        mutations.append((written_sampling_large, "must not exceed 76"))
         sampling_bool = copy.deepcopy(self.document)
         sampling_bool["sampling"]["write_samples"] = 0
         mutations.append((sampling_bool, "must be a boolean"))
@@ -247,6 +257,13 @@ class ValidationTests(unittest.TestCase):
                 else:
                     with self.assertRaisesRegex(ConfigurationError, message):
                         self._parse_document(document)
+
+        unwritten_sampling = copy.deepcopy(self.document)
+        unwritten_sampling["sampling"] = {
+            "points_per_axis": 257,
+            "write_samples": False,
+        }
+        self._parse_document(unwritten_sampling)
 
     def test_json_rejects_duplicate_keys_and_nonfinite_numbers(self) -> None:
         invalid_documents = (

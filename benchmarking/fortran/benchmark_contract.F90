@@ -34,12 +34,14 @@ module benchmark_contract
    type ManufacturedCase
       character(len=32) :: name = ''
       real(kind=8) :: initial_l2_norm = 0.d0
+      logical :: exact_initial_projection = .false.
       procedure(manufactured_value_fun), pointer, nopass :: value => null()
       procedure(manufactured_source_fun), pointer, nopass :: source => null()
    end type ManufacturedCase
 
    type BenchmarkConfiguration
       character(len=16) :: scheme = ''
+      character(len=32) :: exact_case = 'temporal-polynomial'
       real(kind=8) :: final_time = 0.d0
       real(kind=8) :: dt = 0.d0
       integer(kind=4) :: steps = 0
