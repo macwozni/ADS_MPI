@@ -50,6 +50,20 @@ class MeasurementSpec:
 
 
 @dataclass(frozen=True)
+class SamplingSpec:
+    """Regular-grid field sampling requested from the solver harness."""
+
+    points_per_axis: int
+    write_samples: bool
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "points_per_axis": self.points_per_axis,
+            "write_samples": self.write_samples,
+        }
+
+
+@dataclass(frozen=True)
 class CaseSpec:
     """One fully expanded, normalized benchmark configuration."""
 
@@ -63,6 +77,7 @@ class CaseSpec:
     trial_degree: Vector3
     mpi: MpiSpec
     openmp_threads: int
+    sampling: SamplingSpec
     measurement: MeasurementSpec
     build_profile: str
     launcher: str
@@ -81,6 +96,7 @@ class CaseSpec:
             },
             "mpi": self.mpi.to_dict(),
             "openmp": {"threads": self.openmp_threads},
+            "sampling": self.sampling.to_dict(),
             "measurement": self.measurement.to_dict(),
             "build": {"profile": self.build_profile},
             "launcher": self.launcher,

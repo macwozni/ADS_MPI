@@ -42,6 +42,7 @@ def fake_profile(timeout: str = "2") -> dict[str, object]:
         "degree_pairs": [{"test": [4, 4, 4], "trial": [3, 3, 3]}],
         "process_layouts": [{"ranks": 1, "grid": [1, 1, 1]}],
         "thread_counts": [2],
+        "sampling": {"points_per_axis": 5, "write_samples": False},
         "execution": {"warmups": 0, "samples": 1, "timeout_seconds": timeout},
         "build_profiles": ["debug"],
         "launcher": "direct",
@@ -216,6 +217,12 @@ class ExecutorContractTests(unittest.TestCase):
             ("sleep", "0.05", "timeout", "exceeded timeout"),
             ("child", "0.05", "timeout", "exceeded timeout"),
             ("nan", "2", "failed", "serialization failed"),
+            (
+                "reject-result",
+                "2",
+                "failed",
+                "result validation failed: intentional fake result rejection",
+            ),
         )
         for mode, timeout, expected_state, error_text in cases:
             with self.subTest(mode=mode):
@@ -255,24 +262,13 @@ class ExecutorContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "intentional fake validation"):
             self._prepare_mode("reject")
 
-    def test_real_stage_one_adapter_is_explicitly_planning_only(self) -> None:
-        benchmarking_root = Path(__file__).resolve().parents[1]
+    def test_real_stage_two_adapters_are_execution_ready(self) -> None:
         catalog = build_catalog()
-        plan = Planner(
-            load_profiles(benchmarking_root / "configs"), catalog
-        ).plan("smoke")
-        with tempfile.TemporaryDirectory(prefix="ads-planning-only-") as temporary:
-            repository = Path(temporary) / "repository"
-            repository.mkdir()
-            store = ResultStore(repository)
-            store.create_run("planning-only", owned_manifest("planning-only"))
-            with self.assertRaisesRegex(ExecutionError, "planning-only"):
-                Executor(catalog, store, repository).execute(
-                    "planning-only", plan.cases[0]
-                )
-            self.assertFalse(
-                (repository / "benchmarks" / "planning-only" / "cases").exists()
-            )
+        for name in ("igrm_l2", "igrm_heat", "pure_diffusion_igrm"):
+            with self.subTest(name=name):
+                adapter = catalog.adapters.get(name)
+                self.assertEqual(adapter.name, name)
+                self.assertTrue(adapter.execution_ready)
 
 
 if __name__ == "__main__":

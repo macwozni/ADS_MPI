@@ -248,9 +248,14 @@ class Executor:
                 parsed = adapter.parse_result(stdout, stderr)
                 if not isinstance(parsed, Mapping):
                     raise TypeError("adapter result must be a mapping")
-                state = "passed"
             except Exception as error:
                 error_message = f"result parser failed: {error}"
+            if error_message is None and parsed is not None:
+                try:
+                    adapter.validate_result(case.spec, parsed)
+                    state = "passed"
+                except Exception as error:
+                    error_message = f"result validation failed: {error}"
         elif error_message is None:
             error_message = f"process exited with status {return_code}"
 

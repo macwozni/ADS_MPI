@@ -12,6 +12,7 @@ from .registry import Catalog
 
 
 MAX_FORTRAN_INTEGER = 2_147_483_647
+MAX_PROCESS_GRID_AXIS = 128
 MAX_TIMEOUT_SECONDS = Decimal("2592000")
 
 
@@ -94,6 +95,12 @@ def validate_case(case: CaseSpec, catalog: Catalog) -> None:
         raise ValidationError("MPI ranks must be a positive integer")
     if case.mpi.ranks != process_count:
         raise ValidationError("MPI ranks must equal procx*procy*procz")
+    for axis, processes in enumerate(case.mpi.process_grid, start=1):
+        if processes > MAX_PROCESS_GRID_AXIS:
+            raise ValidationError(
+                f"process grid axis {axis} exceeds supported maximum "
+                f"{MAX_PROCESS_GRID_AXIS}"
+            )
     for axis, (processes, elements, trial_degree) in enumerate(
         zip(
             case.mpi.process_grid,
@@ -111,6 +118,14 @@ def validate_case(case: CaseSpec, catalog: Catalog) -> None:
 
     if type(case.openmp_threads) is not int or case.openmp_threads <= 0:
         raise ValidationError("OpenMP threads must be a positive integer")
+    if (
+        type(case.sampling.points_per_axis) is not int
+        or case.sampling.points_per_axis < 2
+        or case.sampling.points_per_axis > 257
+    ):
+        raise ValidationError("sampling points_per_axis must be between 2 and 257")
+    if type(case.sampling.write_samples) is not bool:
+        raise ValidationError("sampling write_samples must be a boolean")
     if type(case.measurement.warmups) is not int or case.measurement.warmups < 0:
         raise ValidationError("warmups must be a nonnegative integer")
     if type(case.measurement.samples) is not int or case.measurement.samples <= 0:

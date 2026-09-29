@@ -11,7 +11,7 @@
   ],
   "meshes": [[32, 32, 32]],
   "degree_pairs": [
-    {"test": [3, 3, 3], "trial": [2, 2, 2]}
+    {"test": [4, 4, 4], "trial": [3, 3, 3]}
   ],
   "process_layouts": [
     {"ranks": 1, "grid": [1, 1, 1]},
@@ -20,6 +20,7 @@
     {"ranks": 8, "grid": [2, 2, 2]}
   ],
   "thread_counts": [1],
+  "sampling": {"points_per_axis": 17, "write_samples": false},
   "execution": {"warmups": 2, "samples": 7, "timeout_seconds": "3600"},
   "build_profiles": ["release"],
   "launcher": "mpi"

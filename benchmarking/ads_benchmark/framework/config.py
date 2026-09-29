@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .errors import ConfigurationError, RegistryError
-from .model import MeasurementSpec, MpiSpec, TimeSpec, Vector3
+from .model import MeasurementSpec, MpiSpec, SamplingSpec, TimeSpec, Vector3
 from .registry import Registry
 
 
@@ -28,6 +28,7 @@ _PROFILE_KEYS = {
     "degree_pairs",
     "process_layouts",
     "thread_counts",
+    "sampling",
     "execution",
     "build_profiles",
     "launcher",
@@ -47,6 +48,7 @@ class ProfileDefinition:
     degree_pairs: tuple[tuple[Vector3, Vector3], ...]
     process_layouts: tuple[MpiSpec, ...]
     thread_counts: tuple[int, ...]
+    sampling: SamplingSpec
     measurement: MeasurementSpec
     build_profiles: tuple[str, ...]
     launcher: str
@@ -108,6 +110,12 @@ def _integer(value: Any, field: str, *, minimum: int) -> int:
     if type(value) is not int or value < minimum:
         qualifier = "nonnegative" if minimum == 0 else "positive"
         raise ConfigurationError(f"{field} must be a {qualifier} integer")
+    return value
+
+
+def _boolean(value: Any, field: str) -> bool:
+    if type(value) is not bool:
+        raise ConfigurationError(f"{field} must be a boolean")
     return value
 
 
@@ -311,6 +319,27 @@ def parse_profile(document: dict[str, Any], source: Path) -> ProfileDefinition:
         ),
     )
 
+    raw_sampling = _exact_keys(
+        document["sampling"],
+        {"points_per_axis", "write_samples"},
+        "sampling",
+    )
+    points_per_axis = _integer(
+        raw_sampling["points_per_axis"],
+        "sampling.points_per_axis",
+        minimum=1,
+    )
+    if points_per_axis < 2 or points_per_axis > 257:
+        raise ConfigurationError(
+            "sampling.points_per_axis must be between 2 and 257"
+        )
+    sampling = SamplingSpec(
+        points_per_axis=points_per_axis,
+        write_samples=_boolean(
+            raw_sampling["write_samples"], "sampling.write_samples"
+        ),
+    )
+
     thread_counts = tuple(
         _integer(value, f"thread_counts[{index}]", minimum=1)
         for index, value in enumerate(
@@ -329,6 +358,7 @@ def parse_profile(document: dict[str, Any], source: Path) -> ProfileDefinition:
         degree_pairs=tuple(degree_pairs),
         process_layouts=tuple(process_layouts),
         thread_counts=thread_counts,
+        sampling=sampling,
         measurement=measurement,
         build_profiles=_string_list(document["build_profiles"], "build_profiles"),
         launcher=_string(document["launcher"], "launcher"),

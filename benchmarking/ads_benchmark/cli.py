@@ -1,4 +1,4 @@
-"""Command-line entry point for deterministic ADS benchmark planning."""
+"""Command-line entry point for deterministic ADS benchmark runs."""
 
 from __future__ import annotations
 
@@ -10,13 +10,15 @@ import sys
 from .catalog import build_catalog
 from .framework.config import load_profiles
 from .framework.errors import BenchmarkError, ValidationError
+from .framework.executor import Executor
 from .framework.filtering import (
     CaseFilters,
     parse_degree_pair,
     parse_vector3,
     positive_integer_set,
 )
-from .framework.planner import Planner
+from .framework.model import RepositoryState
+from .framework.planner import Plan, Planner
 from .framework.provenance import inspect_repository
 from .framework.registry import Catalog
 from .framework.storage import ResultStore
@@ -25,20 +27,26 @@ from .framework.storage import ResultStore
 DEFAULT_REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _add_selection_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--profile", default="smoke")
+    parser.add_argument(
+        "--repository-root", type=Path, default=DEFAULT_REPOSITORY_ROOT
+    )
+    parser.add_argument("--config-dir", type=Path)
+    parser.add_argument("--problem", action="append", default=[])
+    parser.add_argument("--scheme", action="append", default=[])
+    parser.add_argument("--degree-pair", action="append", default=[])
+    parser.add_argument("--mesh", action="append", default=[])
+    parser.add_argument("--mpi-grid", action="append", default=[])
+    parser.add_argument("--mpi-ranks", action="append", type=int, default=[])
+    parser.add_argument("--omp", action="append", type=int, default=[])
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     plan = subparsers.add_parser("plan", help="expand and validate a profile")
-    plan.add_argument("--profile", default="smoke")
-    plan.add_argument("--repository-root", type=Path, default=DEFAULT_REPOSITORY_ROOT)
-    plan.add_argument("--config-dir", type=Path)
-    plan.add_argument("--problem", action="append", default=[])
-    plan.add_argument("--scheme", action="append", default=[])
-    plan.add_argument("--degree-pair", action="append", default=[])
-    plan.add_argument("--mesh", action="append", default=[])
-    plan.add_argument("--mpi-grid", action="append", default=[])
-    plan.add_argument("--mpi-ranks", action="append", type=int, default=[])
-    plan.add_argument("--omp", action="append", type=int, default=[])
+    _add_selection_arguments(plan)
     mode = plan.add_mutually_exclusive_group()
     mode.add_argument(
         "--dry-run",
@@ -55,6 +63,15 @@ def _parser() -> argparse.ArgumentParser:
         "--json",
         action="store_true",
         help="print the complete plan manifest to stdout",
+    )
+    run = subparsers.add_parser(
+        "run", help="create a new run and execute every selected case"
+    )
+    _add_selection_arguments(run)
+    run.add_argument(
+        "--run-id",
+        required=True,
+        help="new directory name below benchmarks/ (existing runs are refused)",
     )
     return parser
 
@@ -96,7 +113,9 @@ def _filters(options: argparse.Namespace, catalog: Catalog) -> CaseFilters:
     )
 
 
-def _plan(options: argparse.Namespace) -> int:
+def _planned_cases(
+    options: argparse.Namespace,
+) -> tuple[Path, Catalog, Plan, RepositoryState]:
     repository_root = options.repository_root.resolve()
     config_directory = (
         options.config_dir.resolve()
@@ -108,6 +127,11 @@ def _plan(options: argparse.Namespace) -> int:
     planner = Planner(profiles, catalog)
     plan = planner.plan(options.profile, _filters(options, catalog))
     repository = inspect_repository(repository_root)
+    return repository_root, catalog, plan, repository
+
+
+def _plan(options: argparse.Namespace) -> int:
+    repository_root, _, plan, repository = _planned_cases(options)
 
     if options.run_id and not options.write_manifest:
         raise ValidationError("--run-id is meaningful only with --write-manifest")
@@ -139,11 +163,56 @@ def _plan(options: argparse.Namespace) -> int:
     return 0
 
 
+def _run(options: argparse.Namespace) -> int:
+    repository_root, catalog, plan, repository = _planned_cases(options)
+    manifest = plan.manifest(run_id=options.run_id, repository=repository)
+    store = ResultStore(repository_root)
+    run_path = store.create_run(options.run_id, manifest)
+    executor = Executor(catalog, store, repository_root)
+
+    passed = 0
+    failed = 0
+    case_count = len(plan.cases)
+    print(f"run:          {options.run_id}")
+    print(f"profile:      {plan.profile.name}")
+    print(f"cases:        {case_count}")
+    print(f"results:      {run_path}")
+
+    for position, case in enumerate(plan.cases, start=1):
+        try:
+            status = executor.execute(options.run_id, case)
+        except BenchmarkError as error:
+            failed += 1
+            print(
+                f"[{position}/{case_count}] {case.case_id}: failed ({error})",
+                file=sys.stderr,
+            )
+            continue
+
+        state = status.get("state")
+        if state == "passed":
+            passed += 1
+            print(f"[{position}/{case_count}] {case.case_id}: passed")
+        else:
+            failed += 1
+            detail = status.get("error")
+            suffix = f" ({detail})" if detail else ""
+            print(
+                f"[{position}/{case_count}] {case.case_id}: {state}{suffix}",
+                file=sys.stderr,
+            )
+
+    print(f"summary:      passed={passed} failed={failed} total={case_count}")
+    return 0 if failed == 0 else 1
+
+
 def main(arguments: list[str] | None = None) -> int:
     options = _parser().parse_args(arguments)
     try:
         if options.command == "plan":
             return _plan(options)
+        if options.command == "run":
+            return _run(options)
     except BenchmarkError as error:
         print(f"benchmark error: {error}", file=sys.stderr)
         return 2

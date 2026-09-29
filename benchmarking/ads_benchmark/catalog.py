@@ -7,11 +7,8 @@ protocol and registering it here; planner and executor code stay unchanged.
 
 from __future__ import annotations
 
-from .components.planning import (
-    DirectLauncher,
-    PlanningAdapter,
-    default_mpi_launcher,
-)
+from .components.manufactured import ManufacturedTransientAdapter
+from .components.planning import DirectLauncher, default_mpi_launcher
 from .framework.model import (
     BuildProfileDefinition,
     ExactCaseDefinition,
@@ -23,7 +20,7 @@ from .framework.registry import Catalog, Registry
 def build_catalog() -> Catalog:
     adapters = Registry("problem")
     for name in ("igrm_l2", "igrm_heat", "pure_diffusion_igrm"):
-        adapters.register(name, PlanningAdapter(name=name))
+        adapters.register(name, ManufacturedTransientAdapter(name=name))
 
     families = Registry("experiment family")
     for name, description in (

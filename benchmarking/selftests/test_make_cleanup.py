@@ -8,9 +8,38 @@ import unittest
 
 
 SOURCE_MAKEFILE = Path(__file__).resolve().parents[1] / "GNUmakefile"
+BENCHMARKING_ROOT = SOURCE_MAKEFILE.parent
+REPOSITORY_ROOT = BENCHMARKING_ROOT.parent
 
 
 class BenchmarkMakeCleanupTests(unittest.TestCase):
+    def test_build_dry_run_refreshes_core_once_before_adapter_compilation(self) -> None:
+        completed = subprocess.run(
+            [
+                "make",
+                "--no-print-directory",
+                "-j1",
+                "-B",
+                "-n",
+                "-C",
+                str(BENCHMARKING_ROOT),
+                "build",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        output = completed.stdout + completed.stderr
+        self.assertEqual(completed.returncode, 0, output)
+        core_invocation = f"-C '{REPOSITORY_ROOT / 'src'}'"
+        self.assertEqual(output.count(core_invocation), 1, output)
+        core_position = output.index(core_invocation)
+        for adapter in ("igrm_l2", "igrm_heat", "pure_diffusion_igrm"):
+            with self.subTest(adapter=adapter):
+                object_fragment = f"benchmark_OBJ/{adapter}/benchmark_contract.o"
+                self.assertIn(object_fragment, output)
+                self.assertLess(core_position, output.index(object_fragment))
+
     def test_unowned_build_is_unchanged_and_owned_cleanup_preserves_results(self) -> None:
         with tempfile.TemporaryDirectory(prefix="ads-benchmark-make-") as temporary:
             repository = Path(temporary) / "repository"

@@ -16,7 +16,12 @@ from ads_benchmark.framework.config import (
     parse_profile,
 )
 from ads_benchmark.framework.errors import ConfigurationError, ValidationError
-from ads_benchmark.framework.model import MeasurementSpec, MpiSpec, TimeSpec
+from ads_benchmark.framework.model import (
+    MeasurementSpec,
+    MpiSpec,
+    SamplingSpec,
+    TimeSpec,
+)
 from ads_benchmark.framework.planner import Planner
 from ads_benchmark.framework.validation import validate_case
 
@@ -73,10 +78,30 @@ class ValidationTests(unittest.TestCase):
             (replace(self.case, mesh=(0, 4, 4)), "three positive"),
             (replace(self.case, mpi=MpiSpec(2, (1, 1, 1))), "must equal"),
             (
+                replace(
+                    self.case,
+                    mesh=(129, 4, 4),
+                    mpi=MpiSpec(129, (129, 1, 1)),
+                ),
+                "maximum 128",
+            ),
+            (
                 replace(self.case, mpi=MpiSpec(8, (8, 1, 1))),
                 "trial-space DOFs",
             ),
             (replace(self.case, openmp_threads=0), "OpenMP threads"),
+            (
+                replace(self.case, sampling=SamplingSpec(1, False)),
+                "points_per_axis",
+            ),
+            (
+                replace(self.case, sampling=SamplingSpec(258, False)),
+                "points_per_axis",
+            ),
+            (
+                replace(self.case, sampling=SamplingSpec(17, 1)),
+                "write_samples",
+            ),
             (
                 replace(
                     self.case,
@@ -115,6 +140,15 @@ class ValidationTests(unittest.TestCase):
         for candidate, message in candidates:
             with self.subTest(message=message):
                 self.assert_invalid_case(candidate, message)
+
+        self.assert_invalid_case(
+            replace(
+                self.case,
+                test_degree=(3, 3, 3),
+                trial_degree=(2, 2, 2),
+            ),
+            "requires trial degree at least 3",
+        )
 
         # The library partitions basis-function DOFs, not geometric elements.
         # With four elements and cubic trial splines, five x-ranks are valid.
@@ -186,6 +220,18 @@ class ValidationTests(unittest.TestCase):
             {"final_time": "0.1", "time_step": "0.03"}
         ]
         mutations.append((nonintegral, "positive integer"))
+        sampling_extra = copy.deepcopy(self.document)
+        sampling_extra["sampling"]["unknown"] = 1
+        mutations.append((sampling_extra, "unknown unknown"))
+        sampling_small = copy.deepcopy(self.document)
+        sampling_small["sampling"]["points_per_axis"] = 1
+        mutations.append((sampling_small, "between 2 and 257"))
+        sampling_large = copy.deepcopy(self.document)
+        sampling_large["sampling"]["points_per_axis"] = 258
+        mutations.append((sampling_large, "between 2 and 257"))
+        sampling_bool = copy.deepcopy(self.document)
+        sampling_bool["sampling"]["write_samples"] = 0
+        mutations.append((sampling_bool, "must be a boolean"))
 
         for document, message in mutations:
             with self.subTest(message=message):

@@ -58,6 +58,7 @@ RUN_DIR ?=
 ARGS ?=
 OIL_SEED ?=
 TEST_SUITE ?=
+BENCHMARK_RUN_ID ?=
 
 PROBLEM_OPTIONS = \
 	CONFIG="$(CONFIG_PATH)" \
@@ -103,7 +104,8 @@ TEST_OPTIONS = \
 
 .PHONY: all build build-all library problems list-problems list-configs help targets \
 	show-config config rebuild run run-help show-run \
-	benchmark-plan benchmark-self-test clean-benchmark-build \
+	benchmark-plan benchmark-build benchmark-smoke benchmark-self-test \
+	clean-benchmark-build \
 	test check test-build test-layout test-src test-problems test-driver \
 	test-build-system test-coverage _test-coverage-report validate-coverage-tools \
 	validate-coverage-paths prepare-coverage-root validate-coverage-ownership \
@@ -165,6 +167,17 @@ show-run:
 benchmark-plan:
 	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
 		PYTHON="$(PYTHON)" plan
+
+benchmark-build:
+	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
+		CONFIG="$(CONFIG_PATH)" BUILD="$(BUILD)" PYTHON="$(PYTHON)" build
+
+benchmark-smoke:
+	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
+		CONFIG="$(CONFIG_PATH)" PYTHON="$(PYTHON)" \
+		MPIEXEC="$(MPIEXEC)" MPI_NP_FLAG="$(MPI_NP_FLAG)" \
+		BENCHMARK_RUN_ID="$(BENCHMARK_RUN_ID)" \
+		BENCHMARK_PLAN_ARGS="$(BENCHMARK_PLAN_ARGS)" smoke
 
 benchmark-self-test:
 	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
@@ -476,8 +489,11 @@ targets help:
 		'             OMP_NUM_THREADS OMP_DYNAMIC OMP_PROC_BIND OIL_SEED' \
 		'  NP must equal procx*procy*procz contained in ARGS.' \
 		'' \
-		'Benchmark planning:' \
+		'Benchmarking:' \
 		'  make benchmark-plan [BENCHMARK_PROFILE=smoke]' \
+		'  make benchmark-build                build three isolated adapters' \
+		'  make benchmark-smoke BENCHMARK_RUN_ID=NAME' \
+		'                                      run and verify the N=4/N=8 smoke pair' \
 		'  make benchmark-self-test           planner/engine contract tests' \
 		'  make clean-benchmark-build          clean framework build/cache only' \
 		'  Generated plans and results live under ignored benchmarks/<run-id>.' \

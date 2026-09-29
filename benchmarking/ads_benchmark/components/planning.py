@@ -1,4 +1,4 @@
-"""Stage-one planning adapters and reusable local/MPI launchers."""
+"""Planning-only adapters and reusable local/MPI launchers."""
 
 from __future__ import annotations
 
@@ -25,12 +25,19 @@ class PlanningAdapter:
         self, case: CaseSpec, context: ExecutionContext
     ) -> Sequence[str]:
         raise ExecutionError(
-            f"adapter {self.name} has no solver harness until benchmark stage 2"
+            f"planning-only adapter {self.name} has no solver harness"
         )
 
     def parse_result(self, stdout: str, stderr: str) -> Mapping[str, object]:
         raise ExecutionError(
-            f"adapter {self.name} has no result parser until benchmark stage 2"
+            f"planning-only adapter {self.name} has no result parser"
+        )
+
+    def validate_result(
+        self, case: CaseSpec, result: Mapping[str, object]
+    ) -> None:
+        raise ExecutionError(
+            f"planning-only adapter {self.name} has no result validator"
         )
 
 

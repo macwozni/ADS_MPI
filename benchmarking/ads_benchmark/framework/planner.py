@@ -119,6 +119,7 @@ class Planner:
                 trial_degree=trial_degree,
                 mpi=mpi,
                 openmp_threads=threads,
+                sampling=profile.sampling,
                 measurement=profile.measurement,
                 build_profile=build_profile,
                 launcher=profile.launcher,

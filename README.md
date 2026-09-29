@@ -720,25 +720,40 @@ therefore permits equal test and trial degrees while retaining different
 continuities. `igrm_pollution` likewise owns its DPG assembly locally and
 accepts independently configured conforming trial/test continuities.
 
-## Benchmark planning
+## Manufactured transient benchmarks
 
-The tracked `benchmarking/` subtree provides strict JSON profiles, stable case
-identifiers, filtering, Git provenance, safe manifests, and a generic adapter
-execution contract. Stage 1 plans cases only; it does not launch the ADS
-solvers. Generated data belongs under the ignored `benchmarks/<run-id>/` tree.
+The tracked `benchmarking/` subtree now plans and executes a shared
+manufactured transient for `igrm_l2`, `igrm_heat`, and
+`pure_diffusion_igrm` through three thin adapters over one Fortran lifecycle.
+It exercises DG, PR, and BE to exactly `T`, measures L2/Linf error and a
+regular-grid field checksum, and stores strict tagged JSON plus logs below the
+ignored `benchmarks/<run-id>/` tree.
 
 ```bash
 make benchmark-self-test
 make benchmark-plan
-make benchmark-plan BENCHMARK_PROFILE=temporal-full
+make benchmark-build BUILD=debug
+make benchmark-smoke BENCHMARK_RUN_ID=stage2-smoke
 ```
 
-`benchmark-plan` is a no-write dry run by default. The `temporal-full` profile
-expands to exactly 792 validated cases across `igrm_l2`, `igrm_heat`, and
-`pure_diffusion_igrm`, all three DG/PR/BE schemes, eight time-step counts, and
-eleven degree pairs. Filters and exclusive manifest writing are documented in
-`benchmarking/README.md`. Benchmark execution is deliberately separate from
-the ordinary `make test` regression tree.
+`benchmark-smoke` runs the real nine-case matrix at `N=4` and `N=8`,
+checks the exactly representable initial projection, and requires the final L2
+error to decrease for every problem/scheme pair. It creates the exclusive runs
+`benchmarks/stage2-smoke-n4/` and
+`benchmarks/stage2-smoke-n8/`.
+
+The `temporal-full` profile still expands deterministically to 792 cases, but
+its fixed `4x4x4` mesh currently exposes a finite transient instability in the
+shared production core. Full execution is therefore blocked pending a separate
+core fix; the oracle has not been relaxed. See
+[`benchmarking/README.md`](benchmarking/README.md) for the exact solution,
+source-time conventions, adapter/build contract, result schema, and smoke
+workflow, and
+[`benchmarking/reproducers/even-mesh-transient.md`](benchmarking/reproducers/even-mesh-transient.md)
+for the direct reproducer.
+
+Benchmark execution remains deliberately separate from the ordinary
+`make test` regression tree.
 
 ## Testing
 

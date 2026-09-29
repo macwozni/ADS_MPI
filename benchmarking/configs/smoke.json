@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "name": "smoke",
-  "description": "Stage-one nine-case planning smoke matrix; no solver is launched.",
+  "description": "Nine-case manufactured transient smoke matrix.",
   "family": "temporal",
   "exact_cases": ["temporal-polynomial"],
   "problems": ["igrm_l2", "igrm_heat", "pure_diffusion_igrm"],
@@ -9,7 +9,7 @@
   "time_discretizations": [
     {"final_time": "0.1", "steps": 4}
   ],
-  "meshes": [[4, 4, 4]],
+  "meshes": [[3, 3, 3]],
   "degree_pairs": [
     {"test": [4, 4, 4], "trial": [3, 3, 3]}
   ],
@@ -17,6 +17,7 @@
     {"ranks": 1, "grid": [1, 1, 1]}
   ],
   "thread_counts": [1],
+  "sampling": {"points_per_axis": 17, "write_samples": false},
   "execution": {"warmups": 0, "samples": 1, "timeout_seconds": "300"},
   "build_profiles": ["debug"],
   "launcher": "mpi"

@@ -24,6 +24,11 @@ class ProblemAdapter(Protocol):
     def parse_result(self, stdout: str, stderr: str) -> Mapping[str, object]:
         """Parse the problem-domain record from a successful process."""
 
+    def validate_result(
+        self, case: CaseSpec, result: Mapping[str, object]
+    ) -> None:
+        """Raise when a parsed result does not describe its planned case."""
+
 
 class Launcher(Protocol):
     """Wrap a payload command and define runtime environment additions."""

@@ -30,7 +30,13 @@ class PlannerTests(unittest.TestCase):
     def test_registered_profiles_and_exact_temporal_matrix(self) -> None:
         self.assertEqual(
             self.profiles.names(),
-            ("cluster-scaling", "local-scaling", "smoke", "temporal-full"),
+            (
+                "cluster-scaling",
+                "local-scaling",
+                "smoke",
+                "smoke-refined",
+                "temporal-full",
+            ),
         )
         plan = self.planner.plan("temporal-full")
         self.assertEqual(len(plan.cases), 792)
@@ -49,6 +55,7 @@ class PlannerTests(unittest.TestCase):
     def test_every_registered_profile_expands_to_a_nonempty_valid_plan(self) -> None:
         expected_counts = {
             "smoke": 9,
+            "smoke-refined": 9,
             "temporal-full": 792,
             "local-scaling": 36,
             "cluster-scaling": 36,
@@ -56,6 +63,27 @@ class PlannerTests(unittest.TestCase):
         for profile, expected_count in expected_counts.items():
             with self.subTest(profile=profile):
                 self.assertEqual(len(self.planner.plan(profile).cases), expected_count)
+
+    def test_refined_smoke_changes_only_the_time_discretization(self) -> None:
+        coarse = {
+            (case.spec.problem, case.spec.scheme): case.spec
+            for case in self.planner.plan("smoke").cases
+        }
+        refined = {
+            (case.spec.problem, case.spec.scheme): case.spec
+            for case in self.planner.plan("smoke-refined").cases
+        }
+        self.assertEqual(set(coarse), set(refined))
+        for key, coarse_spec in coarse.items():
+            with self.subTest(problem=key[0], scheme=key[1]):
+                refined_spec = refined[key]
+                self.assertEqual(coarse_spec.mesh, (3, 3, 3))
+                self.assertEqual(coarse_spec.time.steps, 4)
+                self.assertEqual(refined_spec.time.steps, 8)
+                self.assertEqual(
+                    coarse_spec,
+                    replace(refined_spec, time=coarse_spec.time),
+                )
 
     def test_identity_is_stable_under_axis_and_json_key_reordering(self) -> None:
         original = self.planner.plan("temporal-full")
@@ -85,6 +113,17 @@ class PlannerTests(unittest.TestCase):
         original_id, _ = case_identity(case.spec)
         changed_id, _ = case_identity(replace(case.spec, openmp_threads=2))
         self.assertNotEqual(original_id, changed_id)
+        changed_sampling_id, _ = case_identity(
+            replace(
+                case.spec,
+                sampling=replace(case.spec.sampling, points_per_axis=9),
+            )
+        )
+        self.assertNotEqual(original_id, changed_sampling_id)
+        self.assertEqual(
+            case.spec.to_dict()["sampling"],
+            {"points_per_axis": 17, "write_samples": False},
+        )
         clean = self.planner.plan("smoke").manifest(
             run_id="one",
             repository=RepositoryState(commit="a" * 40, dirty=False),

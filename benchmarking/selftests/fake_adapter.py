@@ -30,7 +30,11 @@ class FakeAdapter:
     def build_payload_command(
         self, case: CaseSpec, context: ExecutionContext
     ) -> Sequence[str]:
-        program_mode = "success" if self.mode in {"nan", "nul-argv"} else self.mode
+        program_mode = (
+            "success"
+            if self.mode in {"nan", "nul-argv", "reject-result"}
+            else self.mode
+        )
         if self.mode == "nul-argv":
             return (sys.executable, "bad\0argument")
         return (
@@ -54,3 +58,13 @@ class FakeAdapter:
         if not isinstance(document, dict):
             raise ValueError("fake result must be an object")
         return document
+
+    def validate_result(
+        self, case: CaseSpec, result: Mapping[str, object]
+    ) -> None:
+        if self.mode == "reject-result":
+            raise ValueError("intentional fake result rejection")
+        if self.mode == "nan":
+            return
+        if result.get("steps") != case.time.steps:
+            raise ValueError("fake result steps do not match the planned case")

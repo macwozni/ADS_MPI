@@ -292,6 +292,7 @@ class MakeFixture:
             "BENCHMARK_BUILD_ROOT",
             "BENCHMARK_PLAN_ARGS",
             "BENCHMARK_PROFILE",
+            "BENCHMARK_RUN_ID",
             "BENCHMARK_RUN_LOG",
             "BUILD",
             "BUILD_ROOT",
@@ -404,8 +405,15 @@ class MakeFixture:
         benchmarking_destination = self.root / "benchmarking"
         benchmarking_destination.mkdir()
         (benchmarking_destination / "GNUmakefile").write_text(
-            ".PHONY: plan self-test clean-build\n"
+            ".PHONY: plan build smoke self-test clean-build\n"
             "plan self-test clean-build:\n"
+            "\t@printf '%s\\t%s\\n' '$@' '$(PYTHON)' >> '$(BENCHMARK_RUN_LOG)'\n"
+            "build:\n"
+            "\t@test -n '$(CONFIG)'\n"
+            "\t@printf '%s\\t%s\\n' '$@' '$(PYTHON)' >> '$(BENCHMARK_RUN_LOG)'\n"
+            "smoke:\n"
+            "\t@test -n '$(CONFIG)'\n"
+            "\t@test -n '$(BENCHMARK_RUN_ID)'\n"
             "\t@printf '%s\\t%s\\n' '$@' '$(PYTHON)' >> '$(BENCHMARK_RUN_LOG)'\n",
             encoding="utf-8",
         )
@@ -912,6 +920,21 @@ class HierarchicalMakeTests(unittest.TestCase):
         self.assertEqual(
             self.fixture.benchmark_records(),
             [("plan", sys.executable), ("self-test", sys.executable)],
+        )
+        self.assertEqual(self.fixture.tool_records(), [])
+
+        self.fixture.make("benchmark-build", variables={"BUILD": "release"})
+        self.fixture.make(
+            "benchmark-smoke", variables={"BENCHMARK_RUN_ID": "hierarchy-smoke"}
+        )
+        self.assertEqual(
+            self.fixture.benchmark_records(),
+            [
+                ("plan", sys.executable),
+                ("self-test", sys.executable),
+                ("build", sys.executable),
+                ("smoke", sys.executable),
+            ],
         )
         self.assertEqual(self.fixture.tool_records(), [])
 

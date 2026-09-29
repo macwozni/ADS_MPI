@@ -4,16 +4,236 @@
 BENCHMARKING_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 ROOT_DIR := $(abspath $(BENCHMARKING_DIR)/..)
 CONFIG_DIR ?= $(BENCHMARKING_DIR)/configs
-PYTHON ?= python3
 
 BENCHMARK_PROFILE ?= smoke
 BENCHMARK_PLAN_ARGS ?=
+BENCHMARK_RUN_ID ?=
 BENCHMARK_BUILD_ROOT ?= $(BENCHMARKING_DIR)/build
 BENCHMARK_BUILD_ROOT_PATH := $(abspath $(BENCHMARK_BUILD_ROOT))
 BENCHMARK_BUILD_MARKER := $(BENCHMARK_BUILD_ROOT_PATH)/.ads-benchmark-build
 
-.PHONY: all plan self-test clean clean-build validate-build-root \
-	validate-build-ownership help
+BENCHMARK_ADAPTERS := igrm_l2 igrm_heat pure_diffusion_igrm
+BENCHMARK_CONFIG_GOALS := build build-adapters smoke show-build-config \
+	$(addprefix build-,$(BENCHMARK_ADAPTERS))
+BENCHMARK_NEEDS_CONFIG := $(strip $(filter $(BENCHMARK_CONFIG_GOALS),$(MAKECMDGOALS)))
+
+# Planning, self-tests, help, and cleanup must remain usable without a local
+# Fortran toolchain configuration.  In particular, the cleanup self-test copies
+# this makefile alone into a disposable repository.
+ifneq ($(BENCHMARK_NEEDS_CONFIG),)
+CONFIG ?= $(ROOT_DIR)/m_options
+CONFIG_PATH := $(abspath $(CONFIG))
+
+# The checked-in smoke profile selects the debug build.  Set this before the
+# configuration is parsed because m_options chooses BUILD_OPTS in conditionals.
+ifneq ($(filter smoke,$(MAKECMDGOALS)),)
+override BUILD := debug
+endif
+
+include $(CONFIG_PATH)
+
+MPI_NP_FLAG ?= -n
+
+ifeq ($(filter $(BUILD),debug release),)
+$(error unsupported benchmark BUILD='$(BUILD)'; expected debug or release)
+endif
+
+FORTRAN_DIR := $(BENCHMARKING_DIR)/fortran
+SRC_DIR := $(ROOT_DIR)/src
+PROBLEMS_DIR := $(ROOT_DIR)/problems
+BENCHMARK_PROFILE_BUILD_ROOT := $(BENCHMARK_BUILD_ROOT_PATH)/$(BUILD)
+CORE_MODULE_DIR := $(BENCHMARK_PROFILE_BUILD_ROOT)
+CORE_LIBRARY := $(BENCHMARK_PROFILE_BUILD_ROOT)/LIB/libads.a
+BENCHMARK_OBJ_ROOT := $(BENCHMARK_PROFILE_BUILD_ROOT)/benchmark_OBJ
+BENCHMARK_EXEC_DIR := $(BENCHMARK_PROFILE_BUILD_ROOT)/EXEC
+
+BENCHMARK_COMMON_PREFIX_SOURCES := \
+	$(FORTRAN_DIR)/benchmark_contract.F90 \
+	$(FORTRAN_DIR)/manufactured_solution.F90 \
+	$(FORTRAN_DIR)/benchmark_runtime.F90
+BENCHMARK_COMMON_SUFFIX_SOURCES := \
+	$(FORTRAN_DIR)/benchmark_cli.F90 \
+	$(FORTRAN_DIR)/benchmark_harness.F90
+IGRM_HEAT_SUPPORT_SOURCES := \
+	$(PROBLEMS_DIR)/igrm_heat/input_data.F90 \
+	$(PROBLEMS_DIR)/igrm_heat/RHS_fun.F90
+
+benchmark_module_flags = $(if $(filter -J.%,$(MODULE_OUTPUT)),-J$(1),$(if $(filter -module,$(MODULE_OUTPUT)),-module $(1),$(MODULE_OUTPUT)))
+
+.PHONY: library validate-build-profile FORCE FORCE_CORE_LIBRARY
+
+FORCE:
+
+FORCE_CORE_LIBRARY:
+
+validate-build-profile: validate-build-ownership
+	@set -eu; \
+	root=$$(realpath -m -- '$(BENCHMARK_BUILD_ROOT_PATH)'); \
+	profile=$$(realpath -m -- '$(BENCHMARK_PROFILE_BUILD_ROOT)'); \
+	expected="$$root/$(BUILD)"; \
+	if test "$$profile" != "$$expected"; then \
+		printf 'Unsafe benchmark profile build root: %s\n' \
+			'$(BENCHMARK_PROFILE_BUILD_ROOT)' >&2; exit 2; \
+	fi; \
+	for path in '$(BENCHMARK_PROFILE_BUILD_ROOT)' \
+		'$(BENCHMARK_PROFILE_BUILD_ROOT)/_OBJ' \
+		'$(BENCHMARK_PROFILE_BUILD_ROOT)/LIB' \
+		'$(BENCHMARK_OBJ_ROOT)' '$(BENCHMARK_EXEC_DIR)' \
+		$(foreach adapter,$(BENCHMARK_ADAPTERS),'$(BENCHMARK_OBJ_ROOT)/$(adapter)'); do \
+		if test -L "$$path"; then \
+			printf 'Unsafe benchmark build symlink: %s\n' "$$path" >&2; \
+			exit 2; \
+		fi; \
+	done
+
+library: $(CORE_LIBRARY)
+
+# Refresh the isolated core exactly once per public build invocation.  The
+# recursive owner keeps the archive timestamp unchanged when its inputs did
+# not change, so normal downstream dependencies remain incremental.
+$(CORE_LIBRARY): FORCE_CORE_LIBRARY validate-build-profile prepare-build-root
+	+$(MAKE) --no-print-directory -j1 -C '$(SRC_DIR)' \
+		CONFIG='$(CONFIG_PATH)' BUILD='$(BUILD)' \
+		BUILD_ROOT='$(BENCHMARK_PROFILE_BUILD_ROOT)' library
+	@test -f '$@' || { \
+		printf 'Core benchmark library was not produced: %s\n' '$@' >&2; \
+		exit 2; \
+	}
+
+$(BENCHMARK_EXEC_DIR):
+	mkdir -p -- '$@'
+
+define DEFINE_BENCHMARK_ADAPTER
+$(1)_SOURCES := $$(BENCHMARK_COMMON_PREFIX_SOURCES) \
+	$$(if $$(filter igrm_heat,$(1)),$$(IGRM_HEAT_SUPPORT_SOURCES)) \
+	$$(FORTRAN_DIR)/$(1)_adapter.F90 \
+	$$(BENCHMARK_COMMON_SUFFIX_SOURCES) \
+	$$(FORTRAN_DIR)/main_$(1).F90
+$(1)_OBJ_DIR := $$(BENCHMARK_OBJ_ROOT)/$(1)
+$(1)_OBJECTS := $$(addprefix $$($(1)_OBJ_DIR)/,$$(notdir $$($(1)_SOURCES:.F90=.o)))
+$(1)_BUILD_STAMP := $$($(1)_OBJ_DIR)/.ads-benchmark-adapter-build
+$(1)_EXECUTABLE := $$(BENCHMARK_EXEC_DIR)/$(1)_manufactured
+$(1)_COMPILE_FLAGS = $$(FFLAGS) \
+	$$(call benchmark_module_flags,$$($(1)_OBJ_DIR)) \
+	-I$$($(1)_OBJ_DIR) -I$$(CORE_MODULE_DIR)
+
+.PHONY: build-$(1) validate-$(1)-sources
+
+validate-$(1)-sources:
+	@set -eu; \
+	for source in $$($(1)_SOURCES); do \
+		if ! test -f "$$$$source"; then \
+			printf 'Missing benchmark source: %s\n' "$$$$source" >&2; \
+			exit 2; \
+		fi; \
+	done
+
+build-$(1): validate-build-profile validate-$(1)-sources $$($(1)_EXECUTABLE)
+
+$$($(1)_OBJ_DIR):
+	mkdir -p -- "$$@"
+
+$$($(1)_BUILD_STAMP): FORCE | $$($(1)_OBJ_DIR)
+	@{ \
+		printf '%s\n' 'CONFIG=$$(CONFIG_PATH)'; \
+		printf '%s\n' 'BUILD=$$(BUILD)'; \
+		printf '%s\n' 'SOURCES=$$($(1)_SOURCES)'; \
+		printf '%s\n' 'FF=$$(FF)'; \
+		printf '%s\n' 'FFLAGS=$$($(1)_COMPILE_FLAGS)'; \
+		printf '%s\n' 'USER_LIB=$$(USER_LIB)'; \
+	} > "$$@.tmp"; \
+	if test -r "$$@" && cmp -s "$$@.tmp" "$$@"; then \
+		$$(RM) -- "$$@.tmp"; \
+	else \
+		mv -f -- "$$@.tmp" "$$@"; \
+	fi
+
+$$($(1)_OBJ_DIR)/%.o: $$(FORTRAN_DIR)/%.F90 $$(MAKEFILE_LIST) | $$($(1)_OBJ_DIR)
+	$$(FF) $$($(1)_COMPILE_FLAGS) -o "$$@" -c "$$<"
+
+# The archive is a normal prerequisite, not only a link input: when a public
+# core module changes, the refreshed archive makes every adapter consumer
+# recompile against the matching module interface before it is relinked.
+$$($(1)_OBJECTS): $$($(1)_BUILD_STAMP) $$(CORE_LIBRARY)
+
+$$($(1)_EXECUTABLE): $$($(1)_OBJECTS) $$(CORE_LIBRARY) | $$(BENCHMARK_EXEC_DIR)
+	$$(FF) $$($(1)_COMPILE_FLAGS) -o "$$@" $$($(1)_OBJECTS) \
+		"$$(CORE_LIBRARY)" $$(USER_LIB)
+	@printf 'Built %s\n' "$$@"
+endef
+
+$(foreach adapter,$(BENCHMARK_ADAPTERS),$(eval $(call DEFINE_BENCHMARK_ADAPTER,$(adapter))))
+
+$(igrm_heat_OBJ_DIR)/input_data.o: $(PROBLEMS_DIR)/igrm_heat/input_data.F90 \
+		$(MAKEFILE_LIST) | $(igrm_heat_OBJ_DIR)
+	$(FF) $(igrm_heat_COMPILE_FLAGS) -o "$@" -c "$<"
+
+$(igrm_heat_OBJ_DIR)/RHS_fun.o: $(PROBLEMS_DIR)/igrm_heat/RHS_fun.F90 \
+		$(MAKEFILE_LIST) | $(igrm_heat_OBJ_DIR)
+	$(FF) $(igrm_heat_COMPILE_FLAGS) -o "$@" -c "$<"
+
+define add-ordered-dependencies
+$(if $(word 2,$1),$(eval $(word 2,$1): $(word 1,$1))$(call add-ordered-dependencies,$(wordlist 2,$(words $1),$1)))
+endef
+$(foreach adapter,$(BENCHMARK_ADAPTERS),$(call add-ordered-dependencies,$($(adapter)_OBJECTS)))
+
+BENCHMARK_EXECUTABLES := $(foreach adapter,$(BENCHMARK_ADAPTERS),$($(adapter)_EXECUTABLE))
+
+.PHONY: build build-adapters validate-benchmark-sources smoke \
+	validate-smoke-run-id show-build-config
+
+validate-benchmark-sources: $(addprefix validate-,$(addsuffix -sources,$(BENCHMARK_ADAPTERS)))
+
+build build-adapters: validate-build-profile validate-benchmark-sources \
+	$(BENCHMARK_EXECUTABLES)
+
+validate-smoke-run-id:
+	@set -eu; \
+	run_id='$(BENCHMARK_RUN_ID)'; \
+	case "$$run_id" in \
+		''|[!A-Za-z0-9]*|*[!A-Za-z0-9._-]*) \
+			printf '%s\n' \
+				'BENCHMARK_RUN_ID must use 1-125 ASCII letters, digits, dots, underscores, or hyphens and start with a letter or digit' \
+				>&2; \
+			exit 2 ;; \
+	esac; \
+	if test "$${#run_id}" -gt 125; then \
+		printf '%s\n' 'BENCHMARK_RUN_ID must contain at most 125 characters' >&2; \
+		exit 2; \
+	fi
+
+smoke: validate-smoke-run-id build
+	@MPIEXEC='$(MPIEXEC)' MPI_NP_FLAG='$(MPI_NP_FLAG)' \
+		PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m ads_benchmark.cli run \
+		--repository-root '$(ROOT_DIR)' --config-dir '$(CONFIG_DIR)' \
+		--profile smoke --run-id '$(BENCHMARK_RUN_ID)-n4' $(BENCHMARK_PLAN_ARGS)
+	@MPIEXEC='$(MPIEXEC)' MPI_NP_FLAG='$(MPI_NP_FLAG)' \
+		PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m ads_benchmark.cli run \
+		--repository-root '$(ROOT_DIR)' --config-dir '$(CONFIG_DIR)' \
+		--profile smoke-refined --run-id '$(BENCHMARK_RUN_ID)-n8' \
+		$(BENCHMARK_PLAN_ARGS)
+	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m ads_benchmark.smoke_refinement \
+		--repository-root '$(ROOT_DIR)' \
+		--coarse-run-id '$(BENCHMARK_RUN_ID)-n4' \
+		--refined-run-id '$(BENCHMARK_RUN_ID)-n8'
+
+show-build-config:
+	@printf '%-24s %s\n' \
+		'CONFIG' '$(CONFIG_PATH)' \
+		'BUILD' '$(BUILD)' \
+		'BENCHMARK_BUILD_ROOT' '$(BENCHMARK_BUILD_ROOT_PATH)' \
+		'PROFILE_BUILD_ROOT' '$(BENCHMARK_PROFILE_BUILD_ROOT)' \
+		'CORE_LIBRARY' '$(CORE_LIBRARY)' \
+		'OBJECT_ROOT' '$(BENCHMARK_OBJ_ROOT)' \
+		'EXECUTABLES' '$(BENCHMARK_EXECUTABLES)' \
+		'COMPILER' '$(COMPILER)' \
+		'MPIEXEC' '$(MPIEXEC)'
+endif
+
+PYTHON ?= python3
+
+.PHONY: all plan self-test clean clean-build prepare-build-root \
+	validate-build-root validate-build-ownership help
 
 all: self-test
 
@@ -58,6 +278,18 @@ validate-build-ownership: validate-build-root
 		exit 2; \
 	fi
 
+prepare-build-root: validate-build-ownership
+	@set -eu; \
+	root='$(BENCHMARK_BUILD_ROOT_PATH)'; \
+	marker='$(BENCHMARK_BUILD_MARKER)'; \
+	expected="ADS_MPI_BENCHMARK_BUILD=$$(realpath -m -- "$$root")"; \
+	mkdir -p -- "$$root"; \
+	if ! test -f "$$marker"; then \
+		marker_tmp="$$marker.tmp"; \
+		printf '%s\n' "$$expected" > "$$marker_tmp"; \
+		mv -f -- "$$marker_tmp" "$$marker"; \
+	fi
+
 clean clean-build: validate-build-ownership
 	@find '$(BENCHMARKING_DIR)' -type f \( -name '*.pyc' -o -name '*.pyo' \) \
 		-delete
@@ -83,7 +315,7 @@ clean clean-build: validate-build-ownership
 
 help:
 	@printf '%s\n' \
-		'ADS MPI benchmark planning framework' \
+		'ADS MPI benchmark framework' \
 		'' \
 		'  make plan [BENCHMARK_PROFILE=smoke]' \
 		'      validate and summarize a plan without writing results' \
@@ -91,7 +323,15 @@ help:
 		'      create benchmarks/NAME/manifest.json exclusively' \
 		'  make self-test' \
 		'      run dependency-free planner/engine contract tests' \
+		'  make build [BUILD=debug|release]' \
+		'      build all three manufactured benchmark adapters' \
+		'  make build-igrm_l2 | build-igrm_heat | build-pure_diffusion_igrm' \
+		'      build one manufactured adapter in the selected profile' \
+		'  make smoke BENCHMARK_RUN_ID=NAME' \
+		'      run the real N=4/N=8 smoke pair and verify all nine refinements' \
+		'  make show-build-config [BUILD=debug|release]' \
+		'      print the selected isolated build paths and toolchain' \
 		'  make clean-build' \
 		'      remove only benchmark framework caches and marker-owned builds' \
 		'' \
-		'Profiles: smoke temporal-full local-scaling cluster-scaling'
+		'Profiles: smoke smoke-refined temporal-full local-scaling cluster-scaling'
