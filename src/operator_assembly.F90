@@ -41,7 +41,7 @@ contains
 !> @details
 !> This procedure constructs a sparse matrix associated with two
 !> one-dimensional spline spaces. The resulting matrix contains:
-!> - a trial-trial block assembled from \p mixA,
+!> - a test-test Gram block assembled from \p mixA,
 !> - a trial-test coupling block assembled from \p mixB,
 !> - a test-trial coupling block assembled from \p mixBT.
 !>
@@ -81,7 +81,7 @@ contains
 !> Number of control points minus one for the second spline space.
 !>
 !> @param[in] mixA
-!> Mixing coefficients for the first diagonal block.
+!> Mixing coefficients for the leading test-space Gram block.
 !>
 !> @param[in] mixB
 !> Mixing coefficients for the off-diagonal coupling block.
@@ -164,7 +164,7 @@ subroutine MKBBT_large(nelem, U1, p1, n1, U2, p2, n2, mixA, mixB, mixBT, sprsmtr
 !> @brief Elementary mass, stiffness, and advection-like terms.
    real(kind=8) :: M, K, B, BT
 !> @brief Element-local matrices accumulated before sparse scatter.
-   real(kind=8), dimension(0:p2, 0:p2) :: elmatA
+   real(kind=8), dimension(0:p1, 0:p1) :: elmatA
    real(kind=8), dimension(0:p2, 0:p1) :: elmatB
    real(kind=8), dimension(0:p1, 0:p2) :: elmatBT
 
@@ -183,82 +183,47 @@ subroutine MKBBT_large(nelem, U1, p1, n1, U2, p2, n2, mixA, mixB, mixBT, sprsmtr
 ! Build the sparse pattern once for all three mixed blocks. The numerical
 ! phase can then update existing entries without reallocating row storage.
    do e = 1, nelem
-      do c = 0, p2
-         ia = O2(e) + c
-         do d = 0, p2
-            ib = O2(e) + d
+      do c = 0, p1
+         ia = O1(e) + c
+         do d = 0, p1
+            ib = O1(e) + d
             call add(sprsmtrx, ia, ib, 0.d0)
          end do
-         do d = 0, p1
-            ib = O1(e) + d + n2 + 1
+         do d = 0, p2
+            ib = O2(e) + d + n1 + 1
             call add(sprsmtrx, ia, ib, 0.d0)
          end do
       end do
-      do c = 0, p1
-         ia = O1(e) + c + n2 + 1
-         do d = 0, p2
-            ib = O2(e) + d
+      do c = 0, p2
+         ia = O2(e) + c + n1 + 1
+         do d = 0, p1
+            ib = O1(e) + d
             call add(sprsmtrx, ia, ib, 0.d0)
          end do
       end do
    end do
 
-   ncolors2 = p2 + 1
-   do color = 1, ncolors2
-!$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(e,i,c,d,ia,ib,M,K,B,BT,val,elmatA,elmatB) SCHEDULE(STATIC)
-      do e = color, nelem, ncolors2
+   ncolors1 = p1 + 1
+   do color = 1, ncolors1
+!$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(e,i,c,d,ia,ib,M,K,B,BT,val,elmatA,elmatBT) SCHEDULE(STATIC)
+      do e = color, nelem, ncolors1
          elmatA = 0.d0
-         elmatB = 0.d0
+         elmatBT = 0.d0
 ! loop over Gauss points
          do i = 1, ng
-! submatrix A: trial-trial block matching the leading rows of Fs
-            do c = 0, p2
-               do d = 0, p2
-                  M = NN2(0, c, i, e)*NN2(0, d, i, e)*J(e)*W(i)
-                  K = NN2(1, c, i, e)*NN2(1, d, i, e)*J(e)*W(i)
-                  B = NN2(1, c, i, e)*NN2(0, d, i, e)*J(e)*W(i)
-                  BT = NN2(0, c, i, e)*NN2(1, d, i, e)*J(e)*W(i)
+! submatrix A: test-space Gram block matching the leading rows of Fs
+            do c = 0, p1
+               do d = 0, p1
+                  M = NN1(0, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
+                  K = NN1(1, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
+                  B = NN1(1, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
+                  BT = NN1(0, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
                   val = mixA(1)*M + mixA(2)*K + mixA(3)*B + mixA(4)*BT
                   elmatA(c, d) = elmatA(c, d) + val
                end do
             end do
 
-! submatrix B
-            do c = 0, p2
-               do d = 0, p1
-                  M = NN2(0, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
-                  K = NN2(1, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
-                  B = NN2(1, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
-                  BT = NN2(0, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
-                  val = mixB(1)*M + mixB(2)*K + mixB(3)*B + mixB(4)*BT
-                  elmatB(c, d) = elmatB(c, d) + val
-               end do
-            end do
-         end do
-
-         do c = 0, p2
-            ia = O2(e) + c
-            do d = 0, p2
-               ib = O2(e) + d
-               call add_existing(sprsmtrx, ia, ib, elmatA(c, d))
-            end do
-            do d = 0, p1
-               ib = O1(e) + d + n2 + 1
-               call add_existing(sprsmtrx, ia, ib, elmatB(c, d))
-            end do
-         end do
-      end do
-!$OMP END PARALLEL DO
-   end do
-
-   ncolors1 = p1 + 1
-   do color = 1, ncolors1
-!$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(e,i,c,d,ia,ib,M,K,B,BT,val,elmatBT) SCHEDULE(STATIC)
-      do e = color, nelem, ncolors1
-         elmatBT = 0.d0
-! loop over Gauss points
-         do i = 1, ng
-! submatrix BT
+! test-trial coupling block
             do c = 0, p1
                do d = 0, p2
                   M = NN1(0, c, i, e)*NN2(0, d, i, e)*J(e)*W(i)
@@ -272,10 +237,45 @@ subroutine MKBBT_large(nelem, U1, p1, n1, U2, p2, n2, mixA, mixB, mixBT, sprsmtr
          end do
 
          do c = 0, p1
-            ia = O1(e) + c + n2 + 1
+            ia = O1(e) + c
+            do d = 0, p1
+               ib = O1(e) + d
+               call add_existing(sprsmtrx, ia, ib, elmatA(c, d))
+            end do
             do d = 0, p2
-               ib = O2(e) + d
+               ib = O2(e) + d + n1 + 1
                call add_existing(sprsmtrx, ia, ib, elmatBT(c, d))
+            end do
+         end do
+      end do
+!$OMP END PARALLEL DO
+   end do
+
+   ncolors2 = p2 + 1
+   do color = 1, ncolors2
+!$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(e,i,c,d,ia,ib,M,K,B,BT,val,elmatB) SCHEDULE(STATIC)
+      do e = color, nelem, ncolors2
+         elmatB = 0.d0
+! loop over Gauss points
+         do i = 1, ng
+! trial-test coupling block
+            do c = 0, p2
+               do d = 0, p1
+                  M = NN2(0, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
+                  K = NN2(1, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
+                  B = NN2(1, c, i, e)*NN1(0, d, i, e)*J(e)*W(i)
+                  BT = NN2(0, c, i, e)*NN1(1, d, i, e)*J(e)*W(i)
+                  val = mixB(1)*M + mixB(2)*K + mixB(3)*B + mixB(4)*BT
+                  elmatB(c, d) = elmatB(c, d) + val
+               end do
+            end do
+         end do
+
+         do c = 0, p2
+            ia = O2(e) + c + n1 + 1
+            do d = 0, p1
+               ib = O1(e) + d
+               call add_existing(sprsmtrx, ia, ib, elmatB(c, d))
             end do
          end do
       end do

@@ -339,6 +339,16 @@ subroutine Step(iter, RHS_fun, ads, ads_data, mierr, RHS_point)
 end subroutine Step
 
 !---------------------------------------------------------------------------
+!> @brief Transposes the first-derivative forms in a mixed coupling block.
+!---------------------------------------------------------------------------
+pure function TransposedCouplingMix(mix) result(transposed_mix)
+      real(kind=8), intent(in) :: mix(4)
+      real(kind=8) :: transposed_mix(4)
+
+      transposed_mix = (/mix(1), mix(2), mix(4), mix(3)/)
+end function TransposedCouplingMix
+
+!---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
 !> @brief Executes one ADS substep, including RHS formation, directional
@@ -491,8 +501,10 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
       else
             solve_mixA = solve_mix(:, a)
       end if
-      solve_mixB = solve_mix(:, a)
       solve_mixBT = solve_mix(:, a)
+      solve_mixB = solve_mix(:, a)
+      if (direction(a) == 1) &
+            solve_mixB = TransposedCouplingMix(solve_mix(:, a))
       call solve_problem(ads_test, ads_trial, abc(1, 1), abc(2, 1), abc(3, 1), &
                         solve_mixA, solve_mixB, solve_mixBT, direction, igrm, &
                         ads_data%F, ads_data%F2, ads_data%Ft, ads_data%Ft2, ierr)
@@ -510,8 +522,10 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
       else
             solve_mixA = solve_mix(:, a)
       end if
-      solve_mixB = solve_mix(:, a)
       solve_mixBT = solve_mix(:, a)
+      solve_mixB = solve_mix(:, a)
+      if (direction(a) == 1) &
+            solve_mixB = TransposedCouplingMix(solve_mix(:, a))
       call solve_problem(ads_test, ads_trial, abc(1, 2), abc(2, 2), abc(3, 2), &
                         solve_mixA, solve_mixB, solve_mixBT, direction, igrm, &
                         ads_data%F2, ads_data%F3, ads_data%Ft2, ads_data%Ft3, ierr)
@@ -529,8 +543,10 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
       else
             solve_mixA = solve_mix(:, a)
       end if
-      solve_mixB = solve_mix(:, a)
       solve_mixBT = solve_mix(:, a)
+      solve_mixB = solve_mix(:, a)
+      if (direction(a) == 1) &
+            solve_mixB = TransposedCouplingMix(solve_mix(:, a))
       call solve_problem(ads_test, ads_trial, abc(1, 3), abc(2, 3), abc(3, 3), &
                         solve_mixA, solve_mixB, solve_mixBT, direction, igrm, &
                         ads_data%F3, ads_data%F, ads_data%Ft3, ads_data%Ft, ierr)

@@ -156,7 +156,7 @@ contains
       type(ADS_Setup) :: ads
       type(ADS_compute_data) :: data
       real(kind=8), parameter :: mass_mix(4) = (/1.0d0, 0.0d0, 0.0d0, 0.0d0/)
-      real(kind=8) :: mix(4), alpha_step(7, 3), lhs_mix(4, 3)
+      real(kind=8) :: mix(4), alpha_step(7, 3), lhs_mix(4, 3), expected_mixB(4)
       integer(kind=4) :: call_index, direction(3), status
       logical :: contract_matches
 
@@ -177,9 +177,12 @@ contains
       do call_index = 1, 3
          contract_matches = contract_matches .and. &
             all(recorded_solve_axes(:, call_index) == abc(:, call_index))
+         expected_mixB = lhs_mix(:, abc(1, call_index))
+         if (direction(abc(1, call_index)) == 1) &
+            expected_mixB = transposed_coupling_mix(expected_mixB)
          contract_matches = contract_matches .and. &
             all(recorded_solve_mixB(:, call_index) == &
-                lhs_mix(:, abc(1, call_index)))
+                expected_mixB)
          contract_matches = contract_matches .and. &
             all(recorded_solve_mixBT(:, call_index) == &
                 lhs_mix(:, abc(1, call_index)))
@@ -504,6 +507,14 @@ contains
    end subroutine allocate_step_state
 
 
+   pure function transposed_coupling_mix(mix) result(transposed_mix)
+      real(kind=8), intent(in) :: mix(4)
+      real(kind=8) :: transposed_mix(4)
+
+      transposed_mix = (/mix(1), mix(2), mix(4), mix(3)/)
+   end function transposed_coupling_mix
+
+
    logical function three_solve_contract_matches(expected_mix) result(matches)
       real(kind=8), intent(in) :: expected_mix(4)
       integer(kind=4), parameter :: expected_axes(3, 3) = reshape((/ &
@@ -533,6 +544,7 @@ contains
          3, 1, 2,  1, 2, 3,  2, 1, 3 /), (/3, 9/))
       real(kind=8), parameter :: mass_mix(4) = (/1.0d0, 0.0d0, 0.0d0, 0.0d0/)
       integer(kind=4) :: axis, call_index, substep
+      real(kind=8) :: expected_mixB(4)
 
       matches = solve_call_count == 9
       call_index = 0
@@ -544,8 +556,12 @@ contains
             matches = matches .and. all(recorded_solve_directions(:, call_index) == &
                                         merge(1, 0, (/1, 2, 3/) == substep))
             matches = matches .and. recorded_solve_igrm(call_index)
+            expected_mixB = &
+               lhs_mix(:, expected_axes(1, call_index), substep)
+            if (expected_axes(1, call_index) == substep) &
+               expected_mixB = transposed_coupling_mix(expected_mixB)
             matches = matches .and. all(recorded_solve_mixB(:, call_index) == &
-                                        lhs_mix(:, expected_axes(1, call_index), substep))
+                                        expected_mixB)
             matches = matches .and. all(recorded_solve_mixBT(:, call_index) == &
                                         lhs_mix(:, expected_axes(1, call_index), substep))
             if (expected_axes(1, call_index) == substep) then

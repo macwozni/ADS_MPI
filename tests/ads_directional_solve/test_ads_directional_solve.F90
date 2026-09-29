@@ -342,8 +342,8 @@ contains
       if (selected_direction(a) == 1) then
          allocate(packed(size(trial_block, 1) + size(test_block, 1), &
                          size(trial_block, 2)))
-         packed(1:size(trial_block, 1), :) = trial_block
-         packed(size(trial_block, 1) + 1:size(packed, 1), :) = test_block
+         packed(1:size(test_block, 1), :) = test_block
+         packed(size(test_block, 1) + 1:size(packed, 1), :) = trial_block
       else
          allocate(packed(size(trial_block, 1), &
                          size(trial_block, 2) + size(test_block, 2)))

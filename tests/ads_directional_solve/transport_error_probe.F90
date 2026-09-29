@@ -68,8 +68,8 @@ contains
       F_before = F
       Ft_before = Ft
       allocate(expected_packed(size(F, 1) + size(Ft, 1), size(F, 2)))
-      expected_packed(1:size(F, 1), :) = F
-      expected_packed(size(F, 1) + 1:size(expected_packed, 1), :) = Ft
+      expected_packed(1:size(Ft, 1), :) = Ft
+      expected_packed(size(Ft, 1) + 1:size(expected_packed, 1), :) = F
 
       call configure_directional_spies(ads_test, ads_trial, 1, mixA, mixB, &
                                        mixBT, .false., expected_packed)

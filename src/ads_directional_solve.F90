@@ -300,8 +300,8 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
             Fs(:, (ads_trial%s(b)*ads_trial%s(c) + 1): &
                   (ads_trial%s(b) + direction(b)*ads_test%s(b))*(ads_trial%s(c) + direction(c)*ads_test%s(c))) = Ft_out
             else
-            Fs(1:ads_trial%n(a) + 1, :) = F_out
-            Fs(ads_trial%n(a) + 2:ads_trial%n(a) + 1 + direction(a)*(ads_test%n(a) + 1), :) = Ft_out
+            Fs(1:ads_test%n(a) + 1, :) = Ft_out
+            Fs(ads_test%n(a) + 2:ads_test%n(a) + ads_trial%n(a) + 2, :) = F_out
             end if
       else
             Fs = F_out
@@ -357,8 +357,8 @@ subroutine solve_problem(ads_test, ads_trial, a, b, c, mixA, mixB, mixBT, direct
             Ft_out = Fs(:, (ads_trial%s(b)*ads_trial%s(c) + 1): &
                         (ads_trial%s(b) + direction(b)*ads_test%s(b))*(ads_trial%s(c) + direction(c)*ads_test%s(c)))
             else
-            F_out = Fs(1:ads_trial%n(a) + 1, :)
-            Ft_out = Fs(ads_trial%n(a) + 2:ads_trial%n(a) + 1 + direction(a)*(ads_test%n(a) + 1), :)
+            Ft_out = Fs(1:ads_test%n(a) + 1, :)
+            F_out = Fs(ads_test%n(a) + 2:ads_test%n(a) + ads_trial%n(a) + 2, :)
             end if
       !  allocate buffers
             allocate (Ft2_out(mixed_owned_a, &
