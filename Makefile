@@ -63,6 +63,7 @@ RUN_ID ?=
 BENCHMARK_CONVERGENCE_PROFILE ?= temporal-full
 BENCHMARK_H_CONVERGENCE_PROFILE ?= h-convergence-full
 BENCHMARK_P_CONVERGENCE_PROFILE ?= p-convergence-full
+BENCHMARK_VALIDATION_PROFILE ?= validation-full
 BENCHMARK_RESUME_PROFILE ?= $(BENCHMARK_CONVERGENCE_PROFILE)
 BENCHMARK_PLAN_ARGS ?=
 BENCHMARK_ANALYZE_ARGS ?=
@@ -113,6 +114,7 @@ TEST_OPTIONS = \
 	show-config config rebuild run run-help show-run \
 	benchmark-plan benchmark-build benchmark-smoke benchmark-convergence \
 	benchmark-h-convergence benchmark-p-convergence \
+	benchmark-validate \
 	benchmark-resume benchmark-analyze benchmark-self-test \
 	clean-benchmark-build \
 	test check test-build test-layout test-src test-problems test-driver \
@@ -211,6 +213,15 @@ benchmark-p-convergence:
 		RUN_ID="$(RUN_ID)" \
 		BENCHMARK_P_CONVERGENCE_PROFILE="$(BENCHMARK_P_CONVERGENCE_PROFILE)" \
 		BENCHMARK_PLAN_ARGS="$(BENCHMARK_PLAN_ARGS)" p-convergence
+
+benchmark-validate:
+	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
+		CONFIG="$(CONFIG_PATH)" PYTHON="$(PYTHON)" \
+		MPIEXEC="$(MPIEXEC)" MPI_NP_FLAG="$(MPI_NP_FLAG)" \
+		RUN_ID="$(RUN_ID)" \
+		BENCHMARK_VALIDATION_PROFILE="$(BENCHMARK_VALIDATION_PROFILE)" \
+		BENCHMARK_PLAN_ARGS="$(BENCHMARK_PLAN_ARGS)" \
+		BENCHMARK_ANALYZE_ARGS="$(BENCHMARK_ANALYZE_ARGS)" validate
 
 benchmark-resume:
 	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
@@ -546,6 +557,8 @@ targets help:
 		'                                      run h-convergence (full by default)' \
 		'  make benchmark-p-convergence RUN_ID=NAME' \
 		'                                      run isotropic p-convergence (full by default)' \
+		'  make benchmark-validate RUN_ID=NAME' \
+		'                                      validate fields; declare MPI/CPU slots in BENCHMARK_PLAN_ARGS' \
 		'  make benchmark-resume RUN_ID=NAME   verify and resume that frozen run' \
 		'  make benchmark-analyze RUN_ID=NAME  write JSON/CSV convergence reports' \
 		'  make benchmark-self-test           planner/engine contract tests' \

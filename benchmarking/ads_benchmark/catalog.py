@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from .analysis.spatial import HConvergenceAnalyzer, PConvergenceAnalyzer
 from .analysis.temporal import TemporalConvergenceAnalyzer
+from .analysis.validation import FieldValidationAnalyzer
 from .components.manufactured import ManufacturedTransientAdapter
 from .components.planning import DirectLauncher, default_mpi_launcher
 from .framework.model import (
@@ -19,7 +20,11 @@ from .framework.model import (
 from .framework.registry import Catalog, Registry
 
 
-def build_catalog() -> Catalog:
+def build_catalog(
+    *,
+    available_mpi_slots: int | None = None,
+    available_cpu_slots: int | None = None,
+) -> Catalog:
     adapters = Registry("problem")
     for name in ("igrm_l2", "igrm_heat", "pure_diffusion_igrm"):
         adapters.register(name, ManufacturedTransientAdapter(name=name))
@@ -33,7 +38,11 @@ def build_catalog() -> Catalog:
         ),
         ("h", "mesh-size convergence", "h-convergence"),
         ("p", "polynomial-degree convergence", "p-convergence"),
-        ("validation", "MPI/OpenMP full-field validation", None),
+        (
+            "validation",
+            "MPI/OpenMP full-field validation",
+            "field-validation",
+        ),
         ("strong", "strong scaling", None),
         ("weak", "weak scaling", None),
     ):
@@ -63,7 +72,10 @@ def build_catalog() -> Catalog:
 
     launchers = Registry("launcher")
     direct = DirectLauncher()
-    mpi = default_mpi_launcher()
+    mpi = default_mpi_launcher(
+        available_mpi_slots=available_mpi_slots,
+        available_cpu_slots=available_cpu_slots,
+    )
     launchers.register(direct.name, direct)
     launchers.register(mpi.name, mpi)
 
@@ -78,6 +90,8 @@ def build_catalog() -> Catalog:
     analyzers.register(h_analyzer.name, h_analyzer)
     p_analyzer = PConvergenceAnalyzer()
     analyzers.register(p_analyzer.name, p_analyzer)
+    validation_analyzer = FieldValidationAnalyzer()
+    analyzers.register(validation_analyzer.name, validation_analyzer)
 
     return Catalog(
         adapters=adapters,

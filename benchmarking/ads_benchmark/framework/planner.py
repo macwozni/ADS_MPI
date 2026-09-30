@@ -519,6 +519,18 @@ class Planner:
             raise ValidationError(
                 f"filters selected no cases from profile {profile.name}"
             )
+        for case in selected:
+            launcher = self.catalog.launchers.get(case.spec.launcher)
+            validate_resources = getattr(launcher, "validate_resources", None)
+            if not callable(validate_resources):
+                continue
+            try:
+                validate_resources(case.spec)
+            except Exception as error:
+                raise ValidationError(
+                    f"launcher {case.spec.launcher} rejected selected case "
+                    f"{case.case_id} resources: {error}"
+                ) from error
 
         hash_input = [case.spec.to_dict() for case in selected]
         config_hash = hashlib.sha256(

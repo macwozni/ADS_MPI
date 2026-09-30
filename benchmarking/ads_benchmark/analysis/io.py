@@ -398,11 +398,199 @@ def _spatial_csv_text(report: AnalysisReport) -> str:
     return stream.getvalue()
 
 
+def _validation_csv_text(report: AnalysisReport) -> str:
+    """Flatten every field comparison while retaining its worst coordinate."""
+
+    fields = (
+        "group_id",
+        "series_status",
+        "row_kind",
+        "qualification",
+        "problem",
+        "scheme",
+        "left_scheme",
+        "right_scheme",
+        "steps",
+        "dt",
+        "reference_case_id",
+        "candidate_case_id",
+        "mpi_ranks",
+        "mpi_grid",
+        "openmp_threads",
+        "wall_seconds",
+        "timing_valid",
+        "comparison_passed",
+        "agreement_status",
+        "trend_passed",
+        "trend_relative_relaxation",
+        "trend_minimum_relative_reduction",
+        "coarse_l2_difference",
+        "coarse_linf_difference",
+        "final_l2_difference",
+        "final_linf_difference",
+        "absolute_tolerance",
+        "relative_tolerance",
+        "point_count",
+        "mismatch_count",
+        "l2_difference",
+        "linf_difference",
+        "reference_l2_norm",
+        "reference_linf_norm",
+        "reference_checksum",
+        "candidate_l2_norm",
+        "candidate_linf_norm",
+        "candidate_checksum",
+        "worst_component",
+        "worst_grid_index",
+        "worst_coordinates",
+        "worst_reference",
+        "worst_candidate",
+        "worst_absolute_difference",
+        "worst_relative_difference",
+        "worst_allowed_difference",
+        "largest_difference_component",
+        "largest_difference_grid_index",
+        "largest_difference_coordinates",
+        "largest_difference_reference",
+        "largest_difference_candidate",
+        "largest_absolute_difference",
+    )
+    stream = io.StringIO(newline="")
+    writer = csv.DictWriter(stream, fieldnames=fields, lineterminator="\n")
+    writer.writeheader()
+
+    def comparison_values(comparison: Mapping[str, Any]) -> dict[str, object]:
+        reference = comparison["reference"]
+        candidate = comparison["candidate"]
+        worst = comparison["worst_point"]
+        largest = comparison["largest_difference_point"]
+        return {
+            "comparison_passed": comparison["passed"],
+            "absolute_tolerance": comparison["absolute_tolerance"],
+            "relative_tolerance": comparison["relative_tolerance"],
+            "point_count": comparison["point_count"],
+            "mismatch_count": comparison["mismatch_count"],
+            "l2_difference": comparison["l2_difference"],
+            "linf_difference": comparison["linf_difference"],
+            "reference_l2_norm": reference["l2_norm"],
+            "reference_linf_norm": reference["linf_norm"],
+            "reference_checksum": reference["checksum"],
+            "candidate_l2_norm": candidate["l2_norm"],
+            "candidate_linf_norm": candidate["linf_norm"],
+            "candidate_checksum": candidate["checksum"],
+            "worst_component": worst["component"],
+            "worst_grid_index": _compact_json(worst["grid_index"]),
+            "worst_coordinates": _compact_json(worst["coordinates"]),
+            "worst_reference": worst["reference"],
+            "worst_candidate": worst["candidate"],
+            "worst_absolute_difference": worst["absolute_difference"],
+            "worst_relative_difference": worst["relative_difference"],
+            "worst_allowed_difference": worst["allowed_difference"],
+            "largest_difference_component": largest["component"],
+            "largest_difference_grid_index": _compact_json(
+                largest["grid_index"]
+            ),
+            "largest_difference_coordinates": _compact_json(
+                largest["coordinates"]
+            ),
+            "largest_difference_reference": largest["reference"],
+            "largest_difference_candidate": largest["candidate"],
+            "largest_absolute_difference": largest["absolute_difference"],
+        }
+
+    for series in report.series:
+        agreement_by_pair = {
+            (agreement["left_scheme"], agreement["right_scheme"]): agreement
+            for agreement in series["scheme_agreement"]
+        }
+        common = {
+            "group_id": series["group_id"],
+            "series_status": series["status"],
+            "problem": series["problem"],
+        }
+        for level in series["time_levels"]:  # type: ignore[assignment]
+            level_common = common | {"steps": level["steps"], "dt": level["dt"]}
+            for scheme in level["schemes"]:
+                reference = scheme["reference"]
+                analytical = scheme["analytic_comparison"]
+                writer.writerow(
+                    level_common
+                    | {
+                        "row_kind": "analytic-level",
+                        "qualification": scheme["analytic_qualification"],
+                        "scheme": scheme["scheme"],
+                        "reference_case_id": reference["case_id"],
+                        "candidate_case_id": reference["case_id"],
+                        "mpi_ranks": reference["mpi_ranks"],
+                        "mpi_grid": _compact_json(reference["mpi_grid"]),
+                        "openmp_threads": reference["openmp_threads"],
+                        "wall_seconds": reference["wall_seconds"],
+                        "timing_valid": reference["timing_valid"],
+                    }
+                    | comparison_values(analytical)
+                )
+                for variant in scheme["variants"]:
+                    writer.writerow(
+                        level_common
+                        | {
+                            "row_kind": "parallel-variant",
+                            "qualification": "timing-gate",
+                            "scheme": scheme["scheme"],
+                            "reference_case_id": reference["case_id"],
+                            "candidate_case_id": variant["case_id"],
+                            "mpi_ranks": variant["mpi_ranks"],
+                            "mpi_grid": _compact_json(variant["mpi_grid"]),
+                            "openmp_threads": variant["openmp_threads"],
+                            "wall_seconds": variant["wall_seconds"],
+                            "timing_valid": variant["timing_valid"],
+                        }
+                        | comparison_values(variant["comparison"])
+                    )
+            for pair in level["scheme_pairs"]:
+                agreement = agreement_by_pair[
+                    (pair["left_scheme"], pair["right_scheme"])
+                ]
+                writer.writerow(
+                    level_common
+                    | {
+                        "row_kind": "scheme-pair",
+                        "qualification": pair["qualification"],
+                        "left_scheme": pair["left_scheme"],
+                        "right_scheme": pair["right_scheme"],
+                        "reference_case_id": pair["left_case_id"],
+                        "candidate_case_id": pair["right_case_id"],
+                        "mpi_ranks": 1,
+                        "mpi_grid": "[1,1,1]",
+                        "openmp_threads": 1,
+                        "agreement_status": agreement["status"],
+                        "trend_passed": agreement["trend_passed"],
+                        "trend_relative_relaxation": agreement[
+                            "trend_relative_relaxation"
+                        ],
+                        "trend_minimum_relative_reduction": agreement[
+                            "trend_minimum_relative_reduction"
+                        ],
+                        "coarse_l2_difference": agreement["coarse_l2_difference"],
+                        "coarse_linf_difference": agreement[
+                            "coarse_linf_difference"
+                        ],
+                        "final_l2_difference": agreement["final_l2_difference"],
+                        "final_linf_difference": agreement[
+                            "final_linf_difference"
+                        ],
+                    }
+                    | comparison_values(pair["comparison"])
+                )
+    return stream.getvalue()
+
+
 def _csv_text(report: AnalysisReport) -> str:
     if report.family == "temporal":
         return _temporal_csv_text(report)
     if report.family in {"h", "p"}:
         return _spatial_csv_text(report)
+    if report.family == "validation":
+        return _validation_csv_text(report)
     raise AnalysisError(f"no CSV renderer registered for family {report.family}")
 
 
@@ -424,6 +612,8 @@ def _plot_coordinates(
 
 
 def _render_plot(report: AnalysisReport) -> tuple[bytes | None, str | None]:
+    if report.family == "validation":
+        return None, "plot omitted: full-field validation has no convergence plot"
     try:
         import matplotlib
 

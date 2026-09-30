@@ -128,6 +128,7 @@ class ManufacturedTransientAdapter:
             "temporal": "temporal-polynomial",
             "h": "spatial-cosine",
             "p": "spatial-cosine",
+            "validation": "spatial-cosine",
         }.get(case.family)
         if required_case is not None and case.exact_case != required_case:
             raise ValueError(

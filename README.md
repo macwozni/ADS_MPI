@@ -739,6 +739,8 @@ make benchmark-convergence RUN_ID=stage3-diagnostic \
 make benchmark-resume RUN_ID=stage3-diagnostic \
   BENCHMARK_CONVERGENCE_PROFILE=temporal-validation
 make benchmark-analyze RUN_ID=stage3-diagnostic
+make benchmark-validate RUN_ID=stage5-field-validation \
+  BENCHMARK_PLAN_ARGS='--available-mpi-slots 8 --available-cpu-slots 32'
 ```
 
 `benchmark-smoke` runs the real nine-case matrix at `N=4` and `N=8`,
@@ -753,6 +755,22 @@ interrupted compatible run. The registered temporal analyzer writes JSON/CSV
 reports (and an optional plot), using all local orders plus a four-point tail
 regression against analytical L2 and Linf errors. Filtered runs are passed
 through `BENCHMARK_PLAN_ARGS`, for example repeated `--steps` selectors.
+
+Stage 5 adds `validation-smoke` (36 cases) and `validation-full` (324 cases).
+The full profile covers all three manufactured problems and DG/PR/BE at
+`N=128,256`, with OMP1/OMP4 and serial, X, Y, Z, mixed, `2x2x2`, and uneven
+`3x2x1` MPI layouts. `benchmark-validate` runs the selected frozen matrix and
+immediately analyzes it. Each parallel timing is eligible only after every
+value on the common decomposition-independent physical sample grid matches
+the MPI1/OMP1 reference with the fixed absolute/relative tolerance; finest
+level timings also require the analytical and cross-scheme gates. JSON and CSV
+retain physical L2/Linf differences, field norms and SHA-256 checksums, plus
+the coordinate and values at both the largest absolute deviation and the most
+severe tolerance violation. DG/PR/BE are compared with the analytical field
+and one another over both time levels; coarse differences are audited, while
+documented final accuracy and measurable contraction gates decide the result. See
+[`benchmarking/README.md`](benchmarking/README.md) for the matrix, tolerances,
+resource-capacity flags, and report schema.
 
 The `temporal-full` profile expands deterministically to 792 cases, but its
 fixed `4x4x4` mesh currently exposes finite transient instabilities in the

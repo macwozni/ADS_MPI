@@ -4,6 +4,7 @@ from .base import AnalysisError, AnalysisPipeline, AnalysisReport, Analyzer
 from .io import WrittenAnalysis, load_run_results, write_report, write_run_report
 from .spatial import HConvergenceAnalyzer, PConvergenceAnalyzer
 from .temporal import TemporalConvergenceAnalyzer
+from .validation import FieldValidationAnalyzer
 
 __all__ = [
     "AnalysisError",
@@ -12,6 +13,7 @@ __all__ = [
     "Analyzer",
     "HConvergenceAnalyzer",
     "PConvergenceAnalyzer",
+    "FieldValidationAnalyzer",
     "TemporalConvergenceAnalyzer",
     "WrittenAnalysis",
     "load_run_results",

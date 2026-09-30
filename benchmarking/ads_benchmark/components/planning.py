@@ -63,10 +63,51 @@ class MpiLauncher:
     executable: str
     rank_flag: str
     name: str = "mpi"
+    available_mpi_slots: int | None = None
+    available_cpu_slots: int | None = None
 
     def validate_case(self, case: CaseSpec) -> None:
         if not self.executable or not self.rank_flag:
             raise ValueError("MPI launcher executable and rank flag must be nonempty")
+        if (
+            self.available_mpi_slots is not None
+            and (
+                type(self.available_mpi_slots) is not int
+                or self.available_mpi_slots <= 0
+            )
+        ):
+            raise ValueError("available MPI slots must be a positive integer")
+        if (
+            self.available_cpu_slots is not None
+            and (
+                type(self.available_cpu_slots) is not int
+                or self.available_cpu_slots <= 0
+            )
+        ):
+            raise ValueError("available CPU slots must be a positive integer")
+
+    def validate_resources(self, case: CaseSpec) -> None:
+        """Reject a selected case that exceeds the declared allocation."""
+
+        if (
+            self.available_mpi_slots is not None
+            and case.mpi.ranks > self.available_mpi_slots
+        ):
+            raise ValueError(
+                f"case requests {case.mpi.ranks} MPI ranks but only "
+                f"{self.available_mpi_slots} MPI slots are available"
+            )
+        requested_cpu_slots = case.mpi.ranks * case.openmp_threads
+        if (
+            self.available_cpu_slots is not None
+            and requested_cpu_slots > self.available_cpu_slots
+        ):
+            raise ValueError(
+                f"case requests {case.mpi.ranks} MPI ranks * "
+                f"{case.openmp_threads} OpenMP threads = "
+                f"{requested_cpu_slots} CPU slots but only "
+                f"{self.available_cpu_slots} CPU slots are available"
+            )
 
     def command(self, payload: Sequence[str], case: CaseSpec) -> Sequence[str]:
         return (
@@ -80,8 +121,14 @@ class MpiLauncher:
         return {}
 
 
-def default_mpi_launcher() -> MpiLauncher:
+def default_mpi_launcher(
+    *,
+    available_mpi_slots: int | None = None,
+    available_cpu_slots: int | None = None,
+) -> MpiLauncher:
     return MpiLauncher(
         executable=os.environ.get("MPIEXEC", "mpiexec"),
         rank_flag=os.environ.get("MPI_NP_FLAG", "-n"),
+        available_mpi_slots=available_mpi_slots,
+        available_cpu_slots=available_cpu_slots,
     )

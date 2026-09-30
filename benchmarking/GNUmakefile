@@ -9,6 +9,7 @@ BENCHMARK_PROFILE ?= smoke
 BENCHMARK_CONVERGENCE_PROFILE ?= temporal-full
 BENCHMARK_H_CONVERGENCE_PROFILE ?= h-convergence-full
 BENCHMARK_P_CONVERGENCE_PROFILE ?= p-convergence-full
+BENCHMARK_VALIDATION_PROFILE ?= validation-full
 BENCHMARK_RESUME_PROFILE ?= $(BENCHMARK_CONVERGENCE_PROFILE)
 BENCHMARK_PLAN_ARGS ?=
 BENCHMARK_ANALYZE_ARGS ?=
@@ -20,7 +21,7 @@ BENCHMARK_BUILD_MARKER := $(BENCHMARK_BUILD_ROOT_PATH)/.ads-benchmark-build
 
 BENCHMARK_ADAPTERS := igrm_l2 igrm_heat pure_diffusion_igrm
 BENCHMARK_CONFIG_GOALS := build build-adapters smoke convergence \
-	h-convergence p-convergence resume \
+	h-convergence p-convergence validate resume \
 	show-build-config \
 	$(addprefix build-,$(BENCHMARK_ADAPTERS))
 BENCHMARK_NEEDS_CONFIG := $(strip $(filter $(BENCHMARK_CONFIG_GOALS),$(MAKECMDGOALS)))
@@ -37,7 +38,7 @@ CONFIG_PATH := $(abspath $(CONFIG))
 ifneq ($(filter smoke,$(MAKECMDGOALS)),)
 override BUILD := debug
 endif
-ifneq ($(filter convergence h-convergence p-convergence resume,$(MAKECMDGOALS)),)
+ifneq ($(filter convergence h-convergence p-convergence validate resume,$(MAKECMDGOALS)),)
 override BUILD := release
 endif
 
@@ -191,7 +192,7 @@ $(foreach adapter,$(BENCHMARK_ADAPTERS),$(call add-ordered-dependencies,$($(adap
 BENCHMARK_EXECUTABLES := $(foreach adapter,$(BENCHMARK_ADAPTERS),$($(adapter)_EXECUTABLE))
 
 .PHONY: build build-adapters validate-benchmark-sources smoke convergence \
-	h-convergence p-convergence resume validate-smoke-run-id show-build-config
+	h-convergence p-convergence validate resume validate-smoke-run-id show-build-config
 
 validate-benchmark-sources: $(addprefix validate-,$(addsuffix -sources,$(BENCHMARK_ADAPTERS)))
 
@@ -248,6 +249,16 @@ p-convergence: validate-run-id build
 		--repository-root '$(ROOT_DIR)' --config-dir '$(CONFIG_DIR)' \
 		--profile '$(BENCHMARK_P_CONVERGENCE_PROFILE)' --run-id '$(RUN_ID)' \
 		$(BENCHMARK_PLAN_ARGS)
+
+validate: validate-run-id build
+	@MPIEXEC='$(MPIEXEC)' MPI_NP_FLAG='$(MPI_NP_FLAG)' \
+		PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m ads_benchmark.cli run \
+		--repository-root '$(ROOT_DIR)' --config-dir '$(CONFIG_DIR)' \
+		--profile '$(BENCHMARK_VALIDATION_PROFILE)' --run-id '$(RUN_ID)' \
+		$(BENCHMARK_PLAN_ARGS)
+	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m ads_benchmark.cli analyze \
+		--repository-root '$(ROOT_DIR)' --run-id '$(RUN_ID)' \
+		$(BENCHMARK_ANALYZE_ARGS)
 
 resume: validate-run-id build
 	@MPIEXEC='$(MPIEXEC)' MPI_NP_FLAG='$(MPI_NP_FLAG)' \
@@ -394,6 +405,8 @@ help:
 		'      execute a new frozen h-convergence manifest (use h-convergence-smoke for smoke)' \
 		'  make p-convergence RUN_ID=NAME [BENCHMARK_P_CONVERGENCE_PROFILE=p-convergence-full]' \
 		'      execute isotropic p convergence; p-anisotropic-{smoke,full} are also selectable' \
+		'  make validate RUN_ID=NAME [BENCHMARK_VALIDATION_PROFILE=validation-full]' \
+		'      run full-field validation; BENCHMARK_PLAN_ARGS must declare MPI/CPU slots' \
 		'  make resume RUN_ID=NAME [BENCHMARK_RESUME_PROFILE=temporal-full]' \
 		'      verify the manifest and retry only incomplete/failed cases' \
 		'  make analyze RUN_ID=NAME [BENCHMARK_ANALYZE_ARGS=--plot]' \
@@ -404,4 +417,5 @@ help:
 		'      remove only benchmark framework caches and marker-owned builds' \
 		'' \
 		'Profiles: smoke smoke-refined temporal-validation temporal-full h-convergence-smoke h-convergence-full' \
-		'          p-convergence-smoke p-convergence-full p-anisotropic-smoke p-anisotropic-full local-scaling cluster-scaling'
+		'          p-convergence-smoke p-convergence-full p-anisotropic-smoke p-anisotropic-full' \
+		'          validation-smoke validation-full local-scaling cluster-scaling'

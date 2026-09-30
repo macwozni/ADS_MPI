@@ -43,6 +43,8 @@ class PlannerTests(unittest.TestCase):
                 "smoke-refined",
                 "temporal-full",
                 "temporal-validation",
+                "validation-full",
+                "validation-smoke",
             ),
         )
         plan = self.planner.plan("temporal-full")
@@ -73,6 +75,8 @@ class PlannerTests(unittest.TestCase):
             "p-anisotropic-full": 216,
             "local-scaling": 36,
             "cluster-scaling": 36,
+            "validation-smoke": 36,
+            "validation-full": 324,
         }
         for profile, expected_count in expected_counts.items():
             with self.subTest(profile=profile):

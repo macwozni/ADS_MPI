@@ -33,6 +33,16 @@ from .framework.storage import ResultStore
 DEFAULT_REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _positive_integer(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must be an integer") from error
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be positive")
+    return parsed
+
+
 def _add_selection_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--profile", default="smoke")
     parser.add_argument(
@@ -47,6 +57,19 @@ def _add_selection_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--mpi-ranks", action="append", type=int, default=[])
     parser.add_argument("--omp", action="append", type=int, default=[])
     parser.add_argument("--steps", action="append", type=int, default=[])
+    parser.add_argument(
+        "--available-mpi-slots",
+        type=_positive_integer,
+        help="reject selected cases requiring more MPI ranks than this allocation",
+    )
+    parser.add_argument(
+        "--available-cpu-slots",
+        type=_positive_integer,
+        help=(
+            "reject selected cases whose MPI-rank times OpenMP-thread product "
+            "exceeds this allocation"
+        ),
+    )
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -158,12 +181,35 @@ def _planned_cases(
         if options.config_dir
         else repository_root / "benchmarking" / "configs"
     )
-    catalog = build_catalog()
+    catalog = build_catalog(
+        available_mpi_slots=options.available_mpi_slots,
+        available_cpu_slots=options.available_cpu_slots,
+    )
     profiles = load_profiles(config_directory)
     planner = Planner(profiles, catalog)
     plan = planner.plan(options.profile, _filters(options, catalog))
     repository = inspect_repository(repository_root)
     return repository_root, catalog, plan, repository
+
+
+def _require_validation_execution_resources(
+    options: argparse.Namespace, plan: Plan
+) -> None:
+    """Require explicit scheduler/local capacity for real validation runs."""
+
+    if not any(case.spec.family == "validation" for case in plan.cases):
+        return
+    missing = []
+    if options.available_mpi_slots is None:
+        missing.append("--available-mpi-slots")
+    if options.available_cpu_slots is None:
+        missing.append("--available-cpu-slots")
+    if missing:
+        raise ValidationError(
+            "validation execution requires an explicit resource allocation: "
+            + " and ".join(missing)
+            + "; use plan/dry-run for structural validation without an allocation"
+        )
 
 
 def _plan(options: argparse.Namespace) -> int:
@@ -201,6 +247,7 @@ def _plan(options: argparse.Namespace) -> int:
 
 def _run(options: argparse.Namespace, *, resume: bool = False) -> int:
     repository_root, catalog, plan, repository = _planned_cases(options)
+    _require_validation_execution_resources(options, plan)
     store = ResultStore(repository_root)
     executor = Executor(catalog, store, repository_root)
     if resume:
@@ -304,12 +351,25 @@ def _analyze(options: argparse.Namespace) -> int:
         f"failed={report.summary['failed_series']} "
         f"total={report.summary['series_count']}"
     )
+    if report.family == "validation":
+        print(
+            f"field checks: parallel={report.summary['parallel_comparison_count']} "
+            f"invalid-timings={report.summary['invalid_timing_count']} "
+            f"analytic-failures={report.summary['analytic_final_failure_count']} "
+            f"scheme-failures={report.summary['scheme_pair_failure_count']}"
+        )
     print(f"json:         {written.json_path}")
     print(f"csv:          {written.csv_path}")
     if written.plot_path is not None:
         print(f"plot:         {written.plot_path}")
     elif written.plot_message is not None:
         print(f"plot:         {written.plot_message}")
+    if report.diagnostics:
+        print("diagnostics:")
+        for diagnostic in report.diagnostics[:20]:
+            print(f"  - {diagnostic}")
+        if len(report.diagnostics) > 20:
+            print(f"  - ... {len(report.diagnostics) - 20} more")
     return 0 if report.status == "passed" else 1
 
 

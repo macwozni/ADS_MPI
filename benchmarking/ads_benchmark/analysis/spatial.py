@@ -10,16 +10,14 @@ in a local estimate or regression.
 
 from __future__ import annotations
 
-from array import array
 from collections.abc import Iterable, Mapping, Sequence
-import csv
 from dataclasses import dataclass, field, replace
 from fractions import Fraction
 import hashlib
-import io
 import json
 import math
 from ..framework.model import PlannedCase
+from ..validation import FieldComparisonError, parse_regular_grid_csv
 from .base import AnalysisError, AnalysisReport
 
 
@@ -40,7 +38,7 @@ Vector3 = tuple[int, int, int]
 @dataclass(frozen=True)
 class _FieldSamples:
     points_per_axis: int
-    errors: array
+    errors: Sequence[float]
 
 
 @dataclass(frozen=True)
@@ -109,16 +107,6 @@ def _finite(value: object, field_name: str, *, positive: bool = False) -> float:
         raise AnalysisError(f"{field_name} must be finite")
     if positive and result <= 0.0:
         raise AnalysisError(f"{field_name} must be positive")
-    return result
-
-
-def _sample_float(value: str, field_name: str) -> float:
-    try:
-        result = float(value)
-    except ValueError as error:
-        raise AnalysisError(f"{field_name} must be a finite number") from error
-    if not math.isfinite(result):
-        raise AnalysisError(f"{field_name} must be finite")
     return result
 
 
@@ -197,115 +185,86 @@ def _extract_field_samples(
         document.get("analysis_artifacts"), f"{case_id}.analysis_artifacts"
     )
     artifact = artifacts.get("field_samples_csv")
-    if isinstance(artifact, str):
-        text = artifact
-    else:
-        read_text = getattr(artifact, "read_text", None)
-        if not callable(read_text):
-            raise AnalysisError(f"{case_id}: field_samples.csv is unavailable")
-        text = read_text()
-        if not isinstance(text, str):
-            raise AnalysisError(f"{case_id}: field_samples.csv is unavailable")
-
-    reader = csv.reader(io.StringIO(text, newline=""), strict=True)
+    if not isinstance(artifact, str) and not callable(
+        getattr(artifact, "read_text", None)
+    ):
+        raise AnalysisError(f"{case_id}: field_samples.csv is unavailable")
     try:
-        header = next(reader)
-    except (StopIteration, csv.Error) as error:
-        raise AnalysisError(f"{case_id}: field_samples.csv has no header") from error
-    expected_header = ["x", "y", "z", "numerical", "exact", "error"]
-    if header != expected_header:
+        field = parse_regular_grid_csv(
+            artifact, shape=points_per_axis, label=case_id
+        )
+    except FieldComparisonError as error:
+        raise AnalysisError(f"{case_id}: {error}") from error
+    if field.component_names != ("numerical", "exact", "error"):
         raise AnalysisError(
             f"{case_id}: field_samples.csv header must be "
-            + ",".join(expected_header)
+            "x,y,z,numerical,exact,error"
         )
 
-    count = points_per_axis**3
     spacing = 1.0 / (points_per_axis - 1)
     physical_time = float(final_time)
-    errors = array("d")
+    numerical_values = field.component_values("numerical")
+    exact_values = field.component_values("exact")
+    errors = field.component_values("error")
     observed_linf = 0.0
     sample_sum = 0.0
     sample_compensation = 0.0
     weighted_sum = 0.0
     weighted_compensation = 0.0
-    try:
-        for index, row in enumerate(reader):
-            if index >= count:
-                raise AnalysisError(
-                    f"{case_id}: field_samples.csv has more than {count} rows"
-                )
-            if len(row) != 6:
-                raise AnalysisError(
-                    f"{case_id}: field sample row {index + 2} must have six fields"
-                )
-            values = tuple(
-                _sample_float(value, f"{case_id}.field_samples[{index}][{column}]")
-                for column, value in enumerate(row)
+    for index, (numerical, exact, error_value) in enumerate(
+        zip(numerical_values, exact_values, errors, strict=True)
+    ):
+        x, y, z = field.coordinates(index)
+        ix, iy, iz = field.grid_index(index)
+        expected_coordinates = (ix * spacing, iy * spacing, iz * spacing)
+        if any(
+            not math.isclose(actual, expected, rel_tol=0.0, abs_tol=2.0e-14)
+            for actual, expected in zip(
+                (x, y, z), expected_coordinates, strict=True
             )
-            x, y, z, numerical, exact, error_value = values
-            plane = points_per_axis * points_per_axis
-            iz, remainder = divmod(index, plane)
-            iy, ix = divmod(remainder, points_per_axis)
-            expected_coordinates = (ix * spacing, iy * spacing, iz * spacing)
-            if any(
-                not math.isclose(
-                    actual, expected, rel_tol=0.0, abs_tol=2.0e-14
-                )
-                for actual, expected in zip(
-                    (x, y, z), expected_coordinates, strict=True
-                )
-            ):
-                raise AnalysisError(
-                    f"{case_id}: field sample row {index + 2} is not in the "
-                    "declared regular-grid order"
-                )
-            expected_exact = (
-                math.exp(-physical_time)
-                * math.cos(math.pi * x)
-                * math.cos(math.pi * y)
-                * math.cos(math.pi * z)
+        ):
+            raise AnalysisError(
+                f"{case_id}: field sample row {index + 2} is not in the "
+                "declared regular-grid order"
             )
-            if not math.isclose(
-                exact, expected_exact, rel_tol=2.0e-13, abs_tol=2.0e-14
-            ):
-                raise AnalysisError(
-                    f"{case_id}: field sample row {index + 2} has the wrong exact value"
-                )
-            if not math.isclose(
-                error_value,
-                numerical - exact,
-                rel_tol=2.0e-11,
-                abs_tol=5.0e-14,
-            ):
-                raise AnalysisError(
-                    f"{case_id}: field sample row {index + 2} has an inconsistent error"
-                )
-            errors.append(error_value)
-            observed_linf = max(observed_linf, abs(error_value))
-            corrected = numerical - sample_compensation
-            update = sample_sum + corrected
-            sample_compensation = (update - sample_sum) - corrected
-            sample_sum = update
-            corrected = (index + 1) * numerical - weighted_compensation
-            update = weighted_sum + corrected
-            weighted_compensation = (update - weighted_sum) - corrected
-            weighted_sum = update
-    except csv.Error as error:
-        raise AnalysisError(
-            f"{case_id}: malformed field_samples.csv: {error}"
-        ) from error
-
-    if len(errors) != count:
-        raise AnalysisError(
-            f"{case_id}: field_samples.csv has {len(errors)} rows, expected {count}"
+        expected_exact = (
+            math.exp(-physical_time)
+            * math.cos(math.pi * x)
+            * math.cos(math.pi * y)
+            * math.cos(math.pi * z)
         )
+        if not math.isclose(
+            exact, expected_exact, rel_tol=2.0e-13, abs_tol=2.0e-14
+        ):
+            raise AnalysisError(
+                f"{case_id}: field sample row {index + 2} has the wrong exact value"
+            )
+        if not math.isclose(
+            error_value,
+            numerical - exact,
+            rel_tol=2.0e-11,
+            abs_tol=5.0e-14,
+        ):
+            raise AnalysisError(
+                f"{case_id}: field sample row {index + 2} has an inconsistent error"
+            )
+        observed_linf = max(observed_linf, abs(error_value))
+        corrected = numerical - sample_compensation
+        update = sample_sum + corrected
+        sample_compensation = (update - sample_sum) - corrected
+        sample_sum = update
+        corrected = (index + 1) * numerical - weighted_compensation
+        update = weighted_sum + corrected
+        weighted_compensation = (update - weighted_sum) - corrected
+        weighted_sum = update
+
     if not math.isclose(
         observed_linf, linf_error, rel_tol=2.0e-11, abs_tol=5.0e-14
     ):
         raise AnalysisError(
             f"{case_id}: sampled Linf error differs from the domain result"
         )
-    observed_checksum = sample_sum + weighted_sum / (count + 1)
+    observed_checksum = sample_sum + weighted_sum / (field.point_count + 1)
     expected_checksum = _finite(
         domain.get("field_checksum"), f"{case_id}.field_checksum"
     )

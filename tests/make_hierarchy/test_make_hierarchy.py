@@ -299,6 +299,7 @@ class MakeFixture:
             "BENCHMARK_RESUME_PROFILE",
             "BENCHMARK_RUN_ID",
             "BENCHMARK_RUN_LOG",
+            "BENCHMARK_VALIDATION_PROFILE",
             "BUILD",
             "BUILD_ROOT",
             "COMPILER",
@@ -412,7 +413,7 @@ class MakeFixture:
         benchmarking_destination.mkdir()
         (benchmarking_destination / "GNUmakefile").write_text(
             ".PHONY: plan build smoke convergence h-convergence p-convergence "
-            "resume analyze self-test clean-build\n"
+            "validate resume analyze self-test clean-build\n"
             "plan self-test clean-build:\n"
             "\t@printf '%s\\t%s\\n' '$@' '$(PYTHON)' >> '$(BENCHMARK_RUN_LOG)'\n"
             "build:\n"
@@ -445,6 +446,12 @@ class MakeFixture:
             "\t@test -n '$(BENCHMARK_P_CONVERGENCE_PROFILE)'\n"
             "\t@printf '%s\\t%s\\t%s\\t%s\\n' '$@' '$(PYTHON)' '$(RUN_ID)' "
             "'$(BENCHMARK_P_CONVERGENCE_PROFILE)' >> '$(BENCHMARK_RUN_LOG)'\n"
+            "validate:\n"
+            "\t@test -n '$(CONFIG)'\n"
+            "\t@test -n '$(RUN_ID)'\n"
+            "\t@test -n '$(BENCHMARK_VALIDATION_PROFILE)'\n"
+            "\t@printf '%s\\t%s\\t%s\\t%s\\n' '$@' '$(PYTHON)' '$(RUN_ID)' "
+            "'$(BENCHMARK_VALIDATION_PROFILE)' >> '$(BENCHMARK_RUN_LOG)'\n"
             "analyze:\n"
             "\t@test -n '$(RUN_ID)'\n"
             "\t@printf '%s\\t%s\\n' '$@' '$(PYTHON)' >> '$(BENCHMARK_RUN_LOG)'\n",
@@ -1051,6 +1058,27 @@ class HierarchicalMakeTests(unittest.TestCase):
                     "hierarchy-h-resume",
                     "h-convergence-smoke",
                 ),
+            ],
+        )
+        self.assertEqual(self.fixture.tool_records(), [])
+
+    def test_validation_target_forwards_run_id_and_profile(self) -> None:
+        self.fixture.make(
+            "benchmark-validate",
+            variables={
+                "RUN_ID": "hierarchy-field-validation",
+                "BENCHMARK_VALIDATION_PROFILE": "validation-smoke",
+            },
+        )
+        self.assertEqual(
+            self.fixture.benchmark_records(),
+            [
+                (
+                    "validate",
+                    sys.executable,
+                    "hierarchy-field-validation",
+                    "validation-smoke",
+                )
             ],
         )
         self.assertEqual(self.fixture.tool_records(), [])
