@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import errno
 import json
 import math
 import os
@@ -23,6 +24,13 @@ from .validation import MAX_TIMEOUT_SECONDS, decimal_value
 
 RESULT_SCHEMA_VERSION = 1
 CASE_STATES = frozenset({"planned", "running", "passed", "failed", "timeout"})
+FAILURE_KINDS = frozenset(
+    {"numerical", "mpi", "timeout", "resource", "configuration"}
+)
+RETRYABLE_FAILURE_KINDS = frozenset({"mpi", "timeout", "resource"})
+_RESOURCE_ERRNOS = frozenset(
+    {errno.ENOMEM, errno.ENOSPC, errno.EMFILE, errno.ENFILE, errno.EAGAIN}
+)
 _REPEATED_TIMING_KEYS = {
     "wall_seconds",
     "metric",
@@ -101,6 +109,96 @@ def _timeout_text(value: str | bytes | None) -> str:
     if isinstance(value, bytes):
         return value.decode("utf-8", errors="replace")
     return value
+
+
+def _is_resource_exhaustion(error: BaseException) -> bool:
+    """Recognize bounded OS resource failures through wrapper exceptions."""
+
+    seen: set[int] = set()
+    current: BaseException | None = error
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, MemoryError):
+            return True
+        if isinstance(current, OSError) and current.errno in _RESOURCE_ERRNOS:
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
+def _failure_kind_for_exception(
+    error: BaseException, *, default: str
+) -> str:
+    if default not in FAILURE_KINDS:
+        raise ValueError(f"invalid default failure kind: {default}")
+    return "resource" if _is_resource_exhaustion(error) else default
+
+
+def _attempt_record(
+    status: Mapping[str, object], attempt: int
+) -> dict[str, object]:
+    """Keep retry history small; stdout/stderr remain the final attempt logs."""
+
+    state = status.get("state")
+    failure_kind = status.get("failure_kind")
+    error = status.get("error")
+    return_code = status.get("return_code")
+    return {
+        "attempt": attempt,
+        "state": state,
+        "failure_kind": failure_kind if state != "passed" else None,
+        "error": error if state != "passed" else None,
+        "return_code": return_code,
+    }
+
+
+def _valid_attempt_history(
+    value: object, final_status: Mapping[str, object]
+) -> bool:
+    if not isinstance(value, list) or not value:
+        return False
+    expected_keys = {
+        "attempt",
+        "state",
+        "failure_kind",
+        "error",
+        "return_code",
+    }
+    for index, record in enumerate(value, start=1):
+        if not isinstance(record, dict) or set(record) != expected_keys:
+            return False
+        if (
+            type(record.get("attempt")) is not int
+            or record.get("attempt") != index
+        ):
+            return False
+        state = record.get("state")
+        if state not in {"passed", "failed", "timeout"}:
+            return False
+        return_code = record.get("return_code")
+        if return_code is not None and type(return_code) is not int:
+            return False
+        if state == "passed":
+            if (
+                record.get("failure_kind") is not None
+                or record.get("error") is not None
+            ):
+                return False
+        else:
+            if record.get("failure_kind") not in FAILURE_KINDS:
+                return False
+            if not isinstance(record.get("error"), str) or not record.get("error"):
+                return False
+        if (
+            index < len(value)
+            and record.get("failure_kind") not in RETRYABLE_FAILURE_KINDS
+        ):
+            return False
+    final = value[-1]
+    return (
+        final.get("state") == final_status.get("state")
+        and final.get("return_code") == final_status.get("return_code")
+    )
 
 
 def _uses_repetitions(case: PlannedCase) -> bool:
@@ -199,6 +297,7 @@ class _ProcessAttempt:
     duration_seconds: float
     state: str
     error: str | None
+    failure_kind: str | None
 
 
 class Executor:
@@ -364,7 +463,7 @@ class Executor:
             return None, None
         if status is None or result is None:
             return None, status
-        if set(status) != {
+        passed_status_keys = {
             "schema_version",
             "case_id",
             "state",
@@ -373,7 +472,11 @@ class Executor:
             "duration_seconds",
             "return_code",
             "command",
-        } or (
+        }
+        if set(status) not in (
+            passed_status_keys,
+            passed_status_keys | {"attempts"},
+        ) or (
             type(status.get("schema_version")) is not int
             or status.get("schema_version") != RESULT_SCHEMA_VERSION
             or status.get("case_id") != case.case_id
@@ -389,6 +492,10 @@ class Executor:
             return None, status
         duration = _nonnegative_seconds(status.get("duration_seconds"))
         if duration is None:
+            return None, status
+        if "attempts" in status and not _valid_attempt_history(
+            status.get("attempts"), status
+        ):
             return None, status
         command = status.get("command")
         if (
@@ -418,9 +525,17 @@ class Executor:
         # (for example MPIEXEC), so offline analysis cannot reconstruct the
         # complete historical argv reliably.  The adapter payload is
         # deterministic from the frozen case and must remain its exact suffix.
+        historical_payload = tuple(command[-len(expected_payload) :])
+        # Detached-ref orchestration deliberately removes its owned worktrees
+        # after a successful comparison.  The persisted execution record binds
+        # the historical executable by digest, while offline verification can
+        # still require the adapter basename and every semantic payload
+        # argument without requiring that old absolute build path to exist.
         if (
             len(command) < len(expected_payload)
-            or tuple(command[-len(expected_payload) :]) != expected_payload
+            or Path(historical_payload[0]).name
+            != Path(expected_payload[0]).name
+            or historical_payload[1:] != expected_payload[1:]
         ):
             return None, status
         try:
@@ -560,6 +675,89 @@ class Executor:
         result, _ = self._verified_completion(case_directory, case)
         return result
 
+    def _execute_with_retries(
+        self,
+        run_id: str,
+        case: PlannedCase,
+        case_directory: Path,
+        *,
+        environment: Mapping[str, str] | None,
+        max_retries: int,
+    ) -> Mapping[str, object]:
+        attempts: list[dict[str, object]] = []
+        for attempt in range(1, max_retries + 2):
+            try:
+                status: Mapping[str, object] = self.execute(
+                    run_id,
+                    case,
+                    environment=environment,
+                    reuse_case_directory=True,
+                )
+            except ExecutionError:
+                recorded = self.store.read_case_json(
+                    case_directory, "status.json"
+                )
+                if recorded is None:
+                    raise
+                status = recorded
+
+            state = status.get("state")
+            if state not in {"passed", "failed", "timeout"}:
+                raise ExecutionError(
+                    f"case {case.case_id} returned invalid terminal state {state!r}"
+                )
+            failure_kind = status.get("failure_kind")
+            if state != "passed" and failure_kind not in FAILURE_KINDS:
+                raise ExecutionError(
+                    f"case {case.case_id} failure lacks a valid failure_kind"
+                )
+
+            attempts.append(_attempt_record(status, attempt))
+            final_status = dict(status)
+            if max_retries > 0:
+                final_status["attempts"] = list(attempts)
+                self.store.write_status(case_directory, final_status)
+
+            if state == "passed":
+                return final_status
+            if (
+                failure_kind not in RETRYABLE_FAILURE_KINDS
+                or attempt > max_retries
+            ):
+                return final_status
+
+        raise AssertionError("retry loop exhausted without a terminal status")
+
+    def execute_new_case_locked(
+        self,
+        run_id: str,
+        case: PlannedCase,
+        *,
+        environment: Mapping[str, str] | None = None,
+        max_retries: int = 0,
+    ) -> Mapping[str, object]:
+        """Execute one new case while the caller owns the run execution lock.
+
+        The A/B orchestrator must hold two run locks at once so that it can
+        alternate matched cases.  Keeping this small entry point in the
+        executor lets that orchestrator reuse the ordinary process, logging,
+        status, parsing, and retry implementation instead of growing a second
+        execution engine.
+        """
+
+        if type(max_retries) is not int or max_retries < 0:
+            raise ExecutionError("max_retries must be a nonnegative integer")
+        case_directory = self._prepare_case(
+            run_id, case, allow_existing=False
+        )
+        return self._execute_with_retries(
+            run_id,
+            case,
+            case_directory,
+            environment=environment,
+            max_retries=max_retries,
+        )
+
     def execute_frozen(
         self,
         run_id: str,
@@ -569,9 +767,12 @@ class Executor:
         environment: Mapping[str, str] | None = None,
         observer: Callable[[int, int, ExecutionOutcome], None] | None = None,
         preflight: bool = True,
+        max_retries: int = 0,
     ) -> ExecutionSummary:
         """Execute a manifest's cases, with verified result reuse on resume."""
 
+        if type(max_retries) is not int or max_retries < 0:
+            raise ExecutionError("max_retries must be a nonnegative integer")
         if preflight:
             self.preflight(cases, environment=environment)
         outcomes: list[ExecutionOutcome] = []
@@ -652,19 +853,13 @@ class Executor:
                         self.store.write_status(
                             case_directory, self._planned_status(case)
                         )
-                    try:
-                        status = self.execute(
-                            run_id,
-                            case,
-                            environment=environment,
-                            reuse_case_directory=True,
-                        )
-                    except ExecutionError:
-                        recorded = self.store.read_case_json(
-                            case_directory, "status.json"
-                        )
-                        assert recorded is not None
-                        status = recorded
+                    status = self._execute_with_retries(
+                        run_id,
+                        case,
+                        case_directory,
+                        environment=environment,
+                        max_retries=max_retries,
+                    )
                     outcome = ExecutionOutcome(
                         case=case, status=status, skipped=False
                     )
@@ -720,6 +915,8 @@ class Executor:
         case_directory: Path,
         runtime_environment: Mapping[str, str],
         timeout: float,
+        *,
+        nonzero_failure_kind: str,
     ) -> _ProcessAttempt:
         start = time.monotonic()
         stdout = ""
@@ -727,6 +924,7 @@ class Executor:
         return_code: int | None = None
         state = "failed"
         error_message: str | None = None
+        failure_kind: str | None = None
         process: subprocess.Popen[str] | None = None
         try:
             with self.store.open_case_directory(case_directory) as case_fd:
@@ -757,6 +955,7 @@ class Executor:
                     self._close_pipes(process)
                     return_code = process.returncode
                     state = "timeout"
+                    failure_kind = "timeout"
                     error_message = (
                         f"process exceeded timeout of {timeout:g} seconds"
                     )
@@ -765,6 +964,9 @@ class Executor:
                 self._terminate(process)
                 self._close_pipes(process)
                 return_code = process.returncode
+            failure_kind = _failure_kind_for_exception(
+                error, default="configuration"
+            )
             error_message = f"process execution failed: {error}"
         except BaseException:
             if process is not None:
@@ -776,6 +978,7 @@ class Executor:
         if error_message is None and return_code == 0:
             state = "passed"
         elif error_message is None:
+            failure_kind = nonzero_failure_kind
             error_message = f"process exited with status {return_code}"
         return _ProcessAttempt(
             stdout=stdout,
@@ -784,6 +987,7 @@ class Executor:
             duration_seconds=duration,
             state=state,
             error=error_message,
+            failure_kind=failure_kind,
         )
 
     def execute(
@@ -850,6 +1054,9 @@ class Executor:
             runtime_environment.update(openmp_environment)
         except Exception as error:
             # Construction may fail before stale artifacts were cleared.
+            failure_kind = _failure_kind_for_exception(
+                error, default="configuration"
+            )
             self.store.remove_result(case_directory)
             self.store.remove_generated_artifact(
                 case_directory, "field_samples.csv"
@@ -863,6 +1070,7 @@ class Executor:
                     "case_id": case.case_id,
                     "state": "failed",
                     "finished_at": _timestamp(),
+                    "failure_kind": failure_kind,
                     "error": f"command construction failed: {error}",
                 },
             )
@@ -887,6 +1095,7 @@ class Executor:
         return_code: int | None = None
         state = "passed"
         error_message: str | None = None
+        failure_kind: str | None = None
         final_parsed: Mapping[str, object] | None = None
         warmup_samples: list[float] = []
         measured_samples: list[float] = []
@@ -910,6 +1119,9 @@ class Executor:
                     )
                 except Exception as error:
                     state = "failed"
+                    failure_kind = _failure_kind_for_exception(
+                        error, default="configuration"
+                    )
                     error_message = (
                         f"{phase} {index}: artifact preparation failed: {error}"
                     )
@@ -920,12 +1132,16 @@ class Executor:
                     case_directory,
                     runtime_environment,
                     timeout,
+                    nonzero_failure_kind=(
+                        "mpi" if launcher.name == "mpi" else "numerical"
+                    ),
                 )
                 stdout = attempt.stdout
                 stderr = attempt.stderr
                 return_code = attempt.return_code
                 if attempt.state != "passed":
                     state = attempt.state
+                    failure_kind = attempt.failure_kind
                     error_message = f"{phase} {index}: {attempt.error}"
                     break
 
@@ -935,6 +1151,7 @@ class Executor:
                         raise TypeError("adapter result must be a mapping")
                 except Exception as error:
                     state = "failed"
+                    failure_kind = "numerical"
                     error_message = f"result parser failed: {error}"
                     break
                 try:
@@ -948,8 +1165,13 @@ class Executor:
                         raise ExecutionError(
                             "requested field_samples.csv is missing or not regular"
                         )
+                    if case.spec.sampling.write_samples:
+                        self.store.seal_generated_artifact(
+                            case_directory, "field_samples.csv"
+                        )
                 except Exception as error:
                     state = "failed"
+                    failure_kind = "numerical"
                     error_message = f"result validation failed: {error}"
                     break
 
@@ -958,6 +1180,7 @@ class Executor:
                         sample_seconds = _physical_step_seconds(parsed)
                     except Exception as error:
                         state = "failed"
+                        failure_kind = "numerical"
                         error_message = f"result measurement failed: {error}"
                         break
                     if phase == "warmup":
@@ -978,6 +1201,7 @@ class Executor:
 
         if state == "passed" and final_parsed is None:
             state = "failed"
+            failure_kind = "numerical"
             error_message = "execution produced no measured result"
 
         duration = time.monotonic() - start
@@ -1019,6 +1243,9 @@ class Executor:
                 self.store.write_result(case_directory, result)
             except Exception as error:
                 state = "failed"
+                failure_kind = _failure_kind_for_exception(
+                    error, default="numerical"
+                )
                 error_message = f"result serialization failed: {error}"
                 try:
                     self.store.remove_result(case_directory)
@@ -1036,6 +1263,7 @@ class Executor:
             "command": list(command),
         }
         if error_message is not None:
+            status["failure_kind"] = failure_kind or "numerical"
             status["error"] = error_message
         self.store.write_status(case_directory, status)
         return status

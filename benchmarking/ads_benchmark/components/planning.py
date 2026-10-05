@@ -264,6 +264,57 @@ class TemplateLauncher:
         return {}
 
 
+def describe_launcher(
+    launcher: DirectLauncher | MpiLauncher | TemplateLauncher,
+) -> dict[str, object]:
+    """Return bounded, shell-free launcher configuration for provenance.
+
+    Version probing deliberately belongs to ``framework.provenance``.  This
+    helper only exposes the stable configuration which selected the final
+    argv, without executing the launcher or depending on a benchmark case.
+    """
+
+    if isinstance(launcher, DirectLauncher):
+        return {
+            "name": launcher.name,
+            "kind": "direct",
+            "executable": None,
+            "arguments": ["{payload}"],
+            "available_mpi_slots": 1,
+            "available_cpu_slots": None,
+            "allocated_threads_per_rank": None,
+        }
+    if isinstance(launcher, MpiLauncher):
+        return {
+            "name": launcher.name,
+            "kind": "mpi",
+            "executable": launcher.executable,
+            "arguments": [
+                launcher.executable,
+                *launcher.extra_args,
+                launcher.rank_flag,
+                "{ranks}",
+                "{payload}",
+            ],
+            "available_mpi_slots": launcher.available_mpi_slots,
+            "available_cpu_slots": launcher.available_cpu_slots,
+            "allocated_threads_per_rank": None,
+        }
+    if isinstance(launcher, TemplateLauncher):
+        return {
+            "name": launcher.name,
+            "kind": "template",
+            "executable": launcher.arguments[0] if launcher.arguments else None,
+            "arguments": list(launcher.arguments),
+            "available_mpi_slots": launcher.available_mpi_slots,
+            "available_cpu_slots": launcher.available_cpu_slots,
+            "allocated_threads_per_rank": launcher.allocated_threads_per_rank,
+        }
+    raise ValueError(
+        f"launcher {type(launcher).__name__} has no provenance description"
+    )
+
+
 def _positive_environment_integer(name: str) -> int | None:
     text = os.environ.get(name)
     if text is None:

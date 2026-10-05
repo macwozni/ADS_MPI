@@ -313,7 +313,13 @@ class MakeFixture:
         for variable in (
             "ARGS",
             "BENCHMARK_ANALYZE_ARGS",
+            "BENCHMARK_BASELINE_REF",
+            "BENCHMARK_BASELINE_RESULTS",
             "BENCHMARK_BUILD_ROOT",
+            "BENCHMARK_CANDIDATE_REF",
+            "BENCHMARK_CANDIDATE_RESULTS",
+            "BENCHMARK_COMPARE_ARGS",
+            "BENCHMARK_COMPARE_PROFILE",
             "BENCHMARK_CONVERGENCE_PROFILE",
             "BENCHMARK_H_CONVERGENCE_PROFILE",
             "BENCHMARK_LAUNCHER_TEMPLATE",
@@ -326,8 +332,10 @@ class MakeFixture:
             "BENCHMARK_SHARD_COUNT",
             "BENCHMARK_SHARD_PROFILE",
             "BENCHMARK_SHARD_STRATEGY",
+            "BENCHMARK_STRONG_PROFILE",
             "BENCHMARK_VALIDATION_PROFILE",
             "BENCHMARK_WEAK_PROFILE",
+            "BENCHMARK_WORKSPACE_PARENT",
             "BUILD",
             "BUILD_ROOT",
             "COMPILER",
@@ -445,7 +453,7 @@ class MakeFixture:
         benchmarking_destination.mkdir()
         (benchmarking_destination / "GNUmakefile").write_text(
             ".PHONY: plan build smoke convergence h-convergence p-convergence "
-            "validate weak shard-plan run-shard merge-shards resume analyze "
+            "validate strong weak shard-plan run-shard merge-shards resume analyze compare "
             "self-test clean-build\n"
             "plan self-test clean-build:\n"
             "\t@printf '%s\\t%s\\n' '$@' '$(PYTHON)' >> '$(BENCHMARK_RUN_LOG)'\n"
@@ -485,6 +493,12 @@ class MakeFixture:
             "\t@test -n '$(BENCHMARK_VALIDATION_PROFILE)'\n"
             "\t@printf '%s\\t%s\\t%s\\t%s\\n' '$@' '$(PYTHON)' '$(RUN_ID)' "
             "'$(BENCHMARK_VALIDATION_PROFILE)' >> '$(BENCHMARK_RUN_LOG)'\n"
+            "strong:\n"
+            "\t@test -n '$(CONFIG)'\n"
+            "\t@test -n '$(RUN_ID)'\n"
+            "\t@test -n '$(BENCHMARK_STRONG_PROFILE)'\n"
+            "\t@printf '%s\\t%s\\t%s\\t%s\\n' '$@' '$(PYTHON)' '$(RUN_ID)' "
+            "'$(BENCHMARK_STRONG_PROFILE)' >> '$(BENCHMARK_RUN_LOG)'\n"
             "weak:\n"
             "\t@test -n '$(CONFIG)'\n"
             "\t@test -n '$(RUN_ID)'\n"
@@ -520,7 +534,13 @@ class MakeFixture:
             ">> '$(BENCHMARK_RUN_LOG)'\n"
             "analyze:\n"
             "\t@test -n '$(RUN_ID)'\n"
-            "\t@printf '%s\\t%s\\n' '$@' '$(PYTHON)' >> '$(BENCHMARK_RUN_LOG)'\n",
+            "\t@printf '%s\\t%s\\n' '$@' '$(PYTHON)' >> '$(BENCHMARK_RUN_LOG)'\n"
+            "compare:\n"
+            "\t@printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' "
+            "'$@' '$(PYTHON)' '$(BENCHMARK_BASELINE_RESULTS)' "
+            "'$(BENCHMARK_CANDIDATE_RESULTS)' '$(BENCHMARK_BASELINE_REF)' "
+            "'$(BENCHMARK_CANDIDATE_REF)' '$(RUN_ID)' "
+            "'$(BENCHMARK_COMPARE_PROFILE)' >> '$(BENCHMARK_RUN_LOG)'\n",
             encoding="utf-8",
         )
 
@@ -1054,6 +1074,20 @@ class HierarchicalMakeTests(unittest.TestCase):
         self.fixture.make(
             "benchmark-analyze", variables={"RUN_ID": "hierarchy-convergence"}
         )
+        self.fixture.make(
+            "benchmark-strong",
+            variables={
+                "RUN_ID": "hierarchy-strong",
+                "BENCHMARK_STRONG_PROFILE": "strong-scaling-smoke",
+            },
+        )
+        self.fixture.make(
+            "benchmark-compare",
+            variables={
+                "BENCHMARK_BASELINE_RESULTS": "benchmarks/baseline",
+                "BENCHMARK_CANDIDATE_RESULTS": "benchmarks/candidate",
+            },
+        )
         self.assertEqual(
             self.fixture.benchmark_records(),
             [
@@ -1069,6 +1103,49 @@ class HierarchicalMakeTests(unittest.TestCase):
                     "temporal-full",
                 ),
                 ("analyze", sys.executable),
+                (
+                    "strong",
+                    sys.executable,
+                    "hierarchy-strong",
+                    "strong-scaling-smoke",
+                ),
+                (
+                    "compare",
+                    sys.executable,
+                    str(self.fixture.root / "benchmarks" / "baseline"),
+                    str(self.fixture.root / "benchmarks" / "candidate"),
+                    "",
+                    "",
+                    "",
+                    "strong-scaling-smoke",
+                ),
+            ],
+        )
+        self.assertEqual(self.fixture.tool_records(), [])
+
+        self.fixture.clear_logs()
+        self.fixture.make(
+            "benchmark-compare",
+            variables={
+                "RUN_ID": "hierarchy-ab",
+                "BENCHMARK_BASELINE_REF": "baseline-ref",
+                "BENCHMARK_CANDIDATE_REF": "candidate-ref",
+                "BENCHMARK_COMPARE_PROFILE": "strong-scaling-smoke",
+            },
+        )
+        self.assertEqual(
+            self.fixture.benchmark_records(),
+            [
+                (
+                    "compare",
+                    sys.executable,
+                    "",
+                    "",
+                    "baseline-ref",
+                    "candidate-ref",
+                    "hierarchy-ab",
+                    "strong-scaling-smoke",
+                )
             ],
         )
         self.assertEqual(self.fixture.tool_records(), [])

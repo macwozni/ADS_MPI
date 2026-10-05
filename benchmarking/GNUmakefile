@@ -22,6 +22,15 @@ BENCHMARK_SHARD_COUNT ?=
 BENCHMARK_RESUME_PROFILE ?= $(BENCHMARK_CONVERGENCE_PROFILE)
 BENCHMARK_PLAN_ARGS ?=
 BENCHMARK_ANALYZE_ARGS ?=
+BENCHMARK_COMPARE_ARGS ?=
+BENCHMARK_BASELINE_RESULTS ?=
+BENCHMARK_CANDIDATE_RESULTS ?=
+BENCHMARK_BASELINE_RESULTS_PATH := $(if $(strip $(BENCHMARK_BASELINE_RESULTS)),$(abspath $(BENCHMARK_BASELINE_RESULTS)),)
+BENCHMARK_CANDIDATE_RESULTS_PATH := $(if $(strip $(BENCHMARK_CANDIDATE_RESULTS)),$(abspath $(BENCHMARK_CANDIDATE_RESULTS)),)
+BENCHMARK_BASELINE_REF ?=
+BENCHMARK_CANDIDATE_REF ?=
+BENCHMARK_COMPARE_PROFILE ?= strong-scaling-smoke
+BENCHMARK_WORKSPACE_PARENT ?=
 BENCHMARK_RUN_ID ?=
 RUN_ID ?=
 PARENT_RUN_ID ?=
@@ -335,10 +344,10 @@ endif
 
 PYTHON ?= python3
 
-.PHONY: all plan shard-plan merge-shards analyze self-test clean clean-build \
+.PHONY: all plan shard-plan merge-shards analyze compare self-test clean clean-build \
 	prepare-build-root validate-run-id validate-parent-run-id \
 	validate-shard-index validate-shard-runs validate-build-root \
-	validate-build-ownership help
+	validate-build-ownership validate-compare-inputs help
 
 all: self-test
 
@@ -409,6 +418,44 @@ analyze: validate-run-id
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m ads_benchmark.cli analyze \
 		--repository-root '$(ROOT_DIR)' --run-id '$(RUN_ID)' \
 		$(BENCHMARK_ANALYZE_ARGS)
+
+validate-compare-inputs:
+	@set -eu; \
+	baseline_ref='$(BENCHMARK_BASELINE_REF)'; \
+	candidate_ref='$(BENCHMARK_CANDIDATE_REF)'; \
+	baseline_results='$(BENCHMARK_BASELINE_RESULTS_PATH)'; \
+	candidate_results='$(BENCHMARK_CANDIDATE_RESULTS_PATH)'; \
+	if test -n "$$baseline_ref" || test -n "$$candidate_ref"; then \
+		test -n "$$baseline_ref" && test -n "$$candidate_ref" || { \
+			printf '%s\n' 'both BENCHMARK_BASELINE_REF and BENCHMARK_CANDIDATE_REF are required' >&2; exit 2; }; \
+		test -n '$(RUN_ID)' || { printf '%s\n' 'RUN_ID is required for ref orchestration' >&2; exit 2; }; \
+		test -z "$$baseline_results$$candidate_results" || { \
+			printf '%s\n' 'result directories and refs are mutually exclusive' >&2; exit 2; }; \
+	else \
+		test -n "$$baseline_results" && test -n "$$candidate_results" || { \
+			printf '%s\n' 'BENCHMARK_BASELINE_RESULTS and BENCHMARK_CANDIDATE_RESULTS are required' >&2; exit 2; }; \
+	fi
+
+compare: validate-compare-inputs
+	@set -eu; \
+	if test -n '$(BENCHMARK_BASELINE_REF)'; then \
+		MPIEXEC='$(if $(strip $(MPIEXEC)),$(MPIEXEC),mpiexec)' \
+		MPIEXEC_FLAGS='$(MPIEXEC_FLAGS)' \
+		MPI_NP_FLAG='$(if $(strip $(MPI_NP_FLAG)),$(MPI_NP_FLAG),-n)' \
+		PYTHONDONTWRITEBYTECODE=1 \
+		$(PYTHON) -m ads_benchmark.cli compare-refs \
+			--repository-root '$(ROOT_DIR)' \
+			--profile '$(BENCHMARK_COMPARE_PROFILE)' --run-id '$(RUN_ID)' \
+			--baseline-ref '$(BENCHMARK_BASELINE_REF)' \
+			--candidate-ref '$(BENCHMARK_CANDIDATE_REF)' \
+			$(if $(strip $(BENCHMARK_WORKSPACE_PARENT)),--workspace-parent '$(BENCHMARK_WORKSPACE_PARENT)') \
+			$(BENCHMARK_PLAN_ARGS) $(BENCHMARK_COMPARE_ARGS); \
+	else \
+		PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m ads_benchmark.cli compare \
+			--baseline-results '$(BENCHMARK_BASELINE_RESULTS_PATH)' \
+			--candidate-results '$(BENCHMARK_CANDIDATE_RESULTS_PATH)' \
+			$(BENCHMARK_COMPARE_ARGS); \
+	fi
 
 self-test:
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest discover \
@@ -519,6 +566,10 @@ help:
 		'      verify the manifest and retry only incomplete/failed cases' \
 		'  make analyze RUN_ID=NAME [BENCHMARK_ANALYZE_ARGS=--plot]' \
 		'      write the registered convergence JSON/CSV report and optional plot' \
+		'  make compare BENCHMARK_BASELINE_RESULTS=DIR BENCHMARK_CANDIDATE_RESULTS=DIR' \
+		'      compare full fields first, then robust timing summaries and ratios' \
+		'  make compare RUN_ID=NAME BENCHMARK_BASELINE_REF=REF_A BENCHMARK_CANDIDATE_REF=REF_B' \
+		'      use isolated detached worktrees and an alternating A/B case schedule' \
 		'  make show-build-config [BUILD=debug|release]' \
 		'      print the selected isolated build paths and toolchain' \
 		'  make clean-build' \

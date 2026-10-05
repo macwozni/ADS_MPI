@@ -20,6 +20,11 @@ portable MPI/OpenMP runtime policy. Expensive runs remain separate from
 scheduler launcher template, deterministic plan sharding, and verified shard
 result merging. It uses the same timing and complete-field correctness engine;
 weak-scaling ratios are not relabeled as strong-scaling speedup.
+Stage 8 binds every executed run to explicit build and machine provenance,
+classifies failures and retries only transient ones, and adds a numerics-first
+A/B comparison. It can compare two completed run directories or execute two
+Git refs from isolated detached worktrees without checking out or modifying the
+caller's working tree.
 
 ## Architecture and extension contract
 
@@ -72,12 +77,63 @@ analyzer. The temporal and spatial analyzers own only their scientific
 grouping, qualification, plateau handling, and reports; they do not reimplement
 process execution, resume, or result storage.
 
+There is one implementation owner for each cross-cutting responsibility:
+
+| Responsibility | Single implementation owner |
+| --- | --- |
+| Process lifecycle, process groups, timeout, retry, and failure classification | `framework/executor.py` (`Executor`) |
+| Capturing and publishing per-case stdout/stderr | `framework/executor.py`, through the store API |
+| Resume orchestration and exact identity checks | `cli.py`, delegating completed-case revalidation to `Executor` |
+| Contained atomic run/case/analysis storage | `framework/storage.py` (`ResultStore`) |
+| MPI/direct/scheduler argv and resource validation | registered launchers in `components/planning.py` |
+| Complete-field comparison | `validation/fields.py` |
+| Median, MAD, range, speedup, and efficiency primitives | `analysis/statistics.py` and `analysis/scaling.py` |
+
+Problem and experiment code depends on these owners; the owners do not import
+concrete problems. In particular, no analyzer starts processes, no adapter
+writes logs, and no comparison command implements a second result loader.
+
 The Fortran side follows the same separation. A registered
 `BenchmarkAdapter` supplies a manufactured-case descriptor and procedures
 for initialize, initial projection, one physical step, measurement, and
 cleanup. `benchmark_harness.F90` owns their ordering and the `1..N` time
 loop. The three main programs only register one adapter and invoke that shared
 harness.
+
+### How to add a benchmark
+
+A new benchmark over an already supported problem normally needs data and a
+small analysis extension, not a new runner:
+
+1. Add a strict profile in `configs/<profile>.json`, using the existing case
+   schema for family, exact case, time package, mesh, degrees, MPI/OpenMP,
+   sampling, measurement, build profile, and launcher.
+2. If it is a new experiment family, add one `FamilyDefinition` and its
+   analyzer to `catalog.py`. Reuse `CaseSpec`, `Planner`, `Executor`,
+   `ResultStore`, field validation, and statistics; do not add a parallel
+   process/log/resume path.
+3. Add focused self-tests for exact expansion, validation, stable case IDs,
+   synthetic analysis, and a no-write `make benchmark-plan
+   BENCHMARK_PROFILE=<profile>` check.
+4. Expose a root Make target only when the workflow needs more than the generic
+   plan, run/resume, analyze, or compare operations. Generated data must remain
+   under `benchmarks/<run-id>/`.
+
+### How to add a problem adapter
+
+1. Implement the structural `ProblemAdapter` protocol from
+   `framework/protocols.py`: `name`, `execution_ready`, `validate_case`,
+   `build_payload_command`, `parse_result`, and `validate_result`. Return an
+   argv vector, never shell syntax; leave process management, MPI wrapping,
+   OpenMP environment, timeout, logs, retry, and storage to `Executor`.
+2. Register the adapter once in `catalog.py`. Add an exact-case definition or
+   analyzer registration there only if the new problem actually needs one.
+3. Add the benchmark-local Fortran entry point/lifecycle adapter and its
+   isolated build rule in `benchmarking/GNUmakefile`; do not change a public
+   problem CLI merely to serve the benchmark.
+4. Test command construction, strict tagged-result parsing, planned/result
+   binding, domain validation, and registration with a fake or minimal
+   adapter. The generic planner and executor must remain unchanged.
 
 ## Manufactured transients
 
@@ -353,7 +409,7 @@ the selected repository `CONFIG`, compiler, and libraries. No MPI or MUMPS
 path is hardcoded. `make clean-benchmark-build` removes only marker-owned
 benchmark build/cache content, never benchmark results.
 
-## Frozen convergence runner and resume
+## Frozen runner, provenance, resume, and failures
 
 A new temporal run builds the release adapters, exclusively creates its run
 directory, writes the complete manifest, reads that manifest back through the
@@ -374,6 +430,19 @@ make benchmark-resume \
   BENCHMARK_RESUME_PROFILE=temporal-validation
 ```
 
+Transient retries are opt-in. The same public target can, for example, make up
+to two additional attempts after each retryable failure:
+
+```bash
+make benchmark-resume \
+  RUN_ID=stage3-validation \
+  BENCHMARK_RESUME_PROFILE=temporal-validation \
+  BENCHMARK_PLAN_ARGS='--max-retries 2'
+```
+
+`--max-retries` is also accepted by new-run and shard-run workflows through
+`BENCHMARK_PLAN_ARGS`; its default is zero.
+
 The same neutral resume variable applies to spatial runs, for example
 `BENCHMARK_RESUME_PROFILE=h-convergence-full` or
 `BENCHMARK_RESUME_PROFILE=p-convergence-full`. For compatibility,
@@ -382,13 +451,42 @@ is not set explicitly.
 
 Resume requires the current profile expansion, filters, commit SHA, dirty
 state, and content fingerprint of the nonignored worktree to match the frozen
-manifest. Thus two different dirty source trees are not treated as compatible.
+manifest. The expanded `config_hash` must match too. Thus two different dirty
+source trees are not treated as compatible.
 It holds an exclusive execution lock and skips a case only when `status.json`,
 `result.json`, both logs, the complete normalized configuration, and the
 adapter's domain result all revalidate. The tagged stdout is parsed again by
 the registered adapter and must reproduce the saved domain result exactly.
 Missing, failed, timed-out, incomplete, or tampered cases are retried; a
 different configuration or source state is refused.
+
+Every newly executed run also has a schema-versioned `execution.json`. Its
+`manifest_hash` binds it transitively to the manifest's full Git SHA, dirty
+flag, nonignored-worktree fingerprint, expanded configuration, and case set.
+The execution record adds:
+
+- compiler command and version, compile/link flags, debug/release profile, and
+  hashes of the executable and build stamps;
+- configured and linked MUMPS, BLAS, LAPACK, ScaLAPACK, ParMETIS, METIS,
+  GKlib, and other libraries, including the MUMPS version where discoverable;
+- MPI or scheduler launcher kind, executable, resolved path, argv, version,
+  and declared MPI/CPU/thread capacity;
+- hostname, OS, kernel, architecture, CPU model, physical/logical core counts,
+  physical memory, timestamp, timezone name, and UTC offset;
+- every planned rank grid and OpenMP binding tuple, plus relevant
+  `OMP_*`, `GOMP_*`, and `KMP_*` environment values.
+
+Each unavailable observation is represented explicitly as
+`{"value": null, "reason": "..."}`; the collector does not invent a version
+or hardware fact. Present observations use `{"value": ..., "reason": null}`.
+The record carries separate SHA-256 hashes for the build identity, execution
+compatibility identity, and whole record.
+
+A resume now needs both an exactly compatible frozen manifest and a valid
+`execution.json` whose build/launcher compatibility hash equals the current
+one. It still checks the exact launcher argv of every reusable passed case.
+Historical runs without execution provenance remain readable by offline
+analysis, but they cannot be resumed into a mixed build.
 
 Before any retry, every reusable completed case must also have the same full
 launcher command as the current resume request. A changed `MPIEXEC`, rank
@@ -401,6 +499,18 @@ The lower-level equivalents are `make -C benchmarking convergence ...` and
 `planned`, `running`, `passed`, `failed`, or `timeout`. A successful result is
 written atomically only after process exit, tagged-record parsing, and domain
 validation, so interruption cannot create an apparently completed case.
+Manifest, execution, status, result, log, and analysis publication is contained
+by `ResultStore` and uses atomic/exclusive writes as appropriate. A timeout
+terminates the whole process group and escalates to `SIGKILL` if necessary.
+
+Every unsuccessful attempt has exactly one `failure_kind`: `numerical`,
+`mpi`, `timeout`, `resource`, or `configuration`. Only `mpi`, `timeout`, and
+`resource` are retried; numerical and configuration failures stop immediately.
+When retries are enabled, final `status.json` retains a compact `attempts`
+history. `stdout.log` and `stderr.log` deliberately contain only the last
+attempt; for a repeated timing case that means the last launched process of
+that attempt. There is no per-attempt or per-sample log archive, so use the
+status history for earlier classifications.
 Before a new run directory is created, execution preflight validates every
 registered adapter/launcher command and the availability of both payload and
 launcher executables. Invalid decompositions are rejected during ordinary
@@ -916,6 +1026,107 @@ manifests reconstruct the exact parent plan; it does not silently accept a
 partial report. Generated results and shard manifests remain ignored runtime
 data and are not committed with the framework.
 
+## A/B numerical and performance comparison
+
+Compare two already completed run directories through the public root target:
+
+```bash
+make benchmark-compare \
+  BENCHMARK_BASELINE_RESULTS=benchmarks/baseline-run \
+  BENCHMARK_CANDIDATE_RESULTS=benchmarks/candidate-run
+```
+
+The loader applies the normal manifest, status, command, log, result, and
+adapter verification to both runs. It then requires identical configuration
+hashes, case-ID sets, and per-case normalized configurations, plus compatible
+machine, toolchain, external-library, launcher, topology, binding, and OpenMP
+execution provenance. Repository/build-root paths are normalized so isolated
+worktrees can be compared; the source refs themselves may differ.
+
+The decision is deliberately numerics-first. Every candidate field must pass
+the complete-field comparison against its baseline counterpart before any
+timing is classified. One numerical mismatch blocks timing for the whole
+comparison. For every eligible case the report retains each side's sample
+count, minimum, maximum, median, MAD, relative MAD, and range, then computes
+
+```text
+median_ratio = candidate_median / baseline_median
+```
+
+The default regression threshold is 5%, so a regression requires
+`median_ratio > 1.05`. The default minimum is five measured samples per side;
+the policy rejects values below three. Default complete-field tolerances are
+absolute `1e-11` and relative `1e-10`. Too few samples, a timing already marked
+unreliable, malformed timing, or missing legacy execution provenance produces
+`inconclusive`, never a green result or a regression. Legacy runs can therefore
+still be inspected numerically without pretending their timings are
+reproducible. Incompatible configuration or present-but-different execution
+provenance is reported as `incompatible`. Only
+`no-regression-detected` returns success; regression, numerical mismatch,
+incompatibility, and inconclusive evidence return a nonzero verdict.
+
+The default command prints a summary. Optional versioned JSON and flat CSV,
+as well as a different threshold, use the same public Make target:
+
+```bash
+make benchmark-compare \
+  BENCHMARK_BASELINE_RESULTS=benchmarks/baseline-run \
+  BENCHMARK_CANDIDATE_RESULTS=benchmarks/candidate-run \
+  BENCHMARK_COMPARE_ARGS='--regression-threshold 0.03 --minimum-samples 5 --output-json /tmp/ads-ab.json --output-csv /tmp/ads-ab.csv'
+```
+
+To build and run two refs on the same host without touching a dirty main
+worktree, supply refs instead of result directories:
+
+```bash
+make benchmark-compare \
+  RUN_ID=stage8-ab \
+  BENCHMARK_BASELINE_REF=HEAD~1 \
+  BENCHMARK_CANDIDATE_REF=HEAD \
+  BENCHMARK_COMPARE_PROFILE=strong-scaling-smoke \
+  BENCHMARK_PLAN_ARGS='--available-mpi-slots 2 --available-cpu-slots 2' \
+  BENCHMARK_COMPARE_ARGS='--max-retries 1'
+```
+
+The ref orchestrator resolves both refs once to full commit SHAs, creates two
+distinct detached marker-owned worktrees and separate isolated build roots,
+and never checks out the caller's tree. Matched cases use a deterministic
+case-level `AB, BA, AB, ...` order to reduce monotonic machine drift. This is
+not sample-level alternation: each side of a case still performs all of its own
+warmups followed by all of its measured samples. The two exclusive result runs
+are `benchmarks/stage8-ab-baseline/` and
+`benchmarks/stage8-ab-candidate/` for the example above. Both receive the
+versioned schedule; the candidate run receives the JSON/CSV comparison report.
+
+After both sides execute and the report is published, the orchestrator removes
+only clean, marker-verified worktrees through `git worktree remove`, even when
+the comparison verdict is regression or inconclusive. An execution error or
+other exception before report publication, and any modified worktree, is
+retained for diagnosis rather than force-deleted. Set
+`BENCHMARK_WORKSPACE_PARENT` to choose the temporary parent; otherwise the
+system temporary directory is used. The parent must be outside the benchmark
+repository so a retained diagnostic workspace cannot silently become an
+untracked change in the caller's tree.
+
+For a retained failure, first inspect the printed workspace and both worktrees.
+When they are clean and no longer needed, remove the two registered paths with
+`git worktree remove <workspace>/baseline` and
+`git worktree remove <workspace>/candidate`; then inspect the ownership marker,
+unlink that one marker, and remove the now-empty workspace with `rmdir`. Never
+use `git worktree remove --force`, `git worktree prune`, or a recursive delete
+as a substitute for resolving modified/unowned contents.
+
+The comparator reports MAD and range but deliberately applies a transparent
+median-ratio threshold rather than a statistical significance test. Very short
+or noisy measurements can therefore cross a tight threshold even for identical
+builds; choose a duration and sample count appropriate to the machine and treat
+the recorded dispersion as part of the verdict review.
+
+Result-directory inputs and ref inputs are mutually exclusive, and both sides
+of the selected mode are required. Use normal profile filters in
+`BENCHMARK_PLAN_ARGS` for a small local slice; a full cluster profile remains
+a manual allocation-aware workflow.
+
 ## Measurement and machine-readable results
 
 Legacy convergence and validation cases retain the exact single-invocation
@@ -998,6 +1209,7 @@ A written or executed plan owns:
 
 ```text
 benchmarks/<run-id>/manifest.json
+benchmarks/<run-id>/execution.json                    # executed runs
 benchmarks/<run-id>/cases/<case-id>/status.json
 benchmarks/<run-id>/cases/<case-id>/result.json
 benchmarks/<run-id>/cases/<case-id>/stdout.log
@@ -1008,16 +1220,36 @@ benchmarks/<run-id>/analysis/analysis.csv
 benchmarks/<run-id>/analysis/convergence.png           # only with --plot
 benchmarks/<run-id>/analysis/strong-scaling.png         # strong --plot
 benchmarks/<run-id>/analysis/weak-scaling.png           # weak --plot
+benchmarks/<ab-id>-baseline/analysis/ab-schedule.json    # ref A/B workflow
+benchmarks/<ab-id>-candidate/analysis/ab-schedule.json   # ref A/B workflow
+benchmarks/<ab-id>-candidate/analysis/comparison.json    # ref A/B report
+benchmarks/<ab-id>-candidate/analysis/comparison.csv     # ref A/B report
 benchmarks/<parent-run-id>/shards/shard-000000.json     # sharded plans
 ```
 
 The manifest contains the schema version, full expanded configuration and case
 IDs, configuration hash, Git commit, dirty-tree flag, and a SHA-256 content
 fingerprint of tracked and nonignored untracked worktree state. Ignored
-benchmark/build output is excluded. Writes are atomic and exclusive.
+benchmark/build output is excluded. Manifest, execution, result, and comparison
+documents carry a `schema_version` and a `kind`; status documents carry their
+own `schema_version` plus the exact case identity and state. Strict input readers
+for manifests, execution records, statuses, and results reject unknown, missing,
+or inconsistent identity fields. Directory-mode A/B outputs are
+written only when explicit `--output-json`/`--output-csv` paths are passed
+through `BENCHMARK_COMPARE_ARGS`.
+
+Writes are atomic and exclusive.
 Descriptor-relative operations reject traversal, symlink swaps,
 sibling-prefix tricks, and adoption of unrelated directories, including the
 legacy prototype.
+
+The entire `benchmarks/` tree is ignored runtime data, not versioned source.
+Do not stage manifests, fields, logs, reports, or comparison runs. Neither
+`make clean` nor `make clean-benchmark-build` deletes a run; the latter removes
+only marker-owned framework caches and isolated builds. There is deliberately
+no broad results-clean target and no `rm -rf benchmarks` workflow. Remove an
+individual run manually only after identifying that exact run directory and
+deciding its data is no longer needed.
 
 ## Self-tests
 
@@ -1028,7 +1260,14 @@ make benchmark-self-test
 The dependency-free suite covers the 792-case temporal plan, all six spatial
 profiles, both validation matrices, both strong-scaling matrices and their
 exact case counts, all three weak profiles and their measurement/helper
-counts, weak-efficiency and same-global-mesh field gates, launcher-template
+counts, the final 792/12,960/14,985 configuration audit across all three
+problems, DG/PR/BE, eight temporal levels, 11 temporal and 15 scaling degree
+pairs, strong/weak, X/Y/Z decomposition, and OMP `1,2,4,8`, plus case-ID
+collision and controlled-run-path checks, execution provenance and explicit
+unavailable observations,
+resume build identity, failure classification and bounded retry histories,
+numerics-first A/B policy, detached-worktree ownership and alternating
+case scheduling, weak-efficiency and same-global-mesh field gates, launcher-template
 expansion and resource rejection, deterministic index/group sharding, and
 missing/duplicate/conflicting shard rejection, stable
 vector-preserving identifiers,
@@ -1040,5 +1279,7 @@ temporal, spatial, full-field, strong-scaling, and weak-scaling series, raw
 repeated samples, MAD/speedup/efficiency, short-region rejection, local perturbations, separation
 failures, plateau and corrupted convergence inputs, fake-adapter extensibility,
 and marker-guarded Make cleanup. These tests exercise framework contracts
-without adding costly numerical benchmark runs to `make test` or replacing
-the separate `make test-performance` regression gate.
+without launching the costly full numerical matrices. The ordinary
+`make test` target does not execute full benchmark profiles; real benchmark
+runs remain explicit, and the separate short `make test-performance` gate is
+not a substitute for them.

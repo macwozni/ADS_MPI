@@ -75,6 +75,15 @@ override BENCHMARK_LAUNCHER_TEMPLATE := $(value BENCHMARK_LAUNCHER_TEMPLATE)
 export BENCHMARK_LAUNCHER_TEMPLATE
 BENCHMARK_PLAN_ARGS ?=
 BENCHMARK_ANALYZE_ARGS ?=
+BENCHMARK_COMPARE_ARGS ?=
+BENCHMARK_BASELINE_RESULTS ?=
+BENCHMARK_CANDIDATE_RESULTS ?=
+BENCHMARK_BASELINE_RESULTS_PATH := $(if $(strip $(BENCHMARK_BASELINE_RESULTS)),$(abspath $(BENCHMARK_BASELINE_RESULTS)),)
+BENCHMARK_CANDIDATE_RESULTS_PATH := $(if $(strip $(BENCHMARK_CANDIDATE_RESULTS)),$(abspath $(BENCHMARK_CANDIDATE_RESULTS)),)
+BENCHMARK_BASELINE_REF ?=
+BENCHMARK_CANDIDATE_REF ?=
+BENCHMARK_COMPARE_PROFILE ?= strong-scaling-smoke
+BENCHMARK_WORKSPACE_PARENT ?=
 PARENT_RUN_ID ?=
 SHARD_INDEX ?=
 SHARD_RUNS ?=
@@ -127,7 +136,7 @@ TEST_OPTIONS = \
 	benchmark-h-convergence benchmark-p-convergence \
 	benchmark-validate benchmark-strong benchmark-weak \
 	benchmark-shard-plan benchmark-run-shard benchmark-merge-shards \
-	benchmark-resume benchmark-analyze benchmark-self-test \
+	benchmark-resume benchmark-analyze benchmark-compare benchmark-self-test \
 	clean-benchmark-build \
 	test check test-build test-layout test-src test-problems test-driver \
 	test-build-system test-coverage _test-coverage-report validate-coverage-tools \
@@ -289,6 +298,20 @@ benchmark-analyze:
 	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
 		PYTHON="$(PYTHON)" RUN_ID="$(RUN_ID)" \
 		BENCHMARK_ANALYZE_ARGS="$(BENCHMARK_ANALYZE_ARGS)" analyze
+
+benchmark-compare:
+	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
+		CONFIG="$(CONFIG_PATH)" PYTHON="$(PYTHON)" \
+		MPIEXEC="$(MPIEXEC)" MPIEXEC_FLAGS="$(MPIEXEC_FLAGS)" \
+		MPI_NP_FLAG="$(MPI_NP_FLAG)" RUN_ID="$(RUN_ID)" \
+		BENCHMARK_BASELINE_RESULTS="$(BENCHMARK_BASELINE_RESULTS_PATH)" \
+		BENCHMARK_CANDIDATE_RESULTS="$(BENCHMARK_CANDIDATE_RESULTS_PATH)" \
+		BENCHMARK_BASELINE_REF="$(BENCHMARK_BASELINE_REF)" \
+		BENCHMARK_CANDIDATE_REF="$(BENCHMARK_CANDIDATE_REF)" \
+		BENCHMARK_COMPARE_PROFILE="$(BENCHMARK_COMPARE_PROFILE)" \
+		BENCHMARK_WORKSPACE_PARENT="$(BENCHMARK_WORKSPACE_PARENT)" \
+		BENCHMARK_PLAN_ARGS="$(BENCHMARK_PLAN_ARGS)" \
+		BENCHMARK_COMPARE_ARGS="$(BENCHMARK_COMPARE_ARGS)" compare
 
 benchmark-self-test:
 	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
@@ -625,6 +648,10 @@ targets help:
 		'                                      verify every shard and analyze the complete parent plan' \
 		'  make benchmark-resume RUN_ID=NAME   verify and resume that frozen run' \
 		'  make benchmark-analyze RUN_ID=NAME  write registered JSON/CSV analysis reports' \
+		'  make benchmark-compare BENCHMARK_BASELINE_RESULTS=DIR BENCHMARK_CANDIDATE_RESULTS=DIR' \
+		'                                      compare complete runs, numerics before timings' \
+		'  make benchmark-compare RUN_ID=NAME BENCHMARK_BASELINE_REF=REF_A BENCHMARK_CANDIDATE_REF=REF_B' \
+		'                                      build detached refs and execute them alternately' \
 		'  make benchmark-self-test           planner/engine contract tests' \
 		'  make clean-benchmark-build          clean framework build/cache only' \
 		'  Generated plans and results live under ignored benchmarks/<run-id>.' \

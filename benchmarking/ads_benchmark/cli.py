@@ -8,6 +8,7 @@ from contextlib import ExitStack
 import json
 from pathlib import Path
 import shlex
+import subprocess
 import sys
 
 from .analysis import (
@@ -18,8 +19,20 @@ from .analysis import (
     write_run_report,
 )
 from .catalog import build_catalog
+from .comparison import (
+    ComparisonPolicy,
+    ComparisonReport,
+    RunSnapshot,
+    compare_snapshots,
+)
+from .comparison_io import (
+    comparison_csv_text,
+    comparison_json_text,
+    write_comparison_file,
+)
+from .components.planning import describe_launcher
 from .framework.config import load_profiles
-from .framework.errors import BenchmarkError, ValidationError
+from .framework.errors import BenchmarkError, ExecutionError, ValidationError
 from .framework.executor import ExecutionOutcome, Executor
 from .framework.filtering import (
     CaseFilters,
@@ -35,7 +48,11 @@ from .framework.planner import (
     frozen_plan_from_manifest,
     validate_resume_request,
 )
-from .framework.provenance import inspect_repository
+from .framework.provenance import (
+    collect_execution_provenance,
+    comparison_environment_identity,
+    inspect_repository,
+)
 from .framework.registry import Catalog
 from .framework.sharding import (
     ValidatedShardSet,
@@ -44,7 +61,8 @@ from .framework.sharding import (
     shard_subset_manifest,
     validate_shard_manifests,
 )
-from .framework.storage import ResultStore
+from .framework.storage import ResultStore, validate_identifier
+from .orchestration import OwnedWorktreeWorkspace, alternating_schedule
 
 
 DEFAULT_REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -106,6 +124,34 @@ def _add_selection_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_comparison_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--regression-threshold",
+        type=float,
+        default=0.05,
+        help="candidate/baseline median ratio margin (default: 0.05)",
+    )
+    parser.add_argument(
+        "--minimum-samples",
+        type=_positive_integer,
+        default=5,
+        help="minimum measured samples per side; values below 3 are refused",
+    )
+    parser.add_argument(
+        "--absolute-field-tolerance", type=float, default=1.0e-11
+    )
+    parser.add_argument(
+        "--relative-field-tolerance", type=float, default=1.0e-10
+    )
+    parser.add_argument("--output-json", type=Path)
+    parser.add_argument("--output-csv", type=Path)
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="print the complete versioned comparison report",
+    )
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -147,6 +193,12 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="resume this run ID instead of creating a new run",
     )
+    run.add_argument(
+        "--max-retries",
+        type=_nonnegative_integer,
+        default=0,
+        help="retry transient MPI, timeout, or resource failures",
+    )
     resume = subparsers.add_parser(
         "resume", help="resume an existing compatible frozen run manifest"
     )
@@ -155,6 +207,12 @@ def _parser() -> argparse.ArgumentParser:
         "--run-id",
         required=True,
         help="existing directory name below benchmarks/",
+    )
+    resume.add_argument(
+        "--max-retries",
+        type=_nonnegative_integer,
+        default=0,
+        help="retry transient MPI, timeout, or resource failures",
     )
     analyze = subparsers.add_parser(
         "analyze", help="analyze a complete frozen benchmark run"
@@ -195,6 +253,9 @@ def _parser() -> argparse.ArgumentParser:
     run_shard.add_argument("--shard-index", required=True, type=_nonnegative_integer)
     run_shard.add_argument("--run-id", required=True)
     run_shard.add_argument("--resume", action="store_true")
+    run_shard.add_argument(
+        "--max-retries", type=_nonnegative_integer, default=0
+    )
     run_shard.add_argument("--available-mpi-slots", type=_positive_integer)
     run_shard.add_argument("--available-cpu-slots", type=_positive_integer)
     run_shard.add_argument("--launcher-template")
@@ -213,6 +274,26 @@ def _parser() -> argparse.ArgumentParser:
         help="completed isolated shard run ID; repeat for every shard",
     )
     merge.add_argument("--plot", action="store_true")
+    compare = subparsers.add_parser(
+        "compare", help="compare two complete benchmark result directories"
+    )
+    compare.add_argument("--baseline-results", type=Path, required=True)
+    compare.add_argument("--candidate-results", type=Path, required=True)
+    _add_comparison_arguments(compare)
+    compare_refs = subparsers.add_parser(
+        "compare-refs",
+        help="build detached refs and execute matched cases in alternating order",
+    )
+    _add_selection_arguments(compare_refs)
+    compare_refs.set_defaults(profile="strong-scaling-smoke")
+    compare_refs.add_argument("--run-id", required=True)
+    compare_refs.add_argument("--baseline-ref", required=True)
+    compare_refs.add_argument("--candidate-ref", required=True)
+    compare_refs.add_argument("--workspace-parent", type=Path)
+    compare_refs.add_argument(
+        "--max-retries", type=_nonnegative_integer, default=0
+    )
+    _add_comparison_arguments(compare_refs)
     return parser
 
 
@@ -356,6 +437,54 @@ def _preview_command(
     return shlex.join(command)
 
 
+def _execution_record(
+    repository_root: Path,
+    catalog: Catalog,
+    manifest: Mapping[str, object],
+    cases: Sequence[PlannedCase],
+) -> dict[str, object]:
+    """Collect the exact build and launcher identity for an executable run."""
+
+    try:
+        launcher_descriptions = [
+            describe_launcher(catalog.launchers.get(name))
+            for name in sorted({case.spec.launcher for case in cases})
+        ]
+        return collect_execution_provenance(
+            repository_root,
+            manifest,
+            launcher_descriptions=launcher_descriptions,
+        )
+    except BenchmarkError:
+        raise
+    except Exception as error:
+        raise ValidationError(
+            f"cannot collect execution provenance: {error}"
+        ) from error
+
+
+def _require_execution_compatibility(
+    store: ResultStore,
+    run_id: str,
+    current: Mapping[str, object],
+) -> None:
+    """Refuse legacy or rebuilt resumes before touching any case artifacts."""
+
+    try:
+        persisted = store.read_execution_record(run_id)
+    except BenchmarkError as error:
+        raise ValidationError(
+            f"resume requires a valid execution.json build identity: {error}"
+        ) from error
+    if persisted.get("execution_compatibility_hash") != current.get(
+        "execution_compatibility_hash"
+    ):
+        raise ValidationError(
+            "resume build/launcher identity mismatch; refusing to mix "
+            "executables or launcher configurations in one run"
+        )
+
+
 def _plan(options: argparse.Namespace) -> int:
     repository_root, catalog, plan, repository = _planned_cases(options)
 
@@ -406,6 +535,7 @@ def _execute_frozen_run(
     resume: bool,
     parent_run_id: str | None = None,
     shard_index: int | None = None,
+    max_retries: int = 0,
 ) -> int:
     """Execute one already persisted and round-tripped immutable manifest."""
 
@@ -429,9 +559,11 @@ def _execute_frozen_run(
             print(f"[{position}/{total}] {case_id}: passed")
         else:
             detail = outcome.status.get("error")
+            failure_kind = outcome.status.get("failure_kind")
+            category = f"/{failure_kind}" if failure_kind else ""
             suffix = f" ({detail})" if detail else ""
             print(
-                f"[{position}/{total}] {case_id}: {state}{suffix}",
+                f"[{position}/{total}] {case_id}: {state}{category}{suffix}",
                 file=sys.stderr,
             )
 
@@ -441,6 +573,7 @@ def _execute_frozen_run(
         resume=resume,
         observer=report,
         preflight=False,
+        max_retries=max_retries,
     )
     successful = summary.passed + summary.skipped
     print(
@@ -450,6 +583,26 @@ def _execute_frozen_run(
     if resume:
         print(
             f"resume:       skipped={summary.skipped} retried={case_count - summary.skipped}"
+        )
+    failures_by_kind: dict[str, int] = {}
+    for outcome in summary.outcomes:
+        kind = outcome.status.get("failure_kind")
+        if outcome.status.get("state") != "passed" and isinstance(kind, str):
+            failures_by_kind[kind] = failures_by_kind.get(kind, 0) + 1
+    if failures_by_kind:
+        print(
+            "failures:     "
+            + " ".join(
+                f"{name}={failures_by_kind.get(name, 0)}"
+                for name in (
+                    "numerical",
+                    "mpi",
+                    "timeout",
+                    "resource",
+                    "configuration",
+                )
+            ),
+            file=sys.stderr,
         )
     return 0 if summary.failed == 0 else 1
 
@@ -467,7 +620,14 @@ def _run(options: argparse.Namespace, *, resume: bool = False) -> int:
         # execution-only check.
         executor.preflight(plan.cases)
         manifest = plan.manifest(run_id=options.run_id, repository=repository)
-        run_path = store.create_run(options.run_id, manifest)
+        execution = _execution_record(
+            repository_root, catalog, manifest, plan.cases
+        )
+        run_path = store.create_run(
+            options.run_id,
+            manifest,
+            execution_record=execution,
+        )
 
     # Execution always uses a strict round-trip through the persisted manifest;
     # the in-memory planner result is used only as a compatibility assertion.
@@ -477,12 +637,22 @@ def _run(options: argparse.Namespace, *, resume: bool = False) -> int:
     validate_resume_request(frozen, plan, repository)
     if resume:
         executor.preflight(frozen.cases)
+        current_execution = _execution_record(
+            repository_root,
+            catalog,
+            store.read_manifest(options.run_id),
+            frozen.cases,
+        )
+        _require_execution_compatibility(
+            store, options.run_id, current_execution
+        )
 
     return _execute_frozen_run(
         executor,
         frozen,
         run_path=run_path,
         resume=resume,
+        max_retries=options.max_retries,
     )
 
 
@@ -572,6 +742,428 @@ def _analyze(options: argparse.Namespace) -> int:
             report, store, options.run_id, plot=options.plot
         )
     return _print_analysis(options.run_id, report, written)
+
+
+def _comparison_policy(options: argparse.Namespace) -> ComparisonPolicy:
+    return ComparisonPolicy(
+        regression_threshold=options.regression_threshold,
+        minimum_samples=options.minimum_samples,
+        absolute_field_tolerance=options.absolute_field_tolerance,
+        relative_field_tolerance=options.relative_field_tolerance,
+    )
+
+
+def _comparison_run(
+    path: Path, catalog: Catalog
+) -> tuple[Path, str, ResultStore, FrozenPlan, Executor]:
+    requested = path.absolute()
+    if requested.is_symlink():
+        raise ValidationError(
+            f"comparison result directory must not be a symlink: {requested}"
+        )
+    try:
+        resolved = requested.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise ValidationError(
+            f"comparison result directory is missing or unsafe: {requested}: {error}"
+        ) from error
+    if not resolved.is_dir() or resolved.parent.name != "benchmarks":
+        raise ValidationError(
+            "comparison inputs must be run directories in a repository's "
+            f"benchmarks/ tree: {resolved}"
+        )
+    repository_root = resolved.parent.parent
+    store = ResultStore(repository_root)
+    run_id = validate_identifier(resolved.name, "comparison run_id")
+    if store.results_root / run_id != resolved:
+        raise ValidationError(
+            f"comparison result directory has an invalid layout: {resolved}"
+        )
+    frozen = frozen_plan_from_manifest(store.read_manifest(run_id), catalog)
+    if frozen.run_id != run_id:
+        raise ValidationError(
+            f"comparison run ID does not match its manifest: {resolved}"
+        )
+    return resolved, run_id, store, frozen, Executor(
+        catalog, store, repository_root
+    )
+
+
+def _print_comparison(
+    report: ComparisonReport,
+    options: argparse.Namespace,
+    *,
+    persisted_json: Path | None = None,
+    persisted_csv: Path | None = None,
+) -> int:
+    json_text = comparison_json_text(report)
+    csv_text = comparison_csv_text(report)
+    if options.output_json is not None:
+        persisted_json = write_comparison_file(options.output_json, json_text)
+    if options.output_csv is not None:
+        persisted_csv = write_comparison_file(options.output_csv, csv_text)
+    if options.json:
+        print(json_text, end="")
+    else:
+        print(f"status:       {report.status}")
+        print(f"baseline:     {report.baseline.get('run_id')}")
+        print(f"candidate:    {report.candidate.get('run_id')}")
+        print(
+            f"numerical:    checked={report.summary.get('numerically_checked_cases', 0)} "
+            f"failed={report.summary.get('numerical_failure_count', 0)}"
+        )
+        print(
+            f"timings:      compared={report.summary.get('compared_timing_count', 0)} "
+            f"regressions={report.summary.get('regression_count', 0)} "
+            f"inconclusive={report.summary.get('inconclusive_timing_count', 0)}"
+        )
+        if persisted_json is not None:
+            print(f"json:         {persisted_json}")
+        if persisted_csv is not None:
+            print(f"csv:          {persisted_csv}")
+        if report.diagnostics:
+            print("diagnostics:")
+            for diagnostic in report.diagnostics[:20]:
+                print(f"  - {diagnostic}")
+            if len(report.diagnostics) > 20:
+                print(f"  - ... {len(report.diagnostics) - 20} more")
+    return 0 if report.status == "no-regression-detected" else 1
+
+
+def _compare(options: argparse.Namespace) -> int:
+    catalog = _catalog(options)
+    baseline = _comparison_run(options.baseline_results, catalog)
+    candidate = _comparison_run(options.candidate_results, catalog)
+    if baseline[0] == candidate[0]:
+        raise ValidationError(
+            "baseline and candidate must be two distinct result directories"
+        )
+
+    locations = sorted((baseline, candidate), key=lambda item: str(item[0]))
+    snapshots: dict[str, RunSnapshot] = {}
+    by_path = {baseline[0]: "baseline", candidate[0]: "candidate"}
+    with ExitStack() as stack:
+        for _, run_id, store, _, _ in locations:
+            stack.enter_context(store.execution_lock(run_id))
+        for path, run_id, store, frozen, executor in locations:
+            results = load_run_results(executor, run_id, frozen.cases)
+            execution = store.read_execution_record(run_id, missing_ok=True)
+            identity = (
+                comparison_environment_identity(execution)
+                if execution is not None
+                else None
+            )
+            snapshots[by_path[path]] = RunSnapshot.from_loaded(
+                frozen,
+                results,
+                execution_provenance=identity,
+            )
+        report = compare_snapshots(
+            snapshots["baseline"],
+            snapshots["candidate"],
+            _comparison_policy(options),
+        )
+    return _print_comparison(report, options)
+
+
+def _ref_plan(
+    repository_root: Path,
+    options: argparse.Namespace,
+    catalog: Catalog,
+) -> tuple[Plan, RepositoryState]:
+    """Expand one ref's tracked profile without consulting the main tree."""
+
+    profiles = load_profiles(repository_root / "benchmarking" / "configs")
+    plan = Planner(profiles, catalog).plan(
+        options.profile, _filters(options, catalog)
+    )
+    return plan, inspect_repository(repository_root)
+
+
+def _require_matched_ref_plans(baseline: Plan, candidate: Plan) -> None:
+    if baseline.config_hash != candidate.config_hash:
+        raise ValidationError(
+            "baseline and candidate refs expand to different configuration hashes"
+        )
+    baseline_cases = {
+        case.case_id: case.spec.to_dict() for case in baseline.cases
+    }
+    candidate_cases = {
+        case.case_id: case.spec.to_dict() for case in candidate.cases
+    }
+    if baseline_cases != candidate_cases:
+        raise ValidationError(
+            "baseline and candidate refs do not expand to identical case sets"
+        )
+
+
+def _build_ref_cases(
+    repository_root: Path,
+    cases: Sequence[PlannedCase],
+    *,
+    label: str,
+) -> None:
+    """Build only selected adapter/profile combinations in an owned worktree."""
+
+    profiles = sorted({case.spec.build_profile for case in cases})
+    problems_by_profile = {
+        profile: sorted(
+            {
+                case.spec.problem
+                for case in cases
+                if case.spec.build_profile == profile
+            }
+        )
+        for profile in profiles
+    }
+    for profile in profiles:
+        command = [
+            "make",
+            "--no-print-directory",
+            "-j1",
+            "-C",
+            str(repository_root / "benchmarking"),
+            f"CONFIG={repository_root / 'm_options'}",
+            f"BUILD={profile}",
+            f"BENCHMARK_BUILD_ROOT={repository_root / 'benchmarking' / 'build'}",
+            *(f"build-{problem}" for problem in problems_by_profile[profile]),
+        ]
+        print(
+            f"build {label}: profile={profile} "
+            f"problems={','.join(problems_by_profile[profile])}",
+            flush=True,
+        )
+        try:
+            completed = subprocess.run(command, check=False)
+        except OSError as error:
+            raise ExecutionError(
+                f"cannot start {label} benchmark build: {error}"
+            ) from error
+        if completed.returncode != 0:
+            raise ExecutionError(
+                f"{label} benchmark build failed with status "
+                f"{completed.returncode}"
+            )
+
+
+def _schedule_document(
+    options: argparse.Namespace,
+    pair: object,
+    schedule: Sequence[object],
+) -> str:
+    # Attribute access stays local so orchestration owns the WorktreePair type.
+    document = {
+        "schema_version": 1,
+        "kind": "ads-benchmark-ab-schedule",
+        "run_id": options.run_id,
+        "profile": options.profile,
+        "baseline": {
+            "run_id": f"{options.run_id}-baseline",
+            "ref": options.baseline_ref,
+            "commit": pair.baseline_commit,
+        },
+        "candidate": {
+            "run_id": f"{options.run_id}-candidate",
+            "ref": options.candidate_ref,
+            "commit": pair.candidate_commit,
+        },
+        "alternation": "case-level AB/BA; repetitions remain contiguous within a case",
+        "entries": [entry.to_dict() for entry in schedule],
+    }
+    return json.dumps(
+        document,
+        indent=2,
+        sort_keys=True,
+        ensure_ascii=True,
+        allow_nan=False,
+    ) + "\n"
+
+
+def _compare_refs(options: argparse.Namespace) -> int:
+    """Build two detached refs, alternate matched cases, and compare them."""
+
+    if options.config_dir is not None:
+        raise ValidationError(
+            "compare-refs reads each ref's tracked benchmarking/configs; "
+            "--config-dir is not supported"
+        )
+    repository_root = options.repository_root.resolve()
+    baseline_run_id = validate_identifier(
+        f"{options.run_id}-baseline", "baseline run_id"
+    )
+    candidate_run_id = validate_identifier(
+        f"{options.run_id}-candidate", "candidate run_id"
+    )
+    if baseline_run_id == candidate_run_id:
+        raise ValidationError("A/B run identifiers must be distinct")
+
+    catalog = _catalog(options)
+    owner = OwnedWorktreeWorkspace(
+        repository_root,
+        run_id=options.run_id,
+        baseline_ref=options.baseline_ref,
+        candidate_ref=options.candidate_ref,
+        parent=options.workspace_parent,
+    )
+    pair = owner.prepare()
+    print(f"workspace:    {pair.workspace}")
+    print(f"baseline:     {pair.baseline_commit}")
+    print(f"candidate:    {pair.candidate_commit}")
+
+    baseline_plan, baseline_repository = _ref_plan(
+        pair.baseline, options, catalog
+    )
+    candidate_plan, candidate_repository = _ref_plan(
+        pair.candidate, options, catalog
+    )
+    _require_matched_ref_plans(baseline_plan, candidate_plan)
+    _require_validation_execution_resources(options, baseline_plan)
+
+    _build_ref_cases(pair.baseline, baseline_plan.cases, label="baseline")
+    _build_ref_cases(pair.candidate, candidate_plan.cases, label="candidate")
+
+    store = ResultStore(repository_root)
+    baseline_executor = Executor(catalog, store, pair.baseline)
+    candidate_executor = Executor(catalog, store, pair.candidate)
+    baseline_executor.preflight(baseline_plan.cases)
+    candidate_executor.preflight(candidate_plan.cases)
+
+    baseline_manifest = baseline_plan.manifest(
+        run_id=baseline_run_id, repository=baseline_repository
+    )
+    candidate_manifest = candidate_plan.manifest(
+        run_id=candidate_run_id, repository=candidate_repository
+    )
+    baseline_execution = _execution_record(
+        pair.baseline, catalog, baseline_manifest, baseline_plan.cases
+    )
+    candidate_execution = _execution_record(
+        pair.candidate, catalog, candidate_manifest, candidate_plan.cases
+    )
+
+    # Refuse before creating either side when an earlier run already exists.
+    for run_id in (baseline_run_id, candidate_run_id):
+        if (store.results_root / run_id).exists():
+            raise ValidationError(
+                f"A/B run already exists; refusing overwrite: {run_id}"
+            )
+    store.create_run(
+        baseline_run_id,
+        baseline_manifest,
+        execution_record=baseline_execution,
+    )
+    store.create_run(
+        candidate_run_id,
+        candidate_manifest,
+        execution_record=candidate_execution,
+    )
+    schedule = alternating_schedule(
+        tuple(case.case_id for case in baseline_plan.cases)
+    )
+    schedule_text = _schedule_document(options, pair, schedule)
+    store.write_analysis_artifact(
+        baseline_run_id, "ab-schedule.json", schedule_text
+    )
+    store.write_analysis_artifact(
+        candidate_run_id, "ab-schedule.json", schedule_text
+    )
+
+    cases = {
+        "baseline": {
+            case.case_id: case for case in baseline_plan.cases
+        },
+        "candidate": {
+            case.case_id: case for case in candidate_plan.cases
+        },
+    }
+    executors = {
+        "baseline": baseline_executor,
+        "candidate": candidate_executor,
+    }
+    run_ids = {
+        "baseline": baseline_run_id,
+        "candidate": candidate_run_id,
+    }
+    failures: list[str] = []
+    total = 2 * len(schedule)
+    position = 0
+    with ExitStack() as stack:
+        for run_id in sorted(run_ids.values()):
+            stack.enter_context(store.execution_lock(run_id))
+        for entry in schedule:
+            for side in entry.order:
+                position += 1
+                status = executors[side].execute_new_case_locked(
+                    run_ids[side],
+                    cases[side][entry.case_id],
+                    max_retries=options.max_retries,
+                )
+                state = status.get("state")
+                failure_kind = status.get("failure_kind")
+                suffix = f"/{failure_kind}" if failure_kind else ""
+                print(
+                    f"[{position}/{total}] {side} {entry.case_id}: "
+                    f"{state}{suffix}"
+                )
+                if state != "passed":
+                    failures.append(
+                        f"{side}:{entry.case_id}:{state}/{failure_kind}"
+                    )
+
+        if failures:
+            raise ExecutionError(
+                "A/B execution failed; diagnostic worktrees retained at "
+                f"{pair.workspace}: {', '.join(failures[:20])}"
+            )
+
+        # Keep both run locks through verification and report publication.
+        # Otherwise a concurrent resume could change one side between its
+        # final case and the numerics-first comparison.
+        baseline_frozen = frozen_plan_from_manifest(
+            store.read_manifest(baseline_run_id), catalog
+        )
+        candidate_frozen = frozen_plan_from_manifest(
+            store.read_manifest(candidate_run_id), catalog
+        )
+        baseline_results = load_run_results(
+            baseline_executor, baseline_run_id, baseline_frozen.cases
+        )
+        candidate_results = load_run_results(
+            candidate_executor, candidate_run_id, candidate_frozen.cases
+        )
+        report = compare_snapshots(
+            RunSnapshot.from_loaded(
+                baseline_frozen,
+                baseline_results,
+                execution_provenance=comparison_environment_identity(
+                    baseline_execution
+                ),
+            ),
+            RunSnapshot.from_loaded(
+                candidate_frozen,
+                candidate_results,
+                execution_provenance=comparison_environment_identity(
+                    candidate_execution
+                ),
+            ),
+            _comparison_policy(options),
+        )
+        persisted_json = store.write_analysis_artifact(
+            candidate_run_id, "comparison.json", comparison_json_text(report)
+        )
+        persisted_csv = store.write_analysis_artifact(
+            candidate_run_id, "comparison.csv", comparison_csv_text(report)
+        )
+
+    # Successful execution/report publication is the only automatic cleanup
+    # path.  Any earlier exception intentionally leaves the owned workspace.
+    owner.cleanup()
+    return _print_comparison(
+        report,
+        options,
+        persisted_json=persisted_json,
+        persisted_csv=persisted_csv,
+    )
 
 
 def _shard(options: argparse.Namespace) -> int:
@@ -674,7 +1266,14 @@ def _run_shard(options: argparse.Namespace) -> int:
     else:
         # Resource/binary failures must not leave an isolated child run behind.
         executor.preflight(frozen.cases)
-        run_path = store.create_run(options.run_id, expected_manifest)
+        execution = _execution_record(
+            repository_root, catalog, expected_manifest, frozen.cases
+        )
+        run_path = store.create_run(
+            options.run_id,
+            expected_manifest,
+            execution_record=execution,
+        )
         frozen = frozen_plan_from_manifest(
             store.read_manifest(options.run_id), catalog
         )
@@ -682,6 +1281,15 @@ def _run_shard(options: argparse.Namespace) -> int:
         raise ValidationError("shard run ID does not match its frozen manifest")
     if options.resume:
         executor.preflight(frozen.cases)
+        current_execution = _execution_record(
+            repository_root,
+            catalog,
+            store.read_manifest(options.run_id),
+            frozen.cases,
+        )
+        _require_execution_compatibility(
+            store, options.run_id, current_execution
+        )
     return _execute_frozen_run(
         executor,
         frozen,
@@ -689,6 +1297,7 @@ def _run_shard(options: argparse.Namespace) -> int:
         resume=options.resume,
         parent_run_id=options.parent_run_id,
         shard_index=options.shard_index,
+        max_retries=options.max_retries,
     )
 
 
@@ -801,6 +1410,10 @@ def main(arguments: list[str] | None = None) -> int:
             return _run_shard(options)
         if options.command == "merge-shards":
             return _merge_shards(options)
+        if options.command == "compare":
+            return _compare(options)
+        if options.command == "compare-refs":
+            return _compare_refs(options)
     except BenchmarkError as error:
         print(f"benchmark error: {error}", file=sys.stderr)
         return 2

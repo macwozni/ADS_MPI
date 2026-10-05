@@ -12,7 +12,8 @@ import re
 import stat
 import time
 
-from .errors import StorageError
+from .errors import ProvenanceError, StorageError
+from .provenance import validate_execution_provenance
 
 
 _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$", re.ASCII)
@@ -36,6 +37,9 @@ _ANALYSIS_ARTIFACTS = frozenset(
     {
         "analysis.json",
         "analysis.csv",
+        "comparison.json",
+        "comparison.csv",
+        "ab-schedule.json",
         "convergence.png",
         "strong-scaling.png",
         "weak-scaling.png",
@@ -362,10 +366,21 @@ class ResultStore:
             os.close(results_fd)
 
     def create_run(
-        self, run_id: str, manifest: Mapping[str, object]
+        self,
+        run_id: str,
+        manifest: Mapping[str, object],
+        *,
+        execution_record: Mapping[str, object] | None = None,
     ) -> Path:
         run_path = self._run_path(run_id)
         self._validate_manifest(manifest, run_id)
+        if execution_record is not None:
+            try:
+                validate_execution_provenance(
+                    execution_record, manifest=manifest
+                )
+            except ProvenanceError as error:
+                raise StorageError(f"invalid execution record: {error}") from error
         results_fd = self._results_fd(create=True)
         run_fd: int | None = None
         created = False
@@ -379,12 +394,20 @@ class ResultStore:
                 ) from error
             run_fd = os.open(run_id, _DIRECTORY_FLAGS, dir_fd=results_fd)
             self._atomic_json_at(run_fd, "manifest.json", manifest)
+            if execution_record is not None:
+                self._exclusive_json_at(
+                    run_fd, "execution.json", execution_record
+                )
             return run_path
         except Exception:
             if created:
                 if run_fd is not None:
                     try:
                         os.unlink("manifest.json", dir_fd=run_fd)
+                    except OSError:
+                        pass
+                    try:
+                        os.unlink("execution.json", dir_fd=run_fd)
                     except OSError:
                         pass
                 try:
@@ -402,6 +425,41 @@ class ResultStore:
 
         with self._owned_run_fds(run_id) as (_, run_fd):
             return self._read_manifest_at(run_fd, run_id)
+
+    def write_execution_record(
+        self, run_id: str, document: Mapping[str, object]
+    ) -> Path:
+        """Exclusively publish one manifest-bound ``execution.json`` record."""
+
+        with self._owned_run_fds(run_id) as (_, run_fd):
+            manifest = self._read_manifest_at(run_fd, run_id)
+            try:
+                validate_execution_provenance(document, manifest=manifest)
+            except ProvenanceError as error:
+                raise StorageError(f"invalid execution record: {error}") from error
+            self._exclusive_json_at(run_fd, "execution.json", document)
+        return self._run_path(run_id) / "execution.json"
+
+    def read_execution_record(
+        self, run_id: str, *, missing_ok: bool = False
+    ) -> dict[str, object] | None:
+        """Read and strictly verify an owned run's ``execution.json`` record."""
+
+        with self._owned_run_fds(run_id) as (_, run_fd):
+            manifest = self._read_manifest_at(run_fd, run_id)
+            document = self._read_json_at(
+                run_fd,
+                "execution.json",
+                f"run {run_id} execution record",
+                missing_ok=missing_ok,
+            )
+            if document is None:
+                return None
+            try:
+                validate_execution_provenance(document, manifest=manifest)
+            except ProvenanceError as error:
+                raise StorageError(f"invalid execution record: {error}") from error
+            return document
 
     @staticmethod
     def _shard_name(index: int) -> str:
@@ -918,6 +976,30 @@ class ResultStore:
         finally:
             if descriptor is not None:
                 os.close(descriptor)
+
+    def seal_generated_artifact(
+        self, case_directory: Path, name: str
+    ) -> Path:
+        """Validate and atomically republish one subprocess-created artifact.
+
+        Benchmark executables necessarily create their field CSV directly.
+        Once the child has exited, the engine bounds and decodes that file,
+        then replaces it through the same fsync-and-rename path used for every
+        other persisted result artifact.
+        """
+
+        content = self.read_generated_artifact(case_directory, name)
+        _, case_id = self._case_coordinates(case_directory)
+        try:
+            with self._case_fd(case_directory) as case_fd:
+                self._atomic_text_at(case_fd, name, content)
+        except StorageError:
+            raise
+        except (OSError, UnicodeError) as error:
+            raise StorageError(
+                f"cannot seal case {case_id} {name}: {error}"
+            ) from error
+        return case_directory / name
 
     def remove_result(self, case_directory: Path) -> None:
         """Remove a stale result before a retry; missing results are harmless."""

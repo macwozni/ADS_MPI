@@ -293,7 +293,8 @@ make distclean      # same as clean; m_options and makeconfig/ are preserved
 
 Benchmark results under `benchmarks/<run-id>/` are never removed by these
 targets. `clean-benchmark-build` owns only framework bytecode and a guarded
-`benchmarking/build/` directory.
+`benchmarking/build/` directory. Run manifests, logs, fields, and reports are
+ignored, unversioned runtime data; there is no broad results-clean target.
 
 The CMake files are still present, but this README documents the current
 make-based workflow.
@@ -749,6 +750,13 @@ make benchmark-plan BENCHMARK_PROFILE=cluster-weak-scaling
 make benchmark-weak RUN_ID=stage7-weak-local \
   BENCHMARK_WEAK_PROFILE=weak-scaling-smoke \
   BENCHMARK_PLAN_ARGS='--available-mpi-slots 2 --available-cpu-slots 2'
+make benchmark-compare \
+  BENCHMARK_BASELINE_RESULTS=benchmarks/baseline-run \
+  BENCHMARK_CANDIDATE_RESULTS=benchmarks/candidate-run
+make benchmark-compare RUN_ID=stage8-ab \
+  BENCHMARK_BASELINE_REF=HEAD~1 BENCHMARK_CANDIDATE_REF=HEAD \
+  BENCHMARK_COMPARE_PROFILE=strong-scaling-smoke \
+  BENCHMARK_PLAN_ARGS='--available-mpi-slots 2 --available-cpu-slots 2'
 ```
 
 `benchmark-smoke` runs the real nine-case matrix at `N=4` and `N=8`,
@@ -834,6 +842,43 @@ actually executed on a suitable allocation. A successful two-rank smoke run
 checks the real runner, timing, field gate, and weak analysis locally; it is not
 evidence that the multi-node profile was run or that cluster scaling passed.
 
+Stage 8 adds reproducible execution identity and A/B regression comparison.
+The frozen manifest records the full Git SHA, dirty flag and worktree
+fingerprint, expanded configuration hash, and versioned case definitions. A
+separate schema-versioned `execution.json`, cryptographically bound to that
+manifest, records compiler/version/flags and debug or release profile;
+executable/build identities; MPI or scheduler launcher/version; MUMPS and
+other linked/configured libraries; host, OS, CPU/core/memory facts; time zone;
+rank grids and binding; and relevant OMP/GOMP/KMP variables. Missing facts are
+stored explicitly with a reason rather than guessed.
+
+Resume requires an exact frozen plan, configuration and repository identity,
+plus a valid matching build/launcher compatibility identity. Old runs without
+`execution.json` remain analyzable but cannot be resumed. Failures are
+classified as `numerical`, `mpi`, `timeout`, `resource`, or `configuration`.
+`--max-retries N`, passed to run/resume targets through
+`BENCHMARK_PLAN_ARGS`, retries only MPI, timeout, and resource failures; the
+final status keeps a compact attempt history, while stdout/stderr contain only
+the last attempt.
+
+`benchmark-compare` first verifies both complete runs and all numerical fields,
+then reports each side's median, MAD and range plus the candidate/baseline
+median ratio. The default minimum is five samples (never fewer than three) and
+the default regression threshold is 5%. Too few or unreliable samples and
+legacy runs without execution provenance are inconclusive, not green or
+regressed. The ref mode resolves immutable SHAs, uses two marker-owned detached
+worktrees with separate builds, and alternates which ref runs first for each
+matched case. Alternation is case-level: each case still performs its own
+warmups and samples together. It never checks out the caller's dirty tree and
+never force-removes an unverified or modified workspace.
+
+The reusable architecture has one owner for process/log/retry behavior
+(`Executor`), contained atomic storage (`ResultStore`), launchers, complete
+field comparison, and statistics. Concrete problems implement a small
+registered adapter rather than another runner. Exact extension guides, data
+formats, cleanup rules, local/cluster examples, sharding, and A/B output options
+are documented in [`benchmarking/README.md`](benchmarking/README.md).
+
 The `temporal-full` profile expands deterministically to 792 cases, but its
 fixed `4x4x4` mesh currently exposes finite transient instabilities in the
 shared production core. The 72-case `temporal-validation` profile is a smaller
@@ -847,8 +892,10 @@ result schema, and
 [`benchmarking/reproducers/temporal-convergence-instability.md`](benchmarking/reproducers/temporal-convergence-instability.md)
 for the measured reproducer.
 
-Benchmark execution remains deliberately separate from the ordinary
-`make test` regression tree.
+Benchmark results under `benchmarks/<run-id>/` are ignored and are never
+versioned or removed by ordinary cleanup. Benchmark execution remains
+deliberately separate from the ordinary `make test` regression tree; in
+particular, `make test` does not execute any full benchmark profile.
 
 ## Testing
 
