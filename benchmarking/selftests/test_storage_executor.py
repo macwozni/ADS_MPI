@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -8,8 +9,10 @@ import tempfile
 import time
 import unittest
 from copy import deepcopy
+from unittest.mock import patch
 
 from ads_benchmark.catalog import build_catalog
+from ads_benchmark.components.planning import default_mpi_launcher
 from ads_benchmark.framework.config import load_profiles
 from ads_benchmark.framework.errors import (
     ExecutionError,
@@ -258,6 +261,9 @@ class ExecutorContractTests(unittest.TestCase):
         *,
         warmups: int = 0,
         samples: int = 1,
+        minimum_sample_seconds: str | None = None,
+        openmp_policy: bool = False,
+        write_samples: bool = False,
     ):
         temporary = tempfile.TemporaryDirectory(prefix=f"ads-executor-{mode}-")
         self.addCleanup(temporary.cleanup)
@@ -268,11 +274,21 @@ class ExecutorContractTests(unittest.TestCase):
         catalog = build_catalog()
         catalog.adapters.register("fake", FakeAdapter(mode=mode))
         profile = fake_profile(timeout)
-        profile["execution"] = {
+        execution = {
             "warmups": warmups,
             "samples": samples,
             "timeout_seconds": timeout,
         }
+        if minimum_sample_seconds is not None:
+            execution["minimum_sample_seconds"] = minimum_sample_seconds
+        profile["execution"] = execution
+        profile["sampling"]["write_samples"] = write_samples
+        if openmp_policy:
+            profile["openmp"] = {
+                "dynamic": False,
+                "proc_bind": "spread",
+                "places": "threads",
+            }
         if launcher is not None:
             catalog.launchers.register(launcher.name, launcher)
             profile["launcher"] = launcher.name
@@ -310,6 +326,8 @@ class ExecutorContractTests(unittest.TestCase):
             result["domain_result"],
             {
                 "checksum": "fake-ok",
+                "invocation": 1,
+                "physical_step_wall_seconds": 0.21,
                 "steps": 4,
                 "working_directory": str(case_directory),
             },
@@ -379,19 +397,149 @@ class ExecutorContractTests(unittest.TestCase):
                 self.assertEqual(adapter.name, name)
                 self.assertTrue(adapter.execution_ready)
 
-    def test_direct_execute_rejects_unimplemented_repetitions(self) -> None:
+    def test_repeated_execution_records_solver_and_process_timings(self) -> None:
         executor, case, case_directory = self._prepare_mode(
-            "success", warmups=2, samples=7
+            "success",
+            warmups=2,
+            samples=7,
+            minimum_sample_seconds="0.24",
+            openmp_policy=True,
+            write_samples=True,
         )
-        with self.assertRaisesRegex(
-            ExecutionError, "supports only warmups=0 and samples=1"
-        ):
-            executor.execute("contract", case)
-        status = json.loads(
-            (case_directory / "status.json").read_text(encoding="utf-8")
+        status = executor.execute("contract", case)
+        result = json.loads(
+            (case_directory / "result.json").read_text(encoding="utf-8")
         )
+        self.assertEqual(status["state"], "passed")
+        timing = result["timing"]
+        self.assertEqual(
+            set(timing),
+            {
+                "wall_seconds",
+                "metric",
+                "warmup_samples",
+                "measured_samples",
+                "warmup_process_wall_seconds",
+                "measured_process_wall_seconds",
+                "minimum_reliable_seconds",
+                "reliable",
+                "openmp_environment",
+            },
+        )
+        self.assertEqual(timing["metric"], "physical_step_wall_seconds")
+        self.assertEqual(timing["warmup_samples"], [0.21, 0.22])
+        self.assertEqual(
+            timing["measured_samples"],
+            [0.23, 0.24, 0.25, 0.26, 0.27, 0.28, 0.29],
+        )
+        self.assertEqual(len(timing["warmup_process_wall_seconds"]), 2)
+        self.assertEqual(len(timing["measured_process_wall_seconds"]), 7)
+        self.assertTrue(
+            all(
+                value >= 0.0
+                for value in (
+                    timing["warmup_process_wall_seconds"]
+                    + timing["measured_process_wall_seconds"]
+                )
+            )
+        )
+        self.assertEqual(timing["minimum_reliable_seconds"], 0.24)
+        self.assertFalse(timing["reliable"])
+        self.assertEqual(
+            timing["openmp_environment"],
+            {
+                "OMP_NUM_THREADS": "2",
+                "OMP_DYNAMIC": "FALSE",
+                "OMP_PROC_BIND": "spread",
+                "OMP_PLACES": "threads",
+            },
+        )
+        self.assertEqual(result["domain_result"]["invocation"], 9)
+        self.assertEqual(
+            result["domain_result"]["physical_step_wall_seconds"], 0.29
+        )
+        self.assertIn(
+            "invocation=9",
+            (case_directory / "stdout.log").read_text(encoding="utf-8"),
+        )
+        self.assertIn(
+            "0,0,0,9",
+            (case_directory / "field_samples.csv").read_text(encoding="utf-8"),
+        )
+        self.assertEqual(
+            len(
+                (case_directory / "fake_invocations.log")
+                .read_text(encoding="utf-8")
+                .splitlines()
+            ),
+            9,
+        )
+        self.assertIsNotNone(executor.verified_result(case_directory, case))
+
+    def test_failure_in_repeated_attempt_fails_the_whole_case(self) -> None:
+        executor, case, case_directory = self._prepare_mode(
+            "fail-second",
+            warmups=2,
+            samples=7,
+            minimum_sample_seconds="0.1",
+        )
+        status = executor.execute("contract", case)
         self.assertEqual(status["state"], "failed")
-        self.assertIn("requests warmups=2 and samples=7", status["error"])
+        self.assertIn("warmup 2: process exited with status 7", status["error"])
+        self.assertFalse((case_directory / "result.json").exists())
+        self.assertEqual(
+            len(
+                (case_directory / "fake_invocations.log")
+                .read_text(encoding="utf-8")
+                .splitlines()
+            ),
+            2,
+        )
+
+    def test_minimum_threshold_alone_uses_repeated_timing_schema(self) -> None:
+        executor, case, case_directory = self._prepare_mode(
+            "success", minimum_sample_seconds="0.25"
+        )
+        status = executor.execute("contract", case)
+        self.assertEqual(status["state"], "passed")
+        result = json.loads(
+            (case_directory / "result.json").read_text(encoding="utf-8")
+        )
+        timing = result["timing"]
+        self.assertEqual(timing["warmup_samples"], [])
+        self.assertEqual(timing["measured_samples"], [0.21])
+        self.assertEqual(timing["minimum_reliable_seconds"], 0.25)
+        self.assertFalse(timing["reliable"])
+        self.assertIsNotNone(executor.verified_result(case_directory, case))
+
+    def test_mpiexec_flags_are_shell_split_before_the_rank_flag(self) -> None:
+        _, case, _ = self._prepare_mode("success")
+        with patch.dict(
+            os.environ,
+            {
+                "MPIEXEC": "mpiexec --oversubscribe",
+                "MPIEXEC_FLAGS": "--bind-to 'none'",
+                "MPI_NP_FLAG": "-np",
+            },
+        ):
+            launcher = default_mpi_launcher()
+        self.assertEqual(
+            tuple(launcher.command(("solver", "argument"), case.spec)),
+            (
+                "mpiexec",
+                "--oversubscribe",
+                "--bind-to",
+                "none",
+                "-np",
+                "1",
+                "solver",
+                "argument",
+            ),
+        )
+
+        with patch.dict(os.environ, {"MPIEXEC_FLAGS": "'"}):
+            with self.assertRaisesRegex(ValueError, "invalid MPI launcher"):
+                default_mpi_launcher()
 
 
 class FrozenManifestAndResumeTests(unittest.TestCase):
@@ -402,6 +550,9 @@ class FrozenManifestAndResumeTests(unittest.TestCase):
         timeout: str = "2",
         write_samples: bool = False,
         launcher: PrefixLauncher | None = None,
+        warmups: int = 0,
+        samples: int = 1,
+        minimum_sample_seconds: str | None = None,
     ):
         temporary = tempfile.TemporaryDirectory(prefix="ads-resume-")
         self.addCleanup(temporary.cleanup)
@@ -412,6 +563,14 @@ class FrozenManifestAndResumeTests(unittest.TestCase):
         profile = fake_profile(timeout)
         profile["schemes"] = schemes or ["dg"]
         profile["sampling"]["write_samples"] = write_samples
+        execution = {
+            "warmups": warmups,
+            "samples": samples,
+            "timeout_seconds": timeout,
+        }
+        if minimum_sample_seconds is not None:
+            execution["minimum_sample_seconds"] = minimum_sample_seconds
+        profile["execution"] = execution
         if launcher is not None:
             profile["launcher"] = launcher.name
         (configuration / "fake.json").write_text(
@@ -656,6 +815,64 @@ class FrozenManifestAndResumeTests(unittest.TestCase):
         self.assertFalse(samples.is_symlink())
         self.assertTrue(samples.is_file())
         self.assertEqual(outside.read_text(encoding="utf-8"), "sentinel\n")
+
+    def test_repeated_timing_is_strictly_verified_before_resume(self) -> None:
+        repository, catalog, _, _, store, _, frozen = self._prepared_run(
+            warmups=1,
+            samples=2,
+            minimum_sample_seconds="0.1",
+        )
+        executor = Executor(catalog, store, repository)
+        first = executor.execute_frozen("resume-contract", frozen.cases)
+        self.assertEqual((first.passed, first.failed), (1, 0))
+        case = frozen.cases[0]
+        case_directory = (
+            repository
+            / "benchmarks"
+            / "resume-contract"
+            / "cases"
+            / case.case_id
+        )
+        original = json.loads(
+            (case_directory / "result.json").read_text(encoding="utf-8")
+        )
+        self.assertIsNotNone(executor.verified_result(case_directory, case))
+
+        invalid_results = []
+        extra_key = deepcopy(original)
+        extra_key["timing"]["unexpected"] = True
+        invalid_results.append(extra_key)
+        missing_sample = deepcopy(original)
+        missing_sample["timing"]["measured_samples"].pop()
+        invalid_results.append(missing_sample)
+        wrong_metric = deepcopy(original)
+        wrong_metric["timing"]["metric"] = "process_wall_seconds"
+        invalid_results.append(wrong_metric)
+        wrong_environment = deepcopy(original)
+        wrong_environment["timing"]["openmp_environment"][
+            "OMP_DYNAMIC"
+        ] = "TRUE"
+        invalid_results.append(wrong_environment)
+        wrong_reliability = deepcopy(original)
+        wrong_reliability["timing"]["reliable"] = False
+        invalid_results.append(wrong_reliability)
+
+        for invalid in invalid_results:
+            with self.subTest(timing=invalid["timing"]):
+                (case_directory / "result.json").write_text(
+                    json.dumps(invalid), encoding="utf-8"
+                )
+                self.assertIsNone(
+                    executor.verified_result(case_directory, case)
+                )
+
+        resumed = executor.execute_frozen(
+            "resume-contract", frozen.cases, resume=True
+        )
+        self.assertEqual(
+            (resumed.passed, resumed.skipped, resumed.failed), (1, 0, 0)
+        )
+        self.assertIsNotNone(executor.verified_result(case_directory, case))
 
     def test_tampered_command_payload_is_rejected_and_retried(self) -> None:
         repository, catalog, _, _, store, _, frozen = self._prepared_run()

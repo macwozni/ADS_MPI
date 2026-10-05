@@ -584,6 +584,119 @@ def _validation_csv_text(report: AnalysisReport) -> str:
     return stream.getvalue()
 
 
+def _strong_csv_text(report: AnalysisReport) -> str:
+    """Write one self-describing row per MPI/OpenMP scaling point."""
+
+    fields = (
+        "group_id",
+        "physics_group_id",
+        "series_status",
+        "problem",
+        "scheme",
+        "final_time",
+        "steps",
+        "mesh",
+        "test_degree",
+        "trial_degree",
+        "case_id",
+        "mpi_ranks",
+        "mpi_grid",
+        "openmp_threads",
+        "resources",
+        "omp_dynamic",
+        "omp_proc_bind",
+        "omp_places",
+        "warmup_samples",
+        "measured_samples",
+        "warmup_process_wall_seconds",
+        "measured_process_wall_seconds",
+        "sample_count",
+        "minimum_seconds",
+        "maximum_seconds",
+        "median_seconds",
+        "median_absolute_deviation_seconds",
+        "relative_median_absolute_deviation",
+        "minimum_reliable_seconds",
+        "measurement_reliable",
+        "field_valid",
+        "timing_valid",
+        "speedup",
+        "efficiency",
+        "timing_reference_case_id",
+        "timing_reference_resources",
+        "timing_reference_median_seconds",
+        "field_reference_case_id",
+    )
+    stream = io.StringIO(newline="")
+    writer = csv.DictWriter(stream, fieldnames=fields, lineterminator="\n")
+    writer.writeheader()
+    for series in report.series:
+        for point in series["points"]:
+            statistics = point["statistics"]
+            environment = point["openmp_environment"]
+            writer.writerow(
+                {
+                    "group_id": series["group_id"],
+                    "physics_group_id": series["physics_group_id"],
+                    "series_status": series["status"],
+                    "problem": series["problem"],
+                    "scheme": series["scheme"],
+                    "final_time": series["final_time"],
+                    "steps": series["steps"],
+                    "mesh": _compact_json(series["mesh"]),
+                    "test_degree": _compact_json(series["test_degree"]),
+                    "trial_degree": _compact_json(series["trial_degree"]),
+                    "case_id": point["case_id"],
+                    "mpi_ranks": point["mpi_ranks"],
+                    "mpi_grid": _compact_json(point["mpi_grid"]),
+                    "openmp_threads": point["openmp_threads"],
+                    "resources": point["resources"],
+                    "omp_dynamic": environment["OMP_DYNAMIC"],
+                    "omp_proc_bind": environment["OMP_PROC_BIND"],
+                    "omp_places": environment["OMP_PLACES"],
+                    "warmup_samples": _compact_json(point["warmup_samples"]),
+                    "measured_samples": _compact_json(point["measured_samples"]),
+                    "warmup_process_wall_seconds": _compact_json(
+                        point["warmup_process_wall_seconds"]
+                    ),
+                    "measured_process_wall_seconds": _compact_json(
+                        point["measured_process_wall_seconds"]
+                    ),
+                    "sample_count": statistics["count"],
+                    "minimum_seconds": statistics["minimum_seconds"],
+                    "maximum_seconds": statistics["maximum_seconds"],
+                    "median_seconds": statistics["median_seconds"],
+                    "median_absolute_deviation_seconds": statistics[
+                        "median_absolute_deviation_seconds"
+                    ],
+                    "relative_median_absolute_deviation": statistics[
+                        "relative_median_absolute_deviation"
+                    ],
+                    "minimum_reliable_seconds": point[
+                        "minimum_reliable_seconds"
+                    ],
+                    "measurement_reliable": point["measurement_reliable"],
+                    "field_valid": point["field_valid"],
+                    "timing_valid": point["timing_valid"],
+                    "speedup": point["speedup"],
+                    "efficiency": point["efficiency"],
+                    "timing_reference_case_id": series[
+                        "timing_reference_case_id"
+                    ],
+                    "timing_reference_resources": series[
+                        "timing_reference_resources"
+                    ],
+                    "timing_reference_median_seconds": series[
+                        "timing_reference_median_seconds"
+                    ],
+                    "field_reference_case_id": series[
+                        "field_reference_case_id"
+                    ],
+                }
+            )
+    return stream.getvalue()
+
+
 def _csv_text(report: AnalysisReport) -> str:
     if report.family == "temporal":
         return _temporal_csv_text(report)
@@ -591,6 +704,8 @@ def _csv_text(report: AnalysisReport) -> str:
         return _spatial_csv_text(report)
     if report.family == "validation":
         return _validation_csv_text(report)
+    if report.family == "strong":
+        return _strong_csv_text(report)
     raise AnalysisError(f"no CSV renderer registered for family {report.family}")
 
 
@@ -614,6 +729,25 @@ def _plot_coordinates(
 def _render_plot(report: AnalysisReport) -> tuple[bytes | None, str | None]:
     if report.family == "validation":
         return None, "plot omitted: full-field validation has no convergence plot"
+    drawable_series: tuple[Mapping[str, Any], ...] = ()
+    if report.family == "strong":
+        drawable_series = tuple(
+            series
+            for series in report.series
+            if any(point["timing_valid"] for point in series["points"])
+        )
+        if not drawable_series:
+            return (
+                None,
+                "plot omitted: strong-scaling report has no valid timing points",
+            )
+        if len(drawable_series) > 12:
+            return (
+                None,
+                "plot omitted: strong-scaling report has "
+                f"{len(drawable_series)} drawable series; filter to at most 12 "
+                "unambiguous series",
+            )
     try:
         import matplotlib
 
@@ -621,6 +755,49 @@ def _render_plot(report: AnalysisReport) -> tuple[bytes | None, str | None]:
         from matplotlib import pyplot as plt
     except (ImportError, ModuleNotFoundError) as error:
         return None, f"plot omitted: matplotlib is unavailable ({error})"
+
+    if report.family == "strong":
+        figure, axes = plt.subplots(1, 3, figsize=(18, 5), constrained_layout=True)
+        try:
+            for series in drawable_series:
+                points = [point for point in series["points"] if point["timing_valid"]]
+                if not points:
+                    continue
+                label = (
+                    f"{series['group_id']} {series['problem']}/{series['scheme']} "
+                    f"ptest={tuple(series['test_degree'])} "
+                    f"ptrial={tuple(series['trial_degree'])} "
+                    f"mesh={tuple(series['mesh'])} "
+                    f"MPI={series['mpi_ranks']}:{tuple(series['mpi_grid'])} "
+                    "OMP="
+                    f"{tuple(point['openmp_threads'] for point in points)}"
+                )
+                resources = [point["resources"] for point in points]
+                values = (
+                    [point["statistics"]["median_seconds"] for point in points],
+                    [point["speedup"] for point in points],
+                    [point["efficiency"] for point in points],
+                )
+                for axis, ys in zip(axes, values, strict=True):
+                    axis.plot(resources, ys, marker="o", linewidth=1, label=label)
+            for axis, ylabel in zip(
+                axes,
+                ("median physical-step time [s]", "speedup", "efficiency"),
+                strict=True,
+            ):
+                axis.set_xscale("log", base=2)
+                axis.set_xlabel("MPI ranks x OpenMP threads")
+                axis.set_ylabel(ylabel)
+                axis.grid(True, which="both", alpha=0.25)
+            axes[0].set_yscale("log")
+            axes[2].legend(
+                fontsize="xx-small", loc="upper left", bbox_to_anchor=(1.02, 1.0)
+            )
+            buffer = io.BytesIO()
+            figure.savefig(buffer, format="png", dpi=150)
+        finally:
+            plt.close(figure)
+        return buffer.getvalue(), None
 
     figure, axes = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
     try:
@@ -663,11 +840,12 @@ def write_report(
     output_directory = output_directory.resolve()
     json_path = output_directory / "analysis.json"
     csv_path = output_directory / "analysis.csv"
-    stale_plot = output_directory / "convergence.png"
-    try:
-        stale_plot.unlink()
-    except FileNotFoundError:
-        pass
+    plot_name = "strong-scaling.png" if report.family == "strong" else "convergence.png"
+    for stale_name in ("convergence.png", "strong-scaling.png"):
+        try:
+            (output_directory / stale_name).unlink()
+        except FileNotFoundError:
+            pass
     _atomic_text(json_path, _json_text(report))
     _atomic_text(csv_path, _csv_text(report))
 
@@ -676,7 +854,7 @@ def write_report(
     if plot:
         plot_bytes, plot_message = _render_plot(report)
         if plot_bytes is not None:
-            plot_path = output_directory / "convergence.png"
+            plot_path = output_directory / plot_name
             _atomic_bytes(plot_path, plot_bytes)
     return WrittenAnalysis(json_path, csv_path, plot_path, plot_message)
 
@@ -693,7 +871,9 @@ def write_run_report(
     # A plot is derived from this exact report.  Remove a previous one first,
     # including when plotting was not requested or matplotlib is unavailable;
     # ResultStore unlinks the directory entry without following a symlink.
+    plot_name = "strong-scaling.png" if report.family == "strong" else "convergence.png"
     store.remove_analysis_artifact(run_id, "convergence.png")
+    store.remove_analysis_artifact(run_id, "strong-scaling.png")
     json_path = store.write_analysis_artifact(
         run_id, "analysis.json", _json_text(report)
     )
@@ -706,6 +886,6 @@ def write_run_report(
         plot_bytes, plot_message = _render_plot(report)
         if plot_bytes is not None:
             plot_path = store.write_analysis_artifact(
-                run_id, "convergence.png", plot_bytes
+                run_id, plot_name, plot_bytes
             )
     return WrittenAnalysis(json_path, csv_path, plot_path, plot_message)

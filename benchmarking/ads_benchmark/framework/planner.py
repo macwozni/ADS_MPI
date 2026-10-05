@@ -11,7 +11,7 @@ import re
 from typing import Iterable, Mapping
 
 from .config import ProfileDefinition
-from .errors import DuplicateCaseError, ValidationError
+from .errors import BenchmarkError, DuplicateCaseError, ValidationError
 from .filtering import CaseFilters
 from .model import (
     CaseSpec,
@@ -237,17 +237,38 @@ def _case_spec(document: object, field: str) -> CaseSpec:
         case["spaces"], {"test_degree", "trial_degree"}, f"{field}.spaces"
     )
     mpi = _object(case["mpi"], {"ranks", "process_grid"}, f"{field}.mpi")
-    openmp = _object(case["openmp"], {"threads"}, f"{field}.openmp")
+    if not isinstance(case["openmp"], dict):
+        raise ValidationError(f"frozen manifest {field}.openmp must be an object")
+    openmp = case["openmp"]
+    openmp_keys = set(openmp)
+    legacy_openmp_keys = {"threads"}
+    extended_openmp_keys = {"threads", "dynamic", "proc_bind", "places"}
+    if openmp_keys not in (legacy_openmp_keys, extended_openmp_keys):
+        raise ValidationError(
+            f"frozen manifest {field}.openmp has invalid keys"
+        )
     sampling = _object(
         case["sampling"],
         {"points_per_axis", "write_samples"},
         f"{field}.sampling",
     )
-    measurement = _object(
-        case["measurement"],
-        {"warmups", "samples", "timeout_seconds"},
-        f"{field}.measurement",
-    )
+    if not isinstance(case["measurement"], dict):
+        raise ValidationError(
+            f"frozen manifest {field}.measurement must be an object"
+        )
+    measurement = case["measurement"]
+    measurement_keys = set(measurement)
+    legacy_measurement_keys = {"warmups", "samples", "timeout_seconds"}
+    extended_measurement_keys = legacy_measurement_keys | {
+        "minimum_sample_seconds"
+    }
+    if measurement_keys not in (
+        legacy_measurement_keys,
+        extended_measurement_keys,
+    ):
+        raise ValidationError(
+            f"frozen manifest {field}.measurement has invalid keys"
+        )
     build = _object(case["build"], {"profile"}, f"{field}.build")
     return CaseSpec(
         family=_string(case["family"], f"{field}.family"),
@@ -293,9 +314,32 @@ def _case_spec(document: object, field: str) -> CaseSpec:
                 measurement["timeout_seconds"],
                 f"{field}.measurement.timeout_seconds",
             ),
+            minimum_sample_seconds=(
+                _string(
+                    measurement["minimum_sample_seconds"],
+                    f"{field}.measurement.minimum_sample_seconds",
+                )
+                if "minimum_sample_seconds" in measurement
+                else None
+            ),
         ),
         build_profile=_string(build["profile"], f"{field}.build.profile"),
         launcher=_string(case["launcher"], f"{field}.launcher"),
+        openmp_dynamic=(
+            _boolean(openmp["dynamic"], f"{field}.openmp.dynamic")
+            if "dynamic" in openmp
+            else None
+        ),
+        openmp_proc_bind=(
+            _string(openmp["proc_bind"], f"{field}.openmp.proc_bind")
+            if "proc_bind" in openmp
+            else None
+        ),
+        openmp_places=(
+            _string(openmp["places"], f"{field}.openmp.places")
+            if "places" in openmp
+            else None
+        ),
     )
 
 
@@ -489,6 +533,9 @@ class Planner:
                 measurement=profile.measurement,
                 build_profile=build_profile,
                 launcher=profile.launcher,
+                openmp_dynamic=profile.openmp_dynamic,
+                openmp_proc_bind=profile.openmp_proc_bind,
+                openmp_places=profile.openmp_places,
             )
 
     def plan(
@@ -519,6 +566,17 @@ class Planner:
             raise ValidationError(
                 f"filters selected no cases from profile {profile.name}"
             )
+        family = self.catalog.families.get(profile.family)
+        if family.analyzer is not None:
+            analyzer = self.catalog.analyzers.get(family.analyzer)
+            validate_plan = getattr(analyzer, "validate_plan", None)
+            if callable(validate_plan):
+                try:
+                    validate_plan(selected)
+                except BenchmarkError as error:
+                    raise ValidationError(
+                        f"analyzer {family.analyzer} rejected selected plan: {error}"
+                    ) from error
         for case in selected:
             launcher = self.catalog.launchers.get(case.spec.launcher)
             validate_resources = getattr(launcher, "validate_resources", None)

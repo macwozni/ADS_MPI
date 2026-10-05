@@ -737,10 +737,14 @@ make benchmark-smoke BENCHMARK_RUN_ID=stage2-smoke
 make benchmark-convergence RUN_ID=stage3-diagnostic \
   BENCHMARK_CONVERGENCE_PROFILE=temporal-validation
 make benchmark-resume RUN_ID=stage3-diagnostic \
-  BENCHMARK_CONVERGENCE_PROFILE=temporal-validation
+  BENCHMARK_RESUME_PROFILE=temporal-validation
 make benchmark-analyze RUN_ID=stage3-diagnostic
 make benchmark-validate RUN_ID=stage5-field-validation \
   BENCHMARK_PLAN_ARGS='--available-mpi-slots 8 --available-cpu-slots 32'
+make benchmark-plan BENCHMARK_PROFILE=cluster-scaling
+make benchmark-strong RUN_ID=stage6-strong-local \
+  BENCHMARK_STRONG_PROFILE=strong-scaling-smoke \
+  BENCHMARK_PLAN_ARGS='--available-mpi-slots 2 --available-cpu-slots 2'
 ```
 
 `benchmark-smoke` runs the real nine-case matrix at `N=4` and `N=8`,
@@ -771,6 +775,24 @@ and one another over both time levels; coarse differences are audited, while
 documented final accuracy and measurable contraction gates decide the result. See
 [`benchmarking/README.md`](benchmarking/README.md) for the matrix, tolerances,
 resource-capacity flags, and report schema.
+
+Stage 6 adds a manual strong-scaling family without changing the short
+`make test-performance` regression gate. `local-scaling` contains 2,160 cases;
+the complete `cluster-scaling` plan contains 12,960 cases over all three
+problems, DG/PR/BE, all 15 supported isotropic degree pairs, global meshes
+`16^3`, `32^3`, and `64^3`, MPI decompositions across X/Y/Z, and OpenMP
+`1,2,4,8`. Strong runs always use the isolated release build and require
+explicit MPI/CPU allocation limits. Each case executes two warmups and seven
+measured processes, retaining every solver-side physical-step sample and its
+process-wall time. Median/min/max/MAD, speedup, and efficiency are reported
+only after full-field agreement with the corresponding MPI1/OMP1 reference;
+too-short samples remain visible but are marked unreliable. Profiles freeze
+`OMP_DYNAMIC=FALSE`, `OMP_PROC_BIND`, and `OMP_PLACES`, while `MPIEXEC`,
+`MPI_NP_FLAG`, and `MPIEXEC_FLAGS` remain launcher configuration. JSON/CSV are
+complete; an unambiguous three-panel PNG is generated for filtered reports of
+at most 12 drawable series. See
+[`benchmarking/README.md`](benchmarking/README.md) for profile sizes, filters,
+resume commands, timing boundaries, and the exact report schema.
 
 The `temporal-full` profile expands deterministically to 792 cases, but its
 fixed `4x4x4` mesh currently exposes finite transient instabilities in the

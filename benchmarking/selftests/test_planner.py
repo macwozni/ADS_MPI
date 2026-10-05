@@ -41,6 +41,7 @@ class PlannerTests(unittest.TestCase):
                 "p-convergence-smoke",
                 "smoke",
                 "smoke-refined",
+                "strong-scaling-smoke",
                 "temporal-full",
                 "temporal-validation",
                 "validation-full",
@@ -65,6 +66,7 @@ class PlannerTests(unittest.TestCase):
         expected_counts = {
             "smoke": 9,
             "smoke-refined": 9,
+            "strong-scaling-smoke": 8,
             "temporal-full": 792,
             "temporal-validation": 72,
             "h-convergence-smoke": 54,
@@ -73,8 +75,8 @@ class PlannerTests(unittest.TestCase):
             "p-convergence-full": 270,
             "p-anisotropic-smoke": 108,
             "p-anisotropic-full": 216,
-            "local-scaling": 36,
-            "cluster-scaling": 36,
+            "local-scaling": 2160,
+            "cluster-scaling": 12960,
             "validation-smoke": 36,
             "validation-full": 324,
         }

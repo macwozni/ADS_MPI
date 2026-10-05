@@ -13,8 +13,10 @@ a registered convergence analyzer. Stage 4 adds an independent non-polynomial
 manufactured case, mesh-size and degree-convergence workflows, and explicit
 temporal-error qualification of every spatial point. Stage 5 adds a reusable
 regular-grid field comparator, MPI/OpenMP correctness matrices, and a timing
-eligibility gate based on the complete numerical field. Expensive runs remain
-separate from `make test`.
+eligibility gate based on the complete numerical field. Stage 6 adds real
+strong scaling with repeated solver-side timings, field-gated statistics, and
+portable MPI/OpenMP runtime policy. Expensive runs remain separate from
+`make test`.
 
 ## Architecture and extension contract
 
@@ -114,8 +116,8 @@ Source evaluation follows the production scheme tables:
 
 The callback time used inside OpenMP RHS assembly is thread-private.
 
-The independent `spatial-cosine` case is used only by the `h` and `p`
-families:
+The independent `spatial-cosine` case is used by the `h`, `p`, `validation`,
+and `strong` families:
 
 ```text
 R(x,y,z)   = cos(pi*x) cos(pi*y) cos(pi*z)
@@ -195,8 +197,13 @@ Registered profiles are:
 - `p-anisotropic-smoke`: 108 cases over three cyclic rotations of `(3,4,5)`;
 - `p-anisotropic-full`: 216 cases over all six rotations of `(3,4,5)`, each
   with componentwise test enrichment `+1` and `+2`;
-- `local-scaling` and `cluster-scaling`: planning presets whose complete
-  scientific scaling workflows belong to later stages.
+- `strong-scaling-smoke`: eight executable strong-scaling cases covering
+  DG/PR, two degree pairs, and the `1x1x1`/`2x1x1` resource levels;
+- `local-scaling`: 2,160 strong-scaling cases at global mesh `16^3`, covering
+  all problems, schemes, 15 isotropic degree pairs, OpenMP `1,2,4,8`, and the
+  serial plus X/Y/Z two-rank layouts;
+- `cluster-scaling`: the 12,960-case full strong-scaling matrix, adding global
+  meshes `32^3,64^3`, the XY/XZ/YZ four-rank layouts, and `2x2x2`.
 
 `temporal-full` expands
 
@@ -579,13 +586,100 @@ than producing a misleading image. VTI remains optional and outside the
 measured physical-step interval; validation uses normalized numerical samples
 and never compares VTI bytes or metadata ordering.
 
+## Strong scaling
+
+The full matrix is deliberately manual. A structural dry-run performs no
+build or result writes:
+
+```bash
+make benchmark-plan BENCHMARK_PROFILE=cluster-scaling
+```
+
+Real runs require explicit allocation limits. The public target builds the
+isolated `release` tree selected by `CONFIG`, executes the frozen plan, runs
+field-gated analysis, and requests the three-panel scaling plot:
+
+```bash
+make benchmark-strong RUN_ID=strong-full \
+  BENCHMARK_PLAN_ARGS='--available-mpi-slots 8 --available-cpu-slots 64'
+```
+
+`MPIEXEC`, `MPI_NP_FLAG`, and shell-parsed `MPIEXEC_FLAGS` select the local or
+cluster launcher; no scheduler or absolute launcher path is embedded in a
+profile. `openmp.dynamic` is fixed to false for strong scaling, while
+`openmp.proc_bind` and `openmp.places` are profile data and therefore frozen
+in every case identity and result.
+
+A practical local verification slice contains two resource levels, DG/PR,
+and two degree pairs:
+
+```bash
+make benchmark-strong RUN_ID=strong-local-check \
+  BENCHMARK_STRONG_PROFILE=strong-scaling-smoke \
+  BENCHMARK_PLAN_ARGS='--available-mpi-slots 2 --available-cpu-slots 2'
+```
+
+Resume uses the same profile, filters, allocation, launcher, source
+fingerprint, and run ID through `make benchmark-resume`. A changed launcher
+prefix or normalized configuration is rejected instead of being mixed into
+one run. Any filtered scaling slice must retain `MPI=1,OMP=1` for every
+selected problem/scheme/degree/mesh combination, because that case supplies
+the mandatory full-field reference.
+
+```bash
+make benchmark-resume RUN_ID=strong-local-check \
+  BENCHMARK_RESUME_PROFILE=strong-scaling-smoke \
+  BENCHMARK_PLAN_ARGS='--available-mpi-slots 2 --available-cpu-slots 2'
+```
+
+Each strong case starts the identical executable nine times: two validated
+warmups followed by seven measured repetitions. The primary sample is the
+Fortran `physical_step_wall_seconds`, never process wall time. The interval
+starts after initialization, initial projection, and the pre-step MPI barrier;
+it ends immediately after the fixed physical-step package. Exact-field
+evaluation, regular-grid sampling, CSV output, analysis, and cleanup stay
+outside it. `MPI_Wtime` is reduced with `MPI_MAX`, so every sample represents
+the slowest rank. The safety status reduction performed by each physical step
+is part of this package.
+
+All raw warmup, measured, and process-wall samples are retained. Analysis
+reports median, minimum, maximum, median absolute deviation (MAD), and relative
+MAD. A sample below the profile's `minimum_sample_seconds` marks the
+configuration unreliable; it remains visible in JSON/CSV but is excluded from
+speedup and efficiency. No configuration silently receives a different number
+of physical steps.
+
+Before a timing is eligible, its complete numerical field must match the
+otherwise identical `MPI=1, OMP=1` field with absolute tolerance `1e-11` and
+relative tolerance `1e-10`. Speedup uses the median of the smallest eligible
+resource configuration for the identical global problem. With
+`R = MPI ranks x OpenMP threads`, efficiency is
+`speedup / (R/R_reference)`. Equal-resource candidates are resolved
+deterministically by MPI rank count, process-grid vector, OpenMP thread count,
+and case ID; the selected case is recorded in every series. The analyzer emits
+`analysis.json`, a flat CSV
+with every sample and MPI/OpenMP coordinate, and `strong-scaling.png` with
+time, speedup, and efficiency panels. Plot labels contain the full problem,
+scheme, degree vectors, global mesh, MPI grid, OpenMP values, and stable series
+ID. To prevent an unreadable plot from silently hiding thousands of identities,
+plotting is explicitly omitted above 12 series; use the normal plan filters to
+select an interpretable slice. JSON and CSV are always complete.
+
+The full profile represents 12,960 configurations and 116,640 solver
+invocations before retries. Final `17^3` field CSV files can consume roughly
+10 GB in aggregate. Planning it is not a claim that the matrix was executed.
+
 ## Measurement and machine-readable results
 
-Stage 3 execution supports exactly one measured invocation per case
-(`warmups=0`, `samples=1`). Profiles with other values remain valid for
-planning and dry-run, but `run` and `resume` reject them during execution
-preflight until repetition support is added with the scaling workflow. This
-prevents a manifest from claiming measurements the runner did not perform.
+Legacy convergence and validation cases retain the exact single-invocation
+result schema (`warmups=0`, `samples=1`). Strong cases use the same executor,
+adapter, launcher, and result store but add the repeated timing arrays,
+reliability threshold/flag, and effective OpenMP environment under `timing`.
+Any failed, timed-out, unparsable, or domain-invalid repetition fails the
+whole case; resume accepts only a complete, strictly revalidated aggregate.
+The local and cluster profiles use a 0.05-second minimum solver-side sample;
+the small executable smoke profile uses 0.001 seconds and still reports any
+shorter sample as unreliable.
 
 The benchmark harness computes the L2 error and solution norm with an
 independent Gauss rule of `min(10,p_trial+3)` points per axis. It deliberately
@@ -665,6 +759,7 @@ benchmarks/<run-id>/cases/<case-id>/field_samples.csv  # only when requested
 benchmarks/<run-id>/analysis/analysis.json
 benchmarks/<run-id>/analysis/analysis.csv
 benchmarks/<run-id>/analysis/convergence.png           # only with --plot
+benchmarks/<run-id>/analysis/strong-scaling.png         # strong --plot
 ```
 
 The manifest contains the schema version, full expanded configuration and case
@@ -682,13 +777,16 @@ make benchmark-self-test
 ```
 
 The dependency-free suite covers the 792-case temporal plan, all six spatial
-profiles, both validation matrices and their exact case counts, stable
+profiles, both validation matrices, both strong-scaling matrices and their
+exact case counts, stable
 vector-preserving identifiers,
 filters and validation, exact-time conversion, safe storage, process timeout
 and termination, frozen-manifest decoding, resume compatibility and verified
 skip/retry behavior, strict tagged-result parsing, planned/result binding, the
 registered manufactured adapters, smoke-refinement verification, synthetic
-temporal, spatial, and full-field series, local perturbations, separation failures, plateau and corrupted
-convergence inputs, fake-adapter extensibility, and marker-guarded Make
-cleanup. These tests exercise framework contracts without adding costly
-numerical benchmark runs to `make test`.
+temporal, spatial, full-field, and strong-scaling series, raw repeated samples,
+MAD/speedup/efficiency, short-region rejection, local perturbations, separation
+failures, plateau and corrupted convergence inputs, fake-adapter extensibility,
+and marker-guarded Make cleanup. These tests exercise framework contracts
+without adding costly numerical benchmark runs to `make test` or replacing
+the separate `make test-performance` regression gate.

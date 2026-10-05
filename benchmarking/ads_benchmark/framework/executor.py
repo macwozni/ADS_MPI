@@ -23,6 +23,23 @@ from .validation import MAX_TIMEOUT_SECONDS, decimal_value
 
 RESULT_SCHEMA_VERSION = 1
 CASE_STATES = frozenset({"planned", "running", "passed", "failed", "timeout"})
+_REPEATED_TIMING_KEYS = {
+    "wall_seconds",
+    "metric",
+    "warmup_samples",
+    "measured_samples",
+    "warmup_process_wall_seconds",
+    "measured_process_wall_seconds",
+    "minimum_reliable_seconds",
+    "reliable",
+    "openmp_environment",
+}
+_OPENMP_ENVIRONMENT_KEYS = {
+    "OMP_NUM_THREADS",
+    "OMP_DYNAMIC",
+    "OMP_PROC_BIND",
+    "OMP_PLACES",
+}
 
 
 def _timestamp() -> str:
@@ -86,6 +103,64 @@ def _timeout_text(value: str | bytes | None) -> str:
     return value
 
 
+def _uses_repetitions(case: PlannedCase) -> bool:
+    measurement = case.spec.measurement
+    return (
+        measurement.warmups != 0
+        or measurement.samples != 1
+        or measurement.minimum_sample_seconds is not None
+        or case.spec.family == "strong"
+    )
+
+
+def _minimum_sample_seconds(case: PlannedCase) -> float:
+    text = case.spec.measurement.minimum_sample_seconds
+    if text is None:
+        return 0.0
+    value = decimal_value(text, "minimum_sample_seconds")
+    try:
+        result = float(value)
+    except (OverflowError, ValueError) as error:
+        raise ExecutionError(
+            "minimum_sample_seconds is outside runtime range"
+        ) from error
+    if not math.isfinite(result) or result <= 0.0:
+        raise ExecutionError("minimum_sample_seconds is outside runtime range")
+    return result
+
+
+def _openmp_environment(case: PlannedCase) -> dict[str, str]:
+    dynamic = case.spec.openmp_dynamic
+    return {
+        "OMP_NUM_THREADS": str(case.spec.openmp_threads),
+        "OMP_DYNAMIC": "TRUE" if dynamic is True else "FALSE",
+        "OMP_PROC_BIND": case.spec.openmp_proc_bind or "close",
+        "OMP_PLACES": case.spec.openmp_places or "cores",
+    }
+
+
+def _physical_step_seconds(result: Mapping[str, object]) -> float:
+    value = result.get("physical_step_wall_seconds")
+    seconds = _nonnegative_seconds(value)
+    if seconds is None:
+        raise ExecutionError(
+            "result physical_step_wall_seconds must be a finite nonnegative number"
+        )
+    return seconds
+
+
+def _nonnegative_seconds(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        seconds = float(value)
+    except (OverflowError, ValueError):
+        return None
+    if not math.isfinite(seconds) or seconds < 0.0:
+        return None
+    return seconds
+
+
 @dataclass(frozen=True)
 class ExecutionOutcome:
     case: PlannedCase
@@ -116,6 +191,16 @@ class ExecutionSummary:
         )
 
 
+@dataclass(frozen=True)
+class _ProcessAttempt:
+    stdout: str
+    stderr: str
+    return_code: int | None
+    duration_seconds: float
+    state: str
+    error: str | None
+
+
 class Executor:
     """Execute any registered adapter without branches on adapter names."""
 
@@ -128,16 +213,6 @@ class Executor:
         self.catalog = catalog
         self.store = store
         self.repository_root = repository_root.resolve()
-
-    @staticmethod
-    def _require_supported_measurement(case: PlannedCase) -> None:
-        measurement = case.spec.measurement
-        if measurement.warmups != 0 or measurement.samples != 1:
-            raise ExecutionError(
-                "execution currently supports only warmups=0 and samples=1; "
-                f"case requests warmups={measurement.warmups} and "
-                f"samples={measurement.samples}"
-            )
 
     def _current_command(
         self, case: PlannedCase, case_directory: Path
@@ -201,7 +276,6 @@ class Executor:
                 ),
             )
             try:
-                self._require_supported_measurement(case)
                 adapter = self.catalog.adapters.get(case.spec.problem)
                 if not adapter.execution_ready:
                     raise ExecutionError(
@@ -310,13 +384,8 @@ class Executor:
             for field in ("started_at", "finished_at")
         ):
             return None, status
-        duration = status.get("duration_seconds")
-        if (
-            isinstance(duration, bool)
-            or not isinstance(duration, (int, float))
-            or not math.isfinite(duration)
-            or duration < 0
-        ):
+        duration = _nonnegative_seconds(status.get("duration_seconds"))
+        if duration is None:
             return None, status
         command = status.get("command")
         if (
@@ -329,7 +398,6 @@ class Executor:
         ):
             return None, status
         try:
-            self._require_supported_measurement(case)
             adapter = self.catalog.adapters.get(case.spec.problem)
             expected_payload = _validated_argv(
                 adapter.build_payload_command(
@@ -376,18 +444,84 @@ class Executor:
             or result.get("configuration") != case.spec.to_dict()
         ):
             return None, status
+        repeated = _uses_repetitions(case)
         timing = result.get("timing")
-        if not isinstance(timing, dict) or set(timing) != {"wall_seconds"}:
+        expected_timing_keys = (
+            _REPEATED_TIMING_KEYS if repeated else {"wall_seconds"}
+        )
+        if not isinstance(timing, dict) or set(timing) != expected_timing_keys:
             return None, status
-        wall_seconds = timing.get("wall_seconds")
-        if (
-            isinstance(wall_seconds, bool)
-            or not isinstance(wall_seconds, (int, float))
-            or not math.isfinite(wall_seconds)
-            or wall_seconds < 0
-            or wall_seconds != duration
-        ):
+        wall_seconds = _nonnegative_seconds(timing.get("wall_seconds"))
+        if wall_seconds is None or wall_seconds != duration:
             return None, status
+
+        measured_samples: list[float] | None = None
+        if repeated:
+            if timing.get("metric") != "physical_step_wall_seconds":
+                return None, status
+
+            def sample_series(field: str, count: int) -> list[float] | None:
+                raw_values = timing.get(field)
+                if not isinstance(raw_values, list) or len(raw_values) != count:
+                    return None
+                values: list[float] = []
+                for raw_value in raw_values:
+                    value = _nonnegative_seconds(raw_value)
+                    if value is None:
+                        return None
+                    values.append(value)
+                return values
+
+            warmup_samples = sample_series(
+                "warmup_samples", case.spec.measurement.warmups
+            )
+            measured_samples = sample_series(
+                "measured_samples", case.spec.measurement.samples
+            )
+            warmup_process_wall = sample_series(
+                "warmup_process_wall_seconds", case.spec.measurement.warmups
+            )
+            measured_process_wall = sample_series(
+                "measured_process_wall_seconds", case.spec.measurement.samples
+            )
+            if any(
+                values is None
+                for values in (
+                    warmup_samples,
+                    measured_samples,
+                    warmup_process_wall,
+                    measured_process_wall,
+                )
+            ):
+                return None, status
+
+            minimum = _nonnegative_seconds(
+                timing.get("minimum_reliable_seconds")
+            )
+            try:
+                expected_minimum = _minimum_sample_seconds(case)
+            except Exception:
+                return None, status
+            if minimum is None or minimum != expected_minimum:
+                return None, status
+            assert measured_samples is not None
+            expected_reliable = min(measured_samples) >= expected_minimum
+            if (
+                type(timing.get("reliable")) is not bool
+                or timing.get("reliable") is not expected_reliable
+            ):
+                return None, status
+            openmp_environment = timing.get("openmp_environment")
+            if (
+                not isinstance(openmp_environment, dict)
+                or set(openmp_environment) != _OPENMP_ENVIRONMENT_KEYS
+                or any(
+                    not isinstance(value, str)
+                    for value in openmp_environment.values()
+                )
+                or openmp_environment != _openmp_environment(case)
+            ):
+                return None, status
         domain_result = result.get("domain_result")
         if not isinstance(domain_result, Mapping):
             return None, status
@@ -397,6 +531,12 @@ class Executor:
                 return None, status
             adapter.validate_result(case.spec, reparsed)
             if _strict_json(dict(reparsed)) != _strict_json(dict(domain_result)):
+                return None, status
+            if (
+                repeated
+                and measured_samples is not None
+                and _physical_step_seconds(reparsed) != measured_samples[-1]
+            ):
                 return None, status
             if (
                 case.spec.sampling.write_samples
@@ -571,6 +711,78 @@ class Executor:
                 except OSError:
                     pass
 
+    def _run_process_attempt(
+        self,
+        command: Sequence[str],
+        case_directory: Path,
+        runtime_environment: Mapping[str, str],
+        timeout: float,
+    ) -> _ProcessAttempt:
+        start = time.monotonic()
+        stdout = ""
+        stderr = ""
+        return_code: int | None = None
+        state = "failed"
+        error_message: str | None = None
+        process: subprocess.Popen[str] | None = None
+        try:
+            with self.store.open_case_directory(case_directory) as case_fd:
+                anchored_cwd = f"/proc/self/fd/{case_fd}"
+                if not os.path.isdir(anchored_cwd):
+                    raise ExecutionError(
+                        "safe child cwd requires a mounted /proc/self/fd"
+                    )
+                process = subprocess.Popen(
+                    command,
+                    cwd=anchored_cwd,
+                    pass_fds=(case_fd,),
+                    env=runtime_environment,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    start_new_session=True,
+                )
+                try:
+                    stdout, stderr = process.communicate(timeout=timeout)
+                    return_code = process.returncode
+                except subprocess.TimeoutExpired as error:
+                    stdout = _timeout_text(error.stdout)
+                    stderr = _timeout_text(error.stderr)
+                    self._terminate(process)
+                    self._close_pipes(process)
+                    return_code = process.returncode
+                    state = "timeout"
+                    error_message = (
+                        f"process exceeded timeout of {timeout:g} seconds"
+                    )
+        except Exception as error:
+            if process is not None:
+                self._terminate(process)
+                self._close_pipes(process)
+                return_code = process.returncode
+            error_message = f"process execution failed: {error}"
+        except BaseException:
+            if process is not None:
+                self._terminate(process)
+                self._close_pipes(process)
+            raise
+
+        duration = time.monotonic() - start
+        if error_message is None and return_code == 0:
+            state = "passed"
+        elif error_message is None:
+            error_message = f"process exited with status {return_code}"
+        return _ProcessAttempt(
+            stdout=stdout,
+            stderr=stderr,
+            return_code=return_code,
+            duration_seconds=duration,
+            state=state,
+            error=error_message,
+        )
+
     def execute(
         self,
         run_id: str,
@@ -587,7 +799,6 @@ class Executor:
             case_directory=case_directory,
         )
         try:
-            self._require_supported_measurement(case)
             adapter = self.catalog.adapters.get(case.spec.problem)
             if not adapter.execution_ready:
                 raise ExecutionError(
@@ -607,6 +818,9 @@ class Executor:
                 ) from error
             if not math.isfinite(timeout) or timeout <= 0:
                 raise ExecutionError("timeout_seconds is outside runtime range")
+            minimum_sample_seconds = _minimum_sample_seconds(case)
+            repeated = _uses_repetitions(case)
+            openmp_environment = _openmp_environment(case)
             self.store.remove_result(case_directory)
             self.store.remove_generated_artifact(
                 case_directory, "field_samples.csv"
@@ -630,14 +844,7 @@ class Executor:
             )
             # Case semantics win over ambient/caller values so a recorded plan
             # cannot silently run with a different OpenMP layout.
-            runtime_environment.update(
-                {
-                    "OMP_NUM_THREADS": str(case.spec.openmp_threads),
-                    "OMP_DYNAMIC": "FALSE",
-                    "OMP_PROC_BIND": "close",
-                    "OMP_PLACES": "cores",
-                }
-            )
+            runtime_environment.update(openmp_environment)
         except Exception as error:
             # Construction may fail before stale artifacts were cleared.
             self.store.remove_result(case_directory)
@@ -675,71 +882,58 @@ class Executor:
         stdout = ""
         stderr = ""
         return_code: int | None = None
-        state = "failed"
+        state = "passed"
         error_message: str | None = None
-        process: subprocess.Popen[str] | None = None
-        try:
-            with self.store.open_case_directory(case_directory) as case_fd:
-                anchored_cwd = f"/proc/self/fd/{case_fd}"
-                if not os.path.isdir(anchored_cwd):
-                    raise ExecutionError(
-                        "safe child cwd requires a mounted /proc/self/fd"
-                    )
-                process = subprocess.Popen(
-                    command,
-                    # The inherited descriptor anchors cwd to the verified
-                    # inode even if the visible case path is swapped later.
-                    cwd=anchored_cwd,
-                    pass_fds=(case_fd,),
-                    env=runtime_environment,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    start_new_session=True,
-                )
+        final_parsed: Mapping[str, object] | None = None
+        warmup_samples: list[float] = []
+        measured_samples: list[float] = []
+        warmup_process_wall_seconds: list[float] = []
+        measured_process_wall_seconds: list[float] = []
+
+        phases = (
+            ("warmup", case.spec.measurement.warmups),
+            ("measured", case.spec.measurement.samples),
+        )
+        for phase, count in phases:
+            if error_message is not None:
+                break
+            for index in range(1, count + 1):
                 try:
-                    stdout, stderr = process.communicate(timeout=timeout)
-                    return_code = process.returncode
-                except subprocess.TimeoutExpired as error:
-                    stdout = _timeout_text(error.stdout)
-                    stderr = _timeout_text(error.stderr)
-                    self._terminate(process)
-                    # A detached descendant may retain the inherited pipe writers.
-                    # Closing our readers guarantees timeout handling never waits
-                    # indefinitely for EOF from a process outside the owned group.
-                    self._close_pipes(process)
-                    return_code = process.returncode
-                    state = "timeout"
-                    error_message = (
-                        f"process exceeded timeout of {timeout:g} seconds"
+                    # Every repetition is an independent, identical process.
+                    # Removing the artifact first makes validation specific to
+                    # this attempt instead of accepting a stale earlier file.
+                    self.store.remove_generated_artifact(
+                        case_directory, "field_samples.csv"
                     )
-        except Exception as error:
-            if process is not None:
-                self._terminate(process)
-                self._close_pipes(process)
-                return_code = process.returncode
-            error_message = f"process execution failed: {error}"
-        except BaseException:
-            if process is not None:
-                self._terminate(process)
-                self._close_pipes(process)
-            raise
+                except Exception as error:
+                    state = "failed"
+                    error_message = (
+                        f"{phase} {index}: artifact preparation failed: {error}"
+                    )
+                    break
 
-        duration = time.monotonic() - start
-        self.store.write_log(case_directory, "stdout.log", stdout)
-        self.store.write_log(case_directory, "stderr.log", stderr)
+                attempt = self._run_process_attempt(
+                    command,
+                    case_directory,
+                    runtime_environment,
+                    timeout,
+                )
+                stdout = attempt.stdout
+                stderr = attempt.stderr
+                return_code = attempt.return_code
+                if attempt.state != "passed":
+                    state = attempt.state
+                    error_message = f"{phase} {index}: {attempt.error}"
+                    break
 
-        parsed: Mapping[str, object] | None = None
-        if error_message is None and return_code == 0:
-            try:
-                parsed = adapter.parse_result(stdout, stderr)
-                if not isinstance(parsed, Mapping):
-                    raise TypeError("adapter result must be a mapping")
-            except Exception as error:
-                error_message = f"result parser failed: {error}"
-            if error_message is None and parsed is not None:
+                try:
+                    parsed = adapter.parse_result(stdout, stderr)
+                    if not isinstance(parsed, Mapping):
+                        raise TypeError("adapter result must be a mapping")
+                except Exception as error:
+                    state = "failed"
+                    error_message = f"result parser failed: {error}"
+                    break
                 try:
                     adapter.validate_result(case.spec, parsed)
                     if (
@@ -751,28 +945,82 @@ class Executor:
                         raise ExecutionError(
                             "requested field_samples.csv is missing or not regular"
                         )
-                    state = "passed"
                 except Exception as error:
+                    state = "failed"
                     error_message = f"result validation failed: {error}"
-        elif error_message is None:
-            error_message = f"process exited with status {return_code}"
+                    break
+
+                if repeated:
+                    try:
+                        sample_seconds = _physical_step_seconds(parsed)
+                    except Exception as error:
+                        state = "failed"
+                        error_message = f"result measurement failed: {error}"
+                        break
+                    if phase == "warmup":
+                        warmup_samples.append(sample_seconds)
+                        warmup_process_wall_seconds.append(
+                            attempt.duration_seconds
+                        )
+                    else:
+                        measured_samples.append(sample_seconds)
+                        measured_process_wall_seconds.append(
+                            attempt.duration_seconds
+                        )
+                if phase == "measured":
+                    final_parsed = parsed
+
+            if error_message is not None:
+                break
+
+        if state == "passed" and final_parsed is None:
+            state = "failed"
+            error_message = "execution produced no measured result"
+
+        duration = time.monotonic() - start
+        self.store.write_log(case_directory, "stdout.log", stdout)
+        self.store.write_log(case_directory, "stderr.log", stderr)
 
         finished_at = _timestamp()
-        if state == "passed" and parsed is not None:
+        if state == "passed" and final_parsed is not None:
+            if repeated:
+                timing: dict[str, object] = {
+                    "wall_seconds": duration,
+                    "metric": "physical_step_wall_seconds",
+                    "warmup_samples": warmup_samples,
+                    "measured_samples": measured_samples,
+                    "warmup_process_wall_seconds": (
+                        warmup_process_wall_seconds
+                    ),
+                    "measured_process_wall_seconds": (
+                        measured_process_wall_seconds
+                    ),
+                    "minimum_reliable_seconds": minimum_sample_seconds,
+                    "reliable": (
+                        min(measured_samples) >= minimum_sample_seconds
+                    ),
+                    "openmp_environment": dict(openmp_environment),
+                }
+            else:
+                timing = {"wall_seconds": duration}
             result = {
                 "schema_version": RESULT_SCHEMA_VERSION,
                 "kind": "ads-benchmark-case-result",
                 "case_id": case.case_id,
                 "status": "passed",
                 "configuration": case.spec.to_dict(),
-                "timing": {"wall_seconds": duration},
-                "domain_result": dict(parsed),
+                "timing": timing,
+                "domain_result": dict(final_parsed),
             }
             try:
                 self.store.write_result(case_directory, result)
             except Exception as error:
                 state = "failed"
                 error_message = f"result serialization failed: {error}"
+                try:
+                    self.store.remove_result(case_directory)
+                except Exception:
+                    pass
 
         status: dict[str, object] = {
             "schema_version": RESULT_SCHEMA_VERSION,

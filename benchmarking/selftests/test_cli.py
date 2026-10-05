@@ -187,19 +187,29 @@ class RunCommandTests(unittest.TestCase):
         self.assertIn("execution preflight", stderr)
         self.assertFalse((repository / "benchmarks" / "missing-payload").exists())
 
-    def test_execution_preflight_refuses_unimplemented_repetitions(self) -> None:
-        return_code, repository, _, stderr = self._run_fake(
+    def test_run_executes_requested_warmups_and_samples(self) -> None:
+        return_code, repository, stdout, stderr = self._run_fake(
             "success",
-            "unsupported-repetitions",
+            "repeated-measurement",
             warmups=2,
             samples=7,
         )
-        self.assertEqual(return_code, 2)
-        self.assertIn("supports only warmups=0 and samples=1", stderr)
-        self.assertIn("requests warmups=2 and samples=7", stderr)
-        self.assertFalse(
-            (repository / "benchmarks" / "unsupported-repetitions").exists()
+        self.assertEqual(return_code, 0, stderr)
+        self.assertEqual(stderr, "")
+        self.assertIn("summary:      passed=1 failed=0 total=1", stdout)
+        run_directory = repository / "benchmarks" / "repeated-measurement"
+        manifest = json.loads(
+            (run_directory / "manifest.json").read_text(encoding="utf-8")
         )
+        case_directory = (
+            run_directory / "cases" / manifest["cases"][0]["case_id"]
+        )
+        result = json.loads(
+            (case_directory / "result.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(len(result["timing"]["warmup_samples"]), 2)
+        self.assertEqual(len(result["timing"]["measured_samples"]), 7)
+        self.assertEqual(result["domain_result"]["invocation"], 9)
 
     def test_execution_preflight_refuses_missing_launcher_before_run_creation(self) -> None:
         temporary = tempfile.TemporaryDirectory(prefix="ads-cli-launcher-")

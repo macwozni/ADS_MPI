@@ -64,6 +64,7 @@ BENCHMARK_CONVERGENCE_PROFILE ?= temporal-full
 BENCHMARK_H_CONVERGENCE_PROFILE ?= h-convergence-full
 BENCHMARK_P_CONVERGENCE_PROFILE ?= p-convergence-full
 BENCHMARK_VALIDATION_PROFILE ?= validation-full
+BENCHMARK_STRONG_PROFILE ?= cluster-scaling
 BENCHMARK_RESUME_PROFILE ?= $(BENCHMARK_CONVERGENCE_PROFILE)
 BENCHMARK_PLAN_ARGS ?=
 BENCHMARK_ANALYZE_ARGS ?=
@@ -114,7 +115,7 @@ TEST_OPTIONS = \
 	show-config config rebuild run run-help show-run \
 	benchmark-plan benchmark-build benchmark-smoke benchmark-convergence \
 	benchmark-h-convergence benchmark-p-convergence \
-	benchmark-validate \
+	benchmark-validate benchmark-strong \
 	benchmark-resume benchmark-analyze benchmark-self-test \
 	clean-benchmark-build \
 	test check test-build test-layout test-src test-problems test-driver \
@@ -223,10 +224,20 @@ benchmark-validate:
 		BENCHMARK_PLAN_ARGS="$(BENCHMARK_PLAN_ARGS)" \
 		BENCHMARK_ANALYZE_ARGS="$(BENCHMARK_ANALYZE_ARGS)" validate
 
+benchmark-strong:
+	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
+		CONFIG="$(CONFIG_PATH)" PYTHON="$(PYTHON)" \
+		MPIEXEC="$(MPIEXEC)" MPIEXEC_FLAGS="$(MPIEXEC_FLAGS)" \
+		MPI_NP_FLAG="$(MPI_NP_FLAG)" RUN_ID="$(RUN_ID)" \
+		BENCHMARK_STRONG_PROFILE="$(BENCHMARK_STRONG_PROFILE)" \
+		BENCHMARK_PLAN_ARGS="$(BENCHMARK_PLAN_ARGS)" \
+		BENCHMARK_ANALYZE_ARGS="$(BENCHMARK_ANALYZE_ARGS)" strong
+
 benchmark-resume:
 	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
 		CONFIG="$(CONFIG_PATH)" PYTHON="$(PYTHON)" \
-		MPIEXEC="$(MPIEXEC)" MPI_NP_FLAG="$(MPI_NP_FLAG)" \
+		MPIEXEC="$(MPIEXEC)" MPIEXEC_FLAGS="$(MPIEXEC_FLAGS)" \
+		MPI_NP_FLAG="$(MPI_NP_FLAG)" \
 		RUN_ID="$(RUN_ID)" \
 		BENCHMARK_RESUME_PROFILE="$(BENCHMARK_RESUME_PROFILE)" \
 		BENCHMARK_PLAN_ARGS="$(BENCHMARK_PLAN_ARGS)" resume
@@ -559,8 +570,10 @@ targets help:
 		'                                      run isotropic p-convergence (full by default)' \
 		'  make benchmark-validate RUN_ID=NAME' \
 		'                                      validate fields; declare MPI/CPU slots in BENCHMARK_PLAN_ARGS' \
+		'  make benchmark-strong RUN_ID=NAME' \
+		'                                      run release strong scaling; declare MPI/CPU slots' \
 		'  make benchmark-resume RUN_ID=NAME   verify and resume that frozen run' \
-		'  make benchmark-analyze RUN_ID=NAME  write JSON/CSV convergence reports' \
+		'  make benchmark-analyze RUN_ID=NAME  write registered JSON/CSV analysis reports' \
 		'  make benchmark-self-test           planner/engine contract tests' \
 		'  make clean-benchmark-build          clean framework build/cache only' \
 		'  Generated plans and results live under ignored benchmarks/<run-id>.' \

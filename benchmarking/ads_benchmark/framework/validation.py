@@ -123,6 +123,27 @@ def validate_case(case: CaseSpec, catalog: Catalog) -> None:
 
     if type(case.openmp_threads) is not int or case.openmp_threads <= 0:
         raise ValidationError("OpenMP threads must be a positive integer")
+    openmp_policy = (
+        case.openmp_dynamic,
+        case.openmp_proc_bind,
+        case.openmp_places,
+    )
+    if any(value is not None for value in openmp_policy) and any(
+        value is None for value in openmp_policy
+    ):
+        raise ValidationError(
+            "OpenMP dynamic, proc_bind and places must be specified together"
+        )
+    if case.openmp_dynamic is not None and type(case.openmp_dynamic) is not bool:
+        raise ValidationError("OpenMP dynamic must be a boolean")
+    for value, field in (
+        (case.openmp_proc_bind, "OpenMP proc_bind"),
+        (case.openmp_places, "OpenMP places"),
+    ):
+        if value is not None and (
+            not isinstance(value, str) or not value or "\0" in value
+        ):
+            raise ValidationError(f"{field} must be a nonempty NUL-free string")
     if (
         type(case.sampling.points_per_axis) is not int
         or case.sampling.points_per_axis < 2
@@ -159,6 +180,34 @@ def validate_case(case: CaseSpec, catalog: Catalog) -> None:
         raise ValidationError("timeout_seconds is outside runtime range") from error
     if not math.isfinite(runtime_timeout) or runtime_timeout <= 0:
         raise ValidationError("timeout_seconds is outside runtime range")
+    minimum_sample_seconds: Decimal | None = None
+    if case.measurement.minimum_sample_seconds is not None:
+        minimum_sample_seconds = decimal_value(
+            case.measurement.minimum_sample_seconds,
+            "minimum_sample_seconds",
+        )
+        if minimum_sample_seconds <= 0:
+            raise ValidationError("minimum_sample_seconds must be positive")
+        if minimum_sample_seconds > timeout:
+            raise ValidationError(
+                "minimum_sample_seconds must not exceed timeout_seconds"
+            )
+
+    if case.family == "strong":
+        if case.build_profile != "release":
+            raise ValidationError("strong scaling requires the release build profile")
+        if case.exact_case != "spatial-cosine":
+            raise ValidationError("strong scaling requires exact case spatial-cosine")
+        if not case.sampling.write_samples:
+            raise ValidationError("strong scaling requires write_samples=true")
+        if case.openmp_dynamic is not False:
+            raise ValidationError("strong scaling requires OMP_DYNAMIC=FALSE")
+        if case.openmp_proc_bind is None or case.openmp_places is None:
+            raise ValidationError("strong scaling requires a complete OpenMP policy")
+        if minimum_sample_seconds is None:
+            raise ValidationError(
+                "strong scaling requires minimum_sample_seconds"
+            )
 
     adapter = catalog.adapters.get(case.problem)
     try:

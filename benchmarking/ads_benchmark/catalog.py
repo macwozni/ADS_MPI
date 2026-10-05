@@ -8,6 +8,7 @@ protocol and registering it here; planner and executor code stay unchanged.
 from __future__ import annotations
 
 from .analysis.spatial import HConvergenceAnalyzer, PConvergenceAnalyzer
+from .analysis.strong import StrongScalingAnalyzer
 from .analysis.temporal import TemporalConvergenceAnalyzer
 from .analysis.validation import FieldValidationAnalyzer
 from .components.manufactured import ManufacturedTransientAdapter
@@ -43,7 +44,7 @@ def build_catalog(
             "MPI/OpenMP full-field validation",
             "field-validation",
         ),
-        ("strong", "strong scaling", None),
+        ("strong", "strong scaling", "strong-scaling"),
         ("weak", "weak scaling", None),
     ):
         families.register(name, FamilyDefinition(name, description, analyzer))
@@ -92,6 +93,8 @@ def build_catalog(
     analyzers.register(p_analyzer.name, p_analyzer)
     validation_analyzer = FieldValidationAnalyzer()
     analyzers.register(validation_analyzer.name, validation_analyzer)
+    strong_analyzer = StrongScalingAnalyzer()
+    analyzers.register(strong_analyzer.name, strong_analyzer)
 
     return Catalog(
         adapters=adapters,

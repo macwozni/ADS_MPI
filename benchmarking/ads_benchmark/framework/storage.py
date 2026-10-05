@@ -31,7 +31,7 @@ _MAX_GENERATED_ARTIFACT_BYTES = 64 * 1024 * 1024
 _LOG_NAMES = frozenset({"stdout.log", "stderr.log"})
 _GENERATED_ARTIFACTS = frozenset({"field_samples.csv"})
 _ANALYSIS_ARTIFACTS = frozenset(
-    {"analysis.json", "analysis.csv", "convergence.png"}
+    {"analysis.json", "analysis.csv", "convergence.png", "strong-scaling.png"}
 )
 
 
@@ -343,9 +343,9 @@ class ResultStore:
 
         if name not in _ANALYSIS_ARTIFACTS:
             raise StorageError(f"unsupported analysis artifact: {name}")
-        if name == "convergence.png" and not isinstance(content, bytes):
-            raise StorageError("convergence.png content must be bytes")
-        if name != "convergence.png" and not isinstance(content, str):
+        if name.endswith(".png") and not isinstance(content, bytes):
+            raise StorageError(f"{name} content must be bytes")
+        if not name.endswith(".png") and not isinstance(content, str):
             raise StorageError(f"{name} content must be text")
         with self._owned_run_fds(run_id) as (_, run_fd):
             try:

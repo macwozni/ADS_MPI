@@ -92,9 +92,6 @@ contains
          call RequireCollectiveSuccess( &
             selected_adapter, state, status, 'physical ADS step failed')
       end do
-      call MPI_Barrier(MPI_COMM_WORLD, mpi_ierr)
-      if (mpi_ierr /= 0) call FailWithCleanup( &
-         selected_adapter, state, mpi_ierr, 'post-step MPI barrier failed')
       local_elapsed = MPI_Wtime() - start_time
       call MPI_Allreduce(local_elapsed, state%step_wall_seconds, 1, &
                          MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, &

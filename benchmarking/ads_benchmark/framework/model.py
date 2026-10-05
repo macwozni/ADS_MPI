@@ -47,13 +47,17 @@ class MeasurementSpec:
     warmups: int
     samples: int
     timeout_seconds: str
+    minimum_sample_seconds: str | None = None
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        document: dict[str, object] = {
             "warmups": self.warmups,
             "samples": self.samples,
             "timeout_seconds": self.timeout_seconds,
         }
+        if self.minimum_sample_seconds is not None:
+            document["minimum_sample_seconds"] = self.minimum_sample_seconds
+        return document
 
 
 @dataclass(frozen=True)
@@ -88,8 +92,18 @@ class CaseSpec:
     measurement: MeasurementSpec
     build_profile: str
     launcher: str
+    openmp_dynamic: bool | None = None
+    openmp_proc_bind: str | None = None
+    openmp_places: str | None = None
 
     def to_dict(self) -> dict[str, object]:
+        openmp: dict[str, object] = {"threads": self.openmp_threads}
+        if self.openmp_dynamic is not None:
+            openmp["dynamic"] = self.openmp_dynamic
+        if self.openmp_proc_bind is not None:
+            openmp["proc_bind"] = self.openmp_proc_bind
+        if self.openmp_places is not None:
+            openmp["places"] = self.openmp_places
         return {
             "family": self.family,
             "problem": self.problem,
@@ -102,7 +116,7 @@ class CaseSpec:
                 "trial_degree": list(self.trial_degree),
             },
             "mpi": self.mpi.to_dict(),
-            "openmp": {"threads": self.openmp_threads},
+            "openmp": openmp,
             "sampling": self.sampling.to_dict(),
             "measurement": self.measurement.to_dict(),
             "build": {"profile": self.build_profile},

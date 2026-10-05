@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
+import shlex
 from typing import Mapping, Sequence
 
 from ..framework.errors import ExecutionError
@@ -65,10 +66,16 @@ class MpiLauncher:
     name: str = "mpi"
     available_mpi_slots: int | None = None
     available_cpu_slots: int | None = None
+    extra_args: tuple[str, ...] = ()
 
     def validate_case(self, case: CaseSpec) -> None:
         if not self.executable or not self.rank_flag:
             raise ValueError("MPI launcher executable and rank flag must be nonempty")
+        if any(
+            not isinstance(argument, str) or not argument or "\0" in argument
+            for argument in self.extra_args
+        ):
+            raise ValueError("MPI launcher extra arguments must be nonempty strings")
         if (
             self.available_mpi_slots is not None
             and (
@@ -112,6 +119,7 @@ class MpiLauncher:
     def command(self, payload: Sequence[str], case: CaseSpec) -> Sequence[str]:
         return (
             self.executable,
+            *self.extra_args,
             self.rank_flag,
             str(case.mpi.ranks),
             *payload,
@@ -126,9 +134,17 @@ def default_mpi_launcher(
     available_mpi_slots: int | None = None,
     available_cpu_slots: int | None = None,
 ) -> MpiLauncher:
+    try:
+        executable_parts = tuple(shlex.split(os.environ.get("MPIEXEC", "mpiexec")))
+        flag_parts = tuple(shlex.split(os.environ.get("MPIEXEC_FLAGS", "")))
+    except ValueError as error:
+        raise ValueError(f"invalid MPI launcher configuration: {error}") from error
+    if not executable_parts:
+        raise ValueError("MPIEXEC must name a launcher executable")
     return MpiLauncher(
-        executable=os.environ.get("MPIEXEC", "mpiexec"),
+        executable=executable_parts[0],
         rank_flag=os.environ.get("MPI_NP_FLAG", "-n"),
         available_mpi_slots=available_mpi_slots,
         available_cpu_slots=available_cpu_slots,
+        extra_args=(*executable_parts[1:], *flag_parts),
     )

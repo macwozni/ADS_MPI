@@ -1,27 +1,51 @@
 {
   "schema_version": 1,
   "name": "cluster-scaling",
-  "description": "Stage-one distributed scaling planning preset; later stages expand strong and weak matrices.",
+  "description": "12960-case full strong-scaling matrix across all manufactured problems, schemes, supported isotropic degree pairs, and global meshes.",
   "family": "strong",
-  "exact_cases": ["temporal-polynomial"],
+  "exact_cases": ["spatial-cosine"],
   "problems": ["igrm_l2", "igrm_heat", "pure_diffusion_igrm"],
   "schemes": ["dg", "pr", "be"],
   "time_discretizations": [
     {"final_time": "0.1", "steps": 4}
   ],
-  "meshes": [[32, 32, 32]],
+  "meshes": [[16, 16, 16], [32, 32, 32], [64, 64, 64]],
   "degree_pairs": [
-    {"test": [4, 4, 4], "trial": [3, 3, 3]}
+    {"test": [2, 2, 2], "trial": [1, 1, 1]},
+    {"test": [3, 3, 3], "trial": [2, 2, 2]},
+    {"test": [4, 4, 4], "trial": [3, 3, 3]},
+    {"test": [5, 5, 5], "trial": [4, 4, 4]},
+    {"test": [6, 6, 6], "trial": [5, 5, 5]},
+    {"test": [7, 7, 7], "trial": [6, 6, 6]},
+    {"test": [8, 8, 8], "trial": [7, 7, 7]},
+    {"test": [9, 9, 9], "trial": [8, 8, 8]},
+    {"test": [3, 3, 3], "trial": [1, 1, 1]},
+    {"test": [4, 4, 4], "trial": [2, 2, 2]},
+    {"test": [5, 5, 5], "trial": [3, 3, 3]},
+    {"test": [6, 6, 6], "trial": [4, 4, 4]},
+    {"test": [7, 7, 7], "trial": [5, 5, 5]},
+    {"test": [8, 8, 8], "trial": [6, 6, 6]},
+    {"test": [9, 9, 9], "trial": [7, 7, 7]}
   ],
   "process_layouts": [
     {"ranks": 1, "grid": [1, 1, 1]},
     {"ranks": 2, "grid": [2, 1, 1]},
+    {"ranks": 2, "grid": [1, 2, 1]},
+    {"ranks": 2, "grid": [1, 1, 2]},
     {"ranks": 4, "grid": [2, 2, 1]},
+    {"ranks": 4, "grid": [2, 1, 2]},
+    {"ranks": 4, "grid": [1, 2, 2]},
     {"ranks": 8, "grid": [2, 2, 2]}
   ],
-  "thread_counts": [1],
-  "sampling": {"points_per_axis": 17, "write_samples": false},
-  "execution": {"warmups": 2, "samples": 7, "timeout_seconds": "3600"},
+  "thread_counts": [1, 2, 4, 8],
+  "openmp": {"dynamic": false, "proc_bind": "close", "places": "cores"},
+  "sampling": {"points_per_axis": 17, "write_samples": true},
+  "execution": {
+    "warmups": 2,
+    "samples": 7,
+    "minimum_sample_seconds": "0.05",
+    "timeout_seconds": "14400"
+  },
   "build_profiles": ["release"],
   "launcher": "mpi"
 }

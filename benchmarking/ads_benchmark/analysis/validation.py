@@ -57,7 +57,7 @@ Vector3 = tuple[int, int, int]
 
 
 @dataclass(frozen=True)
-class _ValidationPoint:
+class FieldResultPoint:
     case_id: str
     configuration: Mapping[str, object]
     problem: str
@@ -246,7 +246,38 @@ def _validate_sample_contract(
         )
 
 
-def _extract_point(document: Mapping[str, object]) -> _ValidationPoint:
+def extract_field_result(
+    document: Mapping[str, object], *, expected_family: str = "validation"
+) -> FieldResultPoint:
+    """Load and cross-check one complete manufactured-field result.
+
+    The numerical field contract is shared by validation and scaling
+    experiments.  Keeping this loader public prevents scaling analyzers from
+    weakening or duplicating the Stage-5 checks.
+    """
+
+    required_keys = {
+        "schema_version",
+        "kind",
+        "case_id",
+        "status",
+        "configuration",
+        "timing",
+        "domain_result",
+    }
+    allowed_keys = required_keys | {"analysis_artifacts"}
+    keys = set(document)
+    if not required_keys.issubset(keys) or not keys.issubset(allowed_keys):
+        raise AnalysisError(
+            "result document has invalid keys: "
+            f"missing={sorted(required_keys - keys)}, "
+            f"extra={sorted(keys - allowed_keys)}"
+        )
+    if type(document.get("schema_version")) is not int or document.get(
+        "schema_version"
+    ) != 1:
+        raise AnalysisError("result schema_version must be the integer 1")
+
     case_id = _string(document.get("case_id"), "case_id")
     if document.get("kind") != "ads-benchmark-case-result":
         raise AnalysisError(f"{case_id}: unsupported result kind")
@@ -255,8 +286,10 @@ def _extract_point(document: Mapping[str, object]) -> _ValidationPoint:
     configuration = _mapping(
         document.get("configuration"), f"{case_id}.configuration"
     )
-    if configuration.get("family") != "validation":
-        raise AnalysisError(f"{case_id}: expected validation experiment family")
+    if configuration.get("family") != expected_family:
+        raise AnalysisError(
+            f"{case_id}: expected {expected_family} experiment family"
+        )
     problem = _string(configuration.get("problem"), f"{case_id}.problem")
     scheme = _string(configuration.get("scheme"), f"{case_id}.scheme").lower()
     exact_case = _string(
@@ -344,7 +377,7 @@ def _extract_point(document: Mapping[str, object]) -> _ValidationPoint:
         raise AnalysisError(f"{case_id}: {error}") from error
 
     timing = _mapping(document.get("timing"), f"{case_id}.timing")
-    return _ValidationPoint(
+    return FieldResultPoint(
         case_id=case_id,
         configuration=configuration,
         problem=problem,
@@ -395,11 +428,11 @@ def _physics_configuration(configuration: Mapping[str, object]) -> dict[str, obj
     return result
 
 
-def _layout_signature(point: _ValidationPoint) -> tuple[int, Vector3, int]:
+def _layout_signature(point: FieldResultPoint) -> tuple[int, Vector3, int]:
     return point.mpi_ranks, point.mpi_grid, point.openmp_threads
 
 
-def _is_reference(point: _ValidationPoint) -> bool:
+def _is_reference(point: FieldResultPoint) -> bool:
     return (
         point.mpi_ranks == 1
         and point.mpi_grid == (1, 1, 1)
@@ -411,7 +444,7 @@ def _comparison_document(comparison: FieldComparison) -> dict[str, object]:
     return comparison.to_dict()
 
 
-def _case_document(point: _ValidationPoint, *, timing_valid: bool) -> dict[str, object]:
+def _case_document(point: FieldResultPoint, *, timing_valid: bool) -> dict[str, object]:
     return {
         "case_id": point.case_id,
         "mpi_ranks": point.mpi_ranks,
@@ -463,12 +496,12 @@ class FieldValidationAnalyzer:
 
         seen_ids: set[str] = set()
         seen_configurations: set[str] = set()
-        physics_groups: dict[str, list[_ValidationPoint]] = {}
+        physics_groups: dict[str, list[FieldResultPoint]] = {}
         physics_documents: dict[str, Mapping[str, object]] = {}
         for index, document in enumerate(documents):
             if not isinstance(document, Mapping):
                 raise AnalysisError(f"result {index} is not an object")
-            point = _extract_point(document)
+            point = extract_field_result(document)
             if point.case_id in seen_ids:
                 raise AnalysisError(f"duplicate case_id: {point.case_id}")
             seen_ids.add(point.case_id)
@@ -509,7 +542,7 @@ class FieldValidationAnalyzer:
         for physics_key in sorted(physics_groups):
             points = physics_groups[physics_key]
             group_id = hashlib.sha256(physics_key.encode("utf-8")).hexdigest()[:16]
-            by_step_scheme: dict[int, dict[str, list[_ValidationPoint]]] = {}
+            by_step_scheme: dict[int, dict[str, list[FieldResultPoint]]] = {}
             for point in points:
                 by_step_scheme.setdefault(point.steps, {}).setdefault(
                     point.scheme, []
@@ -535,7 +568,7 @@ class FieldValidationAnalyzer:
 
             for level_index, step_count in enumerate(steps):
                 scheme_points = by_step_scheme[step_count]
-                references: dict[str, _ValidationPoint] = {}
+                references: dict[str, FieldResultPoint] = {}
                 scheme_documents: list[dict[str, object]] = []
                 time_steps = {
                     point.time_step
@@ -811,6 +844,7 @@ __all__ = [
     "ANALYTIC_ABSOLUTE_TOLERANCE",
     "ANALYTIC_RELATIVE_TOLERANCE",
     "FieldValidationAnalyzer",
+    "FieldResultPoint",
     "PARALLEL_ABSOLUTE_TOLERANCE",
     "PARALLEL_RELATIVE_TOLERANCE",
     "SCHEME_ABSOLUTE_TOLERANCE",
@@ -818,4 +852,5 @@ __all__ = [
     "SCHEME_TREND_MINIMUM_REDUCTION",
     "SCHEME_TREND_RELAXATION",
     "VALIDATION_EXACT_CASE",
+    "extract_field_result",
 ]

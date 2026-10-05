@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "name": "local-scaling",
-  "description": "Stage-one local scaling planning preset; later stages expand the scientific matrix.",
+  "description": "2160-case local strong-scaling matrix across all manufactured problems, schemes, and supported isotropic degree pairs.",
   "family": "strong",
-  "exact_cases": ["temporal-polynomial"],
+  "exact_cases": ["spatial-cosine"],
   "problems": ["igrm_l2", "igrm_heat", "pure_diffusion_igrm"],
   "schemes": ["dg", "pr", "be"],
   "time_discretizations": [
@@ -11,14 +11,37 @@
   ],
   "meshes": [[16, 16, 16]],
   "degree_pairs": [
-    {"test": [4, 4, 4], "trial": [3, 3, 3]}
+    {"test": [2, 2, 2], "trial": [1, 1, 1]},
+    {"test": [3, 3, 3], "trial": [2, 2, 2]},
+    {"test": [4, 4, 4], "trial": [3, 3, 3]},
+    {"test": [5, 5, 5], "trial": [4, 4, 4]},
+    {"test": [6, 6, 6], "trial": [5, 5, 5]},
+    {"test": [7, 7, 7], "trial": [6, 6, 6]},
+    {"test": [8, 8, 8], "trial": [7, 7, 7]},
+    {"test": [9, 9, 9], "trial": [8, 8, 8]},
+    {"test": [3, 3, 3], "trial": [1, 1, 1]},
+    {"test": [4, 4, 4], "trial": [2, 2, 2]},
+    {"test": [5, 5, 5], "trial": [3, 3, 3]},
+    {"test": [6, 6, 6], "trial": [4, 4, 4]},
+    {"test": [7, 7, 7], "trial": [5, 5, 5]},
+    {"test": [8, 8, 8], "trial": [6, 6, 6]},
+    {"test": [9, 9, 9], "trial": [7, 7, 7]}
   ],
   "process_layouts": [
-    {"ranks": 1, "grid": [1, 1, 1]}
+    {"ranks": 1, "grid": [1, 1, 1]},
+    {"ranks": 2, "grid": [2, 1, 1]},
+    {"ranks": 2, "grid": [1, 2, 1]},
+    {"ranks": 2, "grid": [1, 1, 2]}
   ],
   "thread_counts": [1, 2, 4, 8],
-  "sampling": {"points_per_axis": 17, "write_samples": false},
-  "execution": {"warmups": 2, "samples": 7, "timeout_seconds": "1800"},
+  "openmp": {"dynamic": false, "proc_bind": "close", "places": "cores"},
+  "sampling": {"points_per_axis": 17, "write_samples": true},
+  "execution": {
+    "warmups": 2,
+    "samples": 7,
+    "minimum_sample_seconds": "0.05",
+    "timeout_seconds": "3600"
+  },
   "build_profiles": ["release"],
   "launcher": "mpi"
 }

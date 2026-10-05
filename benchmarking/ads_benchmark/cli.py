@@ -129,7 +129,7 @@ def _parser() -> argparse.ArgumentParser:
     analyze.add_argument(
         "--plot",
         action="store_true",
-        help="also render a log-log PNG when matplotlib is available",
+        help="also render the family-specific PNG when matplotlib is available",
     )
     return parser
 
@@ -195,9 +195,14 @@ def _planned_cases(
 def _require_validation_execution_resources(
     options: argparse.Namespace, plan: Plan
 ) -> None:
-    """Require explicit scheduler/local capacity for real validation runs."""
+    """Require explicit scheduler/local capacity for parallel correctness runs."""
 
-    if not any(case.spec.family == "validation" for case in plan.cases):
+    protected_families = {
+        case.spec.family
+        for case in plan.cases
+        if case.spec.family in {"validation", "strong"}
+    }
+    if not protected_families:
         return
     missing = []
     if options.available_mpi_slots is None:
@@ -205,8 +210,13 @@ def _require_validation_execution_resources(
     if options.available_cpu_slots is None:
         missing.append("--available-cpu-slots")
     if missing:
+        family_label = (
+            "validation"
+            if protected_families == {"validation"}
+            else "strong-scaling"
+        )
         raise ValidationError(
-            "validation execution requires an explicit resource allocation: "
+            f"{family_label} execution requires an explicit resource allocation: "
             + " and ".join(missing)
             + "; use plan/dry-run for structural validation without an allocation"
         )
@@ -357,6 +367,12 @@ def _analyze(options: argparse.Namespace) -> int:
             f"invalid-timings={report.summary['invalid_timing_count']} "
             f"analytic-failures={report.summary['analytic_final_failure_count']} "
             f"scheme-failures={report.summary['scheme_pair_failure_count']}"
+        )
+    elif report.family == "strong":
+        print(
+            f"scaling checks: invalid-timings={report.summary['invalid_timing_count']} "
+            f"unreliable={report.summary['unreliable_measurement_count']} "
+            f"field-failures={report.summary['field_failure_count']}"
         )
     print(f"json:         {written.json_path}")
     print(f"csv:          {written.csv_path}")

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "name": "strong-scaling-smoke",
+  "description": "Eight-case executable strong-scaling verification slice with two schemes, two degree pairs, and two resource levels.",
+  "family": "strong",
+  "exact_cases": ["spatial-cosine"],
+  "problems": ["igrm_l2"],
+  "schemes": ["dg", "pr"],
+  "time_discretizations": [
+    {"final_time": "0.1", "steps": 4}
+  ],
+  "meshes": [[4, 4, 4]],
+  "degree_pairs": [
+    {"test": [2, 2, 2], "trial": [1, 1, 1]},
+    {"test": [3, 3, 3], "trial": [2, 2, 2]}
+  ],
+  "process_layouts": [
+    {"ranks": 1, "grid": [1, 1, 1]},
+    {"ranks": 2, "grid": [2, 1, 1]}
+  ],
+  "thread_counts": [1],
+  "openmp": {"dynamic": false, "proc_bind": "close", "places": "cores"},
+  "sampling": {"points_per_axis": 17, "write_samples": true},
+  "execution": {
+    "warmups": 2,
+    "samples": 7,
+    "minimum_sample_seconds": "0.001",
+    "timeout_seconds": "600"
+  },
+  "build_profiles": ["release"],
+  "launcher": "mpi"
+}

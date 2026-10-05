@@ -15,13 +15,30 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--mode",
-        choices=("success", "nonzero", "sleep", "child", "detached", "bad"),
+        choices=(
+            "success",
+            "nonzero",
+            "fail-second",
+            "sleep",
+            "child",
+            "detached",
+            "bad",
+        ),
     )
     parser.add_argument("--steps", type=int, required=True)
     parser.add_argument("--expected-cwd", required=True)
     parser.add_argument("--write-samples", choices=("0", "1"), required=True)
     options = parser.parse_args()
-    print(f"fake stdout mode={options.mode}")
+    invocation_log = "fake_invocations.log"
+    try:
+        with open(invocation_log, "r", encoding="utf-8") as stream:
+            invocation = sum(1 for _ in stream) + 1
+    except FileNotFoundError:
+        invocation = 1
+    with open(invocation_log, "a", encoding="utf-8") as stream:
+        stream.write(f"{os.getpid()}\n")
+
+    print(f"fake stdout mode={options.mode} invocation={invocation}")
     print("fake stderr", file=sys.stderr)
     if options.mode == "sleep":
         time.sleep(5)
@@ -52,6 +69,8 @@ def main() -> int:
         time.sleep(5)
     if options.mode == "nonzero":
         return 7
+    if options.mode == "fail-second" and invocation == 2:
+        return 7
     if options.mode == "bad":
         print("not a tagged result")
         return 0
@@ -61,12 +80,16 @@ def main() -> int:
         return 9
     if options.write_samples == "1":
         with open("field_samples.csv", "w", encoding="utf-8") as stream:
-            stream.write("x,y,z,value\n0,0,0,0\n")
+            stream.write(f"x,y,z,value\n0,0,0,{invocation}\n")
     print(
         "ADS_BENCHMARK_RESULT "
         + json.dumps(
             {
                 "checksum": "fake-ok",
+                "invocation": invocation,
+                "physical_step_wall_seconds": round(
+                    0.20 + invocation * 0.01, 2
+                ),
                 "steps": options.steps,
                 "working_directory": working_directory,
             },

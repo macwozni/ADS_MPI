@@ -145,6 +145,23 @@ class ResourceCapacityTests(unittest.TestCase):
         options.available_cpu_slots = 24
         cli._require_validation_execution_resources(options, plan)
 
+    def test_real_strong_scaling_requires_both_capacity_declarations(self) -> None:
+        plan = SimpleNamespace(
+            cases=(SimpleNamespace(spec=SimpleNamespace(family="strong")),)
+        )
+        options = SimpleNamespace(
+            available_mpi_slots=None,
+            available_cpu_slots=8,
+        )
+        with self.assertRaisesRegex(
+            ValidationError,
+            "strong-scaling execution requires.*--available-mpi-slots",
+        ):
+            cli._require_validation_execution_resources(options, plan)
+
+        options.available_mpi_slots = 2
+        cli._require_validation_execution_resources(options, plan)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

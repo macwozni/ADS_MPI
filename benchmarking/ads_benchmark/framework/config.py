@@ -41,6 +41,7 @@ _PROFILE_KEYS = {
     "build_profiles",
     "launcher",
 }
+_PROFILE_OPTIONAL_KEYS = {"openmp"}
 
 
 @dataclass(frozen=True)
@@ -60,6 +61,9 @@ class ProfileDefinition:
     measurement: MeasurementSpec
     build_profiles: tuple[str, ...]
     launcher: str
+    openmp_dynamic: bool | None = None
+    openmp_proc_bind: str | None = None
+    openmp_places: str | None = None
 
 
 def _reject_constant(value: str) -> None:
@@ -262,7 +266,19 @@ def _time_spec(value: Any, field: str) -> TimeSpec:
 
 
 def parse_profile(document: dict[str, Any], source: Path) -> ProfileDefinition:
-    _exact_keys(document, _PROFILE_KEYS, str(source))
+    if not isinstance(document, dict):
+        raise ConfigurationError(f"{source} must be an object")
+    missing = sorted(_PROFILE_KEYS - set(document))
+    extra = sorted(set(document) - (_PROFILE_KEYS | _PROFILE_OPTIONAL_KEYS))
+    if missing or extra:
+        details: list[str] = []
+        if missing:
+            details.append("missing " + ", ".join(missing))
+        if extra:
+            details.append("unknown " + ", ".join(extra))
+        raise ConfigurationError(
+            f"{source} has invalid keys: {'; '.join(details)}"
+        )
     if (
         type(document["schema_version"]) is not int
         or document["schema_version"] != PROFILE_SCHEMA_VERSION
@@ -314,18 +330,53 @@ def parse_profile(document: dict[str, Any], source: Path) -> ProfileDefinition:
             )
         )
 
-    execution = _exact_keys(
-        document["execution"],
-        {"warmups", "samples", "timeout_seconds"},
-        "execution",
-    )
+    execution_value = document["execution"]
+    if not isinstance(execution_value, dict):
+        raise ConfigurationError("execution must be an object")
+    execution_required = {"warmups", "samples", "timeout_seconds"}
+    execution_allowed = execution_required | {"minimum_sample_seconds"}
+    execution_missing = sorted(execution_required - set(execution_value))
+    execution_extra = sorted(set(execution_value) - execution_allowed)
+    if execution_missing or execution_extra:
+        details = []
+        if execution_missing:
+            details.append("missing " + ", ".join(execution_missing))
+        if execution_extra:
+            details.append("unknown " + ", ".join(execution_extra))
+        raise ConfigurationError(
+            "execution has invalid keys: " + "; ".join(details)
+        )
+    execution = execution_value
     measurement = MeasurementSpec(
         warmups=_integer(execution["warmups"], "execution.warmups", minimum=0),
         samples=_integer(execution["samples"], "execution.samples", minimum=1),
         timeout_seconds=canonical_decimal(
             _decimal(execution["timeout_seconds"], "execution.timeout_seconds")
         ),
+        minimum_sample_seconds=(
+            canonical_decimal(
+                _decimal(
+                    execution["minimum_sample_seconds"],
+                    "execution.minimum_sample_seconds",
+                )
+            )
+            if "minimum_sample_seconds" in execution
+            else None
+        ),
     )
+
+    openmp_dynamic: bool | None = None
+    openmp_proc_bind: str | None = None
+    openmp_places: str | None = None
+    if "openmp" in document:
+        openmp = _exact_keys(
+            document["openmp"],
+            {"dynamic", "proc_bind", "places"},
+            "openmp",
+        )
+        openmp_dynamic = _boolean(openmp["dynamic"], "openmp.dynamic")
+        openmp_proc_bind = _string(openmp["proc_bind"], "openmp.proc_bind")
+        openmp_places = _string(openmp["places"], "openmp.places")
 
     raw_sampling = _exact_keys(
         document["sampling"],
@@ -378,6 +429,9 @@ def parse_profile(document: dict[str, Any], source: Path) -> ProfileDefinition:
         measurement=measurement,
         build_profiles=_string_list(document["build_profiles"], "build_profiles"),
         launcher=_string(document["launcher"], "launcher"),
+        openmp_dynamic=openmp_dynamic,
+        openmp_proc_bind=openmp_proc_bind,
+        openmp_places=openmp_places,
     )
 
 
