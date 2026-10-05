@@ -11,10 +11,9 @@ from ads_benchmark.framework.errors import ValidationError
 from ads_benchmark.framework.model import MpiSpec
 from ads_benchmark.framework.planner import Planner
 from ads_benchmark.framework.validation import validate_case
+from benchmark_paths import CONFIG_DIRECTORY
 
 
-BENCHMARKING_ROOT = Path(__file__).resolve().parents[1]
-CONFIG_DIRECTORY = BENCHMARKING_ROOT / "configs"
 PROBLEMS = {"igrm_l2", "igrm_heat", "pure_diffusion_igrm"}
 SCHEMES = {"dg", "pr", "be"}
 LAYOUTS = {

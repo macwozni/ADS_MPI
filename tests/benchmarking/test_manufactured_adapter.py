@@ -15,9 +15,7 @@ from ads_benchmark.framework.config import load_profiles
 from ads_benchmark.framework.errors import ExecutionError
 from ads_benchmark.framework.model import ExecutionContext
 from ads_benchmark.framework.planner import Planner
-
-
-BENCHMARKING_ROOT = Path(__file__).resolve().parents[1]
+from benchmark_paths import BENCHMARKING_ROOT
 
 
 def valid_result(problem: str = "igrm_l2", scheme: str = "dg") -> dict[str, object]:

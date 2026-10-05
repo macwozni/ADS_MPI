@@ -15,10 +15,7 @@ from ads_benchmark.framework.errors import DuplicateCaseError, ValidationError
 from ads_benchmark.framework.filtering import CaseFilters
 from ads_benchmark.framework.model import RepositoryState
 from ads_benchmark.framework.planner import Planner, case_identity
-
-
-BENCHMARKING_ROOT = Path(__file__).resolve().parents[1]
-CONFIG_DIRECTORY = BENCHMARKING_ROOT / "configs"
+from benchmark_paths import BENCHMARKING_ROOT, CONFIG_DIRECTORY
 
 
 class PlannerTests(unittest.TestCase):

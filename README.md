@@ -26,7 +26,8 @@ tests/{src,problems,driver,build}/GNUmakefile
 tests/{test-map,problem-test-map}.tsv
                       One-to-one production-source/primary-test mappings
 tests/*/GNUmakefile   Build, run, and cleanup for one concrete suite
-benchmarking/         Reusable benchmark planner, profiles, engine, and self-tests
+tests/benchmarking/   Benchmark planner/engine contract tests and test helpers
+benchmarking/         Reusable benchmark planner, profiles, engine, and adapters
 benchmarks/           Ignored generated runs and preserved local benchmark data
 mymake/               Compatibility entry point and generated artifacts
 doxygen/              Generated/documentation support files
@@ -961,10 +962,10 @@ test files, and paths that do not exist. It keeps both the `tests/src` and
 `tests/problems` suite manifests synchronized with their maps, validates the
 four group runners, and verifies that every unit suite references its
 production source and primary test. All registered library, problem, driver,
-and build-system suites must have `all`, `run`, and `clean` targets;
+and framework/build-system suites must have `all`, `run`, and `clean` targets;
 unregistered suite directories are rejected. The four group manifests
-currently register 54 suites: 28 library, 23 problem, one driver, and two
-build-system suites. Problem modules are kept in separate suites because
+currently register 55 suites: 28 library, 23 problem, one driver, and three
+framework/build-system suites. Problem modules are kept in separate suites because
 several drivers deliberately use the same Fortran module names (`input_data`
 and `RHS_fun`).
 

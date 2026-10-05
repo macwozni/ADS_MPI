@@ -6,10 +6,10 @@ import subprocess
 import tempfile
 import unittest
 
+from benchmark_paths import BENCHMARKING_ROOT, REPOSITORY_ROOT
 
-SOURCE_MAKEFILE = Path(__file__).resolve().parents[1] / "GNUmakefile"
-BENCHMARKING_ROOT = SOURCE_MAKEFILE.parent
-REPOSITORY_ROOT = BENCHMARKING_ROOT.parent
+
+SOURCE_MAKEFILE = BENCHMARKING_ROOT / "GNUmakefile"
 
 
 class BenchmarkMakeCleanupTests(unittest.TestCase):

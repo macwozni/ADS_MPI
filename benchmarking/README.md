@@ -112,8 +112,8 @@ small analysis extension, not a new runner:
    analyzer to `catalog.py`. Reuse `CaseSpec`, `Planner`, `Executor`,
    `ResultStore`, field validation, and statistics; do not add a parallel
    process/log/resume path.
-3. Add focused self-tests for exact expansion, validation, stable case IDs,
-   synthetic analysis, and a no-write `make benchmark-plan
+3. Add focused tests under `tests/benchmarking/` for exact expansion,
+   validation, stable case IDs, synthetic analysis, and a no-write `make benchmark-plan
    BENCHMARK_PROFILE=<profile>` check.
 4. Expose a root Make target only when the workflow needs more than the generic
    plan, run/resume, analyze, or compare operations. Generated data must remain
@@ -1251,11 +1251,17 @@ no broad results-clean target and no `rm -rf benchmarks` workflow. Remove an
 individual run manually only after identifying that exact run directory and
 deciding its data is no longer needed.
 
-## Self-tests
+## Benchmark framework tests
 
 ```bash
 make benchmark-self-test
 ```
+
+All test sources and helpers live under `tests/benchmarking/`; the
+`benchmarking/` tree contains only benchmark implementation, profiles,
+adapters, documentation, and reproducers. The suite is also registered in the
+ordinary test hierarchy, so `make test` runs these contract tests without
+executing a numerical benchmark profile.
 
 The dependency-free suite covers the 792-case temporal plan, all six spatial
 profiles, both validation matrices, both strong-scaling matrices and their

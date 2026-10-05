@@ -24,10 +24,7 @@ from ads_benchmark.framework.model import (
 )
 from ads_benchmark.framework.planner import Planner
 from ads_benchmark.framework.validation import validate_case
-
-
-BENCHMARKING_ROOT = Path(__file__).resolve().parents[1]
-CONFIG_DIRECTORY = BENCHMARKING_ROOT / "configs"
+from benchmark_paths import CONFIG_DIRECTORY
 
 
 class ValidationTests(unittest.TestCase):

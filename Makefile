@@ -314,8 +314,8 @@ benchmark-compare:
 		BENCHMARK_COMPARE_ARGS="$(BENCHMARK_COMPARE_ARGS)" compare
 
 benchmark-self-test:
-	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
-		PYTHON="$(PYTHON)" self-test
+	+$(MAKE) --no-print-directory -j1 -C $(TESTS_DIR)/benchmarking \
+		PYTHON="$(PYTHON)" run
 
 clean-benchmark-build:
 	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \

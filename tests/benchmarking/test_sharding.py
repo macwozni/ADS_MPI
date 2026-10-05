@@ -23,10 +23,7 @@ from ads_benchmark.framework.sharding import (
     shard_subset_manifest,
     validate_shard_manifests,
 )
-
-
-BENCHMARKING_ROOT = Path(__file__).resolve().parents[1]
-CONFIG_DIRECTORY = BENCHMARKING_ROOT / "configs"
+from benchmark_paths import CONFIG_DIRECTORY
 
 
 def digest(value: object) -> str:

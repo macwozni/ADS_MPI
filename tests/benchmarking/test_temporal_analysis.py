@@ -29,10 +29,10 @@ from ads_benchmark.framework.model import (
 )
 from ads_benchmark.framework.planner import Planner
 from ads_benchmark.framework.storage import ResultStore
+from benchmark_paths import CONFIG_DIRECTORY
 
 
 STEPS = (4, 8, 16, 32, 64, 128, 256, 512)
-CONFIG_DIRECTORY = Path(__file__).resolve().parents[1] / "configs"
 
 
 def synthetic_results(

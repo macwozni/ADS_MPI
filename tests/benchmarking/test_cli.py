@@ -20,10 +20,8 @@ from ads_benchmark.framework.filtering import CaseFilters
 from ads_benchmark.framework.model import ExecutionContext, RepositoryState
 from ads_benchmark.framework.planner import Planner
 from ads_benchmark.framework.storage import ResultStore
+from benchmark_paths import CONFIG_DIRECTORY
 from fake_adapter import FakeAdapter
-
-
-CONFIG_DIRECTORY = Path(__file__).resolve().parents[1] / "configs"
 
 
 def fake_profile() -> dict[str, object]:

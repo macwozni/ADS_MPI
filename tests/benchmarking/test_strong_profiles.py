@@ -9,10 +9,8 @@ from ads_benchmark.framework.config import load_profiles
 from ads_benchmark.framework.errors import ValidationError
 from ads_benchmark.framework.filtering import CaseFilters
 from ads_benchmark.framework.planner import Planner
+from benchmark_paths import CONFIG_DIRECTORY
 
-
-BENCHMARKING_ROOT = Path(__file__).resolve().parents[1]
-CONFIG_DIRECTORY = BENCHMARKING_ROOT / "configs"
 
 DEGREE_PAIRS = frozenset(
     [

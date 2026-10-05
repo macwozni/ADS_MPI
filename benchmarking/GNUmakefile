@@ -54,8 +54,8 @@ endif
 endif
 BENCHMARK_NEEDS_CONFIG := $(strip $(filter $(BENCHMARK_CONFIG_GOALS),$(MAKECMDGOALS)))
 
-# Planning, self-tests, help, and cleanup must remain usable without a local
-# Fortran toolchain configuration.  In particular, the cleanup self-test copies
+# Planning, help, and cleanup must remain usable without a local Fortran
+# toolchain configuration.  In particular, the cleanup test copies
 # this makefile alone into a disposable repository.
 ifneq ($(BENCHMARK_NEEDS_CONFIG),)
 CONFIG ?= $(ROOT_DIR)/m_options
@@ -344,12 +344,12 @@ endif
 
 PYTHON ?= python3
 
-.PHONY: all plan shard-plan merge-shards analyze compare self-test clean clean-build \
+.PHONY: all plan shard-plan merge-shards analyze compare clean clean-build \
 	prepare-build-root validate-run-id validate-parent-run-id \
 	validate-shard-index validate-shard-runs validate-build-root \
 	validate-build-ownership validate-compare-inputs help
 
-all: self-test
+all: help
 
 plan:
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m ads_benchmark.cli plan \
@@ -457,10 +457,6 @@ compare: validate-compare-inputs
 			$(BENCHMARK_COMPARE_ARGS); \
 	fi
 
-self-test:
-	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest discover \
-		-s selftests -p 'test_*.py' -v
-
 validate-build-root:
 	@set -eu; \
 	actual=$$(realpath -m -- '$(BENCHMARK_BUILD_ROOT_PATH)'); \
@@ -536,8 +532,6 @@ help:
 		'      validate and summarize a plan without writing results' \
 		'  make plan BENCHMARK_PLAN_ARGS="--write-manifest --run-id NAME"' \
 		'      create benchmarks/NAME/manifest.json exclusively' \
-		'  make self-test' \
-		'      run dependency-free planner/engine contract tests' \
 		'  make build [BUILD=debug|release]' \
 		'      build all three manufactured benchmark adapters' \
 		'  make build-igrm_l2 | build-igrm_heat | build-pure_diffusion_igrm' \

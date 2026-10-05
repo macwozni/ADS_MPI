@@ -17,9 +17,7 @@ from ads_benchmark.framework.sharding import (
     validate_shard_manifests,
 )
 from ads_benchmark.framework.storage import ResultStore
-
-
-CONFIG_DIRECTORY = Path(__file__).resolve().parents[1] / "configs"
+from benchmark_paths import CONFIG_DIRECTORY
 
 
 class StageSevenShardCliTests(unittest.TestCase):

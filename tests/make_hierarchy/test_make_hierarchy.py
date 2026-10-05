@@ -447,15 +447,15 @@ class MakeFixture:
             shutil.copy2(REPOSITORY_ROOT / "mymake" / name, mymake_destination / name)
 
         # Root benchmark targets are tested as pure delegation.  Planner and
-        # executor behavior belongs to benchmarking/selftests, while this tiny
-        # owned fixture records the target mapping and forwarded Python tool.
+        # executor behavior belongs to tests/benchmarking, while these tiny
+        # owned fixtures record target mapping and the forwarded Python tool.
         benchmarking_destination = self.root / "benchmarking"
         benchmarking_destination.mkdir()
         (benchmarking_destination / "GNUmakefile").write_text(
             ".PHONY: plan build smoke convergence h-convergence p-convergence "
             "validate strong weak shard-plan run-shard merge-shards resume analyze compare "
-            "self-test clean-build\n"
-            "plan self-test clean-build:\n"
+            "clean-build\n"
+            "plan clean-build:\n"
             "\t@printf '%s\\t%s\\n' '$@' '$(PYTHON)' >> '$(BENCHMARK_RUN_LOG)'\n"
             "build:\n"
             "\t@test -n '$(CONFIG)'\n"
@@ -552,6 +552,17 @@ class MakeFixture:
         shutil.copy2(
             REPOSITORY_ROOT / "tests" / "GNUmakefile",
             tests_destination / "GNUmakefile",
+        )
+        benchmark_tests_destination = tests_destination / "benchmarking"
+        benchmark_tests_destination.mkdir()
+        (benchmark_tests_destination / "GNUmakefile").write_text(
+            ".PHONY: all run clean\n"
+            "all clean:\n"
+            "\t@:\n"
+            "run:\n"
+            "\t@printf '%s\\t%s\\n' 'self-test' '$(PYTHON)' "
+            ">> '$(BENCHMARK_RUN_LOG)'\n",
+            encoding="utf-8",
         )
         test_make_destination = tests_destination / "make"
         test_make_destination.mkdir()

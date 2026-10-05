@@ -14,9 +14,7 @@ from ads_benchmark.components.planning import (
 )
 from ads_benchmark.framework.config import load_profiles
 from ads_benchmark.framework.planner import Planner
-
-
-BENCHMARKING_ROOT = Path(__file__).resolve().parents[1]
+from benchmark_paths import BENCHMARKING_ROOT
 
 
 class LauncherTemplateTests(unittest.TestCase):

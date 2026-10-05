@@ -9,10 +9,8 @@ from ads_benchmark.catalog import build_catalog
 from ads_benchmark.framework.config import load_profiles
 from ads_benchmark.framework.planner import Planner, case_identity
 from ads_benchmark.framework.storage import ResultStore
+from benchmark_paths import CONFIG_DIRECTORY
 
-
-BENCHMARKING_ROOT = Path(__file__).resolve().parents[1]
-CONFIG_DIRECTORY = BENCHMARKING_ROOT / "configs"
 
 PROBLEMS = frozenset({"igrm_l2", "igrm_heat", "pure_diffusion_igrm"})
 SCHEMES = frozenset({"dg", "pr", "be"})
