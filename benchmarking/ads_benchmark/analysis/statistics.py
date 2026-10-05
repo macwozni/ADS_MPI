@@ -38,6 +38,32 @@ class ScalingMetrics:
     efficiency: float
 
 
+def weak_scaling_efficiency(
+    *, baseline_seconds: float, measured_seconds: float
+) -> float:
+    """Return weak-scaling efficiency without assigning speedup semantics.
+
+    A weak-scaling series keeps its declared local-work policy constant, so
+    ideal elapsed time is constant as resources and global work grow.  Its
+    efficiency is consequently the baseline time divided by the measured
+    time; no resource-count factor belongs in this metric.
+    """
+
+    if any(
+        isinstance(value, bool) or not isinstance(value, (int, float))
+        for value in (baseline_seconds, measured_seconds)
+    ):
+        raise AnalysisError("weak-scaling times must be finite and positive")
+    if (
+        not math.isfinite(baseline_seconds)
+        or not math.isfinite(measured_seconds)
+        or baseline_seconds <= 0.0
+        or measured_seconds <= 0.0
+    ):
+        raise AnalysisError("weak-scaling times must be finite and positive")
+    return baseline_seconds / measured_seconds
+
+
 def summarize_samples(values: Iterable[float]) -> SampleStatistics:
     """Summarize finite, nonnegative raw seconds without discarding samples."""
 
@@ -106,4 +132,5 @@ __all__ = [
     "ScalingMetrics",
     "scaling_metrics",
     "summarize_samples",
+    "weak_scaling_efficiency",
 ]

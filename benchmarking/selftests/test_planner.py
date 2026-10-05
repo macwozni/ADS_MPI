@@ -32,9 +32,11 @@ class PlannerTests(unittest.TestCase):
             self.profiles.names(),
             (
                 "cluster-scaling",
+                "cluster-weak-scaling",
                 "h-convergence-full",
                 "h-convergence-smoke",
                 "local-scaling",
+                "local-weak-scaling",
                 "p-anisotropic-full",
                 "p-anisotropic-smoke",
                 "p-convergence-full",
@@ -46,6 +48,7 @@ class PlannerTests(unittest.TestCase):
                 "temporal-validation",
                 "validation-full",
                 "validation-smoke",
+                "weak-scaling-smoke",
             ),
         )
         plan = self.planner.plan("temporal-full")

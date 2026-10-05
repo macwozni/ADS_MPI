@@ -11,6 +11,7 @@ from .analysis.spatial import HConvergenceAnalyzer, PConvergenceAnalyzer
 from .analysis.strong import StrongScalingAnalyzer
 from .analysis.temporal import TemporalConvergenceAnalyzer
 from .analysis.validation import FieldValidationAnalyzer
+from .analysis.weak import WeakScalingAnalyzer
 from .components.manufactured import ManufacturedTransientAdapter
 from .components.planning import DirectLauncher, default_mpi_launcher
 from .framework.model import (
@@ -25,6 +26,7 @@ def build_catalog(
     *,
     available_mpi_slots: int | None = None,
     available_cpu_slots: int | None = None,
+    launcher_template: str | None = None,
 ) -> Catalog:
     adapters = Registry("problem")
     for name in ("igrm_l2", "igrm_heat", "pure_diffusion_igrm"):
@@ -45,7 +47,7 @@ def build_catalog(
             "field-validation",
         ),
         ("strong", "strong scaling", "strong-scaling"),
-        ("weak", "weak scaling", None),
+        ("weak", "weak scaling", "weak-scaling"),
     ):
         families.register(name, FamilyDefinition(name, description, analyzer))
 
@@ -76,6 +78,7 @@ def build_catalog(
     mpi = default_mpi_launcher(
         available_mpi_slots=available_mpi_slots,
         available_cpu_slots=available_cpu_slots,
+        command_template=launcher_template,
     )
     launchers.register(direct.name, direct)
     launchers.register(mpi.name, mpi)
@@ -95,6 +98,8 @@ def build_catalog(
     analyzers.register(validation_analyzer.name, validation_analyzer)
     strong_analyzer = StrongScalingAnalyzer()
     analyzers.register(strong_analyzer.name, strong_analyzer)
+    weak_analyzer = WeakScalingAnalyzer()
+    analyzers.register(weak_analyzer.name, weak_analyzer)
 
     return Catalog(
         adapters=adapters,

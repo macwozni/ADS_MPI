@@ -745,6 +745,10 @@ make benchmark-plan BENCHMARK_PROFILE=cluster-scaling
 make benchmark-strong RUN_ID=stage6-strong-local \
   BENCHMARK_STRONG_PROFILE=strong-scaling-smoke \
   BENCHMARK_PLAN_ARGS='--available-mpi-slots 2 --available-cpu-slots 2'
+make benchmark-plan BENCHMARK_PROFILE=cluster-weak-scaling
+make benchmark-weak RUN_ID=stage7-weak-local \
+  BENCHMARK_WEAK_PROFILE=weak-scaling-smoke \
+  BENCHMARK_PLAN_ARGS='--available-mpi-slots 2 --available-cpu-slots 2'
 ```
 
 `benchmark-smoke` runs the real nine-case matrix at `N=4` and `N=8`,
@@ -793,6 +797,42 @@ complete; an unambiguous three-panel PNG is generated for filtered reports of
 at most 12 drawable series. See
 [`benchmarking/README.md`](benchmarking/README.md) for profile sizes, filters,
 resume commands, timing boundaries, and the exact report schema.
+
+Stage 7 adds weak MPI/OpenMP scaling while keeping its meaning separate from
+strong scaling. Strong scaling fixes the global mesh and increases resources;
+weak scaling fixes the element vector owned by each MPI rank and derives
+`global_mesh = local_elements * process_grid` componentwise. The checked weak
+profiles use a per-rank workload, not a per-core workload: changing the OpenMP
+thread count changes the work per core. Consequently MPI-only (`OMP=1`),
+OpenMP-only (`MPI=1`), and hybrid points are retained, but a reported weak
+series always fixes the local element vector, OpenMP count, and binding policy.
+Its efficiency is the MPI-one median physical-step time divided by the current
+median time; this ratio is weak-scaling efficiency and is not reported as
+strong-scaling speedup.
+
+`weak-scaling-smoke` is the executable two-level local check. The full
+`local-weak-scaling` and `cluster-weak-scaling` profiles cover all three
+problems, DG/PR/BE, all 15 degree pairs, local `8^3`, `12^3`, and `16^3`
+workloads, and OMP `1,2,4,8`; the cluster profile additionally includes larger
+balanced and uneven decompositions through 64 ranks. Every timing still has a
+same-global-mesh MPI1/OMP1 full-field reference. The planner creates
+deduplicated helper references when the timing matrix does not already contain
+one, and analysis excludes those helpers from timing series.
+
+The local `mpiexec` path remains the default. A shell-free scheduler template,
+for example
+`BENCHMARK_LAUNCHER_TEMPLATE='srun --ntasks={ranks} --cpus-per-task={threads} {payload}'`,
+can be supplied without embedding an account, partition, node count, or MPI
+installation path in a profile. Planning with `--show-commands` prints the
+final quoted argv before execution. Large frozen plans can also be sharded by
+index or by problem/scheme/degree and merged only after every shard and case
+identity has been verified. The detailed CLI workflow is in
+[`benchmarking/README.md`](benchmarking/README.md).
+
+The full local and cluster weak matrices are planning artifacts until they are
+actually executed on a suitable allocation. A successful two-rank smoke run
+checks the real runner, timing, field gate, and weak analysis locally; it is not
+evidence that the multi-node profile was run or that cluster scaling passed.
 
 The `temporal-full` profile expands deterministically to 792 cases, but its
 fixed `4x4x4` mesh currently exposes finite transient instabilities in the

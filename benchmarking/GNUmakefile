@@ -5,6 +5,9 @@ BENCHMARKING_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST))
 ROOT_DIR := $(abspath $(BENCHMARKING_DIR)/..)
 CONFIG_DIR ?= $(BENCHMARKING_DIR)/configs
 MPIEXEC_FLAGS ?=
+BENCHMARK_LAUNCHER_TEMPLATE ?=
+override BENCHMARK_LAUNCHER_TEMPLATE := $(value BENCHMARK_LAUNCHER_TEMPLATE)
+export BENCHMARK_LAUNCHER_TEMPLATE
 
 BENCHMARK_PROFILE ?= smoke
 BENCHMARK_CONVERGENCE_PROFILE ?= temporal-full
@@ -12,20 +15,34 @@ BENCHMARK_H_CONVERGENCE_PROFILE ?= h-convergence-full
 BENCHMARK_P_CONVERGENCE_PROFILE ?= p-convergence-full
 BENCHMARK_VALIDATION_PROFILE ?= validation-full
 BENCHMARK_STRONG_PROFILE ?= cluster-scaling
+BENCHMARK_WEAK_PROFILE ?= cluster-weak-scaling
+BENCHMARK_SHARD_PROFILE ?= $(BENCHMARK_WEAK_PROFILE)
+BENCHMARK_SHARD_STRATEGY ?= problem-scheme-degree
+BENCHMARK_SHARD_COUNT ?=
 BENCHMARK_RESUME_PROFILE ?= $(BENCHMARK_CONVERGENCE_PROFILE)
 BENCHMARK_PLAN_ARGS ?=
 BENCHMARK_ANALYZE_ARGS ?=
 BENCHMARK_RUN_ID ?=
 RUN_ID ?=
+PARENT_RUN_ID ?=
+SHARD_INDEX ?=
+SHARD_RUNS ?=
 BENCHMARK_BUILD_ROOT ?= $(BENCHMARKING_DIR)/build
 BENCHMARK_BUILD_ROOT_PATH := $(abspath $(BENCHMARK_BUILD_ROOT))
 BENCHMARK_BUILD_MARKER := $(BENCHMARK_BUILD_ROOT_PATH)/.ads-benchmark-build
 
 BENCHMARK_ADAPTERS := igrm_l2 igrm_heat pure_diffusion_igrm
 BENCHMARK_CONFIG_GOALS := build build-adapters smoke convergence \
-	h-convergence p-convergence validate strong resume \
+	h-convergence p-convergence validate strong weak run-shard resume \
 	show-build-config \
 	$(addprefix build-,$(BENCHMARK_ADAPTERS))
+ifneq ($(filter plan,$(MAKECMDGOALS)),)
+ifneq ($(findstring --show-commands,$(BENCHMARK_PLAN_ARGS)),)
+ifneq ($(origin CONFIG),undefined)
+BENCHMARK_CONFIG_GOALS += plan
+endif
+endif
+endif
 BENCHMARK_NEEDS_CONFIG := $(strip $(filter $(BENCHMARK_CONFIG_GOALS),$(MAKECMDGOALS)))
 
 # Planning, self-tests, help, and cleanup must remain usable without a local
@@ -40,13 +57,14 @@ CONFIG_PATH := $(abspath $(CONFIG))
 ifneq ($(filter smoke,$(MAKECMDGOALS)),)
 override BUILD := debug
 endif
-ifneq ($(filter convergence h-convergence p-convergence validate strong resume,$(MAKECMDGOALS)),)
+ifneq ($(filter convergence h-convergence p-convergence validate strong weak run-shard resume,$(MAKECMDGOALS)),)
 override BUILD := release
 endif
 
 include $(CONFIG_PATH)
 
 MPI_NP_FLAG ?= -n
+export MPIEXEC MPIEXEC_FLAGS MPI_NP_FLAG
 
 ifeq ($(filter $(BUILD),debug release),)
 $(error unsupported benchmark BUILD='$(BUILD)'; expected debug or release)
@@ -194,7 +212,8 @@ $(foreach adapter,$(BENCHMARK_ADAPTERS),$(call add-ordered-dependencies,$($(adap
 BENCHMARK_EXECUTABLES := $(foreach adapter,$(BENCHMARK_ADAPTERS),$($(adapter)_EXECUTABLE))
 
 .PHONY: build build-adapters validate-benchmark-sources smoke convergence \
-	h-convergence p-convergence validate strong resume validate-smoke-run-id show-build-config
+	h-convergence p-convergence validate strong weak run-shard resume \
+	validate-smoke-run-id show-build-config
 
 validate-benchmark-sources: $(addprefix validate-,$(addsuffix -sources,$(BENCHMARK_ADAPTERS)))
 
@@ -273,6 +292,26 @@ strong: validate-run-id build
 		--repository-root '$(ROOT_DIR)' --run-id '$(RUN_ID)' --plot \
 		$(BENCHMARK_ANALYZE_ARGS)
 
+weak: validate-run-id build
+	@MPIEXEC='$(MPIEXEC)' MPI_NP_FLAG='$(MPI_NP_FLAG)' \
+		MPIEXEC_FLAGS='$(MPIEXEC_FLAGS)' \
+		PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m ads_benchmark.cli run \
+		--repository-root '$(ROOT_DIR)' --config-dir '$(CONFIG_DIR)' \
+		--profile '$(BENCHMARK_WEAK_PROFILE)' --run-id '$(RUN_ID)' \
+		$(BENCHMARK_PLAN_ARGS)
+	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m ads_benchmark.cli analyze \
+		--repository-root '$(ROOT_DIR)' --run-id '$(RUN_ID)' --plot \
+		$(BENCHMARK_ANALYZE_ARGS)
+
+run-shard: validate-run-id validate-parent-run-id validate-shard-index build
+	@MPIEXEC='$(MPIEXEC)' MPI_NP_FLAG='$(MPI_NP_FLAG)' \
+		MPIEXEC_FLAGS='$(MPIEXEC_FLAGS)' \
+		PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m ads_benchmark.cli run-shard \
+		--repository-root '$(ROOT_DIR)' \
+		--parent-run-id '$(PARENT_RUN_ID)' \
+		--shard-index '$(SHARD_INDEX)' --run-id '$(RUN_ID)' \
+		$(BENCHMARK_PLAN_ARGS)
+
 resume: validate-run-id build
 	@MPIEXEC='$(MPIEXEC)' MPI_NP_FLAG='$(MPI_NP_FLAG)' \
 		MPIEXEC_FLAGS='$(MPIEXEC_FLAGS)' \
@@ -296,8 +335,10 @@ endif
 
 PYTHON ?= python3
 
-.PHONY: all plan analyze self-test clean clean-build prepare-build-root \
-	validate-run-id validate-build-root validate-build-ownership help
+.PHONY: all plan shard-plan merge-shards analyze self-test clean clean-build \
+	prepare-build-root validate-run-id validate-parent-run-id \
+	validate-shard-index validate-shard-runs validate-build-root \
+	validate-build-ownership help
 
 all: self-test
 
@@ -305,6 +346,14 @@ plan:
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m ads_benchmark.cli plan \
 		--repository-root '$(ROOT_DIR)' --config-dir '$(CONFIG_DIR)' \
 		--profile '$(BENCHMARK_PROFILE)' $(BENCHMARK_PLAN_ARGS)
+
+shard-plan: validate-run-id
+	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m ads_benchmark.cli shard \
+		--repository-root '$(ROOT_DIR)' --config-dir '$(CONFIG_DIR)' \
+		--profile '$(BENCHMARK_SHARD_PROFILE)' --run-id '$(RUN_ID)' \
+		--strategy '$(BENCHMARK_SHARD_STRATEGY)' \
+		$(if $(strip $(BENCHMARK_SHARD_COUNT)),--shard-count '$(BENCHMARK_SHARD_COUNT)') \
+		$(BENCHMARK_PLAN_ARGS)
 
 validate-run-id:
 	@set -eu; \
@@ -320,6 +369,41 @@ validate-run-id:
 		printf '%s\n' 'RUN_ID must contain at most 128 characters' >&2; \
 		exit 2; \
 	fi
+
+validate-parent-run-id:
+	@set -eu; \
+	parent_run_id='$(PARENT_RUN_ID)'; \
+	case "$$parent_run_id" in \
+		''|[!A-Za-z0-9]*|*[!A-Za-z0-9._-]*) \
+			printf '%s\n' \
+				'PARENT_RUN_ID must use 1-128 ASCII letters, digits, dots, underscores, or hyphens and start with a letter or digit' \
+				>&2; \
+			exit 2 ;; \
+	esac; \
+	if test "$${#parent_run_id}" -gt 128; then \
+		printf '%s\n' 'PARENT_RUN_ID must contain at most 128 characters' >&2; \
+		exit 2; \
+	fi
+
+validate-shard-index:
+	@case '$(SHARD_INDEX)' in \
+		''|*[!0-9]*) \
+			printf '%s\n' 'SHARD_INDEX must be a nonnegative integer' >&2; \
+			exit 2 ;; \
+	esac
+
+validate-shard-runs:
+	@test -n '$(strip $(SHARD_RUNS))' || { \
+		printf '%s\n' 'SHARD_RUNS must list every completed child run ID' >&2; \
+		exit 2; \
+	}
+
+merge-shards: validate-parent-run-id validate-shard-runs
+	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m ads_benchmark.cli merge-shards \
+		--repository-root '$(ROOT_DIR)' \
+		--parent-run-id '$(PARENT_RUN_ID)' \
+		$(foreach run,$(SHARD_RUNS),--shard-run '$(run)') \
+		--plot $(filter-out --plot,$(BENCHMARK_ANALYZE_ARGS))
 
 analyze: validate-run-id
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m ads_benchmark.cli analyze \
@@ -423,6 +507,14 @@ help:
 		'      run full-field validation; BENCHMARK_PLAN_ARGS must declare MPI/CPU slots' \
 		'  make strong RUN_ID=NAME [BENCHMARK_STRONG_PROFILE=cluster-scaling]' \
 		'      run release strong scaling with field gates; declare MPI/CPU slots' \
+		'  make weak RUN_ID=NAME [BENCHMARK_WEAK_PROFILE=cluster-weak-scaling]' \
+		'      run release weak scaling with field gates; declare MPI/CPU slots' \
+		'  make shard-plan RUN_ID=PARENT [BENCHMARK_SHARD_PROFILE=cluster-weak-scaling]' \
+		'      freeze a plan and generate deterministic group or index shards' \
+		'  make run-shard PARENT_RUN_ID=PARENT SHARD_INDEX=N RUN_ID=CHILD' \
+		'      build release adapters and execute one shard; pass capacity flags in BENCHMARK_PLAN_ARGS' \
+		'  make merge-shards PARENT_RUN_ID=PARENT SHARD_RUNS="CHILD ..."' \
+		'      verify the complete child-run set and analyze the parent plan' \
 		'  make resume RUN_ID=NAME [BENCHMARK_RESUME_PROFILE=temporal-full]' \
 		'      verify the manifest and retry only incomplete/failed cases' \
 		'  make analyze RUN_ID=NAME [BENCHMARK_ANALYZE_ARGS=--plot]' \
@@ -434,4 +526,5 @@ help:
 		'' \
 		'Profiles: smoke smoke-refined temporal-validation temporal-full h-convergence-smoke h-convergence-full' \
 		'          p-convergence-smoke p-convergence-full p-anisotropic-smoke p-anisotropic-full' \
-		'          validation-smoke validation-full strong-scaling-smoke local-scaling cluster-scaling'
+		'          validation-smoke validation-full strong-scaling-smoke local-scaling cluster-scaling' \
+		'          weak-scaling-smoke local-weak-scaling cluster-weak-scaling'

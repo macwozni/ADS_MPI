@@ -8,10 +8,12 @@ from .statistics import (
     ScalingMetrics,
     scaling_metrics,
     summarize_samples,
+    weak_scaling_efficiency,
 )
 from .strong import StrongScalingAnalyzer
 from .temporal import TemporalConvergenceAnalyzer
 from .validation import FieldValidationAnalyzer
+from .weak import WeakScalingAnalyzer
 
 __all__ = [
     "AnalysisError",
@@ -23,6 +25,7 @@ __all__ = [
     "SampleStatistics",
     "ScalingMetrics",
     "StrongScalingAnalyzer",
+    "WeakScalingAnalyzer",
     "FieldValidationAnalyzer",
     "TemporalConvergenceAnalyzer",
     "WrittenAnalysis",
@@ -31,4 +34,5 @@ __all__ = [
     "write_run_report",
     "scaling_metrics",
     "summarize_samples",
+    "weak_scaling_efficiency",
 ]

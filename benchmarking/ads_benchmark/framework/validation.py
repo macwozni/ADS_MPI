@@ -209,6 +209,65 @@ def validate_case(case: CaseSpec, catalog: Catalog) -> None:
                 "strong scaling requires minimum_sample_seconds"
             )
 
+    if case.family == "weak":
+        weak = case.weak_scaling
+        if weak is None:
+            raise ValidationError("weak scaling requires weak_scaling metadata")
+        _positive_vector(weak.local_elements, "weak local_elements")
+        _safe_product(weak.local_elements, "weak local_elements")
+        if weak.workload_basis != "per-rank":
+            raise ValidationError(
+                "weak scaling workload_basis must be per-rank"
+            )
+        if weak.role not in {"measurement", "field-reference"}:
+            raise ValidationError(
+                "weak scaling role must be measurement or field-reference"
+            )
+        if case.build_profile != "release":
+            raise ValidationError("weak scaling requires the release build profile")
+        if case.exact_case != "spatial-cosine":
+            raise ValidationError("weak scaling requires exact case spatial-cosine")
+        if not case.sampling.write_samples:
+            raise ValidationError("weak scaling requires write_samples=true")
+        if case.openmp_dynamic is not False:
+            raise ValidationError("weak scaling requires OMP_DYNAMIC=FALSE")
+        if case.openmp_proc_bind is None or case.openmp_places is None:
+            raise ValidationError("weak scaling requires a complete OpenMP policy")
+        if minimum_sample_seconds is None:
+            raise ValidationError("weak scaling requires minimum_sample_seconds")
+
+        if weak.role == "measurement":
+            expected_global = tuple(
+                local * processes
+                for local, processes in zip(
+                    weak.local_elements,
+                    case.mpi.process_grid,
+                    strict=True,
+                )
+            )
+            if case.mesh != expected_global:
+                raise ValidationError(
+                    "weak measurement global mesh must equal "
+                    "local_elements*process_grid"
+                )
+        else:
+            if (
+                case.mpi.ranks != 1
+                or case.mpi.process_grid != (1, 1, 1)
+                or case.openmp_threads != 1
+            ):
+                raise ValidationError(
+                    "weak field-reference must use MPI=1, grid=1x1x1, OMP=1"
+                )
+            if case.mesh != weak.local_elements:
+                raise ValidationError(
+                    "weak field-reference local_elements must equal global mesh"
+                )
+    elif case.weak_scaling is not None:
+        raise ValidationError(
+            "weak_scaling metadata is only valid for the weak family"
+        )
+
     adapter = catalog.adapters.get(case.problem)
     try:
         adapter.validate_case(case)

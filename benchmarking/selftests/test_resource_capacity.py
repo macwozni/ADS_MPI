@@ -162,6 +162,23 @@ class ResourceCapacityTests(unittest.TestCase):
         options.available_mpi_slots = 2
         cli._require_validation_execution_resources(options, plan)
 
+    def test_real_weak_scaling_requires_both_capacity_declarations(self) -> None:
+        plan = SimpleNamespace(
+            cases=(SimpleNamespace(spec=SimpleNamespace(family="weak")),)
+        )
+        options = SimpleNamespace(
+            available_mpi_slots=2,
+            available_cpu_slots=None,
+        )
+        with self.assertRaisesRegex(
+            ValidationError,
+            "weak-scaling execution requires.*--available-cpu-slots",
+        ):
+            cli._require_validation_execution_resources(options, plan)
+
+        options.available_cpu_slots = 2
+        cli._require_validation_execution_resources(options, plan)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

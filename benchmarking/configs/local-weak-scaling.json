@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "name": "local-weak-scaling",
+  "description": "Full local per-rank weak and hybrid scaling matrix with MPI-only, OpenMP-only, and hybrid series.",
+  "family": "weak",
+  "exact_cases": ["spatial-cosine"],
+  "problems": ["igrm_l2", "igrm_heat", "pure_diffusion_igrm"],
+  "schemes": ["dg", "pr", "be"],
+  "time_discretizations": [
+    {"final_time": "0.1", "steps": 4}
+  ],
+  "weak_scaling": {
+    "local_elements": [[8, 8, 8], [12, 12, 12], [16, 16, 16]],
+    "workload_basis": "per-rank"
+  },
+  "degree_pairs": [
+    {"test": [2, 2, 2], "trial": [1, 1, 1]},
+    {"test": [3, 3, 3], "trial": [2, 2, 2]},
+    {"test": [4, 4, 4], "trial": [3, 3, 3]},
+    {"test": [5, 5, 5], "trial": [4, 4, 4]},
+    {"test": [6, 6, 6], "trial": [5, 5, 5]},
+    {"test": [7, 7, 7], "trial": [6, 6, 6]},
+    {"test": [8, 8, 8], "trial": [7, 7, 7]},
+    {"test": [9, 9, 9], "trial": [8, 8, 8]},
+    {"test": [3, 3, 3], "trial": [1, 1, 1]},
+    {"test": [4, 4, 4], "trial": [2, 2, 2]},
+    {"test": [5, 5, 5], "trial": [3, 3, 3]},
+    {"test": [6, 6, 6], "trial": [4, 4, 4]},
+    {"test": [7, 7, 7], "trial": [5, 5, 5]},
+    {"test": [8, 8, 8], "trial": [6, 6, 6]},
+    {"test": [9, 9, 9], "trial": [7, 7, 7]}
+  ],
+  "process_layouts": [
+    {"ranks": 1, "grid": [1, 1, 1]},
+    {"ranks": 2, "grid": [2, 1, 1]},
+    {"ranks": 4, "grid": [2, 2, 1]},
+    {"ranks": 8, "grid": [2, 2, 2]}
+  ],
+  "thread_counts": [1, 2, 4, 8],
+  "openmp": {"dynamic": false, "proc_bind": "close", "places": "cores"},
+  "sampling": {"points_per_axis": 17, "write_samples": true},
+  "execution": {
+    "warmups": 2,
+    "samples": 7,
+    "minimum_sample_seconds": "0.05",
+    "timeout_seconds": "3600"
+  },
+  "build_profiles": ["release"],
+  "launcher": "mpi"
+}

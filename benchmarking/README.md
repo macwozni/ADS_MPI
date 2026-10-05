@@ -16,7 +16,10 @@ regular-grid field comparator, MPI/OpenMP correctness matrices, and a timing
 eligibility gate based on the complete numerical field. Stage 6 adds real
 strong scaling with repeated solver-side timings, field-gated statistics, and
 portable MPI/OpenMP runtime policy. Expensive runs remain separate from
-`make test`.
+`make test`. Stage 7 adds per-rank weak and hybrid scaling, a neutral
+scheduler launcher template, deterministic plan sharding, and verified shard
+result merging. It uses the same timing and complete-field correctness engine;
+weak-scaling ratios are not relabeled as strong-scaling speedup.
 
 ## Architecture and extension contract
 
@@ -204,6 +207,17 @@ Registered profiles are:
   serial plus X/Y/Z two-rank layouts;
 - `cluster-scaling`: the 12,960-case full strong-scaling matrix, adding global
   meshes `32^3,64^3`, the XY/XZ/YZ four-rank layouts, and `2x2x2`.
+- `weak-scaling-smoke`: two timed `igrm_l2`/DG configurations at local `4^3`,
+  MPI `1x1x1` and `2x1x1`, OMP1, plus one deduplicated serial full-field
+  helper for the two-rank global mesh (three cases total);
+- `local-weak-scaling`: 6,480 timed configurations over all three problems,
+  DG/PR/BE, all 15 degree pairs, local `8^3,12^3,16^3`, process grids
+  `1x1x1,2x1x1,2x2x1,2x2x2`, and OMP `1,2,4,8`, plus 1,080 serial
+  full-field helpers (7,560 cases total);
+- `cluster-weak-scaling`: the same physics, degrees, local work, and OpenMP
+  levels over `1x1x1,2x1x1,2x2x1,2x2x2,4x2x2,3x3x3,4x4x2,4x4x4`;
+  it has 12,960 timed configurations plus 2,025 deduplicated helpers, for
+  14,985 cases total.
 
 `temporal-full` expands
 
@@ -280,6 +294,15 @@ make benchmark-h-convergence RUN_ID=stage4-h-smoke \
   BENCHMARK_H_CONVERGENCE_PROFILE=h-convergence-smoke
 make benchmark-p-convergence RUN_ID=stage4-p-smoke \
   BENCHMARK_P_CONVERGENCE_PROFILE=p-convergence-smoke
+
+# Stage-7 weak matrices: planning writes nothing and needs no allocation.
+make benchmark-plan BENCHMARK_PROFILE=local-weak-scaling
+make benchmark-plan BENCHMARK_PROFILE=cluster-weak-scaling
+
+# Real two-level weak-scaling check on a declared local allocation.
+make benchmark-weak RUN_ID=stage7-weak-smoke \
+  BENCHMARK_WEAK_PROFILE=weak-scaling-smoke \
+  BENCHMARK_PLAN_ARGS='--available-mpi-slots 2 --available-cpu-slots 2'
 ```
 
 `benchmark-smoke` requires a new base ID. It creates
@@ -669,11 +692,235 @@ The full profile represents 12,960 configurations and 116,640 solver
 invocations before retries. Final `17^3` field CSV files can consume roughly
 10 GB in aggregate. Planning it is not a claim that the matrix was executed.
 
+## Weak and hybrid scaling
+
+Strong and weak scaling answer different questions and are never pooled in
+one series. A strong series keeps the global mesh fixed while resources grow.
+A weak series in this repository fixes a three-dimensional workload per MPI
+rank and derives the global mesh componentwise:
+
+```text
+global_elements[d] = local_elements[d] * process_grid[d]
+```
+
+The workload basis is explicitly `per-rank`. It is not per core: for fixed
+local elements, raising the OpenMP thread count reduces work per core. Each
+reported weak series therefore fixes problem, scheme, time package, degree
+vectors, local element vector, OpenMP thread count, and the complete OpenMP
+binding policy, then varies only the MPI process grid. The matrix still
+contains all three useful views:
+
+- MPI-only points use OMP1 across the MPI layouts;
+- OpenMP-only points use MPI1 with OMP `1,2,4,8`;
+- hybrid points use more than one rank and OMP `2,4,8`.
+
+The OMP1, OMP2, OMP4, and OMP8 data remain distinct series. In particular,
+the analyzer does not combine the MPI1/OMP1 and MPI1/OMP8 points into a
+constant-work weak-scaling ladder, because their per-core workloads differ.
+
+For a passing series the mandatory MPI1 member is the timing baseline. If its
+median measured physical-step time is `t_1` and another level takes `t_r`, the
+reported metric is
+
+```text
+weak_scaling_efficiency = t_1 / t_r
+```
+
+It is named only weak-scaling efficiency. It is not a strong-scaling speedup,
+and no speedup field is emitted by the weak analyzer. A failed or unreliable
+timing remains in JSON/CSV but cannot make the series pass.
+
+Weak cases use the same Stage-6 timing method: two validated warmups and seven
+measured executable launches, a barrier before the fixed physical-step
+package, `MPI_Wtime`, and `MPI_MAX` across ranks. Setup, initial projection,
+regular-grid sampling, field output, analysis, and cleanup remain outside the
+timed region. The report retains raw solver and process-wall samples plus
+median, min, max, MAD, and relative MAD. The output is `analysis.json`, a flat
+`analysis.csv`, and, when requested and readable, a two-panel
+`weak-scaling.png` containing time and weak-scaling efficiency.
+
+Every timed field is checked against exactly one MPI1/OMP1 field on the same
+global mesh and with identical physics, degrees, time package, and sample
+grid. A timing configuration can itself provide that reference. Otherwise the
+planner adds a deduplicated `field-reference` helper case. Helpers are visible
+in the frozen manifest and must pass, but are excluded from timing series and
+efficiency calculations. This is necessary in weak scaling because different
+MPI grids intentionally produce different global meshes; comparing all levels
+to the small MPI1 baseline field would compare different discrete problems.
+
+The profiles are:
+
+- `weak-scaling-smoke`: local `4^3`, MPI1 and MPI2/`2x1x1`, OMP1; two
+  measurements plus one helper;
+- `local-weak-scaling`: local `8^3,12^3,16^3`, four process grids through
+  `2x2x2`, and OMP `1,2,4,8`; 6,480 measurements plus 1,080 helpers;
+- `cluster-weak-scaling`: the same local work and OpenMP levels over eight
+  balanced and asymmetric grids through `4x4x4`; 12,960 measurements plus
+  2,025 helpers.
+
+The two complete profiles cover `igrm_l2`, `igrm_heat`, and
+`pure_diffusion_igrm`, DG/PR/BE, and all 15 supported isotropic degree pairs.
+They are release-only manual workflows. A real local smoke is:
+
+```bash
+make benchmark-weak RUN_ID=weak-local-check \
+  BENCHMARK_WEAK_PROFILE=weak-scaling-smoke \
+  BENCHMARK_PLAN_ARGS='--available-mpi-slots 2 --available-cpu-slots 2'
+```
+
+Resume uses the identical frozen selection, repository state, launcher, and
+allocation declaration:
+
+```bash
+make benchmark-resume RUN_ID=weak-local-check \
+  BENCHMARK_RESUME_PROFILE=weak-scaling-smoke \
+  BENCHMARK_PLAN_ARGS='--available-mpi-slots 2 --available-cpu-slots 2'
+```
+
+Planning the full cluster profile validates all 14,985 cases without claiming
+that any solver was launched:
+
+```bash
+make benchmark-plan BENCHMARK_PROFILE=cluster-weak-scaling
+```
+
+The local launcher remains the configured `MPIEXEC`, `MPIEXEC_FLAGS`, and
+`MPI_NP_FLAG`. For a scheduler, `--launcher-template` (or
+`BENCHMARK_LAUNCHER_TEMPLATE` on the Make workflow) supplies one shell-free
+argv template. Supported placeholders are `{ranks}`, `{threads}`, `{procx}`,
+`{procy}`, `{procz}`, and one mandatory final standalone `{payload}`. Hybrid
+execution requires `{threads}`. For example:
+
+```bash
+cd benchmarking
+python3 -m ads_benchmark.cli plan \
+  --repository-root .. --config-dir configs \
+  --profile weak-scaling-smoke \
+  --available-mpi-slots 2 --available-cpu-slots 8 \
+  --launcher-template \
+    'srun --ntasks={ranks} --cpus-per-task={threads} {payload}' \
+  --show-commands
+```
+
+`--show-commands` prints each final shell-quoted argv, including the complete
+solver payload, without executing it. The template is tokenized once and is
+never evaluated through a shell. Profiles therefore contain no account,
+partition, node count, launcher path, or site-specific MPI installation. The
+runner validates the requested rank count, `ranks * threads`, process-grid
+product, allocation limits, and hybrid binding contract before execution.
+SLURM's `SLURM_NTASKS` and `SLURM_CPUS_PER_TASK` can further constrain a
+template launcher, but explicit `--available-mpi-slots` and
+`--available-cpu-slots` keep an execution request auditable and portable.
+
+A successful two-rank smoke proves that the real local executable, repeated
+timing, full-field gate, and weak analyzer worked at those two resource
+levels. It does not establish multi-node behavior, cover the full degree and
+physics matrix, or prove that either complete profile was executed. Machine
+CPU, memory, scheduler, and wall-time limits must be reviewed before selecting
+a larger slice.
+
+## Sharded benchmark runs
+
+Large weak (or other) frozen plans can be split without editing their
+configuration. `problem-scheme-degree` creates one deterministic shard per
+problem/scheme/test-degree/trial-degree group. `index` assigns the sorted case
+IDs round-robin to an explicit shard count:
+
+```bash
+# Public root-Make forms.
+make benchmark-shard-plan RUN_ID=weak-parent-grouped \
+  BENCHMARK_SHARD_PROFILE=cluster-weak-scaling \
+  BENCHMARK_SHARD_STRATEGY=problem-scheme-degree
+
+make benchmark-shard-plan RUN_ID=weak-parent \
+  BENCHMARK_SHARD_PROFILE=cluster-weak-scaling \
+  BENCHMARK_SHARD_STRATEGY=index BENCHMARK_SHARD_COUNT=3
+```
+
+The lower-level CLI equivalents make every frozen input explicit:
+
+```bash
+cd benchmarking
+
+# Create the immutable parent manifest and grouped shard envelopes.
+python3 -m ads_benchmark.cli shard \
+  --repository-root .. --config-dir configs \
+  --profile cluster-weak-scaling --run-id weak-parent-grouped \
+  --strategy problem-scheme-degree
+
+# Alternative used below: exactly three index shards.
+python3 -m ads_benchmark.cli shard \
+  --repository-root .. --config-dir configs \
+  --profile cluster-weak-scaling --run-id weak-parent \
+  --strategy index --shard-count 3
+```
+
+The parent owns `benchmarks/<parent>/manifest.json` and numbered immutable
+envelopes below `benchmarks/<parent>/shards/`. Each envelope binds the complete
+parent metadata, repository/source identity, full expected case digest, shard
+index/count, and subset digest. Generation refuses an existing parent.
+
+After building the release adapters, execute each shard into its own run ID.
+The command below illustrates shard zero; allocation values must cover that
+shard's largest case:
+
+```bash
+make benchmark-run-shard \
+  PARENT_RUN_ID=weak-parent SHARD_INDEX=0 \
+  RUN_ID=weak-parent-part-000 \
+  BENCHMARK_LAUNCHER_TEMPLATE='srun --ntasks={ranks} --cpus-per-task={threads} {payload}' \
+  BENCHMARK_PLAN_ARGS='--available-mpi-slots 64 --available-cpu-slots 512'
+```
+
+The public target builds the release adapters. Its lower-level equivalent,
+when already inside `benchmarking/`, is:
+
+```bash
+make build BUILD=release
+
+python3 -m ads_benchmark.cli run-shard \
+  --repository-root .. \
+  --parent-run-id weak-parent --shard-index 0 \
+  --run-id weak-parent-part-000 \
+  --available-mpi-slots 64 --available-cpu-slots 512 \
+  --launcher-template \
+    'srun --ntasks={ranks} --cpus-per-task={threads} {payload}'
+```
+
+`run-shard --resume` verifies and resumes that isolated shard run by the same
+rules as an ordinary frozen run. Once every shard has completed, list every
+child run explicitly and merge into the parent analysis:
+
+```bash
+make benchmark-merge-shards PARENT_RUN_ID=weak-parent \
+  SHARD_RUNS='weak-parent-part-000 weak-parent-part-001 weak-parent-part-002' \
+  BENCHMARK_ANALYZE_ARGS=--plot
+```
+
+The direct equivalent is:
+
+```bash
+python3 -m ads_benchmark.cli merge-shards \
+  --repository-root .. --parent-run-id weak-parent \
+  --shard-run weak-parent-part-000 \
+  --shard-run weak-parent-part-001 \
+  --shard-run weak-parent-part-002 \
+  --plot
+```
+
+This merge matches the three-shard index parent created above. Merge refuses a
+missing shard/index or case, a duplicated case or child contribution,
+conflicting case content, incompatible config hashes, and incompatible
+repository/source identities. It analyzes only after the contributed child
+manifests reconstruct the exact parent plan; it does not silently accept a
+partial report. Generated results and shard manifests remain ignored runtime
+data and are not committed with the framework.
+
 ## Measurement and machine-readable results
 
 Legacy convergence and validation cases retain the exact single-invocation
-result schema (`warmups=0`, `samples=1`). Strong cases use the same executor,
-adapter, launcher, and result store but add the repeated timing arrays,
+result schema (`warmups=0`, `samples=1`). Strong and weak cases use the same
+executor, adapter, launcher, and result store but add the repeated timing arrays,
 reliability threshold/flag, and effective OpenMP environment under `timing`.
 Any failed, timed-out, unparsable, or domain-invalid repetition fails the
 whole case; resume accepts only a complete, strictly revalidated aggregate.
@@ -760,6 +1007,8 @@ benchmarks/<run-id>/analysis/analysis.json
 benchmarks/<run-id>/analysis/analysis.csv
 benchmarks/<run-id>/analysis/convergence.png           # only with --plot
 benchmarks/<run-id>/analysis/strong-scaling.png         # strong --plot
+benchmarks/<run-id>/analysis/weak-scaling.png           # weak --plot
+benchmarks/<parent-run-id>/shards/shard-000000.json     # sharded plans
 ```
 
 The manifest contains the schema version, full expanded configuration and case
@@ -778,14 +1027,17 @@ make benchmark-self-test
 
 The dependency-free suite covers the 792-case temporal plan, all six spatial
 profiles, both validation matrices, both strong-scaling matrices and their
-exact case counts, stable
+exact case counts, all three weak profiles and their measurement/helper
+counts, weak-efficiency and same-global-mesh field gates, launcher-template
+expansion and resource rejection, deterministic index/group sharding, and
+missing/duplicate/conflicting shard rejection, stable
 vector-preserving identifiers,
 filters and validation, exact-time conversion, safe storage, process timeout
 and termination, frozen-manifest decoding, resume compatibility and verified
 skip/retry behavior, strict tagged-result parsing, planned/result binding, the
 registered manufactured adapters, smoke-refinement verification, synthetic
-temporal, spatial, full-field, and strong-scaling series, raw repeated samples,
-MAD/speedup/efficiency, short-region rejection, local perturbations, separation
+temporal, spatial, full-field, strong-scaling, and weak-scaling series, raw
+repeated samples, MAD/speedup/efficiency, short-region rejection, local perturbations, separation
 failures, plateau and corrupted convergence inputs, fake-adapter extensibility,
 and marker-guarded Make cleanup. These tests exercise framework contracts
 without adding costly numerical benchmark runs to `make test` or replacing

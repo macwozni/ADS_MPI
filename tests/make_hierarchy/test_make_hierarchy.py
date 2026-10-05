@@ -253,6 +253,26 @@ def _fake_mpiexec(arguments: list[str]) -> int:
     return 2
 
 
+def _fake_benchmark_python(arguments: list[str]) -> int:
+    _append_json(
+        "BENCHMARK_PYTHON_LOG",
+        {
+            "argv": arguments,
+            "environment": {
+                name: os.environ.get(name)
+                for name in (
+                    "BENCHMARK_LAUNCHER_TEMPLATE",
+                    "MPIEXEC",
+                    "MPIEXEC_FLAGS",
+                    "MPI_NP_FLAG",
+                )
+            },
+            "tool": "benchmark-python",
+        },
+    )
+    return 0
+
+
 def _dispatch_fake_tool() -> int | None:
     tool_name = Path(sys.argv[0]).name
     if tool_name == "fake-ff":
@@ -261,6 +281,8 @@ def _dispatch_fake_tool() -> int | None:
         return _fake_archiver(sys.argv[1:])
     if tool_name == "fake-mpiexec":
         return _fake_mpiexec(sys.argv[1:])
+    if tool_name == "fake-benchmark-python":
+        return _fake_benchmark_python(sys.argv[1:])
     return None
 
 
@@ -279,6 +301,7 @@ class MakeFixture:
         self.run_log = self.root / "fake-runs.jsonl"
         self.performance_log = self.root / "fake-performance.jsonl"
         self.benchmark_log = self.root / "fake-benchmark.tsv"
+        self.benchmark_python_log = self.root / "fake-benchmark-python.jsonl"
         self._copy_repository_inputs()
         self._install_fake_tools()
         self._write_configuration()
@@ -293,13 +316,18 @@ class MakeFixture:
             "BENCHMARK_BUILD_ROOT",
             "BENCHMARK_CONVERGENCE_PROFILE",
             "BENCHMARK_H_CONVERGENCE_PROFILE",
+            "BENCHMARK_LAUNCHER_TEMPLATE",
             "BENCHMARK_PLAN_ARGS",
             "BENCHMARK_P_CONVERGENCE_PROFILE",
             "BENCHMARK_PROFILE",
             "BENCHMARK_RESUME_PROFILE",
             "BENCHMARK_RUN_ID",
             "BENCHMARK_RUN_LOG",
+            "BENCHMARK_SHARD_COUNT",
+            "BENCHMARK_SHARD_PROFILE",
+            "BENCHMARK_SHARD_STRATEGY",
             "BENCHMARK_VALIDATION_PROFILE",
+            "BENCHMARK_WEAK_PROFILE",
             "BUILD",
             "BUILD_ROOT",
             "COMPILER",
@@ -343,11 +371,14 @@ class MakeFixture:
             "PERFORMANCE_TIMEOUT",
             "PERFORMANCE_WARMUP",
             "PERFORMANCE_WARMUPS",
+            "PARENT_RUN_ID",
             "PROBLEM",
             "PROBLEM_OBJ_DIR",
             "RUN_DIR",
             "RUN_ENV",
             "RUN_ID",
+            "SHARD_INDEX",
+            "SHARD_RUNS",
             "SOURCE_ALL",
             "USER_LIB",
         ):
@@ -357,6 +388,7 @@ class MakeFixture:
                 "FAKE_RUN_LOG": str(self.run_log),
                 "FAKE_TOOL_LOG": str(self.tool_log),
                 "BENCHMARK_RUN_LOG": str(self.benchmark_log),
+                "BENCHMARK_PYTHON_LOG": str(self.benchmark_python_log),
                 "PERFORMANCE_RUN_LOG": str(self.performance_log),
                 "LC_ALL": "C",
             }
@@ -413,7 +445,8 @@ class MakeFixture:
         benchmarking_destination.mkdir()
         (benchmarking_destination / "GNUmakefile").write_text(
             ".PHONY: plan build smoke convergence h-convergence p-convergence "
-            "validate resume analyze self-test clean-build\n"
+            "validate weak shard-plan run-shard merge-shards resume analyze "
+            "self-test clean-build\n"
             "plan self-test clean-build:\n"
             "\t@printf '%s\\t%s\\n' '$@' '$(PYTHON)' >> '$(BENCHMARK_RUN_LOG)'\n"
             "build:\n"
@@ -452,6 +485,39 @@ class MakeFixture:
             "\t@test -n '$(BENCHMARK_VALIDATION_PROFILE)'\n"
             "\t@printf '%s\\t%s\\t%s\\t%s\\n' '$@' '$(PYTHON)' '$(RUN_ID)' "
             "'$(BENCHMARK_VALIDATION_PROFILE)' >> '$(BENCHMARK_RUN_LOG)'\n"
+            "weak:\n"
+            "\t@test -n '$(CONFIG)'\n"
+            "\t@test -n '$(RUN_ID)'\n"
+            "\t@test -n '$(BENCHMARK_WEAK_PROFILE)'\n"
+            "\t@test -n \"$$BENCHMARK_LAUNCHER_TEMPLATE\"\n"
+            "\t@printf '%s\\t%s\\t%s\\t%s\\t%s\\n' '$@' '$(PYTHON)' '$(RUN_ID)' "
+            "'$(BENCHMARK_WEAK_PROFILE)' \"$$BENCHMARK_LAUNCHER_TEMPLATE\" "
+            ">> '$(BENCHMARK_RUN_LOG)'\n"
+            "shard-plan:\n"
+            "\t@test -n '$(RUN_ID)'\n"
+            "\t@test -n '$(BENCHMARK_SHARD_PROFILE)'\n"
+            "\t@test -n '$(BENCHMARK_SHARD_STRATEGY)'\n"
+            "\t@printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' "
+            "'$@' '$(PYTHON)' '$(RUN_ID)' '$(BENCHMARK_SHARD_PROFILE)' "
+            "'$(BENCHMARK_SHARD_STRATEGY)' '$(BENCHMARK_SHARD_COUNT)' "
+            "\"$$BENCHMARK_LAUNCHER_TEMPLATE\" '$(BENCHMARK_PLAN_ARGS)' "
+            ">> '$(BENCHMARK_RUN_LOG)'\n"
+            "run-shard:\n"
+            "\t@test -n '$(CONFIG)'\n"
+            "\t@test -n '$(PARENT_RUN_ID)'\n"
+            "\t@test -n '$(SHARD_INDEX)'\n"
+            "\t@test -n '$(RUN_ID)'\n"
+            "\t@printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' "
+            "'$@' '$(PYTHON)' '$(PARENT_RUN_ID)' '$(SHARD_INDEX)' "
+            "'$(RUN_ID)' \"$$BENCHMARK_LAUNCHER_TEMPLATE\" "
+            "'$(BENCHMARK_PLAN_ARGS)' >> '$(BENCHMARK_RUN_LOG)'\n"
+            "merge-shards:\n"
+            "\t@test -n '$(PARENT_RUN_ID)'\n"
+            "\t@test -n '$(SHARD_RUNS)'\n"
+            "\t@printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' "
+            "'$@' '$(PYTHON)' '$(PARENT_RUN_ID)' '$(SHARD_RUNS)' "
+            "\"$$BENCHMARK_LAUNCHER_TEMPLATE\" '$(BENCHMARK_ANALYZE_ARGS)' "
+            ">> '$(BENCHMARK_RUN_LOG)'\n"
             "analyze:\n"
             "\t@test -n '$(RUN_ID)'\n"
             "\t@printf '%s\\t%s\\n' '$@' '$(PYTHON)' >> '$(BENCHMARK_RUN_LOG)'\n",
@@ -543,7 +609,12 @@ if "--self-test" not in sys.argv[1:]:
     def _install_fake_tools(self) -> None:
         tools_directory = self.root / "fake-tools"
         tools_directory.mkdir()
-        for tool_name in ("fake-ff", "fake-ar", "fake-mpiexec"):
+        for tool_name in (
+            "fake-ff",
+            "fake-ar",
+            "fake-mpiexec",
+            "fake-benchmark-python",
+        ):
             destination = tools_directory / tool_name
             shutil.copy2(SCRIPT_PATH, destination)
             destination.chmod(
@@ -555,6 +626,7 @@ if "--self-test" not in sys.argv[1:]:
         self.fake_compiler = tools_directory / "fake-ff"
         self.fake_archiver = tools_directory / "fake-ar"
         self.fake_mpiexec = tools_directory / "fake-mpiexec"
+        self.fake_benchmark_python = tools_directory / "fake-benchmark-python"
 
     def _write_configuration(self) -> None:
         self.config.write_text(
@@ -573,6 +645,8 @@ FFLAGS =
 AR = {self.fake_archiver}
 USER_LIB =
 MPIEXEC = {self.fake_mpiexec}
+MPIEXEC_FLAGS = --fixture-bind core
+MPI_NP_FLAG = --fixture-ranks
 MPIFC = $(COMPILER)
 PYTHON = {sys.executable}
 PFUNIT_ROOT = unused
@@ -635,6 +709,7 @@ PERFORMANCE_SUITE_TIMEOUT = 30s
         self.run_log.unlink(missing_ok=True)
         self.performance_log.unlink(missing_ok=True)
         self.benchmark_log.unlink(missing_ok=True)
+        self.benchmark_python_log.unlink(missing_ok=True)
 
     def tool_records(self) -> list[dict[str, object]]:
         return self._json_lines(self.tool_log)
@@ -652,6 +727,9 @@ PERFORMANCE_SUITE_TIMEOUT = 30s
             tuple(line.split("\t"))
             for line in self.benchmark_log.read_text(encoding="utf-8").splitlines()
         ]
+
+    def benchmark_python_records(self) -> list[dict[str, object]]:
+        return self._json_lines(self.benchmark_python_log)
 
     @staticmethod
     def _json_lines(path: Path) -> list[dict[str, object]]:
@@ -1082,6 +1160,140 @@ class HierarchicalMakeTests(unittest.TestCase):
             ],
         )
         self.assertEqual(self.fixture.tool_records(), [])
+
+    def test_weak_target_forwards_run_id_profile_and_launcher_template(self) -> None:
+        self.fixture.make(
+            "benchmark-weak",
+            variables={
+                "RUN_ID": "hierarchy-weak-scaling",
+                "BENCHMARK_WEAK_PROFILE": "weak-scaling-smoke",
+                "BENCHMARK_LAUNCHER_TEMPLATE": (
+                    "srun --ntasks={ranks} --cpus-per-task={threads} {payload}"
+                ),
+            },
+        )
+        self.assertEqual(
+            self.fixture.benchmark_records(),
+            [
+                (
+                    "weak",
+                    sys.executable,
+                    "hierarchy-weak-scaling",
+                    "weak-scaling-smoke",
+                    "srun --ntasks={ranks} --cpus-per-task={threads} {payload}",
+                )
+            ],
+        )
+        self.assertEqual(self.fixture.tool_records(), [])
+
+    def test_shard_targets_forward_profiles_resources_and_launcher(self) -> None:
+        launcher = (
+            "srun --label='weak scaling shard' --ntasks={ranks} "
+            "--cpus-per-task={threads} {payload}"
+        )
+        capacity = "--available-mpi-slots 16 --available-cpu-slots 32"
+        self.fixture.make(
+            "benchmark-shard-plan",
+            variables={
+                "RUN_ID": "weak-parent",
+                "BENCHMARK_SHARD_PROFILE": "local-weak-scaling",
+                "BENCHMARK_SHARD_STRATEGY": "index",
+                "BENCHMARK_SHARD_COUNT": 3,
+                "BENCHMARK_LAUNCHER_TEMPLATE": launcher,
+                "BENCHMARK_PLAN_ARGS": capacity,
+            },
+        )
+        self.fixture.make(
+            "benchmark-run-shard",
+            variables={
+                "PARENT_RUN_ID": "weak-parent",
+                "SHARD_INDEX": 1,
+                "RUN_ID": "weak-parent-001",
+                "BENCHMARK_LAUNCHER_TEMPLATE": launcher,
+                "BENCHMARK_PLAN_ARGS": capacity,
+            },
+        )
+        self.fixture.make(
+            "benchmark-merge-shards",
+            variables={
+                "PARENT_RUN_ID": "weak-parent",
+                "SHARD_RUNS": "weak-parent-000 weak-parent-001 weak-parent-002",
+                "BENCHMARK_LAUNCHER_TEMPLATE": launcher,
+                "BENCHMARK_ANALYZE_ARGS": "--plot",
+            },
+        )
+
+        self.assertEqual(
+            self.fixture.benchmark_records(),
+            [
+                (
+                    "shard-plan",
+                    sys.executable,
+                    "weak-parent",
+                    "local-weak-scaling",
+                    "index",
+                    "3",
+                    launcher,
+                    capacity,
+                ),
+                (
+                    "run-shard",
+                    sys.executable,
+                    "weak-parent",
+                    "1",
+                    "weak-parent-001",
+                    launcher,
+                    capacity,
+                ),
+                (
+                    "merge-shards",
+                    sys.executable,
+                    "weak-parent",
+                    "weak-parent-000 weak-parent-001 weak-parent-002",
+                    launcher,
+                    "--plot",
+                ),
+            ],
+        )
+        self.assertEqual(self.fixture.tool_records(), [])
+
+    def test_plan_commands_use_configured_mpi_and_safe_launcher_environment(
+        self,
+    ) -> None:
+        shutil.copy2(
+            REPOSITORY_ROOT / "benchmarking" / "GNUmakefile",
+            self.fixture.root / "benchmarking" / "GNUmakefile",
+        )
+        launcher = (
+            "srun --label='two word allocation' --ntasks={ranks} "
+            "--cpus-per-task={threads} {payload}"
+        )
+
+        self.fixture.make(
+            "benchmark-plan",
+            variables={
+                "BENCHMARK_LAUNCHER_TEMPLATE": launcher,
+                "BENCHMARK_PLAN_ARGS": "--show-commands",
+                "BENCHMARK_PROFILE": "weak-scaling-smoke",
+                "PYTHON": self.fixture.fake_benchmark_python,
+            },
+        )
+
+        records = self.fixture.benchmark_python_records()
+        self.assertEqual(len(records), 1)
+        record = records[0]
+        self.assertEqual(record["tool"], "benchmark-python")
+        self.assertIn("--show-commands", record["argv"])
+        self.assertIn("weak-scaling-smoke", record["argv"])
+        self.assertEqual(
+            record["environment"],
+            {
+                "BENCHMARK_LAUNCHER_TEMPLATE": launcher,
+                "MPIEXEC": str(self.fixture.fake_mpiexec),
+                "MPIEXEC_FLAGS": "--fixture-bind core",
+                "MPI_NP_FLAG": "--fixture-ranks",
+            },
+        )
 
     def test_performance_targets_release_forwarding_cleanup_and_guards(self) -> None:
         performance_root = (

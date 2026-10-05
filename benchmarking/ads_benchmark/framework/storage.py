@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
 import fcntl
 import json
@@ -16,6 +16,8 @@ from .errors import StorageError
 
 
 _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$", re.ASCII)
+_SHARD_FILE = re.compile(r"^shard-([0-9]{6})\.json$", re.ASCII)
+_SHARD_LOCK = ".shards.lock"
 _PLAN_KIND = "ads-benchmark-plan"
 _PLAN_SCHEMA_VERSION = 1
 _DIRECTORY_FLAGS = (
@@ -31,7 +33,13 @@ _MAX_GENERATED_ARTIFACT_BYTES = 64 * 1024 * 1024
 _LOG_NAMES = frozenset({"stdout.log", "stderr.log"})
 _GENERATED_ARTIFACTS = frozenset({"field_samples.csv"})
 _ANALYSIS_ARTIFACTS = frozenset(
-    {"analysis.json", "analysis.csv", "convergence.png", "strong-scaling.png"}
+    {
+        "analysis.json",
+        "analysis.csv",
+        "convergence.png",
+        "strong-scaling.png",
+        "weak-scaling.png",
+    }
 )
 
 
@@ -181,11 +189,9 @@ class ResultStore:
             raise StorageError(f"cannot write {name}: {error}") from error
 
     @classmethod
-    def _atomic_json_at(
-        cls, directory_fd: int, name: str, document: Mapping[str, object]
-    ) -> None:
+    def _json_text(cls, name: str, document: Mapping[str, object]) -> str:
         try:
-            content = json.dumps(
+            return json.dumps(
                 document,
                 indent=2,
                 sort_keys=True,
@@ -194,7 +200,68 @@ class ResultStore:
             ) + "\n"
         except (TypeError, ValueError) as error:
             raise StorageError(f"record for {name} is not valid JSON: {error}") from error
+
+    @classmethod
+    def _atomic_json_at(
+        cls, directory_fd: int, name: str, document: Mapping[str, object]
+    ) -> None:
+        content = cls._json_text(name, document)
         cls._atomic_text_at(directory_fd, name, content)
+
+    @classmethod
+    def _exclusive_json_at(
+        cls, directory_fd: int, name: str, document: Mapping[str, object]
+    ) -> None:
+        """Durably publish JSON without ever replacing an existing name."""
+
+        content = cls._json_text(name, document)
+        temporary = f".{name}.{os.getpid()}.{time.time_ns()}.tmp"
+        descriptor: int | None = None
+        try:
+            descriptor = os.open(
+                temporary,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | _FILE_NOFOLLOW,
+                0o644,
+                dir_fd=directory_fd,
+            )
+            with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+                descriptor = None
+                stream.write(content)
+                stream.flush()
+                os.fsync(stream.fileno())
+            try:
+                # A hard-link publish is the portable POSIX no-replace
+                # primitive.  Unlike a preceding stat followed by replace,
+                # two writers cannot both claim the same immutable name.
+                os.link(
+                    temporary,
+                    name,
+                    src_dir_fd=directory_fd,
+                    dst_dir_fd=directory_fd,
+                    follow_symlinks=False,
+                )
+            except FileExistsError as error:
+                raise StorageError(
+                    f"file already exists; refusing overwrite: {name}"
+                ) from error
+            os.unlink(temporary, dir_fd=directory_fd)
+            os.fsync(directory_fd)
+        except StorageError:
+            if descriptor is not None:
+                os.close(descriptor)
+            try:
+                os.unlink(temporary, dir_fd=directory_fd)
+            except OSError:
+                pass
+            raise
+        except (OSError, UnicodeError) as error:
+            if descriptor is not None:
+                os.close(descriptor)
+            try:
+                os.unlink(temporary, dir_fd=directory_fd)
+            except OSError:
+                pass
+            raise StorageError(f"cannot write {name}: {error}") from error
 
     @staticmethod
     def _read_json_at(
@@ -335,6 +402,186 @@ class ResultStore:
 
         with self._owned_run_fds(run_id) as (_, run_fd):
             return self._read_manifest_at(run_fd, run_id)
+
+    @staticmethod
+    def _shard_name(index: int) -> str:
+        if type(index) is not int or index < 0 or index > 999_999:
+            raise StorageError("shard index must be between 0 and 999999")
+        return f"shard-{index:06d}.json"
+
+    @contextmanager
+    def _shard_manifest_lock(
+        self, run_id: str, *, exclusive: bool
+    ) -> Iterator[int]:
+        """Anchor and lock one parent's shard namespace for a whole operation."""
+
+        descriptor: int | None = None
+        locked = False
+        with self._owned_run_fds(run_id) as (_, run_fd):
+            try:
+                descriptor = os.open(
+                    _SHARD_LOCK,
+                    os.O_RDWR | os.O_CREAT | _FILE_NOFOLLOW,
+                    0o644,
+                    dir_fd=run_fd,
+                )
+                if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                    raise StorageError(
+                        f"run {run_id} shard lock is not a regular file"
+                    )
+                operation = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
+                try:
+                    fcntl.flock(descriptor, operation | fcntl.LOCK_NB)
+                except BlockingIOError as error:
+                    raise StorageError(
+                        f"run {run_id} shard manifests are currently in use"
+                    ) from error
+                locked = True
+                yield run_fd
+            except StorageError:
+                raise
+            except OSError as error:
+                raise StorageError(
+                    f"cannot lock shard manifests for run {run_id}: {error}"
+                ) from error
+            finally:
+                if descriptor is not None:
+                    try:
+                        if locked:
+                            fcntl.flock(descriptor, fcntl.LOCK_UN)
+                    finally:
+                        os.close(descriptor)
+
+    @staticmethod
+    def _open_shards_at(run_fd: int, run_id: str, *, create: bool) -> int:
+        if create:
+            try:
+                os.mkdir("shards", mode=0o755, dir_fd=run_fd)
+            except FileExistsError:
+                pass
+        try:
+            return os.open("shards", _DIRECTORY_FLAGS, dir_fd=run_fd)
+        except OSError as error:
+            qualifier = "unsafe" if create else "no safe"
+            raise StorageError(
+                f"run {run_id} has {qualifier} shards directory"
+            ) from error
+
+    def _write_shard_manifest_at(
+        self,
+        run_fd: int,
+        run_id: str,
+        index: int,
+        document: Mapping[str, object],
+    ) -> Path:
+        name = self._shard_name(index)
+        if (
+            document.get("kind") != "ads-benchmark-plan-shard"
+            or type(document.get("shard_index")) is not int
+            or document.get("shard_index") != index
+        ):
+            raise StorageError("shard document identity does not match its index")
+        shards_fd = self._open_shards_at(run_fd, run_id, create=True)
+        try:
+            self._exclusive_json_at(shards_fd, name, document)
+        finally:
+            os.close(shards_fd)
+        return self._run_path(run_id) / "shards" / name
+
+    def write_shard_manifest(
+        self,
+        run_id: str,
+        index: int,
+        document: Mapping[str, object],
+    ) -> Path:
+        """Atomically write one indexed shard below an owned parent plan."""
+
+        with self._shard_manifest_lock(run_id, exclusive=True) as run_fd:
+            return self._write_shard_manifest_at(
+                run_fd, run_id, index, document
+            )
+
+    def write_shard_manifests(
+        self,
+        run_id: str,
+        documents: Iterable[Mapping[str, object]],
+    ) -> tuple[Path, ...]:
+        """Publish a complete shard set under one exclusive namespace lock."""
+
+        prepared: list[tuple[int, Mapping[str, object]]] = []
+        seen: set[int] = set()
+        for position, document in enumerate(documents):
+            index = document.get("shard_index")
+            if type(index) is not int:
+                raise StorageError(
+                    f"shard document {position} has an invalid shard_index"
+                )
+            self._shard_name(index)
+            if index in seen:
+                raise StorageError(f"duplicate shard index in write set: {index}")
+            seen.add(index)
+            if document.get("kind") != "ads-benchmark-plan-shard":
+                raise StorageError(
+                    f"shard document {position} has an invalid kind"
+                )
+            # Reject serialization failures before publishing the first member.
+            self._json_text(self._shard_name(index), document)
+            prepared.append((index, document))
+        if not prepared:
+            raise StorageError("cannot write an empty shard manifest set")
+
+        with self._shard_manifest_lock(run_id, exclusive=True) as run_fd:
+            return tuple(
+                self._write_shard_manifest_at(
+                    run_fd, run_id, index, document
+                )
+                for index, document in prepared
+            )
+
+    def read_shard_manifest(self, run_id: str, index: int) -> dict[str, object]:
+        """Read one bounded, regular shard document from an owned plan."""
+
+        name = self._shard_name(index)
+        with self._shard_manifest_lock(run_id, exclusive=False) as run_fd:
+            shards_fd = self._open_shards_at(run_fd, run_id, create=False)
+            try:
+                document = self._read_json_at(
+                    shards_fd,
+                    name,
+                    f"run {run_id} shard {index}",
+                )
+            finally:
+                os.close(shards_fd)
+        assert document is not None
+        return document
+
+    def read_all_shard_manifests(
+        self, run_id: str
+    ) -> tuple[dict[str, object], ...]:
+        """Read every deterministically named shard from an owned plan."""
+
+        with self._shard_manifest_lock(run_id, exclusive=False) as run_fd:
+            shards_fd = self._open_shards_at(run_fd, run_id, create=False)
+            try:
+                names = sorted(
+                    name
+                    for name in os.listdir(shards_fd)
+                    if _SHARD_FILE.fullmatch(name)
+                )
+                if not names:
+                    raise StorageError(f"run {run_id} contains no shard manifests")
+                documents = []
+                for name in names:
+                    document = self._read_json_at(
+                        shards_fd,
+                        name,
+                        f"run {run_id} shard manifest {name}",
+                    )
+                    assert document is not None
+                    documents.append(document)
+                return tuple(documents)
+            finally:
+                os.close(shards_fd)
 
     def write_analysis_artifact(
         self, run_id: str, name: str, content: str | bytes

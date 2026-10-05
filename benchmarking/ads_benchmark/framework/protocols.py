@@ -41,5 +41,8 @@ class Launcher(Protocol):
     def command(self, payload: Sequence[str], case: CaseSpec) -> Sequence[str]:
         """Return the complete argv executed by the engine."""
 
+    def validate_resources(self, case: CaseSpec) -> None:
+        """Raise when a case exceeds the declared runtime allocation."""
+
     def environment(self, case: CaseSpec) -> Mapping[str, str]:
         """Return launcher-specific environment additions."""

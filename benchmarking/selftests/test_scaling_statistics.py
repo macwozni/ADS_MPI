@@ -3,7 +3,11 @@ from __future__ import annotations
 import unittest
 
 from ads_benchmark.analysis.base import AnalysisError
-from ads_benchmark.analysis.statistics import scaling_metrics, summarize_samples
+from ads_benchmark.analysis.statistics import (
+    scaling_metrics,
+    summarize_samples,
+    weak_scaling_efficiency,
+)
 
 
 class ScalingStatisticsTests(unittest.TestCase):
@@ -25,6 +29,14 @@ class ScalingStatisticsTests(unittest.TestCase):
         )
         self.assertEqual(metrics.speedup, 3.0)
         self.assertEqual(metrics.efficiency, 0.75)
+
+    def test_weak_efficiency_is_only_the_baseline_time_ratio(self) -> None:
+        self.assertEqual(
+            weak_scaling_efficiency(
+                baseline_seconds=12.0, measured_seconds=15.0
+            ),
+            0.8,
+        )
 
     def test_invalid_samples_and_scaling_inputs_are_rejected(self) -> None:
         for samples in (
@@ -60,6 +72,13 @@ class ScalingStatisticsTests(unittest.TestCase):
                     measured_seconds=1.0,
                     baseline_resources=1,
                     resources=2,
+                )
+            with self.subTest(weak_invalid_time=invalid_time), self.assertRaises(
+                AnalysisError
+            ):
+                weak_scaling_efficiency(
+                    baseline_seconds=invalid_time,  # type: ignore[arg-type]
+                    measured_seconds=1.0,
                 )
 
 

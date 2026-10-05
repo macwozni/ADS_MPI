@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "name": "weak-scaling-smoke",
+  "description": "Executable per-rank weak-scaling slice with two MPI resource levels and serial full-field references.",
+  "family": "weak",
+  "exact_cases": ["spatial-cosine"],
+  "problems": ["igrm_l2"],
+  "schemes": ["dg"],
+  "time_discretizations": [
+    {"final_time": "0.1", "steps": 4}
+  ],
+  "weak_scaling": {
+    "local_elements": [[4, 4, 4]],
+    "workload_basis": "per-rank"
+  },
+  "degree_pairs": [
+    {"test": [3, 3, 3], "trial": [2, 2, 2]}
+  ],
+  "process_layouts": [
+    {"ranks": 1, "grid": [1, 1, 1]},
+    {"ranks": 2, "grid": [2, 1, 1]}
+  ],
+  "thread_counts": [1],
+  "openmp": {"dynamic": false, "proc_bind": "close", "places": "cores"},
+  "sampling": {"points_per_axis": 17, "write_samples": true},
+  "execution": {
+    "warmups": 2,
+    "samples": 7,
+    "minimum_sample_seconds": "0.001",
+    "timeout_seconds": "600"
+  },
+  "build_profiles": ["release"],
+  "launcher": "mpi"
+}

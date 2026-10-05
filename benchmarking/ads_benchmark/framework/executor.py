@@ -109,7 +109,7 @@ def _uses_repetitions(case: PlannedCase) -> bool:
         measurement.warmups != 0
         or measurement.samples != 1
         or measurement.minimum_sample_seconds is not None
-        or case.spec.family == "strong"
+        or case.spec.family in {"strong", "weak"}
     )
 
 
@@ -284,6 +284,9 @@ class Executor:
                 adapter.validate_case(case.spec)
                 launcher = self.catalog.launchers.get(case.spec.launcher)
                 launcher.validate_case(case.spec)
+                validate_resources = getattr(launcher, "validate_resources", None)
+                if callable(validate_resources):
+                    validate_resources(case.spec)
                 payload = _validated_argv(
                     adapter.build_payload_command(case.spec, context),
                     f"adapter {adapter.name}",

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 import hashlib
 from itertools import product
@@ -21,6 +21,7 @@ from .model import (
     RepositoryState,
     SamplingSpec,
     TimeSpec,
+    WeakScalingSpec,
 )
 from .registry import Catalog, Registry
 from .validation import validate_case
@@ -74,6 +75,48 @@ def case_identity(spec: CaseSpec) -> tuple[str, str]:
     canonical = canonical_json(spec.to_dict())
     digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:20]
     return f"{spec.problem}-{spec.scheme}-{digest}", canonical
+
+
+def _weak_field_key(spec: CaseSpec) -> tuple[object, ...]:
+    """Identify one physical field independently of execution topology."""
+
+    return (
+        spec.family,
+        spec.problem,
+        spec.scheme,
+        spec.exact_case,
+        spec.time,
+        spec.mesh,
+        spec.test_degree,
+        spec.trial_degree,
+        spec.sampling,
+        spec.build_profile,
+    )
+
+
+def _weak_series_key(spec: CaseSpec) -> tuple[object, ...]:
+    """Identify one constant-local-work, constant-OMP timing series."""
+
+    assert spec.weak_scaling is not None
+    return (
+        spec.family,
+        spec.problem,
+        spec.scheme,
+        spec.exact_case,
+        spec.time,
+        spec.test_degree,
+        spec.trial_degree,
+        spec.weak_scaling.local_elements,
+        spec.weak_scaling.workload_basis,
+        spec.openmp_threads,
+        spec.sampling,
+        spec.measurement,
+        spec.build_profile,
+        spec.launcher,
+        spec.openmp_dynamic,
+        spec.openmp_proc_bind,
+        spec.openmp_places,
+    )
 
 
 @dataclass(frozen=True)
@@ -212,25 +255,36 @@ def _vector3(value: object, field: str) -> tuple[int, int, int]:
 
 
 def _case_spec(document: object, field: str) -> CaseSpec:
-    case = _object(
-        document,
-        {
-            "family",
-            "problem",
-            "scheme",
-            "exact_case",
-            "time",
-            "mesh",
-            "spaces",
-            "mpi",
-            "openmp",
-            "sampling",
-            "measurement",
-            "build",
-            "launcher",
-        },
-        field,
-    )
+    required_case_keys = {
+        "family",
+        "problem",
+        "scheme",
+        "exact_case",
+        "time",
+        "mesh",
+        "spaces",
+        "mpi",
+        "openmp",
+        "sampling",
+        "measurement",
+        "build",
+        "launcher",
+    }
+    if not isinstance(document, dict):
+        raise ValidationError(f"frozen manifest {field} must be an object")
+    case_keys = set(document)
+    if case_keys not in (required_case_keys, required_case_keys | {"weak_scaling"}):
+        missing = sorted(required_case_keys - case_keys)
+        extra = sorted(case_keys - (required_case_keys | {"weak_scaling"}))
+        details = []
+        if missing:
+            details.append("missing " + ", ".join(missing))
+        if extra:
+            details.append("unknown " + ", ".join(extra))
+        raise ValidationError(
+            f"frozen manifest {field} has invalid keys: {'; '.join(details)}"
+        )
+    case: Mapping[str, object] = document
     time = _object(case["time"], {"final_time", "time_step", "steps"}, f"{field}.time")
     mesh = _object(case["mesh"], {"elements"}, f"{field}.mesh")
     spaces = _object(
@@ -270,6 +324,24 @@ def _case_spec(document: object, field: str) -> CaseSpec:
             f"frozen manifest {field}.measurement has invalid keys"
         )
     build = _object(case["build"], {"profile"}, f"{field}.build")
+    weak_scaling = None
+    if "weak_scaling" in case:
+        weak = _object(
+            case["weak_scaling"],
+            {"local_elements", "workload_basis", "role"},
+            f"{field}.weak_scaling",
+        )
+        weak_scaling = WeakScalingSpec(
+            local_elements=_vector3(
+                weak["local_elements"],
+                f"{field}.weak_scaling.local_elements",
+            ),
+            workload_basis=_string(
+                weak["workload_basis"],
+                f"{field}.weak_scaling.workload_basis",
+            ),
+            role=_string(weak["role"], f"{field}.weak_scaling.role"),
+        )
     return CaseSpec(
         family=_string(case["family"], f"{field}.family"),
         problem=_string(case["problem"], f"{field}.problem"),
@@ -340,6 +412,7 @@ def _case_spec(document: object, field: str) -> CaseSpec:
             if "places" in openmp
             else None
         ),
+        weak_scaling=weak_scaling,
     )
 
 
@@ -495,6 +568,10 @@ class Planner:
         self.catalog = catalog
 
     def _expanded_specs(self, profile: ProfileDefinition) -> Iterable[CaseSpec]:
+        if profile.family == "weak":
+            yield from self._expanded_weak_specs(profile)
+            return
+
         axes = product(
             profile.exact_cases,
             profile.problems,
@@ -538,6 +615,86 @@ class Planner:
                 openmp_places=profile.openmp_places,
             )
 
+    def _expanded_weak_specs(
+        self, profile: ProfileDefinition
+    ) -> Iterable[CaseSpec]:
+        """Expand constant-per-rank loads and their serial field helpers."""
+
+        assert profile.weak_workload_basis is not None
+        measurements: list[CaseSpec] = []
+        helper_by_field: dict[tuple[object, ...], CaseSpec] = {}
+        axes = product(
+            profile.exact_cases,
+            profile.problems,
+            profile.schemes,
+            profile.time_discretizations,
+            profile.weak_local_elements,
+            profile.degree_pairs,
+            profile.process_layouts,
+            profile.thread_counts,
+            profile.build_profiles,
+        )
+        for (
+            exact_case,
+            problem_name,
+            scheme,
+            time_spec,
+            local_elements,
+            degrees,
+            mpi,
+            threads,
+            build_profile,
+        ) in axes:
+            test_degree, trial_degree = degrees
+            global_mesh = tuple(
+                local * processes
+                for local, processes in zip(
+                    local_elements, mpi.process_grid, strict=True
+                )
+            )
+            spec = CaseSpec(
+                family=profile.family,
+                problem=problem_name,
+                scheme=scheme,
+                exact_case=exact_case,
+                time=time_spec,
+                mesh=global_mesh,  # type: ignore[arg-type]
+                test_degree=test_degree,
+                trial_degree=trial_degree,
+                mpi=mpi,
+                openmp_threads=threads,
+                sampling=profile.sampling,
+                measurement=profile.measurement,
+                build_profile=build_profile,
+                launcher=profile.launcher,
+                openmp_dynamic=profile.openmp_dynamic,
+                openmp_proc_bind=profile.openmp_proc_bind,
+                openmp_places=profile.openmp_places,
+                weak_scaling=WeakScalingSpec(
+                    local_elements=local_elements,
+                    workload_basis=profile.weak_workload_basis,
+                    role="measurement",
+                ),
+            )
+            measurements.append(spec)
+            key = _weak_field_key(spec)
+            helper_by_field.setdefault(
+                key,
+                replace(
+                    spec,
+                    mpi=MpiSpec(ranks=1, process_grid=(1, 1, 1)),
+                    openmp_threads=1,
+                    weak_scaling=WeakScalingSpec(
+                        local_elements=global_mesh,  # type: ignore[arg-type]
+                        workload_basis=profile.weak_workload_basis,
+                        role="field-reference",
+                    ),
+                ),
+            )
+
+        yield from measurements
+        yield from helper_by_field.values()
+
     def plan(
         self, profile_name: str, filters: CaseFilters | None = None
     ) -> Plan:
@@ -561,7 +718,64 @@ class Planner:
             expanded.append(PlannedCase(case_id=case_id, spec=spec))
 
         expanded.sort(key=lambda item: item.case_id)
-        selected = tuple(case for case in expanded if active_filters.matches(case))
+        if profile.family == "weak":
+            selected_measurements = [
+                case
+                for case in expanded
+                if case.spec.weak_scaling is not None
+                and case.spec.weak_scaling.role == "measurement"
+                and active_filters.matches(case)
+            ]
+            baseline_by_series = {
+                _weak_series_key(case.spec): case
+                for case in expanded
+                if case.spec.weak_scaling is not None
+                and case.spec.weak_scaling.role == "measurement"
+                and case.spec.mpi.ranks == 1
+                and case.spec.mpi.process_grid == (1, 1, 1)
+            }
+            selected_by_id = {
+                case.case_id: case for case in selected_measurements
+            }
+            for series_key in {
+                _weak_series_key(case.spec) for case in selected_measurements
+            }:
+                baseline = baseline_by_series.get(series_key)
+                if baseline is None:
+                    raise ValidationError(
+                        "weak-scaling selection has no MPI=1 measurement "
+                        "baseline for a selected local-work/OMP series"
+                    )
+                selected_by_id.setdefault(baseline.case_id, baseline)
+            selected_measurements = list(selected_by_id.values())
+            selected_field_keys = {
+                _weak_field_key(case.spec) for case in selected_measurements
+            }
+            self_reference_keys = {
+                _weak_field_key(case.spec)
+                for case in selected_measurements
+                if case.spec.mpi.ranks == 1
+                and case.spec.mpi.process_grid == (1, 1, 1)
+                and case.spec.openmp_threads == 1
+            }
+            helpers = {
+                _weak_field_key(case.spec): case
+                for case in expanded
+                if case.spec.weak_scaling is not None
+                and case.spec.weak_scaling.role == "field-reference"
+                and _weak_field_key(case.spec) in selected_field_keys
+                and _weak_field_key(case.spec) not in self_reference_keys
+            }
+            selected = tuple(
+                sorted(
+                    (*selected_measurements, *helpers.values()),
+                    key=lambda item: item.case_id,
+                )
+            )
+        else:
+            selected = tuple(
+                case for case in expanded if active_filters.matches(case)
+            )
         if not selected:
             raise ValidationError(
                 f"filters selected no cases from profile {profile.name}"

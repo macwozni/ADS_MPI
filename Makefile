@@ -65,9 +65,19 @@ BENCHMARK_H_CONVERGENCE_PROFILE ?= h-convergence-full
 BENCHMARK_P_CONVERGENCE_PROFILE ?= p-convergence-full
 BENCHMARK_VALIDATION_PROFILE ?= validation-full
 BENCHMARK_STRONG_PROFILE ?= cluster-scaling
+BENCHMARK_WEAK_PROFILE ?= cluster-weak-scaling
+BENCHMARK_SHARD_PROFILE ?= $(BENCHMARK_WEAK_PROFILE)
+BENCHMARK_SHARD_STRATEGY ?= problem-scheme-degree
+BENCHMARK_SHARD_COUNT ?=
 BENCHMARK_RESUME_PROFILE ?= $(BENCHMARK_CONVERGENCE_PROFILE)
+BENCHMARK_LAUNCHER_TEMPLATE ?=
+override BENCHMARK_LAUNCHER_TEMPLATE := $(value BENCHMARK_LAUNCHER_TEMPLATE)
+export BENCHMARK_LAUNCHER_TEMPLATE
 BENCHMARK_PLAN_ARGS ?=
 BENCHMARK_ANALYZE_ARGS ?=
+PARENT_RUN_ID ?=
+SHARD_INDEX ?=
+SHARD_RUNS ?=
 
 PROBLEM_OPTIONS = \
 	CONFIG="$(CONFIG_PATH)" \
@@ -115,7 +125,8 @@ TEST_OPTIONS = \
 	show-config config rebuild run run-help show-run \
 	benchmark-plan benchmark-build benchmark-smoke benchmark-convergence \
 	benchmark-h-convergence benchmark-p-convergence \
-	benchmark-validate benchmark-strong \
+	benchmark-validate benchmark-strong benchmark-weak \
+	benchmark-shard-plan benchmark-run-shard benchmark-merge-shards \
 	benchmark-resume benchmark-analyze benchmark-self-test \
 	clean-benchmark-build \
 	test check test-build test-layout test-src test-problems test-driver \
@@ -178,7 +189,7 @@ show-run:
 
 benchmark-plan:
 	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
-		PYTHON="$(PYTHON)" plan
+		CONFIG="$(CONFIG_PATH)" PYTHON="$(PYTHON)" plan
 
 benchmark-build:
 	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
@@ -232,6 +243,38 @@ benchmark-strong:
 		BENCHMARK_STRONG_PROFILE="$(BENCHMARK_STRONG_PROFILE)" \
 		BENCHMARK_PLAN_ARGS="$(BENCHMARK_PLAN_ARGS)" \
 		BENCHMARK_ANALYZE_ARGS="$(BENCHMARK_ANALYZE_ARGS)" strong
+
+benchmark-weak:
+	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
+		CONFIG="$(CONFIG_PATH)" PYTHON="$(PYTHON)" \
+		MPIEXEC="$(MPIEXEC)" MPIEXEC_FLAGS="$(MPIEXEC_FLAGS)" \
+		MPI_NP_FLAG="$(MPI_NP_FLAG)" RUN_ID="$(RUN_ID)" \
+		BENCHMARK_WEAK_PROFILE="$(BENCHMARK_WEAK_PROFILE)" \
+		BENCHMARK_PLAN_ARGS="$(BENCHMARK_PLAN_ARGS)" \
+		BENCHMARK_ANALYZE_ARGS="$(BENCHMARK_ANALYZE_ARGS)" weak
+
+benchmark-shard-plan:
+	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
+		PYTHON="$(PYTHON)" RUN_ID="$(RUN_ID)" \
+		BENCHMARK_SHARD_PROFILE="$(BENCHMARK_SHARD_PROFILE)" \
+		BENCHMARK_SHARD_STRATEGY="$(BENCHMARK_SHARD_STRATEGY)" \
+		BENCHMARK_SHARD_COUNT="$(BENCHMARK_SHARD_COUNT)" \
+		BENCHMARK_PLAN_ARGS="$(BENCHMARK_PLAN_ARGS)" shard-plan
+
+benchmark-run-shard:
+	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
+		CONFIG="$(CONFIG_PATH)" PYTHON="$(PYTHON)" \
+		MPIEXEC="$(MPIEXEC)" MPIEXEC_FLAGS="$(MPIEXEC_FLAGS)" \
+		MPI_NP_FLAG="$(MPI_NP_FLAG)" \
+		PARENT_RUN_ID="$(PARENT_RUN_ID)" SHARD_INDEX="$(SHARD_INDEX)" \
+		RUN_ID="$(RUN_ID)" \
+		BENCHMARK_PLAN_ARGS="$(BENCHMARK_PLAN_ARGS)" run-shard
+
+benchmark-merge-shards:
+	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
+		PYTHON="$(PYTHON)" PARENT_RUN_ID="$(PARENT_RUN_ID)" \
+		SHARD_RUNS="$(SHARD_RUNS)" \
+		BENCHMARK_ANALYZE_ARGS="$(BENCHMARK_ANALYZE_ARGS)" merge-shards
 
 benchmark-resume:
 	+$(MAKE) --no-print-directory -j1 -C $(BENCHMARKING_DIR) \
@@ -572,6 +615,14 @@ targets help:
 		'                                      validate fields; declare MPI/CPU slots in BENCHMARK_PLAN_ARGS' \
 		'  make benchmark-strong RUN_ID=NAME' \
 		'                                      run release strong scaling; declare MPI/CPU slots' \
+		'  make benchmark-weak RUN_ID=NAME' \
+		'                                      run release weak scaling; declare MPI/CPU slots' \
+		'  make benchmark-shard-plan RUN_ID=PARENT' \
+		'                                      freeze a profile and generate deterministic shards' \
+		'  make benchmark-run-shard PARENT_RUN_ID=PARENT SHARD_INDEX=N RUN_ID=CHILD' \
+		'                                      build release adapters and execute one shard' \
+		'  make benchmark-merge-shards PARENT_RUN_ID=PARENT SHARD_RUNS="CHILD ..."' \
+		'                                      verify every shard and analyze the complete parent plan' \
 		'  make benchmark-resume RUN_ID=NAME   verify and resume that frozen run' \
 		'  make benchmark-analyze RUN_ID=NAME  write registered JSON/CSV analysis reports' \
 		'  make benchmark-self-test           planner/engine contract tests' \

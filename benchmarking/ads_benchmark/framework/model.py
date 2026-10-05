@@ -75,6 +75,27 @@ class SamplingSpec:
 
 
 @dataclass(frozen=True)
+class WeakScalingSpec:
+    """Weak-scaling semantics attached to an expanded case.
+
+    ``local_elements`` is the constant spatial workload declared by the
+    profile.  ``role`` keeps serial correctness helpers out of performance
+    series without giving them a separate execution path.
+    """
+
+    local_elements: Vector3
+    workload_basis: str
+    role: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "local_elements": list(self.local_elements),
+            "workload_basis": self.workload_basis,
+            "role": self.role,
+        }
+
+
+@dataclass(frozen=True)
 class CaseSpec:
     """One fully expanded, normalized benchmark configuration."""
 
@@ -95,6 +116,7 @@ class CaseSpec:
     openmp_dynamic: bool | None = None
     openmp_proc_bind: str | None = None
     openmp_places: str | None = None
+    weak_scaling: WeakScalingSpec | None = None
 
     def to_dict(self) -> dict[str, object]:
         openmp: dict[str, object] = {"threads": self.openmp_threads}
@@ -104,7 +126,7 @@ class CaseSpec:
             openmp["proc_bind"] = self.openmp_proc_bind
         if self.openmp_places is not None:
             openmp["places"] = self.openmp_places
-        return {
+        document: dict[str, object] = {
             "family": self.family,
             "problem": self.problem,
             "scheme": self.scheme,
@@ -122,6 +144,9 @@ class CaseSpec:
             "build": {"profile": self.build_profile},
             "launcher": self.launcher,
         }
+        if self.weak_scaling is not None:
+            document["weak_scaling"] = self.weak_scaling.to_dict()
+        return document
 
 
 @dataclass(frozen=True)

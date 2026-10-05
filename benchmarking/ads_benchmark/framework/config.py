@@ -32,7 +32,6 @@ _PROFILE_KEYS = {
     "problems",
     "schemes",
     "time_discretizations",
-    "meshes",
     "degree_pairs",
     "process_layouts",
     "thread_counts",
@@ -41,7 +40,7 @@ _PROFILE_KEYS = {
     "build_profiles",
     "launcher",
 }
-_PROFILE_OPTIONAL_KEYS = {"openmp"}
+_PROFILE_OPTIONAL_KEYS = {"meshes", "openmp", "weak_scaling"}
 
 
 @dataclass(frozen=True)
@@ -64,6 +63,8 @@ class ProfileDefinition:
     openmp_dynamic: bool | None = None
     openmp_proc_bind: str | None = None
     openmp_places: str | None = None
+    weak_local_elements: tuple[Vector3, ...] = ()
+    weak_workload_basis: str | None = None
 
 
 def _reject_constant(value: str) -> None:
@@ -287,16 +288,64 @@ def parse_profile(document: dict[str, Any], source: Path) -> ProfileDefinition:
             f"{source} schema_version must be {PROFILE_SCHEMA_VERSION}"
         )
 
+    family = _string(document["family"], "family")
+    has_meshes = "meshes" in document
+    has_weak_scaling = "weak_scaling" in document
+    if family == "weak":
+        if has_meshes:
+            raise ConfigurationError(
+                "weak profiles must declare weak_scaling.local_elements, not meshes"
+            )
+        if not has_weak_scaling:
+            raise ConfigurationError("weak profiles require weak_scaling")
+    else:
+        if not has_meshes:
+            raise ConfigurationError("non-weak profiles require meshes")
+        if has_weak_scaling:
+            raise ConfigurationError(
+                "weak_scaling is only valid for the weak family"
+            )
+
     times = tuple(
         _time_spec(value, f"time_discretizations[{index}]")
         for index, value in enumerate(
             _list(document["time_discretizations"], "time_discretizations")
         )
     )
-    meshes = tuple(
-        _vector3(value, f"meshes[{index}]")
-        for index, value in enumerate(_list(document["meshes"], "meshes"))
+    meshes = (
+        tuple(
+            _vector3(value, f"meshes[{index}]")
+            for index, value in enumerate(_list(document["meshes"], "meshes"))
+        )
+        if has_meshes
+        else ()
     )
+
+    weak_local_elements: tuple[Vector3, ...] = ()
+    weak_workload_basis: str | None = None
+    if has_weak_scaling:
+        weak_scaling = _exact_keys(
+            document["weak_scaling"],
+            {"local_elements", "workload_basis"},
+            "weak_scaling",
+        )
+        weak_local_elements = tuple(
+            _vector3(value, f"weak_scaling.local_elements[{index}]")
+            for index, value in enumerate(
+                _list(
+                    weak_scaling["local_elements"],
+                    "weak_scaling.local_elements",
+                )
+            )
+        )
+        weak_workload_basis = _string(
+            weak_scaling["workload_basis"],
+            "weak_scaling.workload_basis",
+        )
+        if weak_workload_basis != "per-rank":
+            raise ConfigurationError(
+                "weak_scaling.workload_basis must be per-rank"
+            )
 
     degree_pairs = []
     for index, raw_pair in enumerate(
@@ -416,7 +465,7 @@ def parse_profile(document: dict[str, Any], source: Path) -> ProfileDefinition:
     return ProfileDefinition(
         name=_string(document["name"], "name"),
         description=_string(document["description"], "description"),
-        family=_string(document["family"], "family"),
+        family=family,
         exact_cases=_string_list(document["exact_cases"], "exact_cases"),
         problems=_string_list(document["problems"], "problems"),
         schemes=_string_list(document["schemes"], "schemes", lower=True),
@@ -432,6 +481,8 @@ def parse_profile(document: dict[str, Any], source: Path) -> ProfileDefinition:
         openmp_dynamic=openmp_dynamic,
         openmp_proc_bind=openmp_proc_bind,
         openmp_places=openmp_places,
+        weak_local_elements=weak_local_elements,
+        weak_workload_basis=weak_workload_basis,
     )
 
 
