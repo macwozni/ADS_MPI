@@ -8,6 +8,7 @@ temporary test directory.
 from __future__ import annotations
 
 from collections.abc import Mapping
+import json
 import math
 import os
 from pathlib import Path
@@ -22,15 +23,21 @@ from ads_benchmark.analysis.validation import (
     PARALLEL_ABSOLUTE_TOLERANCE,
     PARALLEL_RELATIVE_TOLERANCE,
 )
+from ads_benchmark.catalog import build_catalog
 from ads_benchmark.components.manufactured import ManufacturedTransientAdapter
+from ads_benchmark.framework.config import load_profiles
+from ads_benchmark.framework.executor import Executor
 from ads_benchmark.framework.model import (
     CaseSpec,
     ExecutionContext,
     MeasurementSpec,
     MpiSpec,
+    RepositoryState,
     SamplingSpec,
     TimeSpec,
 )
+from ads_benchmark.framework.planner import Planner
+from ads_benchmark.framework.storage import ResultStore
 from ads_benchmark.validation.fields import (
     RegularGridField,
     compare_fields,
@@ -39,6 +46,7 @@ from ads_benchmark.validation.fields import (
 )
 
 from benchmark_paths import BENCHMARKING_ROOT, REPOSITORY_ROOT
+from fake_adapter import FakeAdapter
 
 
 PROBLEMS = ("igrm_l2", "igrm_heat", "pure_diffusion_igrm")
@@ -46,7 +54,7 @@ SAMPLE_POINTS = 5
 
 
 class RealAdapterIntegrationTests(unittest.TestCase):
-    """Compile, launch, parse, and validate a bounded seven-case matrix."""
+    """Validate a bounded adapter matrix and one real-MPI failure path."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -365,6 +373,70 @@ class RealAdapterIntegrationTests(unittest.TestCase):
                 abs_tol=PARALLEL_ABSOLUTE_TOLERANCE,
             )
         )
+
+    def test_nonzero_payload_under_real_mpi_is_numerical(self) -> None:
+        repository = self._work / "real-mpi-failure-classification"
+        repository.mkdir()
+        configuration = repository / "profiles"
+        configuration.mkdir()
+        profile = {
+            "schema_version": 1,
+            "name": "real-mpi-failure",
+            "description": "classify a payload failure through real MPI",
+            "family": "temporal",
+            "exact_cases": ["temporal-polynomial"],
+            "problems": ["fake"],
+            "schemes": ["dg"],
+            "time_discretizations": [{"final_time": "0.1", "steps": 4}],
+            "meshes": [[2, 2, 2]],
+            "degree_pairs": [
+                {"test": [4, 4, 4], "trial": [3, 3, 3]}
+            ],
+            "process_layouts": [{"ranks": 1, "grid": [1, 1, 1]}],
+            "thread_counts": [1],
+            "sampling": {"points_per_axis": 5, "write_samples": False},
+            "execution": {"warmups": 0, "samples": 1, "timeout_seconds": "10"},
+            "build_profiles": ["debug"],
+            "launcher": "mpi",
+        }
+        (configuration / "failure.json").write_text(
+            json.dumps(profile), encoding="utf-8"
+        )
+        catalog = build_catalog()
+        catalog.adapters.register("fake", FakeAdapter(mode="nonzero"))
+        plan = Planner(load_profiles(configuration), catalog).plan(
+            "real-mpi-failure"
+        )
+        store = ResultStore(repository)
+        store.create_run(
+            "real-mpi-failure",
+            plan.manifest(
+                run_id="real-mpi-failure",
+                repository=RepositoryState(commit="0" * 40, dirty=False),
+                created_at="2026-01-01T00:00:00+00:00",
+            ),
+        )
+        summary = Executor(catalog, store, repository).execute_frozen(
+            "real-mpi-failure", plan.cases, max_retries=2
+        )
+        case_directory = (
+            repository
+            / "benchmarks"
+            / "real-mpi-failure"
+            / "cases"
+            / plan.cases[0].case_id
+        )
+        status = json.loads(
+            (case_directory / "status.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(status["state"], "failed")
+        self.assertEqual(status["failure_kind"], "numerical")
+        self.assertEqual(len(status["attempts"]), 1)
+        invocations = (case_directory / "fake_invocations.log").read_text(
+            encoding="utf-8"
+        )
+        self.assertEqual(len(invocations.splitlines()), 1)
+        self.assertEqual((summary.passed, summary.failed), (0, 1))
 
 
 if __name__ == "__main__":

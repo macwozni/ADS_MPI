@@ -134,6 +134,43 @@ def _failure_kind_for_exception(
     return "resource" if _is_resource_exhaustion(error) else default
 
 
+def _explicit_launcher_failure_kind(
+    launcher: object,
+    *,
+    return_code: int,
+    stdout: str,
+    stderr: str,
+    case_directory: Path,
+) -> str | None:
+    """Read an optional typed launcher signal without guessing from diagnostics."""
+
+    classifier = getattr(launcher, "classify_process_failure", None)
+    if classifier is None:
+        return None
+    launcher_name = getattr(launcher, "name", type(launcher).__name__)
+    if not callable(classifier):
+        raise ExecutionError(
+            f"launcher {launcher_name} classify_process_failure is not callable"
+        )
+    try:
+        failure_kind = classifier(
+            return_code=return_code,
+            stdout=stdout,
+            stderr=stderr,
+            case_directory=case_directory,
+        )
+    except Exception as error:
+        raise ExecutionError(
+            f"launcher {launcher_name} failure classifier failed: {error}"
+        ) from error
+    if failure_kind not in {None, "mpi"}:
+        raise ExecutionError(
+            f"launcher {launcher_name} failure classifier must return "
+            f"None or 'mpi', not {failure_kind!r}"
+        )
+    return failure_kind
+
+
 def _attempt_record(
     status: Mapping[str, object], attempt: int
 ) -> dict[str, object]:
@@ -915,6 +952,7 @@ class Executor:
         case_directory: Path,
         runtime_environment: Mapping[str, str],
         timeout: float,
+        launcher: object,
     ) -> _ProcessAttempt:
         start = time.monotonic()
         stdout = ""
@@ -983,8 +1021,20 @@ class Executor:
             # numerical result.  ``mpi`` is reserved for an explicit typed
             # signal from a launcher integration rather than inferred from
             # the launcher's name.
-            failure_kind = "numerical"
-            error_message = f"process exited with status {return_code}"
+            try:
+                failure_kind = _explicit_launcher_failure_kind(
+                    launcher,
+                    return_code=return_code,
+                    stdout=stdout,
+                    stderr=stderr,
+                    case_directory=case_directory,
+                )
+            except Exception as error:
+                failure_kind = "configuration"
+                error_message = f"process failure classification failed: {error}"
+            else:
+                failure_kind = failure_kind or "numerical"
+                error_message = f"process exited with status {return_code}"
         return _ProcessAttempt(
             stdout=stdout,
             stderr=stderr,
@@ -1137,6 +1187,7 @@ class Executor:
                     case_directory,
                     runtime_environment,
                     timeout,
+                    launcher,
                 )
                 stdout = attempt.stdout
                 stderr = attempt.stderr

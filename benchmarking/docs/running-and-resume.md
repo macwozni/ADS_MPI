@@ -196,7 +196,13 @@ Because MPI launchers propagate payload exit codes, an ordinary nonzero exit is
 conservatively `numerical` even when the command is wrapped by `mpiexec` or a
 scheduler. It is never retried. The `mpi` category is reserved for an explicit,
 typed launcher/control-plane signal; it is not inferred from the launcher name,
-exit code, or diagnostic text.
+exit code, or diagnostic text. A custom launcher supplies that signal through
+the optional `classify_process_failure` hook, which may return only `"mpi"` or
+`None`. Invalid values and hook errors are configuration failures rather than
+retryable MPI failures. The built-in `mpiexec` and command-template launchers
+do not infer such a signal, so an untyped launcher failure remains
+conservatively `numerical`; installations that can expose a reliable
+control-plane side channel must register a launcher implementing the hook.
 When retries are enabled, final `status.json` retains a compact `attempts`
 history. `stdout.log` and `stderr.log` deliberately contain only the last
 attempt; for a repeated timing case that means the last launched process of

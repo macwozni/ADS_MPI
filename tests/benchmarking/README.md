@@ -11,8 +11,10 @@ All test sources and helpers live under `tests/benchmarking/`; the
 adapters, documentation, and reproducers. The suite is also registered in the
 ordinary test hierarchy. `make test` builds the three release adapters and
 runs a bounded real-MPI integration gate: DG at `N=4` and `N=8` on each
-adapter, plus one two-rank full-field comparison. This is a correctness test
-with no timing assertion and no published benchmark run. It does not execute a
+adapter, one two-rank full-field comparison, and one deliberately nonzero fake
+payload through the real MPI launcher and generic executor. The failure-path
+case must remain `numerical` and non-retryable. This is a correctness test with
+no timing assertion and no published benchmark run. It does not execute a
 benchmark profile; set `SKIP_MPI_CASES=1` only when MPI execution is
 intentionally unavailable.
 
@@ -25,6 +27,8 @@ scaling degree pairs, strong/weak, X/Y/Z decomposition, and OMP `1,2,4,8`, plus 
 collision and controlled-run-path checks, execution provenance and explicit
 unavailable observations,
 resume build identity, failure classification and bounded retry histories,
+an explicit typed MPI control-plane failure followed by a successful retry or
+a terminal numerical payload failure,
 numerics-first A/B policy, detached-worktree ownership and alternating
 case scheduling, weak-efficiency and same-global-mesh field gates, launcher-template
 expansion and resource rejection, deterministic index/group sharding, and

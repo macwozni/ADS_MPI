@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Mapping, Protocol, Sequence
+from pathlib import Path
+from typing import Literal, Mapping, Protocol, Sequence
 
 from .model import CaseSpec, ExecutionContext
 
@@ -46,3 +47,17 @@ class Launcher(Protocol):
 
     def environment(self, case: CaseSpec) -> Mapping[str, str]:
         """Return launcher-specific environment additions."""
+
+
+class LauncherFailureClassifier(Protocol):
+    """Optional launcher extension for explicit control-plane failures."""
+
+    def classify_process_failure(
+        self,
+        *,
+        return_code: int,
+        stdout: str,
+        stderr: str,
+        case_directory: Path,
+    ) -> Literal["mpi"] | None:
+        """Return ``"mpi"`` only for a positively identified launcher failure."""

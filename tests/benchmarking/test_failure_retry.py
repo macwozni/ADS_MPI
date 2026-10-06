@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -21,6 +22,12 @@ from ads_benchmark.framework.model import ExecutionContext, RepositoryState
 from ads_benchmark.framework.planner import Planner
 from ads_benchmark.framework.storage import ResultStore
 from fake_adapter import FakeAdapter
+from fake_control_plane_launcher import FAILURE_PREFIX
+
+
+CONTROL_PLANE_LAUNCHER = Path(__file__).with_name(
+    "fake_control_plane_launcher.py"
+)
 
 
 def fake_profile(
@@ -72,6 +79,50 @@ class PassthroughMpiLauncher:
 
     def environment(self, case):
         return {}
+
+
+class TypedMpiLauncher(PassthroughMpiLauncher):
+    """Wrap a payload and decode only the stub's explicit typed record."""
+
+    def command(self, payload, case):
+        return (sys.executable, str(CONTROL_PLANE_LAUNCHER), "--", *payload)
+
+    def classify_process_failure(
+        self, *, return_code, stdout, stderr, case_directory
+    ):
+        if return_code != 86:
+            return None
+        records = [
+            line[len(FAILURE_PREFIX) :]
+            for line in stderr.splitlines()
+            if line.startswith(FAILURE_PREFIX)
+        ]
+        if not records:
+            return None
+        if len(records) != 1:
+            raise ValueError("expected one launcher failure record")
+        document = json.loads(records[0])
+        if document != {
+            "kind": "mpi",
+            "schema_version": 1,
+            "source": "fake-control-plane-launcher",
+        }:
+            raise ValueError("invalid launcher failure record")
+        return "mpi"
+
+
+class InvalidFailureKindLauncher(PassthroughMpiLauncher):
+    def classify_process_failure(
+        self, *, return_code, stdout, stderr, case_directory
+    ):
+        return "numerical"
+
+
+class RaisingFailureClassifierLauncher(PassthroughMpiLauncher):
+    def classify_process_failure(
+        self, *, return_code, stdout, stderr, case_directory
+    ):
+        raise RuntimeError("intentional classifier failure")
 
 
 class MissingMeasurementAdapter:
@@ -244,6 +295,76 @@ class FailureClassificationAndRetryTests(unittest.TestCase):
                     encoding="utf-8"
                 )
                 self.assertEqual(len(invocations.splitlines()), 1)
+
+    def test_explicit_mpi_control_plane_failure_is_retried(self) -> None:
+        executor, case, case_directory = self._prepared_executor(
+            launcher=TypedMpiLauncher()
+        )
+        summary = executor.execute_frozen(
+            "failure-run", (case,), preflight=False, max_retries=1
+        )
+        status = self._persisted_status(case_directory)
+        self.assertEqual(status["state"], "passed")
+        self.assertNotIn("failure_kind", status)
+        self.assertEqual(
+            [attempt["state"] for attempt in status["attempts"]],
+            ["failed", "passed"],
+        )
+        self.assertEqual(status["attempts"][0]["failure_kind"], "mpi")
+        self.assertIsNone(status["attempts"][1]["failure_kind"])
+        launcher_invocations = (
+            case_directory / "fake_launcher_invocations.log"
+        ).read_text(encoding="utf-8")
+        payload_invocations = (case_directory / "fake_invocations.log").read_text(
+            encoding="utf-8"
+        )
+        self.assertEqual(len(launcher_invocations.splitlines()), 2)
+        self.assertEqual(len(payload_invocations.splitlines()), 1)
+        self.assertEqual((summary.passed, summary.failed), (1, 0))
+
+    def test_payload_failure_after_mpi_retry_stays_numerical(self) -> None:
+        executor, case, case_directory = self._prepared_executor(
+            mode="nonzero", launcher=TypedMpiLauncher()
+        )
+        summary = executor.execute_frozen(
+            "failure-run", (case,), preflight=False, max_retries=2
+        )
+        status = self._persisted_status(case_directory)
+        self.assertEqual(status["state"], "failed")
+        self.assertEqual(status["failure_kind"], "numerical")
+        self.assertEqual(
+            [attempt["failure_kind"] for attempt in status["attempts"]],
+            ["mpi", "numerical"],
+        )
+        launcher_invocations = (
+            case_directory / "fake_launcher_invocations.log"
+        ).read_text(encoding="utf-8")
+        payload_invocations = (case_directory / "fake_invocations.log").read_text(
+            encoding="utf-8"
+        )
+        self.assertEqual(len(launcher_invocations.splitlines()), 2)
+        self.assertEqual(len(payload_invocations.splitlines()), 1)
+        self.assertEqual((summary.passed, summary.failed), (0, 1))
+
+    def test_invalid_launcher_classifiers_are_configuration_errors(self) -> None:
+        cases = (
+            (InvalidFailureKindLauncher(), "must return None or 'mpi'"),
+            (RaisingFailureClassifierLauncher(), "classifier failed"),
+        )
+        for launcher, message in cases:
+            with self.subTest(launcher=type(launcher).__name__):
+                executor, case, case_directory = self._prepared_executor(
+                    mode="nonzero", launcher=launcher
+                )
+                summary = executor.execute_frozen(
+                    "failure-run", (case,), preflight=False, max_retries=2
+                )
+                status = self._persisted_status(case_directory)
+                self.assertEqual(status["state"], "failed")
+                self.assertEqual(status["failure_kind"], "configuration")
+                self.assertIn(message, status["error"])
+                self.assertEqual(len(status["attempts"]), 1)
+                self.assertEqual((summary.passed, summary.failed), (0, 1))
 
     def test_resource_errnos_are_classified_as_resource_failures(self) -> None:
         for error_number in (

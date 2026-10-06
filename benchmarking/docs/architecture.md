@@ -67,6 +67,17 @@ Problem and experiment code depends on these owners; the owners do not import
 concrete problems. In particular, no analyzer starts processes, no adapter
 writes logs, and no comparison command implements a second result loader.
 
+A launcher integration may additionally implement the optional
+`LauncherFailureClassifier` protocol. Its `classify_process_failure` hook is
+called only after a nonzero process exit and may return `"mpi"` only when the
+integration has explicit control-plane evidence, for example a typed side
+channel owned by its wrapper. Returning `None` preserves the conservative
+`numerical` classification. Unknown values or classifier errors are
+configuration failures; the generic executor never guesses from a launcher
+name, exit code, or vendor diagnostic text. The built-in `mpiexec` and command
+template launchers therefore return no MPI classification by themselves; a
+registered launcher integration must own and validate the explicit signal.
+
 The Fortran side follows the same separation. A registered
 `BenchmarkAdapter` supplies a manufactured-case descriptor and procedures
 for initialize, initial projection, one physical step, measurement, and
