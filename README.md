@@ -860,7 +860,9 @@ classified as `numerical`, `mpi`, `timeout`, `resource`, or `configuration`.
 `--max-retries N`, passed to run/resume targets through
 `BENCHMARK_PLAN_ARGS`, retries only MPI, timeout, and resource failures; the
 final status keeps a compact attempt history, while stdout/stderr contain only
-the last attempt.
+the last attempt. A generic nonzero exit remains `numerical`, including under
+an MPI launcher, because the exit code alone cannot identify an MPI
+control-plane failure; it is therefore not retried.
 
 `benchmark-compare` first verifies both complete runs and all numerical fields,
 then reports each side's median, MAD and range plus the candidate/baseline

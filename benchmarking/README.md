@@ -506,6 +506,11 @@ terminates the whole process group and escalates to `SIGKILL` if necessary.
 Every unsuccessful attempt has exactly one `failure_kind`: `numerical`,
 `mpi`, `timeout`, `resource`, or `configuration`. Only `mpi`, `timeout`, and
 `resource` are retried; numerical and configuration failures stop immediately.
+Because MPI launchers propagate payload exit codes, an ordinary nonzero exit is
+conservatively `numerical` even when the command is wrapped by `mpiexec` or a
+scheduler. It is never retried. The `mpi` category is reserved for an explicit,
+typed launcher/control-plane signal; it is not inferred from the launcher name,
+exit code, or diagnostic text.
 When retries are enabled, final `status.json` retains a compact `attempts`
 history. `stdout.log` and `stderr.log` deliberately contain only the last
 attempt; for a repeated timing case that means the last launched process of

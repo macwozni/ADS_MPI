@@ -915,8 +915,6 @@ class Executor:
         case_directory: Path,
         runtime_environment: Mapping[str, str],
         timeout: float,
-        *,
-        nonzero_failure_kind: str,
     ) -> _ProcessAttempt:
         start = time.monotonic()
         stdout = ""
@@ -978,7 +976,14 @@ class Executor:
         if error_message is None and return_code == 0:
             state = "passed"
         elif error_message is None:
-            failure_kind = nonzero_failure_kind
+            # A launcher propagates the payload's exit status, so a generic
+            # nonzero code cannot distinguish a solver/oracle failure from an
+            # MPI control-plane failure.  Treat the ambiguous result as a
+            # deterministic payload failure: retrying it could hide a flaky
+            # numerical result.  ``mpi`` is reserved for an explicit typed
+            # signal from a launcher integration rather than inferred from
+            # the launcher's name.
+            failure_kind = "numerical"
             error_message = f"process exited with status {return_code}"
         return _ProcessAttempt(
             stdout=stdout,
@@ -1132,9 +1137,6 @@ class Executor:
                     case_directory,
                     runtime_environment,
                     timeout,
-                    nonzero_failure_kind=(
-                        "mpi" if launcher.name == "mpi" else "numerical"
-                    ),
                 )
                 stdout = attempt.stdout
                 stderr = attempt.stderr

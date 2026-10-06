@@ -57,7 +57,7 @@ def fake_profile(
 
 
 class PassthroughMpiLauncher:
-    """Exercise MPI failure policy without requiring an MPI installation."""
+    """Expose an MPI launcher name without requiring an MPI installation."""
 
     name = "mpi"
 
@@ -199,32 +199,51 @@ class FailureClassificationAndRetryTests(unittest.TestCase):
         self.assertEqual(len(status["attempts"]), 1)
         self.assertEqual((summary.passed, summary.failed), (0, 1))
 
-    def test_timeout_and_mpi_exit_retry_but_never_become_passed(self) -> None:
-        cases = (
-            ("sleep", "0.05", None, "timeout", "timeout"),
-            ("nonzero", "2", PassthroughMpiLauncher(), "failed", "mpi"),
+    def test_timeout_is_retried_but_never_becomes_passed(self) -> None:
+        executor, case, case_directory = self._prepared_executor(
+            mode="sleep", timeout="0.05"
         )
-        for mode, timeout, launcher, expected_state, expected_kind in cases:
-            with self.subTest(mode=mode):
+        summary = executor.execute_frozen(
+            "failure-run",
+            (case,),
+            preflight=False,
+            max_retries=1,
+        )
+        status = self._persisted_status(case_directory)
+        self.assertEqual(status["state"], "timeout")
+        self.assertEqual(status["failure_kind"], "timeout")
+        self.assertEqual(len(status["attempts"]), 2)
+        self.assertEqual(
+            {attempt["failure_kind"] for attempt in status["attempts"]},
+            {"timeout"},
+        )
+        self.assertEqual((summary.passed, summary.failed), (0, 1))
+        self.assertFalse((case_directory / "result.json").exists())
+
+    def test_nonzero_exit_is_numerical_independent_of_launcher_name(self) -> None:
+        for launcher in (None, PassthroughMpiLauncher()):
+            with self.subTest(
+                launcher="direct" if launcher is None else launcher.name
+            ):
                 executor, case, case_directory = self._prepared_executor(
-                    mode=mode, timeout=timeout, launcher=launcher
+                    mode="nonzero", launcher=launcher
                 )
                 summary = executor.execute_frozen(
                     "failure-run",
                     (case,),
                     preflight=False,
-                    max_retries=1,
+                    max_retries=2,
                 )
                 status = self._persisted_status(case_directory)
-                self.assertEqual(status["state"], expected_state)
-                self.assertEqual(status["failure_kind"], expected_kind)
-                self.assertEqual(len(status["attempts"]), 2)
-                self.assertEqual(
-                    {attempt["failure_kind"] for attempt in status["attempts"]},
-                    {expected_kind},
-                )
+                self.assertEqual(status["state"], "failed")
+                self.assertEqual(status["failure_kind"], "numerical")
+                self.assertEqual(len(status["attempts"]), 1)
                 self.assertEqual((summary.passed, summary.failed), (0, 1))
                 self.assertFalse((case_directory / "result.json").exists())
+                invocations = (case_directory / "fake_invocations.log").read_text(
+                    encoding="utf-8"
+                )
+                self.assertEqual(len(invocations.splitlines()), 1)
 
     def test_resource_errnos_are_classified_as_resource_failures(self) -> None:
         for error_number in (
