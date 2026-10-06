@@ -69,8 +69,44 @@ four-level series:
 | 32 | `8.9560854801929062e-6` | `3.8312769803261482e-5` | 0 |
 
 These are direct spot checks of the original failing slice. The complete
-72-case `temporal-validation` and 792-case `temporal-full` qualification runs
-remain separate post-fix gates and must be recorded from frozen manifests.
+post-fix gates were subsequently executed from frozen manifests as recorded
+below.
+
+## Frozen post-fix gates from 2026-10-06
+
+Both authoritative runs used GCC/GFortran, MPICH, and an isolated MUMPS build
+with the bundled PORD ordering only; neither Intel nor ParMETIS was used.
+
+The validation run
+`temporal-validation-post-pr-pord-20261006` finished with `72/72` passed
+processes. Its analyzer accepted all nine problem/scheme series (`9/9`). This
+confirms the corrected PR behavior on the complete diagnostic profile without
+relaxing any oracle.
+
+The full gate used parent run
+`temporal-full-post-pr-pord-12c-20261006` and twelve deterministic index shards
+named `...-part-000` through `...-part-011`. All 792 cases reached a terminal
+state:
+
+| state / failure kind | count |
+| --- | ---: |
+| passed | 653 |
+| failed / `numerical` | 72 |
+| `timeout` | 67 |
+| failed / `mpi` | 0 |
+
+Every numerical failure was the same independent initial-projection defect:
+return code 1, test/trial degrees `(9,9,9)/(8,8,8)`, and stdout beginning
+`initial manufactured state failed its oracle`. There was exactly one such
+case for every problem, scheme, and `N=4,...,512`. Every timeout expired at the
+configured 1800-second limit and was classified as `timeout`; no failed case
+violated these invariants.
+
+The full result is therefore evidence that the original PR reproducer is fixed,
+but it is not a passing full scientific qualification. The official shard
+merge deliberately requires every case to pass, so it produced no partial
+analysis report. The `(9,8)` projection defect and the runtime envelope must be
+handled separately before a fresh `temporal-full` run can be called green.
 
 ## Historical pre-fix reproducer
 
@@ -200,5 +236,6 @@ Both temporal profiles remain useful for planning and diagnosis:
 Neither historical run is a passing scientific qualification. Core commit
 `5e1161b` invalidated the specific DG/BE failures quoted above, and the later
 stabilized PR correction removed the residual raw outlier without changing the
-analyzer. Both profiles still require fresh frozen post-fix runs before they
-can be claimed green.
+analyzer. The fresh post-fix validation profile is green; the full profile has
+now been executed but remains red for the separate projection-oracle and
+timeout reasons recorded above.

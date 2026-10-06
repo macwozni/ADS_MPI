@@ -57,17 +57,18 @@ Registered profiles are:
 3 problems x 3 schemes x 8 step counts x 11 degree pairs = 792
 ```
 
-at `T=0.1`, `N=4,...,512`, and fixed `4x4x4` mesh. Planning it works,
-but it is not currently a passing scientific qualification. The smaller
-`temporal-validation` profile expands
+at `T=0.1`, `N=4,...,512`, and fixed `4x4x4` mesh. Its 2026-10-06 post-fix run
+completed all 792 cases but did not pass: the unchanged initial-projection
+oracle rejected all 72 `(p_test,p_trial)=(9,8)` cases, and 67 other cases hit
+the 1800-second timeout. The smaller `temporal-validation` profile expands
 
 ```text
 3 problems x 3 schemes x 8 step counts x 1 degree pair = 72
 ```
 
-on `3x3x3`. It is a diagnostic matrix, not a workaround: wider validation
-found deterministic outliers on odd and even meshes and across different
-degree pairs. See
+on `3x3x3`. Its post-fix frozen run passed all 72 cases and all nine analyzed
+problem/scheme series. It remains a diagnostic matrix, not a substitute for
+the wider degree coverage of `temporal-full`. See
 [`reproducers/temporal-convergence-instability.md`](../reproducers/temporal-convergence-instability.md)
 and the original
 [`reproducers/even-mesh-transient.md`](../reproducers/even-mesh-transient.md).

@@ -90,11 +90,15 @@ Scientific failure records and focused reproduction commands live in
 
 ## Current qualification status
 
-`temporal-full` expands to 792 cases. Core fix `5e1161b` removed several
-previously recorded transient failures, but post-fix spot checks still contain
-a deterministic degree-dependent non-monotone sequence. A fresh complete run
-of both temporal profiles and resolution of remaining outliers are required
-before full scientific qualification. The oracle has not been relaxed.
+`temporal-full` expands to 792 cases. Core fix `5e1161b` removed the original
+mixed-system failures, and the later stabilized PR correction removed the
+remaining reproduced non-monotone PR sequence. On 2026-10-06 the frozen
+post-fix `temporal-validation` run passed all 72 processes and all nine analyzed
+series. The corresponding full run reached a terminal state for all 792 cases,
+but it is not a passing scientific qualification: 72 degree-pair `(9,8)` cases
+failed the unchanged initial-projection oracle and 67 cases timed out. See the
+[temporal reproducer](reproducers/temporal-convergence-instability.md) for the
+run identifiers and exact classification audit.
 
 The complete strong and weak cluster matrices are configuration artifacts
 until they are run on a declared allocation and pass both field and statistical
