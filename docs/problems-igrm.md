@@ -16,7 +16,7 @@ The optional `scheme` argument selects the iGRM time scheme:
 
 ```text
 dg    Douglas-Gunn, default
-pr    Peaceman-Rachford
+pr    stabilized first-order 3D PR selector
 be    Backward Euler
 ```
 
@@ -52,7 +52,7 @@ not accepted here because this driver exercises the `MultiStep` iGRM schemes:
 
 ```text
 dg    Douglas-Gunn, default
-pr    Peaceman-Rachford
+pr    stabilized first-order 3D PR selector
 be    Backward Euler
 ```
 

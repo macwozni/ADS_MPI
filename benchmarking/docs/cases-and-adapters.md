@@ -38,7 +38,12 @@ Source evaluation follows the production scheme tables:
 | --- | --- |
 | Douglas-Gunn (`dg`) | `t_n + dt/2` |
 | split Backward Euler (`be`) | `t_n + dt` |
-| cyclic Peaceman-Rachford (`pr`) | `t_n + dt/6`, `t_n + dt/2`, `t_n + 5dt/6` |
+| stabilized 3D PR selector (`pr`) | `t_n + 2dt/3` in its source-bearing residual stage |
+
+The three-dimensional cyclic PR extension is only conditionally stable.  The
+public `pr` path therefore uses the first-order, equilibrium-preserving Douglas
+correction with `theta=2/3`; its two remaining directional corrections carry
+no source term.
 
 The callback time used inside OpenMP RHS assembly is thread-private.
 

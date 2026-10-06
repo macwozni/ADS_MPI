@@ -220,8 +220,10 @@ contains
       case ('be')
          physical_time = step_start_time + step_size
       case ('pr')
-         physical_time = step_start_time + &
-                         (real(substep, kind=8) - 0.5d0)*step_size/3.d0
+         ! The stabilized three-dimensional PR selector is a Douglas
+         ! correction with theta=2/3.  Its source is present only in the
+         ! residual stage and is evaluated at the matching theta point.
+         physical_time = step_start_time + (2.d0/3.d0)*step_size
       case default
          physical_time = -huge(1.d0)
       end select

@@ -411,16 +411,24 @@ end subroutine ConfigureDouglasGunn3D
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
-!> @brief Builds coefficient tables for a cyclic 3D Peaceman-Rachford step.
+!> @brief Builds coefficient tables for the stabilized 3D PR selector.
 !>
 !> @details
-!> This is the cyclic three-dimensional extension used by the code path.
-!> Each of the three substeps advances one third of the physical time step,
-!> treating one direction implicitly and the other two explicitly. The
-!> forcing is split by the same one-third factor, so the three substeps have
-!> the first-order balance of one complete time step and preserve stationary
-!> states satisfying `K u = f`, where `K` includes the enabled directional
-!> diffusion and transport operators.
+!> The direct cyclic extension of Peaceman-Rachford to three dimensions is
+!> only conditionally stable: sufficiently stiff spatial modes are amplified
+!> even though every directional solve succeeds.  The public `pr` selector
+!> therefore uses a first-order Douglas correction with `theta=2/3`.  For
+!> mass-normalized directional operators `Ai` its homogeneous amplification
+!> factor is
+!>
+!> `1-sum(zi)/product(1+theta*zi)`, `zi=tau*lambda_i`,
+!>
+!> which is contractive for nonnegative diffusion eigenvalues when
+!> `theta>=1/2`.  Choosing `2/3` keeps this selector distinct from the
+!> half-step Douglas-Gunn and full-step Backward Euler configurations.  The
+!> first substep forms the complete old-state residual; the remaining two
+!> apply the y and z corrections.  The construction also preserves every
+!> stationary state satisfying `K u = f`.
 !
 ! Input:
 ! ------
@@ -459,28 +467,24 @@ subroutine ConfigurePeacemanRachford3D(tau, mix, alpha_step, lhs_mix, rhs_du_sta
       integer(kind=4), intent(out), dimension(6, 3) :: rhs_du_state
 !> @brief Optional logical flag selecting transport-term inclusion.
       logical, intent(in), optional :: include_transport
-!> @brief Fraction of the physical time step advanced by one cyclic substep.
-      real(kind=8), parameter :: substep_fraction = 1.d0/3.d0
+!> @brief Stabilization parameter of the directional correction.
+      real(kind=8), parameter :: theta = 2.d0/3.d0
 
       call ConfigureMassTables(mix, lhs_mix)
       alpha_step = 0.d0
       rhs_du_state = 0
 
-      call SetImplicitAxis(lhs_mix, 1, 1, substep_fraction*tau, include_transport)
-      call SetImplicitAxis(lhs_mix, 2, 2, substep_fraction*tau, include_transport)
-      call SetImplicitAxis(lhs_mix, 3, 3, substep_fraction*tau, include_transport)
+      call SetImplicitAxis(lhs_mix, 1, 1, theta*tau, include_transport)
+      call SetImplicitAxis(lhs_mix, 2, 2, theta*tau, include_transport)
+      call SetImplicitAxis(lhs_mix, 3, 3, theta*tau, include_transport)
 
-      call AddExplicitAxis(alpha_step, rhs_du_state, 2, 1, -substep_fraction, 1, include_transport)
-      call AddExplicitAxis(alpha_step, rhs_du_state, 3, 1, -substep_fraction, 1, include_transport)
-      alpha_step(7, 1) = substep_fraction
+      call AddExplicitAxis(alpha_step, rhs_du_state, 1, 1, -(1.d0 - theta), 1, include_transport)
+      call AddExplicitAxis(alpha_step, rhs_du_state, 2, 1, -1.d0, 1, include_transport)
+      call AddExplicitAxis(alpha_step, rhs_du_state, 3, 1, -1.d0, 1, include_transport)
+      alpha_step(7, 1) = 1.d0
 
-      call AddExplicitAxis(alpha_step, rhs_du_state, 1, 2, -substep_fraction, 0, include_transport)
-      call AddExplicitAxis(alpha_step, rhs_du_state, 3, 2, -substep_fraction, 0, include_transport)
-      alpha_step(7, 2) = substep_fraction
-
-      call AddExplicitAxis(alpha_step, rhs_du_state, 1, 3, -substep_fraction, 0, include_transport)
-      call AddExplicitAxis(alpha_step, rhs_du_state, 2, 3, -substep_fraction, 0, include_transport)
-      alpha_step(7, 3) = substep_fraction
+      call AddExplicitAxis(alpha_step, rhs_du_state, 2, 2, theta, 1, include_transport)
+      call AddExplicitAxis(alpha_step, rhs_du_state, 3, 3, theta, 1, include_transport)
 
 end subroutine ConfigurePeacemanRachford3D
 
@@ -623,7 +627,7 @@ end subroutine ConfigureDouglasGunn3DTimeScheme
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
-!> @brief Builds a persistent cyclic 3D Peaceman-Rachford configuration.
+!> @brief Builds a persistent stabilized 3D PR-selector configuration.
 !>
 !> @details
 !> Call this once after the final time-step length is known, then reuse
@@ -911,7 +915,7 @@ end subroutine DouglasGunn3DStep
 !---------------------------------------------------------------------------
 !
 ! DESCRIPTION:
-!> @brief Advances one preconfigured cyclic Peaceman-Rachford step in 3D.
+!> @brief Advances one preconfigured stabilized 3D PR-selector step.
 !>
 !> @details
 !> Build \p scheme once with \ref ConfigurePeacemanRachford3DTimeScheme

@@ -42,7 +42,7 @@ The implemented time-scheme wrappers are:
 ```text
 ForwardEuler3DStep          3D Forward Euler wrapper
 DouglasGunn3DStep           3D Douglas-Gunn wrapper
-PeacemanRachford3DStep      3D cyclic Peaceman-Rachford wrapper
+PeacemanRachford3DStep      stabilized first-order 3D PR-selector wrapper
 BackwardEuler3DStep         3D split Backward Euler wrapper
 ```
 

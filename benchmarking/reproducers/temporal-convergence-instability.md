@@ -1,10 +1,11 @@
 # Temporal-convergence instability across meshes and degree pairs
 
-Status: historical pre-fix evidence recorded on 2026-09-29. Core commit
-`5e1161b` removed several failures listed below, so their exact values must
-not be read as current-HEAD results. Post-fix spot checks still expose a
-degree-dependent non-monotone series; full temporal qualification remains
-open and the oracle has not been weakened.
+Status: fixed in two production-core steps. Commit `5e1161b` removed the
+mixed-system singularity behind the original DG/BE/PR outliers. A remaining
+PR-only series was then traced to the conditional stability of cyclic PR in
+three dimensions and removed by the stabilized `theta=2/3` correction. The
+historical tables remain below as evidence; they are not current-HEAD results.
+The oracle and its monotonicity/order thresholds were not weakened.
 
 The Stage-2 investigation first exposed pathological transient results on a
 `2x2x2` mesh. Wider Stage-3 runs show that "even mesh" is not a sufficient
@@ -12,7 +13,66 @@ diagnosis: deterministic outliers also occur on `3x3x3`, while some
 `4x4x4` series have a correct asymptotic tail. The failure depends on the
 combination of mesh, time step, scheme, and test/trial degrees.
 
-## Reproducer
+## Residual PR defect after `5e1161b`
+
+A raw spot check on base commit `6d06e82` isolated the remaining defect to
+`igrm_l2`, mesh `4x4x4`, `(p_test,p_trial)=(5,4)`, and PR. Every process
+returned zero, the final time was exactly `0.1`, and the initial L2 error was
+`3.5043802835924535e-15`, but the temporal error increased from `N=4` to
+`N=8` before collapsing at `N=16`:
+
+| N | L2 error | Linf error |
+| ---: | ---: | ---: |
+| 4 | `1.3680492566742378e-2` | `1.4888076539493222e-1` |
+| 8 | `1.9124019292174381e-2` | `2.1878176151757733e-1` |
+| 16 | `4.6118629766672209e-5` | `2.6224943194563810e-4` |
+
+These values came from direct executable invocations, not a frozen framework
+run. The exact command, with `N` replaced by `4`, `8`, or `16`, was:
+
+```bash
+env OMP_NUM_THREADS=1 OMP_DYNAMIC=FALSE OMP_PROC_BIND=close \
+  mpiexec -n 1 \
+  ./benchmarking/build/release/EXEC/igrm_l2_manufactured \
+  pr 0.1 N 4 4 4 5 5 5 4 4 4 1 1 1 17 0 temporal-polynomial
+```
+
+For mass-normalized diffusion eigenvalues, the former cyclic table had the
+modal amplification
+
+```text
+product_i (1 - q_j - q_k) / (1 + q_i),  q_i = dt*lambda_i/3.
+```
+
+For equal stiff modes this tends to `-8`, so a successful directional solve
+could still amplify its input. This explains both the degree dependence and
+the counterintuitive failure at an intermediate time resolution.
+
+## Verification after the PR correction
+
+The public `pr` selector now uses an equilibrium-preserving Douglas correction
+with `theta=2/3`. Its amplification is
+
+```text
+1 - sum(z_i) / product_i(1 + theta*z_i),  z_i = dt*lambda_i,
+```
+
+which is contractive for nonnegative diffusion eigenvalues. Repeating the same
+case on the correction worktree on 2026-10-06 produced a strictly decreasing
+four-level series:
+
+| N | L2 error | Linf error | solver status |
+| ---: | ---: | ---: | ---: |
+| 4 | `1.7527725990903214e-4` | `9.1521757964363459e-4` | 0 |
+| 8 | `5.4771014954474597e-5` | `2.8385157178889564e-4` | 0 |
+| 16 | `2.0510879724187206e-5` | `9.8379305864204625e-5` | 0 |
+| 32 | `8.9560854801929062e-6` | `3.8312769803261482e-5` | 0 |
+
+These are direct spot checks of the original failing slice. The complete
+72-case `temporal-validation` and 792-case `temporal-full` qualification runs
+remain separate post-fix gates and must be recorded from frozen manifests.
+
+## Historical pre-fix reproducer
 
 Build the isolated `igrm_l2` adapter from the repository root. Release is used
 below only to shorten the run; the first pathological `4x4x4` PR case was also
@@ -126,7 +186,7 @@ regressions approach `1.00`. The isolated spikes and enormous coarse errors
 are not roundoff or solver plateaus: they are not a narrow, flat suffix and
 must not be excluded from the oracle as such.
 
-## Consequence for Stage 3
+## Historical consequence for Stage 3
 
 The original `2x2x2` observations remain reproducible and are retained in
 [`even-mesh-transient.md`](even-mesh-transient.md), but its original working
@@ -137,9 +197,8 @@ Both temporal profiles remain useful for planning and diagnosis:
 - `temporal-full` is the required 792-case `4x4x4` matrix;
 - `temporal-validation` is the 72-case `3x3x3`, `(4,3)` matrix.
 
-Neither historical run is a passing scientific qualification. Core fix
-`5e1161b` invalidated the specific DG/BE failures quoted above, but it did not
-by itself qualify either complete profile. The analyzer must retain its
-analytic errors, strict monotonicity checks, and order thresholds. Both
-profiles need a fresh post-fix run, and any remaining outlier needs its own
-production diagnosis before the profile can be claimed green.
+Neither historical run is a passing scientific qualification. Core commit
+`5e1161b` invalidated the specific DG/BE failures quoted above, and the later
+stabilized PR correction removed the residual raw outlier without changing the
+analyzer. Both profiles still require fresh frozen post-fix runs before they
+can be claimed green.
