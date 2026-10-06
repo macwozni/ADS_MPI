@@ -880,13 +880,13 @@ registered adapter rather than another runner. Exact extension guides, data
 formats, cleanup rules, local/cluster examples, sharding, and A/B output options
 are documented in [`benchmarking/README.md`](benchmarking/README.md).
 
-The `temporal-full` profile expands deterministically to 792 cases, but its
-fixed `4x4x4` mesh currently exposes finite transient instabilities in the
-shared production core. The 72-case `temporal-validation` profile is a smaller
-diagnostic matrix, not a workaround; wider checks also found deterministic
-odd-mesh and degree-dependent outliers. Full scientific qualification is
-therefore blocked pending a separate core fix, and the oracle has not been
-relaxed. See
+The `temporal-full` profile expands deterministically to 792 cases. Core fix
+`5e1161b` removed several previously recorded transient failures, but post-fix
+spot checks still expose a deterministic degree-dependent non-monotone case.
+The 72-case `temporal-validation` profile remains a smaller diagnostic matrix,
+not a workaround. Full scientific qualification therefore still requires a
+fresh run of both profiles and resolution of any remaining outliers; the
+oracle has not been relaxed. See
 [`benchmarking/README.md`](benchmarking/README.md) for the exact solution,
 source-time conventions, runner/resume contract, analyzer thresholds, and
 result schema, and
