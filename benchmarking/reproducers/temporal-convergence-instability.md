@@ -1,8 +1,10 @@
 # Temporal-convergence instability across meshes and degree pairs
 
-Status: open production-core defect, extended during Stage-3 validation on
-2026-09-29. The manufactured oracle and convergence thresholds have not been
-weakened, and no production source is changed by the benchmarking commit.
+Status: historical pre-fix evidence recorded on 2026-09-29. Core commit
+`5e1161b` removed several failures listed below, so their exact values must
+not be read as current-HEAD results. Post-fix spot checks still expose a
+degree-dependent non-monotone series; full temporal qualification remains
+open and the oracle has not been weakened.
 
 The Stage-2 investigation first exposed pathological transient results on a
 `2x2x2` mesh. Wider Stage-3 runs show that "even mesh" is not a sufficient
@@ -135,9 +137,9 @@ Both temporal profiles remain useful for planning and diagnosis:
 - `temporal-full` is the required 792-case `4x4x4` matrix;
 - `temporal-validation` is the 72-case `3x3x3`, `(4,3)` matrix.
 
-Neither profile is currently a passing scientific qualification. The odd-mesh
-profile is not a workaround: DG fails at `N=32` and BE at `N=64` in the
-representative `igrm_l2` slice. The analyzer must retain its analytic errors,
-strict monotonicity checks, and order thresholds. A core fix and its regression
-tests belong in a separate production commit before either profile can be
-claimed green.
+Neither historical run is a passing scientific qualification. Core fix
+`5e1161b` invalidated the specific DG/BE failures quoted above, but it did not
+by itself qualify either complete profile. The analyzer must retain its
+analytic errors, strict monotonicity checks, and order thresholds. Both
+profiles need a fresh post-fix run, and any remaining outlier needs its own
+production diagnosis before the profile can be claimed green.

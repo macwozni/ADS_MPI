@@ -1,8 +1,9 @@
 # Manufactured transient instability first observed on a `2x2x2` mesh
 
-Status: open core defect, observed during Stage-2 validation on 2026-09-29.
-The benchmark oracle is unchanged, and the production core is not fixed in the
-Stage-2 benchmark commit.
+Status: superseded historical evidence, observed on 2026-09-29. Core commit
+`5e1161b` later removed the failures listed here. The benchmark oracle remains
+unchanged; current temporal status is tracked in
+[`temporal-convergence-instability.md`](temporal-convergence-instability.md).
 
 Stage-3 validation has since shown that the defect is not limited to even
 meshes. Deterministic outliers also occur on `3x3x3`, and their location
@@ -99,11 +100,11 @@ a production fix require a separate core-change review and commit.
 
 ## Consequence for profiles
 
-The Stage-2 `smoke` and `smoke-refined` profiles use the verified
+The `smoke` and `smoke-refined` profiles use the verified
 `3x3x3` control mesh and retain strict initial-state and refinement gates.
 That two-level sanity check remains valid, but it does not qualify a complete
 temporal series. The declared `temporal-full` profile remains the specified
 792-case `4x4x4` matrix, and `temporal-validation` adds a 72-case `3x3x3`
-diagnostic matrix. Both scientific qualifications are blocked pending the
-separate core fix. A successful plan, completed process, or clean asymptotic
-tail is not evidence that every numerical level is valid.
+diagnostic matrix. Core fix `5e1161b` requires both profiles to be rerun; a
+successful plan, completed process, or clean asymptotic tail is not evidence
+that every numerical level is valid.
