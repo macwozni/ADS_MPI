@@ -26,7 +26,7 @@ tests/{src,problems,driver,build}/GNUmakefile
 tests/{test-map,problem-test-map}.tsv
                       One-to-one production-source/primary-test mappings
 tests/*/GNUmakefile   Build, run, and cleanup for one concrete suite
-tests/benchmarking/   Benchmark planner/engine contract tests and test helpers
+tests/benchmarking/   Benchmark contract tests, short MPI integration, helpers
 benchmarking/         Reusable benchmark planner, profiles, engine, and adapters
 benchmarks/           Ignored generated runs and preserved local benchmark data
 mymake/               Compatibility entry point and generated artifacts
