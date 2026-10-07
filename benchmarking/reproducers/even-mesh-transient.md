@@ -95,8 +95,11 @@ decrease from `N=4` to `N=8`:
 This control still isolates the original failure from the exactly
 representable initial projection, but only over the two tested time levels.
 The former "even-mesh issue" working diagnosis is superseded: later levels on
-`3x3x3` contain deterministic DG and BE outliers. Root-cause localization and
-a production fix require a separate core-change review and commit.
+`3x3x3` exposed deterministic DG and BE outliers. Core commit `5e1161b`
+subsequently repaired the mixed system behind those failures, and the later
+stabilized PR correction removed the remaining reproduced non-monotone PR
+series. This section records the historical diagnosis rather than open core
+work.
 
 ## Consequence for profiles
 
@@ -105,6 +108,8 @@ The `smoke` and `smoke-refined` profiles use the verified
 That two-level sanity check remains valid, but it does not qualify a complete
 temporal series. The declared `temporal-full` profile remains the specified
 792-case `4x4x4` matrix, and `temporal-validation` adds a 72-case `3x3x3`
-diagnostic matrix. Core fix `5e1161b` requires both profiles to be rerun; a
-successful plan, completed process, or clean asymptotic tail is not evidence
-that every numerical level is valid.
+diagnostic matrix. Both profiles were rerun after the core corrections. The
+validation run passed all 72 cases and all nine analyzed series. The full run
+reached a terminal state for all 792 cases but remains red for separate
+`(p_test,p_trial)=(9,8)` initial-projection oracle failures and timeouts; those
+failures are not the transient instability recorded here.
