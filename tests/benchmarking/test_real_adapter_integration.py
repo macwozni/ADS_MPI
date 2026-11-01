@@ -67,7 +67,15 @@ class RealAdapterIntegrationTests(unittest.TestCase):
         cls.addClassCleanup(cls._temporary.cleanup)
         cls._work = Path(cls._temporary.name)
         cls._runs: dict[
-            tuple[str, int, int, tuple[int, int, int], bool],
+            tuple[
+                str,
+                int,
+                int,
+                tuple[int, int, int],
+                bool,
+                tuple[int, int, int],
+                tuple[int, int, int],
+            ],
             tuple[Mapping[str, object], RegularGridField | None],
         ] = {}
 
@@ -151,6 +159,8 @@ class RealAdapterIntegrationTests(unittest.TestCase):
         ranks: int,
         process_grid: tuple[int, int, int],
         write_samples: bool,
+        test_degree: tuple[int, int, int] = (4, 4, 4),
+        trial_degree: tuple[int, int, int] = (3, 3, 3),
     ) -> CaseSpec:
         return CaseSpec(
             family="temporal",
@@ -159,12 +169,12 @@ class RealAdapterIntegrationTests(unittest.TestCase):
             exact_case="temporal-polynomial",
             time=TimeSpec(
                 final_time="0.1",
-                time_step={4: "0.025", 8: "0.0125"}[steps],
+                time_step={1: "0.1", 4: "0.025", 8: "0.0125"}[steps],
                 steps=steps,
             ),
             mesh=(4, 4, 4),
-            test_degree=(4, 4, 4),
-            trial_degree=(3, 3, 3),
+            test_degree=test_degree,
+            trial_degree=trial_degree,
             mpi=MpiSpec(ranks=ranks, process_grid=process_grid),
             openmp_threads=1,
             sampling=SamplingSpec(
@@ -209,8 +219,18 @@ class RealAdapterIntegrationTests(unittest.TestCase):
         ranks: int,
         process_grid: tuple[int, int, int],
         write_samples: bool,
+        test_degree: tuple[int, int, int] = (4, 4, 4),
+        trial_degree: tuple[int, int, int] = (3, 3, 3),
     ) -> tuple[Mapping[str, object], RegularGridField | None]:
-        key = (problem, steps, ranks, process_grid, write_samples)
+        key = (
+            problem,
+            steps,
+            ranks,
+            process_grid,
+            write_samples,
+            test_degree,
+            trial_degree,
+        )
         cached = self._runs.get(key)
         if cached is not None:
             return cached
@@ -226,6 +246,8 @@ class RealAdapterIntegrationTests(unittest.TestCase):
             ranks=ranks,
             process_grid=process_grid,
             write_samples=write_samples,
+            test_degree=test_degree,
+            trial_degree=trial_degree,
         )
         adapter = ManufacturedTransientAdapter(name=problem)
         payload = tuple(
@@ -373,6 +395,20 @@ class RealAdapterIntegrationTests(unittest.TestCase):
                 abs_tol=PARALLEL_ABSOLUTE_TOLERANCE,
             )
         )
+
+    def test_degree_eight_exact_projection_passes_conditioned_linf_gate(self) -> None:
+        result, field = self._run_case(
+            "igrm_l2",
+            steps=1,
+            ranks=1,
+            process_grid=(1, 1, 1),
+            write_samples=False,
+            test_degree=(9, 9, 9),
+            trial_degree=(8, 8, 8),
+        )
+        self.assertIsNone(field)
+        self.assertLessEqual(float(result["initial_l2_error"]), 1.0e-10)
+        self.assertLessEqual(float(result["initial_linf_error"]), 1.0e-9)
 
     def test_nonzero_payload_under_real_mpi_is_numerical(self) -> None:
         repository = self._work / "real-mpi-failure-classification"

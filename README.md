@@ -120,7 +120,7 @@ make test
 
 The complete `make test` workflow is substantial and includes real MPI,
 numerical integration, and a release OpenMP performance gate. The benchmark
-test suite adds only a bounded seven-case correctness integration; it does not
+test suite adds only a bounded correctness integration; it does not
 execute any full benchmark profile. See [`tests/README.md`](tests/README.md)
 for exact scope and smaller targets.
 

@@ -5,7 +5,7 @@ mixed-system singularity behind the original DG/BE/PR outliers. A remaining
 PR-only series was then traced to the conditional stability of cyclic PR in
 three dimensions and removed by the stabilized `theta=2/3` correction. The
 historical tables remain below as evidence; they are not current-HEAD results.
-The oracle and its monotonicity/order thresholds were not weakened.
+The temporal-convergence monotonicity and order thresholds were not weakened.
 
 The Stage-2 investigation first exposed pathological transient results on a
 `2x2x2` mesh. Wider Stage-3 runs show that "even mesh" is not a sufficient
@@ -107,6 +107,22 @@ but it is not a passing full scientific qualification. The official shard
 merge deliberately requires every case to pass, so it produced no partial
 analysis report. The `(9,8)` projection defect and the runtime envelope must be
 handled separately before a fresh `temporal-full` run can be called green.
+
+### Degree-eight projection diagnosis
+
+A focused 2026-11-01 diagnostic of the shared initial projection at
+`(p_test,p_trial)=(9,8)` measured `L2=4.6235596593252626e-12`,
+`Linf=3.3383734765153895e-10`, and a projected-norm difference of
+`5.75e-15`. Only the former fixed `1e-10` pointwise limit failed. The mixed
+mass saddle system has an estimated two-norm condition number near `1.03e5`,
+and enabling MUMPS iterative refinement did not reduce the pointwise error.
+
+The exact-initial gate therefore retains `1e-10` for the integral L2 error and
+projected norm while using `1e-9` for Linf. This bounded allowance covers the
+observed high-degree pointwise roundoff; it does not change final temporal
+errors or the convergence analyzer. The historical 72 failures above remain
+failed artifacts. A fresh frozen full run is required to qualify the updated
+gate.
 
 ## Historical pre-fix reproducer
 

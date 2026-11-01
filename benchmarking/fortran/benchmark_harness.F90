@@ -9,6 +9,10 @@ module benchmark_harness
    private
    public :: RunManufacturedBenchmark
 
+   real(kind=8), parameter :: EXACT_INITIAL_L2_TOLERANCE = 1.d-10
+   real(kind=8), parameter :: EXACT_INITIAL_LINF_TOLERANCE = 1.d-9
+   real(kind=8), parameter :: EXACT_INITIAL_NORM_TOLERANCE = 1.d-10
+
 contains
 
    subroutine RunManufacturedBenchmark(adapter)
@@ -74,10 +78,17 @@ contains
           initial_metrics%solution_l2_norm <= 0.d0) then
          status = 7
       else if (selected_adapter%exact_case%exact_initial_projection) then
-         if (initial_metrics%l2_error > 1.d-10 .or. &
-             initial_metrics%linf_error > 1.d-10 .or. &
+         if (initial_metrics%l2_error > EXACT_INITIAL_L2_TOLERANCE .or. &
+             initial_metrics%linf_error > EXACT_INITIAL_LINF_TOLERANCE .or. &
              abs(initial_metrics%solution_l2_norm - expected_initial_norm) > &
-                1.d-10) status = 7
+                EXACT_INITIAL_NORM_TOLERANCE) status = 7
+      end if
+      if (status /= 0 .and. rank_zero) then
+         write(*, '(A,3(A,ES24.16E3))') 'initial oracle metrics:', &
+            ' L2=', initial_metrics%l2_error, &
+            ' Linf=', initial_metrics%linf_error, &
+            ' norm_error=', &
+            abs(initial_metrics%solution_l2_norm - expected_initial_norm)
       end if
       call RequireCollectiveSuccess( &
          selected_adapter, state, status, &

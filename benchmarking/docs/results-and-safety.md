@@ -67,16 +67,19 @@ case. The stored outer result adds the stable `case_id`, complete normalized
 
 Before timing, every executable requires finite initial metrics. The exactly
 representable `temporal-polynomial` additionally requires
-`initial_l2_error <= 1e-10`, `initial_linf_error <= 1e-10`, and agreement of
-the projected solution norm with `(13/35)^(3/2)` within `1e-10`. The
-non-polynomial spatial case retains its finite initial projection errors
+`initial_l2_error <= 1e-10`, `initial_linf_error <= 1e-9`, and agreement of
+the projected solution norm with `(13/35)^(3/2)` within `1e-10`. The separate
+Linf allowance covers pointwise roundoff amplified by the conditioned
+degree-eight mixed mass projection; the integral error and norm gates remain
+at `1e-10`. The non-polynomial spatial case retains its finite initial
+projection errors
 instead of applying that exact-representation gate. Failures, MPI/MUMPS
 errors, NaN, or Inf produce a nonzero process result.
 
 The smoke oracle loads exactly the nine passed `N=4` results and their nine
-`N=8` counterparts, rechecks the initial errors, and requires a strict L2
-decrease for every problem/scheme pair. This is a refinement sanity check, not
-yet a formal order estimate.
+`N=8` counterparts, retains its low-degree `1e-10` limit for both initial L2
+and Linf errors, and requires a strict L2 decrease for every problem/scheme
+pair. This is a refinement sanity check, not yet a formal order estimate.
 
 ## Result layout and safety
 
