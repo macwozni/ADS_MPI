@@ -19,7 +19,9 @@ no timing assertion and no published benchmark run. It does not execute a
 benchmark profile; set `SKIP_MPI_CASES=1` only when MPI execution is
 intentionally unavailable.
 
-The remaining dependency-free contract tests cover the 792-case temporal plan,
+The remaining dependency-free contract tests cover the 792-case temporal plan
+and its full-only 36000-second runtime envelope while `temporal-validation`
+remains at 1800 seconds,
 all six spatial profiles, both validation matrices, both strong-scaling
 matrices and their exact case counts, all three weak profiles and their
 measurement/helper counts, the final 792/12,960/14,985 configuration audit

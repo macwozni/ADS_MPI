@@ -35,7 +35,7 @@
   ],
   "thread_counts": [1],
   "sampling": {"points_per_axis": 17, "write_samples": false},
-  "execution": {"warmups": 0, "samples": 1, "timeout_seconds": "1800"},
+  "execution": {"warmups": 0, "samples": 1, "timeout_seconds": "36000"},
   "build_profiles": ["release"],
   "launcher": "mpi"
 }

@@ -100,6 +100,12 @@ failed the unchanged initial-projection oracle and 67 cases timed out. See the
 [temporal reproducer](reproducers/temporal-convergence-instability.md) for the
 run identifiers and exact classification audit.
 
+The initial-projection gate now has a conditioned high-degree Linf allowance,
+and `temporal-full` has a dedicated 36000-second runtime envelope while
+`temporal-validation` retains 1800 seconds. These changes invalidate reuse of
+the historical frozen run; a fresh 792-case qualification is required before
+the full profile can be called green.
+
 The complete strong and weak cluster matrices are configuration artifacts
 until they are run on a declared allocation and pass both field and statistical
 gates. No documentation page should describe an unexecuted matrix as passed.

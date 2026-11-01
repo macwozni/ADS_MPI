@@ -60,7 +60,13 @@ Registered profiles are:
 at `T=0.1`, `N=4,...,512`, and fixed `4x4x4` mesh. Its 2026-10-06 post-fix run
 completed all 792 cases but did not pass: the unchanged initial-projection
 oracle rejected all 72 `(p_test,p_trial)=(9,8)` cases, and 67 other cases hit
-the 1800-second timeout. The smaller `temporal-validation` profile expands
+the then-configured 1800-second timeout. Runtime evidence from that frozen run
+places the expected slowest corrected cases near 23 to 24 ks. The current
+`temporal-full` profile therefore uses a full-only 36000-second envelope; it
+does not remove cases or relax temporal convergence thresholds. This semantic
+configuration change requires a fresh frozen run. The smaller
+`temporal-validation` profile keeps its 1800-second diagnostic envelope and
+expands
 
 ```text
 3 problems x 3 schemes x 8 step counts x 1 degree pair = 72
@@ -73,8 +79,8 @@ the wider degree coverage of `temporal-full`. See
 and the original
 [`reproducers/even-mesh-transient.md`](../reproducers/even-mesh-transient.md).
 The two smoke profiles retain their valid two-level refinement check; the
-oracle was not weakened, and that check is not presented as a full temporal
-qualification.
+temporal-convergence oracle was not weakened, and that check is not presented
+as a full temporal qualification.
 
 Every spatial profile uses the short observation window `T=0.01` and contains
 both `N=128` and `N=256` for each otherwise identical point. The shorter window

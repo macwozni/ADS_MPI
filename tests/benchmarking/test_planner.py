@@ -62,6 +62,18 @@ class PlannerTests(unittest.TestCase):
         )
         self.assertEqual(len({(case.spec.test_degree, case.spec.trial_degree) for case in plan.cases}), 11)
 
+    def test_temporal_profiles_keep_distinct_runtime_envelopes(self) -> None:
+        full = self.planner.plan("temporal-full")
+        validation = self.planner.plan("temporal-validation")
+        self.assertEqual(
+            {case.spec.measurement.timeout_seconds for case in full.cases},
+            {"36000"},
+        )
+        self.assertEqual(
+            {case.spec.measurement.timeout_seconds for case in validation.cases},
+            {"1800"},
+        )
+
     def test_every_registered_profile_expands_to_a_nonempty_valid_plan(self) -> None:
         expected_counts = {
             "smoke": 9,

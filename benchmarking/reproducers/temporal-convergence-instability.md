@@ -105,8 +105,11 @@ violated these invariants.
 The full result is therefore evidence that the original PR reproducer is fixed,
 but it is not a passing full scientific qualification. The official shard
 merge deliberately requires every case to pass, so it produced no partial
-analysis report. The `(9,8)` projection defect and the runtime envelope must be
-handled separately before a fresh `temporal-full` run can be called green.
+analysis report. The `(9,8)` projection defect and the runtime envelope needed
+to be handled separately before a fresh `temporal-full` run. The
+current profile now gives the full matrix a 36000-second envelope while
+`temporal-validation` retains 1800 seconds. This is a semantic configuration
+change, so the historical shards cannot be resumed as the new qualification.
 
 ### Degree-eight projection diagnosis
 
