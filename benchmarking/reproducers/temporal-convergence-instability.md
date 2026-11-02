@@ -79,7 +79,7 @@ with the bundled PORD ordering only; neither Intel nor ParMETIS was used.
 
 The validation run
 `temporal-validation-post-pr-pord-20261006` finished with `72/72` passed
-processes. Its analyzer accepted all nine problem/scheme series (`9/9`). This
+cases. Its analyzer accepted all nine problem/scheme series (`9/9`). This
 confirms the corrected PR behavior on the complete diagnostic profile without
 relaxing any oracle.
 
@@ -124,8 +124,40 @@ The exact-initial gate therefore retains `1e-10` for the integral L2 error and
 projected norm while using `1e-9` for Linf. This bounded allowance covers the
 observed high-degree pointwise roundoff; it does not change final temporal
 errors or the convergence analyzer. The historical 72 failures above remain
-failed artifacts. A fresh frozen full run is required to qualify the updated
-gate.
+failed artifacts. The fresh frozen run below qualifies the updated gate and
+runtime envelope without reinterpreting those artifacts.
+
+## Fresh full qualification from 2026-11-01 to 2026-11-02
+
+The parent run `temporal-full-post-oracle-pord-12c-20261101` used twelve
+deterministic index shards, `...-part-000` through `...-part-011`, from a clean
+worktree at commit `dbbc277`. The build used GCC/GFortran, MPICH, and isolated
+MUMPS with its bundled PORD ordering only; neither Intel nor ParMETIS was used.
+Its frozen configuration hash was
+`sha256:a224d9fb89efe7395a44b8a2168f50917c624350f84cd412acc392f899363d06`.
+
+Every shard passed 66/66 cases. Across the complete matrix this gives:
+
+| result | count |
+| --- | ---: |
+| passed cases | 792 |
+| failed cases | 0 |
+| timeouts | 0 |
+| analyzer-passed series | 99/99 |
+
+All 792 case executions returned zero. The maximum observed wall time was
+`21148.980548003 s`, below the full-only `36000 s` envelope. Initial errors
+ranged from `1.0941210302231618e-15` to `4.6235596593252626e-12` in L2 and
+from `2.220446049250313e-14` to `3.3383734765153895e-10` in Linf. Final errors
+ranged from `4.927121986687987e-9` to `4.1698388677077644e-4` in L2 and from
+`2.2517616993233958e-8` to `2.2019933937493796e-3` in Linf.
+
+The official shard merge completed successfully. The temporal analyzer
+accepted both metrics in every one of the 99 problem/scheme/degree-pair series,
+each containing all eight levels `N=4,...,512`; no convergence threshold was
+changed. This is the current passing `temporal-full` qualification. The red
+2026-10-06 run remains above as the audit trail for the two separate benchmark
+corrections.
 
 ## Historical pre-fix reproducer
 
@@ -255,6 +287,8 @@ Both temporal profiles remain useful for planning and diagnosis:
 Neither historical run is a passing scientific qualification. Core commit
 `5e1161b` invalidated the specific DG/BE failures quoted above, and the later
 stabilized PR correction removed the residual raw outlier without changing the
-analyzer. The fresh post-fix validation profile is green; the full profile has
-now been executed but remains red for the separate projection-oracle and
-timeout reasons recorded above.
+analyzer. The fresh post-fix validation profile is green. The later full
+qualification from 2026-11-01 to 2026-11-02, run after the separate
+projection-oracle and timeout-envelope corrections, is also green at 792/792
+cases and 99/99 series; the earlier red full run remains historical evidence
+rather than being relabeled.

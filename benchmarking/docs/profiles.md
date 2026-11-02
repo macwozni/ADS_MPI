@@ -64,7 +64,12 @@ the then-configured 1800-second timeout. Runtime evidence from that frozen run
 places the expected slowest corrected cases near 23 to 24 ks. The current
 `temporal-full` profile therefore uses a full-only 36000-second envelope; it
 does not remove cases or relax temporal convergence thresholds. This semantic
-configuration change requires a fresh frozen run. The smaller
+configuration change invalidated reuse of the historical shards. The fresh
+frozen run `temporal-full-post-oracle-pord-12c-20261101` subsequently passed
+all 792 cases without a timeout, and its analyzer accepted all 99 complete
+problem/scheme/degree-pair series. The conditioned initial Linf gate and the
+full-only runtime envelope were the only qualification changes; the case
+matrix and temporal-convergence thresholds were unchanged. The smaller
 `temporal-validation` profile keeps its 1800-second diagnostic envelope and
 expands
 

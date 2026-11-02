@@ -109,7 +109,11 @@ That two-level sanity check remains valid, but it does not qualify a complete
 temporal series. The declared `temporal-full` profile remains the specified
 792-case `4x4x4` matrix, and `temporal-validation` adds a 72-case `3x3x3`
 diagnostic matrix. Both profiles were rerun after the core corrections. The
-validation run passed all 72 cases and all nine analyzed series. The full run
-reached a terminal state for all 792 cases but remains red for separate
-`(p_test,p_trial)=(9,8)` initial-projection oracle failures and timeouts; those
-failures are not the transient instability recorded here.
+validation run passed all 72 cases and all nine analyzed series. The historical
+2026-10-06 full run reached a terminal state for all 792 cases but remained red
+for separate `(p_test,p_trial)=(9,8)` initial-projection oracle failures and
+timeouts; those failures are not the transient instability recorded here.
+After the projection gate and full-profile runtime envelope were corrected, the
+fresh `temporal-full-post-oracle-pord-12c-20261101` qualification passed all
+792 cases and all 99 analyzed series. That later result changes the profile's
+qualification status, not the historical observation preserved by this file.

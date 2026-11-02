@@ -4,6 +4,17 @@
 
 ## Temporal convergence analysis
 
+### Current temporal qualification
+
+The frozen parent run `temporal-full-post-oracle-pord-12c-20261101`, started
+on 2026-11-01 and completed on 2026-11-02 at repository commit `dbbc277`,
+passed all 792 declared cases with no failures or timeouts. The analyzer
+accepted all 99 complete eight-level series for both L2 and Linf. The
+[temporal reproducer](../reproducers/temporal-convergence-instability.md)
+preserves the earlier red run separately and records the build stack, shard
+layout, oracle correction, runtime envelope, and measured qualification
+evidence.
+
 Analyze a complete frozen run and optionally request a log-log plot:
 
 ```bash

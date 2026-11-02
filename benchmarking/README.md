@@ -93,7 +93,7 @@ Scientific failure records and focused reproduction commands live in
 `temporal-full` expands to 792 cases. Core fix `5e1161b` removed the original
 mixed-system failures, and the later stabilized PR correction removed the
 remaining reproduced non-monotone PR sequence. On 2026-10-06 the frozen
-post-fix `temporal-validation` run passed all 72 processes and all nine analyzed
+post-fix `temporal-validation` run passed all 72 cases and all nine analyzed
 series. The corresponding full run reached a terminal state for all 792 cases,
 but it is not a passing scientific qualification: 72 degree-pair `(9,8)` cases
 failed the unchanged initial-projection oracle and 67 cases timed out. See the
@@ -102,9 +102,12 @@ run identifiers and exact classification audit.
 
 The initial-projection gate now has a conditioned high-degree Linf allowance,
 and `temporal-full` has a dedicated 36000-second runtime envelope while
-`temporal-validation` retains 1800 seconds. These changes invalidate reuse of
-the historical frozen run; a fresh 792-case qualification is required before
-the full profile can be called green.
+`temporal-validation` retains 1800 seconds. A fresh frozen qualification at
+commit `dbbc277` started on 2026-11-01 and completed on 2026-11-02 under parent
+run `temporal-full-post-oracle-pord-12c-20261101`: all 792 cases passed with no
+timeouts, and the analyzer accepted all 99 temporal series. This qualifies the
+declared full profile and supersedes only the current status, not the historical
+failure artifacts above.
 
 The complete strong and weak cluster matrices are configuration artifacts
 until they are run on a declared allocation and pass both field and statistical
