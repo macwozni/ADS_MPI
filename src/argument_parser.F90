@@ -389,11 +389,7 @@ logical function IsIntegerToken(input) result(valid)
       if (token(i:i) == "+" .OR. token(i:i) == "-") i = i + 1
       if (i > token_length) return
 
-      do while (i <= token_length)
-         if (token(i:i) < "0" .OR. token(i:i) > "9") return
-         i = i + 1
-      end do
-      valid = .TRUE.
+      valid = verify(token(i:token_length), "0123456789") == 0
 
 end function IsIntegerToken
 
@@ -411,7 +407,7 @@ logical function IsRealToken(input) result(valid)
       implicit none
       character(*), intent(in) :: input
       character(len = len(input)) :: token
-      integer(kind = 4) :: digits, i, token_length
+      integer(kind = 4) :: decimal_position, exponent_position, i, token_length
 
       token = adjustl(input)
       token_length = len_trim(token)
@@ -422,43 +418,25 @@ logical function IsRealToken(input) result(valid)
       if (token(i:i) == "+" .OR. token(i:i) == "-") i = i + 1
       if (i > token_length) return
 
-      digits = 0
-      do while (i <= token_length)
-         if (token(i:i) < "0" .OR. token(i:i) > "9") exit
-         digits = digits + 1
-         i = i + 1
-      end do
-
-      if (i <= token_length) then
-         if (token(i:i) == ".") then
-            i = i + 1
-            do while (i <= token_length)
-               if (token(i:i) < "0" .OR. token(i:i) > "9") exit
-               digits = digits + 1
-               i = i + 1
-            end do
-         end if
+      exponent_position = scan(token(i:token_length), "eEdD")
+      if (exponent_position > 0) then
+         exponent_position = exponent_position + i - 1
+         if (exponent_position == i .OR. exponent_position == token_length) return
+         if (verify(token(exponent_position + 1:token_length), "+-0123456789") /= 0) return
+         if (.NOT. IsIntegerToken(token(exponent_position + 1:token_length))) return
+         token_length = exponent_position - 1
       end if
-      if (digits == 0) return
 
-      if (i <= token_length) then
-         if (token(i:i) == "e" .OR. token(i:i) == "E" .OR. &
-             token(i:i) == "d" .OR. token(i:i) == "D") then
-            i = i + 1
-            if (i <= token_length) then
-               if (token(i:i) == "+" .OR. token(i:i) == "-") i = i + 1
-            end if
-            digits = 0
-            do while (i <= token_length)
-               if (token(i:i) < "0" .OR. token(i:i) > "9") exit
-               digits = digits + 1
-               i = i + 1
-            end do
-            if (digits == 0) return
+      decimal_position = scan(token(i:token_length), ".")
+      if (decimal_position > 0) then
+         decimal_position = decimal_position + i - 1
+         if (token_length == i) return
+         if (decimal_position < token_length) then
+            if (scan(token(decimal_position + 1:token_length), ".") > 0) return
          end if
       end if
 
-      valid = i > token_length
+      valid = verify(token(i:token_length), "0123456789.") == 0
 
 end function IsRealToken
 
