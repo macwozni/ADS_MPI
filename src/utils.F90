@@ -220,7 +220,6 @@ subroutine ComputeL2Norm(ads, part, norm, exact_fun)
    call MPI_Bcast(norm_sq, 1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
    norm = sqrt(max(norm_sq, 0.d0))
 
-   if (allocated(coeffs)) deallocate(coeffs)
 
 end subroutine ComputeL2Norm
 
