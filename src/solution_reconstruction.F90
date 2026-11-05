@@ -86,9 +86,7 @@ subroutine FormUn(subun, ads, ads_data)
 #ifdef IDEBUG
    use parallelism, ONLY: PRINTRANK
 #endif
-   use Interfaces, ONLY: forcing_fun
    use ISO_FORTRAN_ENV, ONLY: ERROR_UNIT ! access computing environment
-   use omp_lib
    implicit none
 !> @brief Selector of the solution buffer to be updated.
    integer(kind=4), intent(in) :: subun
@@ -200,11 +198,9 @@ subroutine FormUn(subun, ads, ads_data)
                      else if (subun .EQ. 2) then
                         ads_data%Un13(statex, statey, statez, kx, ky, kz) = Uval
                         ads_data%dUn13(statex, statey, statez, kx, ky, kz, :) = (/dux, duy, duz/)
-                     else if (subun .EQ. 3) then
+                     else
                         ads_data%Un23(statex, statey, statez, kx, ky, kz) = Uval
                         ads_data%dUn23(statex, statey, statez, kx, ky, kz, :) = (/dux, duy, duz/)
-                     else
-                        write (ERROR_UNIT, *) "wrong substep"
                      end if
                   end do
                end do
