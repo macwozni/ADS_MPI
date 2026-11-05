@@ -370,7 +370,6 @@ subroutine CreateCommunicators(mierr)
    write (*, *) PRINTRANK, 'COMMX(Y,Z)', COMMX, COMMY, COMMZ
 #endif
 
-   mierr = MPI_SUCCESS
 
 end subroutine CreateCommunicators
 
