@@ -423,7 +423,6 @@ subroutine AllocateADSdata(ads_test, ads_trial, ads_data, mierr)
       integer(kind=4), intent(out), optional :: mierr
       integer :: ierr
       integer(kind=4), dimension(3) :: state_ng
-      integer(kind=4), dimension(3) :: send_extent, recv_extent
       integer(kind=4), dimension(12) :: local_boxes
       integer(kind=4), allocatable, dimension(:, :) :: all_boxes
       integer(kind=4) :: peer, total_send, total_recv
@@ -493,15 +492,13 @@ subroutine AllocateADSdata(ads_test, ads_trial, ads_data, mierr)
       do peer = 1, NRPROC
             ads_data%halo_send_begin(:, peer) = max(local_boxes(1:3), all_boxes(7:9, peer))
             ads_data%halo_send_end(:, peer) = min(local_boxes(4:6), all_boxes(10:12, peer))
-            send_extent = max(ads_data%halo_send_end(:, peer) - &
-                              ads_data%halo_send_begin(:, peer) + 1, 0)
-            ads_data%halo_send_count(peer) = product(send_extent)
+            ads_data%halo_send_count(peer) = product(max(ads_data%halo_send_end(:, peer) - &
+                                                         ads_data%halo_send_begin(:, peer) + 1, 0))
 
             ads_data%halo_recv_begin(:, peer) = max(all_boxes(1:3, peer), local_boxes(7:9))
             ads_data%halo_recv_end(:, peer) = min(all_boxes(4:6, peer), local_boxes(10:12))
-            recv_extent = max(ads_data%halo_recv_end(:, peer) - &
-                              ads_data%halo_recv_begin(:, peer) + 1, 0)
-            ads_data%halo_recv_count(peer) = product(recv_extent)
+            ads_data%halo_recv_count(peer) = product(max(ads_data%halo_recv_end(:, peer) - &
+                                                         ads_data%halo_recv_begin(:, peer) + 1, 0))
       end do
 
       ads_data%halo_send_displ(1) = 0
