@@ -750,11 +750,7 @@ subroutine ForwardEuler3DStep(iter, RHS_fun, ads, ads_data, mierr, RHS_point)
 !> @brief Returned status code.
       integer(kind=4), intent(out) :: mierr
 
-      if (present(RHS_point)) then
-            call Step(iter, RHS_fun, ads, ads_data, mierr, RHS_point)
-      else
-            call Step(iter, RHS_fun, ads, ads_data, mierr)
-      end if
+      call Step(iter, RHS_fun, ads, ads_data, mierr, RHS_point)
 
 end subroutine ForwardEuler3DStep
 
@@ -828,13 +824,8 @@ subroutine RunConfigured3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_d
 !> @brief Returned status code.
       integer(kind=4), intent(out) :: mierr
 
-      if (present(RHS_point)) then
-            call MultiStep(iter, scheme%mix, RHS_fun, ads_test, ads_trial, ads_data, n, scheme%alpha_step, &
-                           mierr, RHS_point, scheme%lhs_mix, scheme%rhs_du_state)
-      else
-            call MultiStep(iter, scheme%mix, RHS_fun, ads_test, ads_trial, ads_data, n, scheme%alpha_step, &
-                           mierr, lhs_mix=scheme%lhs_mix, rhs_du_state=scheme%rhs_du_state)
-      end if
+      call MultiStep(iter, scheme%mix, RHS_fun, ads_test, ads_trial, ads_data, n, scheme%alpha_step, &
+                     mierr, RHS_point, scheme%lhs_mix, scheme%rhs_du_state)
 
 end subroutine RunConfigured3DStep
 
@@ -903,12 +894,8 @@ subroutine DouglasGunn3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_dat
 !> @brief Returned status code.
       integer(kind=4), intent(out) :: mierr
 
-      if (present(RHS_point)) then
-            call RunConfigured3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, &
-                                     RHS_point)
-      else
-            call RunConfigured3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr)
-      end if
+      call RunConfigured3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, &
+                               RHS_point)
 
 end subroutine DouglasGunn3DStep
 
@@ -977,12 +964,8 @@ subroutine PeacemanRachford3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ad
 !> @brief Returned status code.
       integer(kind=4), intent(out) :: mierr
 
-      if (present(RHS_point)) then
-            call RunConfigured3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, &
-                                     RHS_point)
-      else
-            call RunConfigured3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr)
-      end if
+      call RunConfigured3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, &
+                               RHS_point)
 
 end subroutine PeacemanRachford3DStep
 
@@ -1051,12 +1034,8 @@ subroutine BackwardEuler3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_d
 !> @brief Returned status code.
       integer(kind=4), intent(out) :: mierr
 
-      if (present(RHS_point)) then
-            call RunConfigured3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, &
-                                     RHS_point)
-      else
-            call RunConfigured3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr)
-      end if
+      call RunConfigured3DStep(scheme, iter, RHS_fun, ads_test, ads_trial, ads_data, n, mierr, &
+                               RHS_point)
 
 end subroutine BackwardEuler3DStep
 
