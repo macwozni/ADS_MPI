@@ -223,6 +223,9 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
                (ey - ads%mine(2)))*lnelem(3) + &
                (ez - ads%mine(3)) + 1
             elarr = 0.d0
+            statex = ex - ads_data%state_mine(1) + 1
+            statey = ey - ads_data%state_mine(2) + 1
+            statez = ez - ads_data%state_mine(3) + 1
 ! loop over quadrature points
             do kx = 1, ads%ng(dira)
                do ky = 1, ads%ng(dirb)
@@ -232,13 +235,14 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
                      k(dirc) = kz
 ! weigths
                      W = ads%Wx(k(1))*ads%Wy(k(2))*ads%Wz(k(3))
-                     statex = ex - ads_data%state_mine(1) + 1
-                     statey = ey - ads_data%state_mine(2) + 1
-                     statez = ez - ads_data%state_mine(3) + 1
                      Uval = ads_data%Un(statex, statey, statez, k(1), k(2), k(3))
                      Uval13 = ads_data%Un13(statex, statey, statez, k(1), k(2), k(3))
                      Uval23 = ads_data%Un23(statex, statey, statez, k(1), k(2), k(3))
                      du = ads_data%dUn(statex, statey, statez, k(1), k(2), k(3), :)
+
+                     X(1) = ads%Xx(k(1), ex)
+                     X(2) = ads%Xy(k(2), ey)
+                     X(3) = ads%Xz(k(3), ez)
 
 !                 loop over degrees of freedom
                      do ax = 0, ads%p(dira)
@@ -259,34 +263,28 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
 
                               if ((indb(1) < ads%ibeg(1) - 1) .or. (indb(1) > ads%iend(1) - 1) .or. &
                                  (indb(2) < ads%ibeg(2) - 1) .or. (indb(2) > ads%iend(2) - 1) .or. &
-                                 (indb(3) < ads%ibeg(3) - 1) .or. (indb(3) > ads%iend(3) - 1)) then
-                              else
-                                 ind1 = indb(dira) - ads%ibeg(dira) + 1
-                                 ind23 = (indb(dirb) - ads%ibeg(dirb) + 1) + &
-                                    (indb(dirc) - ads%ibeg(dirc) + 1)*(ads%iend(dirb) - ads%ibeg(dirb) + 1)
+                                 (indb(3) < ads%ibeg(3) - 1) .or. (indb(3) > ads%iend(3) - 1)) cycle
+                              ind1 = indb(dira) - ads%ibeg(dira) + 1
+                              ind23 = (indb(dirb) - ads%ibeg(dirb) + 1) + &
+                                 (indb(dirc) - ads%ibeg(dirc) + 1)*(ads%iend(dirb) - ads%ibeg(dirb) + 1)
 
-                                 X(1) = ads%Xx(k(1), ex)
-                                 X(2) = ads%Xy(k(2), ey)
-                                 X(3) = ads%Xz(k(3), ez)
+                              call active_rhs_point( &
+                                 ads, &
+                                 X, &
+                                 k, &
+                                 e, &
+                                 a, &
+                                 du, &
+                                 n, &
+                                 Uval, &
+                                 Uval13, &
+                                 Uval23, &
+                                 ads_data, J, W, direction, substep, &
+                                 alpha_step, &
+                                 forcing, &
+                                 resvalue)
 
-                                 call active_rhs_point( &
-                                    ads, &
-                                    X, &
-                                    k, &
-                                    e, &
-                                    a, &
-                                    du, &
-                                    n, &
-                                    Uval, &
-                                    Uval13, &
-                                    Uval23, &
-                                    ads_data, J, W, direction, substep, &
-                                    alpha_step, &
-                                    forcing, &
-                                    resvalue)
-
-                                 elarr(ax, ay, az) = elarr(ax, ay, az) + resvalue
-                              end if
+                              elarr(ax, ay, az) = elarr(ax, ay, az) + resvalue
                            end do
                         end do
                      end do
@@ -328,22 +326,20 @@ subroutine Form3DRHS(ads_test, ads_trial, ads_data, direction, n, substep, &
 
                      if ((indb(1) < ads%ibeg(1) - 1) .or. (indb(1) > ads%iend(1) - 1) .or. &
                         (indb(2) < ads%ibeg(2) - 1) .or. (indb(2) > ads%iend(2) - 1) .or. &
-                        (indb(3) < ads%ibeg(3) - 1) .or. (indb(3) > ads%iend(3) - 1)) then
-                     else
-                        ind1 = indb(dira) - ads%ibeg(dira) + 1
-                        ind23 = (indb(dirb) - ads%ibeg(dirb) + 1) + &
-                           (indb(dirc) - ads%ibeg(dirc) + 1)*(ads%iend(dirb) - ads%ibeg(dirb) + 1)
-                        ldof = ax + (ads%p(dira) + 1)*(ay + (ads%p(dirb) + 1)*az) + 1
+                        (indb(3) < ads%ibeg(3) - 1) .or. (indb(3) > ads%iend(3) - 1)) cycle
+                     ind1 = indb(dira) - ads%ibeg(dira) + 1
+                     ind23 = (indb(dirb) - ads%ibeg(dirb) + 1) + &
+                        (indb(dirc) - ads%ibeg(dirc) + 1)*(ads%iend(dirb) - ads%ibeg(dirb) + 1)
+                     ldof = ax + (ads%p(dira) + 1)*(ay + (ads%p(dirb) + 1)*az) + 1
 
-                        if (igrm) then
-                           ads_data%Ft(ind1 + 1, ind23 + 1) = &
-                              ads_data%Ft(ind1 + 1, ind23 + 1) &
-                              + element_rhs(ldof, elidx)
-                        else
-                           ads_data%F(ind1 + 1, ind23 + 1) = &
-                              ads_data%F(ind1 + 1, ind23 + 1) &
-                              + element_rhs(ldof, elidx)
-                        end if
+                     if (igrm) then
+                        ads_data%Ft(ind1 + 1, ind23 + 1) = &
+                           ads_data%Ft(ind1 + 1, ind23 + 1) &
+                           + element_rhs(ldof, elidx)
+                     else
+                        ads_data%F(ind1 + 1, ind23 + 1) = &
+                           ads_data%F(ind1 + 1, ind23 + 1) &
+                           + element_rhs(ldof, elidx)
                      end if
                   end do
                end do
