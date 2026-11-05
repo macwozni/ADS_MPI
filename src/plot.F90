@@ -66,6 +66,16 @@ module plot
       integer(kind=4) :: resx, resy, resz
    end type PlotParams
 
+   abstract interface
+      subroutine output_callback(filename, vals, params)
+         import PlotParams
+         character(len=*), intent(in) :: filename
+         type(PlotParams), intent(in) :: params
+         real(kind=8), intent(in) :: vals(params%resx, params%resy, params%resz)
+      end subroutine output_callback
+   end interface
+   private :: output_callback
+
 contains
 
 !---------------------------------------------------------------------------
@@ -119,14 +129,8 @@ subroutine SavePlot(filename, f, output, params)
       function f(x, y, z) result(val)
          real(kind=8) :: x, y, z, val
       end function
-
-      subroutine output(filename, vals, params)
-         import PlotParams
-         character(len=*), intent(in) :: filename
-         type(PlotParams), intent(in) :: params
-         real(kind=8), intent(in) :: vals(params%resx, params%resy, params%resz)
-      end subroutine
    end interface
+   procedure(output_callback) :: output
 
 !> @brief Base filename or filename pattern passed to the output backend.
    character(len=*), intent(in) :: filename
@@ -262,14 +266,7 @@ subroutine SaveSplinePlot(filename, &
                            coeffs, output, params)
    use math, ONLY: lerp
    use basis, ONLY: EvalSpline
-   interface
-      subroutine output(filename, vals, params)
-         import PlotParams
-         character(len=*), intent(in) :: filename
-         type(PlotParams), intent(in) :: params
-         real(kind=8), intent(in) :: vals(params%resx, params%resy, params%resz)
-      end subroutine
-   end interface
+   procedure(output_callback) :: output
 
 !> @brief Base filename or filename pattern passed to the output backend.
    character(len=*), intent(in) :: filename
@@ -387,14 +384,7 @@ subroutine SaveSplinePlotMPI(filename, &
    use basis, ONLY: EvalSpline
    use mpi
    implicit none
-   interface
-      subroutine output(filename, vals, params)
-         import PlotParams
-         character(len=*), intent(in) :: filename
-         type(PlotParams), intent(in) :: params
-         real(kind=8), intent(in) :: vals(params%resx, params%resy, params%resz)
-      end subroutine
-   end interface
+   procedure(output_callback) :: output
 
 !> @brief Base filename or filename pattern passed to the output backend.
    character(len=*), intent(in) :: filename
@@ -445,13 +435,8 @@ subroutine SaveSplinePlotMPI(filename, &
    base_count = total_points/nranks
    remainder = mod(total_points, nranks)
    do i = 0, nranks - 1
-      recvcounts(i) = base_count
-      if (i < remainder) recvcounts(i) = recvcounts(i) + 1
-      if (i == 0) then
-         displs(i) = 0
-      else
-         displs(i) = displs(i - 1) + recvcounts(i - 1)
-      end if
+      recvcounts(i) = base_count + merge(1, 0, i < remainder)
+      displs(i) = i*base_count + min(i, remainder)
    end do
 
    local_count = recvcounts(myrank)
@@ -500,21 +485,9 @@ subroutine SaveSplinePlotMPI(filename, &
 
    if (myrank == root) then
       allocate (vals(params%resx, params%resy, params%resz))
-      do global_idx = 0, total_points - 1
-         ix = mod(global_idx, params%resx) + 1
-         iy = mod(global_idx/params%resx, params%resy) + 1
-         iz = global_idx/(params%resx*params%resy) + 1
-         vals(ix, iy, iz) = gathered_vals(global_idx + 1)
-      end do
-
+      vals = reshape(gathered_vals, shape(vals))
       call output(filename, vals, params)
    end if
-
-   deallocate (recvcounts)
-   deallocate (displs)
-   deallocate (local_vals)
-   deallocate (gathered_vals)
-   if (allocated(vals)) deallocate (vals)
 
 end subroutine SaveSplinePlotMPI
 
