@@ -98,7 +98,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, p, sprsmtrx, ierr)
 !> @brief First MUMPS error code, or zero after a successful solve.
       integer(kind=4), intent(out), optional :: ierr
       integer(kind=4) :: i
-      integer(kind=4) :: phase_ierr, first_error, abort_ierr
+      integer(kind=4) :: first_error, abort_ierr
       logical :: mumps_instance_started
       type(dmumps_struc) :: mumps_par
 
@@ -118,8 +118,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, p, sprsmtrx, ierr)
       ! driver.  Its presence means that JOB=-2 is valid even when the
       ! initialization driver itself reported an error.
       mumps_instance_started = associated(mumps_par%intr_encoding)
-      call CheckMumpsStatus('initialization', phase_ierr)
-      call RecordFirstError(first_error, phase_ierr)
+      call CheckMumpsStatus('initialization', first_error)
       if (first_error /= 0) go to 900
 
       !  convert LHS and RHS to MUMPS format
@@ -166,22 +165,19 @@ subroutine SolveOneDirection(RHS, eqnum, n, p, sprsmtrx, ierr)
 !  start MUMPS
       mumps_par%job = 1
       call dmumps(mumps_par)
-      call CheckMumpsStatus('analysis', phase_ierr)
-      call RecordFirstError(first_error, phase_ierr)
+      call CheckMumpsStatus('analysis', first_error)
       if (first_error /= 0) go to 900
 
       mumps_par%job = 2
       call dmumps(mumps_par)
-      call CheckMumpsStatus('factorization', phase_ierr)
-      call RecordFirstError(first_error, phase_ierr)
+      call CheckMumpsStatus('factorization', first_error)
       if (first_error /= 0) go to 900
 
       do i = 1, eqnum
             mumps_par%rhs(1:n + 1) = rhs(1:n + 1, i)
             mumps_par%job = 3
             call dmumps(mumps_par)
-            call CheckMumpsStatus('solve', phase_ierr)
-            call RecordFirstError(first_error, phase_ierr)
+            call CheckMumpsStatus('solve', first_error)
             if (first_error /= 0) go to 900
             rhs(1:n + 1, i) = mumps_par%rhs(1:n + 1)
       end do
@@ -194,8 +190,7 @@ subroutine SolveOneDirection(RHS, eqnum, n, p, sprsmtrx, ierr)
       if (mumps_instance_started) then
             mumps_par%job = -2
             call dmumps(mumps_par)
-            call CheckMumpsStatus('finalization', phase_ierr)
-            call RecordFirstError(first_error, phase_ierr)
+            call CheckMumpsStatus('finalization', first_error)
       end if
 
       if (associated(mumps_par%irn)) deallocate (mumps_par%irn)
@@ -212,23 +207,22 @@ subroutine SolveOneDirection(RHS, eqnum, n, p, sprsmtrx, ierr)
 
 contains
 
-      subroutine CheckMumpsStatus(phase, status)
+      subroutine CheckMumpsStatus(phase, first_error)
             implicit none
             character(*), intent(in) :: phase
-            integer(kind=4), intent(out) :: status
+            integer(kind=4), intent(inout) :: first_error
 
-            status = 0
-            if (mumps_par%infog(1) < 0) then
-                  status = mumps_par%infog(1)
-            else if (mumps_par%info(1) < 0) then
-                  status = mumps_par%info(1)
-            end if
-
-            if (status /= 0) then
+            if (mumps_par%infog(1) < 0 .or. mumps_par%info(1) < 0) then
                   write (*, *) 'MUMPS failed during ', trim(phase)
                   write (*, *) 'mumps_par%job=', mumps_par%job
                   write (*, *) 'mumps_par%info(1:2)=', mumps_par%info(1:2)
                   write (*, *) 'mumps_par%infog(1:2)=', mumps_par%infog(1:2)
+            end if
+
+            if (mumps_par%infog(1) < 0) then
+                  call RecordFirstError(first_error, mumps_par%infog(1))
+            else if (mumps_par%info(1) < 0) then
+                  call RecordFirstError(first_error, mumps_par%info(1))
             end if
       end subroutine CheckMumpsStatus
 
