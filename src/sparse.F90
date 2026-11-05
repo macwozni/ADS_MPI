@@ -449,11 +449,7 @@ subroutine to_mumps_format(matrix, mumps_par)
    type(dmumps_struc), intent(inout) :: mumps_par
    integer(kind=8), allocatable :: row_offsets(:)
 
-   if (matrix%x > matrix%y) then
-      mumps_par%N = matrix%x
-   else
-      mumps_par%N = matrix%y
-   end if
+   mumps_par%N = max(matrix%x, matrix%y)
 
    mumps_par%NZ = matrix%total_entries
    call release_mumps_triplets(mumps_par)
@@ -464,7 +460,6 @@ subroutine to_mumps_format(matrix, mumps_par)
 
    call build_mumps_row_offsets(matrix, row_offsets)
    call fill_mumps_triplets(matrix, row_offsets, .false., mumps_par)
-   deallocate(row_offsets)
 end subroutine to_mumps_format
 
 !---------------------------------------------------------------------------
@@ -484,11 +479,7 @@ subroutine to_mumps_format_transposed(matrix, mumps_par)
    type(dmumps_struc), intent(inout) :: mumps_par
    integer(kind=8), allocatable :: row_offsets(:)
 
-   if (matrix%x > matrix%y) then
-      mumps_par%N = matrix%x
-   else
-      mumps_par%N = matrix%y
-   end if
+   mumps_par%N = max(matrix%x, matrix%y)
 
    mumps_par%NZ = matrix%total_entries
    call release_mumps_triplets(mumps_par)
@@ -499,7 +490,6 @@ subroutine to_mumps_format_transposed(matrix, mumps_par)
 
    call build_mumps_row_offsets(matrix, row_offsets)
    call fill_mumps_triplets(matrix, row_offsets, .true., mumps_par)
-   deallocate(row_offsets)
 end subroutine to_mumps_format_transposed
 
 end module sparse
