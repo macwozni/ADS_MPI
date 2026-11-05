@@ -116,7 +116,6 @@ contains
 !---------------------------------------------------------------------------
 subroutine MKBBT_large(nelem, U1, p1, n1, U2, p2, n2, mixA, mixB, mixBT, sprsmtrx)
    use basis, ONLY: BasisData
-   use omp_lib
    use sparse
    implicit none
    !> @brief Number of elements used during assembly.
@@ -338,7 +337,6 @@ end subroutine MKBBT_large
 !---------------------------------------------------------------------------
 subroutine MKBBT_small(nelem, U, p, n, mix, sprsmtrx)
    use basis, ONLY: BasisData
-   use omp_lib
    use sparse
    implicit none
 !> @brief Basis size minus one, polynomial degree, and number of elements.
