@@ -76,18 +76,17 @@ subroutine PrintSolution(iter, ads, part, mierr)
       real(kind=8), allocatable :: solution(:, :, :)
       type(PlotParams) :: params
       character(len=20) :: filename
-      integer(kind=4) :: coefficient_count, ierr
+      integer(kind=4) :: ierr
 
       if (present(mierr)) mierr = 0
 
       call GatherFullSolution(0, part, solution, &
                               ads%n, ads%p, ads%s)
 
-      coefficient_count = (ads%n(1) + 1)*(ads%n(2) + 1)*(ads%n(3) + 1)
       if (MYRANK /= 0) then
             allocate (solution(0:ads%n(1), 0:ads%n(2), 0:ads%n(3)))
       end if
-      call MPI_Bcast(solution, coefficient_count, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
+      call MPI_Bcast(solution, size(solution), MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
       if (ierr /= 0) then
             if (present(mierr)) mierr = ierr
             return
