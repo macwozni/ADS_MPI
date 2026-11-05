@@ -507,11 +507,8 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
             solve_mixB = TransposedCouplingMix(solve_mix(:, a))
       call solve_problem(ads_test, ads_trial, abc(1, 1), abc(2, 1), abc(3, 1), &
                         solve_mixA, solve_mixB, solve_mixBT, direction, igrm, &
-                        ads_data%F, ads_data%F2, ads_data%Ft, ads_data%Ft2, ierr)
-      if (ierr /= 0) then
-            mierr = ierr
-            return
-      end if
+                        ads_data%F, ads_data%F2, ads_data%Ft, ads_data%Ft2, mierr)
+      if (mierr /= 0) return
 
 !--------------------------------------------------------------------
 ! Solve the second problem
@@ -528,11 +525,8 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
             solve_mixB = TransposedCouplingMix(solve_mix(:, a))
       call solve_problem(ads_test, ads_trial, abc(1, 2), abc(2, 2), abc(3, 2), &
                         solve_mixA, solve_mixB, solve_mixBT, direction, igrm, &
-                        ads_data%F2, ads_data%F3, ads_data%Ft2, ads_data%Ft3, ierr)
-      if (ierr /= 0) then
-            mierr = ierr
-            return
-      end if
+                        ads_data%F2, ads_data%F3, ads_data%Ft2, ads_data%Ft3, mierr)
+      if (mierr /= 0) return
 
 !--------------------------------------------------------------------
 ! Solve the third problem
@@ -549,21 +543,15 @@ subroutine Sub_Step(ads_test, ads_trial, iter, mix, direction, substep, abc, &
             solve_mixB = TransposedCouplingMix(solve_mix(:, a))
       call solve_problem(ads_test, ads_trial, abc(1, 3), abc(2, 3), abc(3, 3), &
                         solve_mixA, solve_mixB, solve_mixBT, direction, igrm, &
-                        ads_data%F3, ads_data%F, ads_data%Ft3, ads_data%Ft, ierr)
-      if (ierr /= 0) then
-            mierr = ierr
-            return
-      end if
+                        ads_data%F3, ads_data%F, ads_data%Ft3, ads_data%Ft, mierr)
+      if (mierr /= 0) return
 
 #ifdef IINFO
       write (*, *) PRINTRANK, '3e) DISTRIBUTE SOLUTION'
 #endif
       call NormalizeTrialBufferToXYZ(ads_trial, abc(:, 1), ads_data%F)
-      call DistributeSpline(ads_data%F, ads_trial, ads_data, ierr)
-      if (ierr /= 0) then
-            mierr = ierr
-            return
-      end if
+      call DistributeSpline(ads_data%F, ads_trial, ads_data, mierr)
+      if (mierr /= 0) return
 
 #ifdef IPRINT
       write (*, *) PRINTRANK, 'Result:'
