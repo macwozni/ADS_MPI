@@ -105,21 +105,12 @@ subroutine VtkOutput(filename, vals, params)
    ! Format: "x1 x2 y1 y2 z1 z2"
    write (extent, '("0 ",(I5)," 0 ",(I5)," 0 ",(I5))') &
       params%resx - 1, params%resy - 1, params%resz - 1
-   if (params%resx > 1) then
-      hx = (params%endx - params%startx)/dble(params%resx - 1)
-   else
-      hx = 0.d0
-   end if
-   if (params%resy > 1) then
-      hy = (params%endy - params%starty)/dble(params%resy - 1)
-   else
-      hy = 0.d0
-   end if
-   if (params%resz > 1) then
-      hz = (params%endz - params%startz)/dble(params%resz - 1)
-   else
-      hz = 0.d0
-   end if
+   hx = 0.d0
+   hy = 0.d0
+   hz = 0.d0
+   if (params%resx > 1) hx = (params%endx - params%startx)/dble(params%resx - 1)
+   if (params%resy > 1) hy = (params%endy - params%starty)/dble(params%resy - 1)
+   if (params%resz > 1) hz = (params%endz - params%startz)/dble(params%resz - 1)
    write (origin, '(3(ES24.16,1X))') params%startx, params%starty, params%startz
    write (spacing, '(3(ES24.16,1X))') hx, hy, hz
 
